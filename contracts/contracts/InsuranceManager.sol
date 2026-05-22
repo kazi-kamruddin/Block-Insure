@@ -18,6 +18,19 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     // =============================================================
     // Structs
     // =============================================================
+    enum ClaimStatus {
+        SUBMITTED,
+        DUPLICATE_CHECKED,
+        FRAUD_FLAGGED,
+        ORACLE_PENDING,
+        ORACLE_VERIFIED,
+        ORACLE_FAILED,
+        MANUAL_REVIEW,
+        APPROVED,
+        REJECTED,
+        SETTLED,
+        CLOSED
+    }    
 
     struct PolicyPackage {
         uint256 packageId;
@@ -41,6 +54,29 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         bool isActive;
     }
 
+    struct Claim {
+        uint256 claimId;
+        uint256 policyId;
+        address claimantWallet;
+        uint256 claimAmount;
+        uint256 incidentDate;
+        string claimType;
+        string hospitalId;
+        bytes32 invoiceHash;
+        bytes32 documentHash;
+        string documentCID;
+        ClaimStatus status;
+        uint256 riskScore;
+        uint256 submittedAt;
+    }
+
+    struct ClaimDocument {
+        bytes32 documentHash;
+        string documentCID;
+        uint256 uploadedAt;
+        string documentType;
+    }
+
     // =============================================================
     // Storage
     // =============================================================
@@ -54,6 +90,16 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     uint256[] private packageIds;
 
     mapping(address => uint256[]) private policiesByWallet;
+
+    uint256 public claimCounter = 1;
+
+    mapping(uint256 => Claim) private claims;
+    mapping(uint256 => ClaimDocument[]) private claimDocuments;
+    mapping(address => uint256[]) private claimsByWallet;
+
+    mapping(bytes32 => bool) private usedDocumentHashes;
+    mapping(bytes32 => bool) private usedInvoiceHashes;
+    mapping(address => mapping(uint256 => mapping(bytes32 => bool))) private userDateClaimTypeUsed;
 
     // =============================================================
     // Events
@@ -86,6 +132,24 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         address indexed holderWallet,
         uint256 coverageAmount,
         uint256 endDate
+    );
+
+    event ClaimSubmitted(
+        uint256 indexed claimId,
+        uint256 indexed policyId,
+        address indexed claimantWallet,
+        uint256 claimAmount
+    );
+
+    event DocumentAdded(
+        uint256 indexed claimId,
+        bytes32 documentHash,
+        string documentCID
+    );
+
+    event ClaimFlagged(
+        uint256 indexed claimId,
+        string reason
     );
 
     // =============================================================
@@ -319,6 +383,140 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     receive() external payable {}
 
     // =============================================================
+    // Phase 5,6: Claim Submission System & fraud detection
+    // =============================================================
+
+    function submitClaim(
+        uint256 policyId,
+        uint256 claimAmount,
+        uint256 incidentDate,
+        string memory claimType,
+        string memory hospitalId,
+        bytes32 invoiceHash,
+        bytes32 documentHash,
+        string memory documentCID
+    ) external whenNotPaused returns (uint256) {
+        require(_policyExists(policyId), "Policy does not exist");
+
+        Policy memory selectedPolicy = policies[policyId];
+
+        require(selectedPolicy.holderWallet == msg.sender, "Caller is not policy holder");
+        require(isPolicyActive(policyId), "Policy is not active");
+        require(incidentDate >= selectedPolicy.startDate && incidentDate <= selectedPolicy.endDate, "Incident date outside policy period");
+        require(incidentDate <= block.timestamp, "Incident date cannot be in the future");
+        require(claimAmount > 0, "Claim amount must be greater than zero");
+        require(claimAmount <= selectedPolicy.coverageAmount, "Claim amount exceeds coverage");
+        require(bytes(claimType).length > 0, "Claim type required");
+        require(bytes(hospitalId).length > 0, "Hospital ID required");
+        require(invoiceHash != bytes32(0), "Invoice hash required");
+        require(documentHash != bytes32(0), "Document hash required");
+        require(bytes(documentCID).length > 0, "Document CID required");
+
+        uint256 newClaimId = claimCounter;
+        bytes32 claimTypeHash = keccak256(bytes(claimType));
+
+        bool duplicateDocument = usedDocumentHashes[documentHash];
+        bool duplicateInvoice = usedInvoiceHashes[invoiceHash];
+        bool duplicateUserDateType = userDateClaimTypeUsed[msg.sender][incidentDate][claimTypeHash];
+
+        bool isFraud = duplicateDocument || duplicateInvoice || duplicateUserDateType;
+
+        claims[newClaimId] = Claim({
+            claimId: newClaimId,
+            policyId: policyId,
+            claimantWallet: msg.sender,
+            claimAmount: claimAmount,
+            incidentDate: incidentDate,
+            claimType: claimType,
+            hospitalId: hospitalId,
+            invoiceHash: invoiceHash,
+            documentHash: documentHash,
+            documentCID: documentCID,
+            status: ClaimStatus.SUBMITTED,
+            riskScore: 0,
+            submittedAt: block.timestamp
+        });
+
+        claimDocuments[newClaimId].push(
+            ClaimDocument({
+                documentHash: documentHash,
+                documentCID: documentCID,
+                uploadedAt: block.timestamp,
+                documentType: policyPackages[selectedPolicy.packageId].requiredDocumentType
+            })
+        );
+
+        claimsByWallet[msg.sender].push(newClaimId);
+
+        emit ClaimSubmitted(
+            newClaimId,
+            policyId,
+            msg.sender,
+            claimAmount
+        );
+
+        emit DocumentAdded(
+            newClaimId,
+            documentHash,
+            documentCID
+        );
+
+        if (isFraud) {
+            claims[newClaimId].status = ClaimStatus.FRAUD_FLAGGED;
+
+            string memory reason = "Duplicate claim detected";
+
+            if (duplicateDocument) {
+                reason = "Duplicate document hash";
+            } else if (duplicateInvoice) {
+                reason = "Duplicate invoice hash";
+            } else if (duplicateUserDateType) {
+                reason = "Duplicate user date claim type";
+            }
+
+            claimCounter++;
+
+            emit ClaimFlagged(newClaimId, reason);
+
+            return newClaimId;
+        }
+
+        usedDocumentHashes[documentHash] = true;
+        usedInvoiceHashes[invoiceHash] = true;
+        userDateClaimTypeUsed[msg.sender][incidentDate][claimTypeHash] = true;
+
+        claims[newClaimId].status = ClaimStatus.DUPLICATE_CHECKED;
+
+        claimCounter++;
+
+        return newClaimId;
+    }
+
+    function getClaim(uint256 claimId) external view returns (Claim memory) {
+        require(_claimExists(claimId), "Claim does not exist");
+        return claims[claimId];
+    }
+
+    function getClaimDocuments(uint256 claimId) external view returns (ClaimDocument[] memory) {
+        require(_claimExists(claimId), "Claim does not exist");
+        return claimDocuments[claimId];
+    }
+
+    function getClaimsByWallet(address wallet) external view returns (uint256[] memory) {
+        return claimsByWallet[wallet];
+    }
+
+    function getClaimStatus(uint256 claimId) external view returns (ClaimStatus) {
+        require(_claimExists(claimId), "Claim does not exist");
+        return claims[claimId].status;
+    }
+
+    function isFraudFlagged(uint256 claimId) external view returns (bool) {
+        require(_claimExists(claimId), "Claim does not exist");
+        return claims[claimId].status == ClaimStatus.FRAUD_FLAGGED;
+    }
+
+    // =============================================================
     // Internal Helpers
     // =============================================================
 
@@ -328,5 +526,9 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     function _policyExists(uint256 policyId) internal view returns (bool) {
         return policies[policyId].policyId != 0;
+    }
+
+    function _claimExists(uint256 claimId) internal view returns (bool) {
+        return claims[claimId].claimId != 0;
     }
 }
