@@ -77,6 +77,19 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         string documentType;
     }
 
+    struct OracleRequest {
+        uint256 requestId;
+        uint256 claimId;
+        string oracleType;
+        bytes32 queryHash;
+        uint256 requestedAt;
+        bool isFulfilled;
+        bool verifiedResult;
+        bytes32 resultHash;
+        string riskLevel;
+        string remarks;
+    }
+
     // =============================================================
     // Storage
     // =============================================================
@@ -100,6 +113,11 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(bytes32 => bool) private usedDocumentHashes;
     mapping(bytes32 => bool) private usedInvoiceHashes;
     mapping(address => mapping(uint256 => mapping(bytes32 => bool))) private userDateClaimTypeUsed;
+
+    uint256 public oracleRequestCounter = 1;
+
+    mapping(uint256 => OracleRequest) private oracleRequests;
+    mapping(uint256 => uint256) private oracleRequestByClaimId;
 
     // =============================================================
     // Events
@@ -150,6 +168,19 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     event ClaimFlagged(
         uint256 indexed claimId,
         string reason
+    );
+
+    event OracleRequested(
+        uint256 indexed requestId,
+        uint256 indexed claimId,
+        string oracleType
+    );
+
+    event OracleResultSubmitted(
+        uint256 indexed requestId,
+        uint256 indexed claimId,
+        bool verified,
+        string riskLevel
     );
 
     // =============================================================
@@ -481,10 +512,13 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             return newClaimId;
         }
 
+        uint256 calculatedRiskScore = calculateRiskScore(newClaimId);
+
         usedDocumentHashes[documentHash] = true;
         usedInvoiceHashes[invoiceHash] = true;
         userDateClaimTypeUsed[msg.sender][incidentDate][claimTypeHash] = true;
 
+        claims[newClaimId].riskScore = calculatedRiskScore;
         claims[newClaimId].status = ClaimStatus.DUPLICATE_CHECKED;
 
         claimCounter++;
@@ -517,6 +551,210 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     }
 
     // =============================================================
+    // Phase 7: Risk Score Logic
+    // =============================================================
+
+    function calculateRiskScore(uint256 claimId) internal view returns (uint256) {
+        Claim memory selectedClaim = claims[claimId];
+        Policy memory selectedPolicy = policies[selectedClaim.policyId];
+
+        uint256 score = 0;
+
+        if (selectedPolicy.isActive && block.timestamp <= selectedPolicy.endDate) {
+            score += 15;
+        }
+
+        if (
+            selectedClaim.incidentDate >= selectedPolicy.startDate &&
+            selectedClaim.incidentDate <= selectedPolicy.endDate
+        ) {
+            score += 15;
+        }
+
+        if (
+            selectedClaim.claimAmount > 0 &&
+            selectedClaim.claimAmount <= selectedPolicy.coverageAmount
+        ) {
+            score += 15;
+        }
+
+        if (
+            selectedClaim.documentHash != bytes32(0) &&
+            bytes(selectedClaim.documentCID).length > 0
+        ) {
+            score += 15;
+        }
+
+        if (!usedDocumentHashes[selectedClaim.documentHash]) {
+            score += 10;
+        }
+
+        if (!usedInvoiceHashes[selectedClaim.invoiceHash]) {
+            score += 10;
+        }
+
+        bytes32 claimTypeHash = keccak256(bytes(selectedClaim.claimType));
+
+        if (
+            !userDateClaimTypeUsed[
+                selectedClaim.claimantWallet
+            ][
+                selectedClaim.incidentDate
+            ][
+                claimTypeHash
+            ]
+        ) {
+            score += 10;
+        }
+
+        return _capRiskScore(score);
+    }
+
+    function getRiskScore(uint256 claimId) external view returns (uint256) {
+        require(_claimExists(claimId), "Claim does not exist");
+        return claims[claimId].riskScore;
+    }
+
+    function getRiskLevel(uint256 claimId) external view returns (string memory) {
+        require(_claimExists(claimId), "Claim does not exist");
+
+        if (claims[claimId].status == ClaimStatus.FRAUD_FLAGGED) {
+            return "FRAUD_FLAGGED";
+        }
+
+        uint256 score = claims[claimId].riskScore;
+
+        if (score >= 80) {
+            return "LOW";
+        }
+
+        if (score >= 50) {
+            return "MEDIUM";
+        }
+
+        return "HIGH";
+    }
+
+    function _addOracleVerificationScore(uint256 claimId) internal {
+        claims[claimId].riskScore = _capRiskScore(claims[claimId].riskScore + 25);
+    }
+
+    function _capRiskScore(uint256 score) internal pure returns (uint256) {
+        if (score > 100) {
+            return 100;
+        }
+
+        return score;
+    }
+
+    // =============================================================
+    // Phase 8: Oracle Contract Logic
+    // =============================================================
+
+    function requestOracleVerification(uint256 claimId) external returns (uint256) {
+        require(
+            hasRole(ADMIN_ROLE, msg.sender) || hasRole(CLAIM_OFFICER_ROLE, msg.sender),
+            "Caller is not admin or claim officer"
+        );
+
+        require(_claimExists(claimId), "Claim does not exist");
+        require(claims[claimId].status == ClaimStatus.DUPLICATE_CHECKED, "Claim is not ready for oracle");
+        require(oracleRequestByClaimId[claimId] == 0, "Oracle request already exists");
+
+        Claim memory selectedClaim = claims[claimId];
+
+        string memory oracleType = "HOSPITAL";
+
+        bytes32 queryHash = keccak256(
+            abi.encodePacked(
+                selectedClaim.claimId,
+                selectedClaim.policyId,
+                selectedClaim.claimantWallet,
+                selectedClaim.hospitalId,
+                selectedClaim.invoiceHash,
+                selectedClaim.documentHash
+            )
+        );
+
+        uint256 newRequestId = oracleRequestCounter;
+
+        oracleRequests[newRequestId] = OracleRequest({
+            requestId: newRequestId,
+            claimId: claimId,
+            oracleType: oracleType,
+            queryHash: queryHash,
+            requestedAt: block.timestamp,
+            isFulfilled: false,
+            verifiedResult: false,
+            resultHash: bytes32(0),
+            riskLevel: "",
+            remarks: ""
+        });
+
+        oracleRequestByClaimId[claimId] = newRequestId;
+        oracleRequestCounter++;
+
+        claims[claimId].status = ClaimStatus.ORACLE_PENDING;
+
+        emit OracleRequested(newRequestId, claimId, oracleType);
+
+        return newRequestId;
+    }
+
+    function submitOracleResult(
+        uint256 requestId,
+        bool verified,
+        bytes32 resultHash,
+        string memory riskLevel,
+        string memory remarks
+    ) external onlyRole(ORACLE_ROLE) {
+        require(_oracleRequestExists(requestId), "Oracle request does not exist");
+        require(!oracleRequests[requestId].isFulfilled, "Oracle request already fulfilled");
+        require(resultHash != bytes32(0), "Result hash required");
+        require(bytes(riskLevel).length > 0, "Risk level required");
+        require(bytes(remarks).length > 0, "Remarks required");
+
+        OracleRequest storage requestData = oracleRequests[requestId];
+
+        requestData.isFulfilled = true;
+        requestData.verifiedResult = verified;
+        requestData.resultHash = resultHash;
+        requestData.riskLevel = riskLevel;
+        requestData.remarks = remarks;
+
+        uint256 claimId = requestData.claimId;
+
+        if (verified) {
+            claims[claimId].status = ClaimStatus.ORACLE_VERIFIED;
+            _addOracleVerificationScore(claimId);
+        } else {
+            claims[claimId].status = ClaimStatus.ORACLE_FAILED;
+        }
+
+        emit OracleResultSubmitted(
+            requestId,
+            claimId,
+            verified,
+            riskLevel
+        );
+    }
+
+    function getOracleRequest(uint256 requestId) external view returns (OracleRequest memory) {
+        require(_oracleRequestExists(requestId), "Oracle request does not exist");
+        return oracleRequests[requestId];
+    }
+
+    function getOracleRequestByClaimId(uint256 claimId) external view returns (OracleRequest memory) {
+        require(_claimExists(claimId), "Claim does not exist");
+
+        uint256 requestId = oracleRequestByClaimId[claimId];
+
+        require(requestId != 0, "Oracle request does not exist");
+
+        return oracleRequests[requestId];
+    }
+
+    // =============================================================
     // Internal Helpers
     // =============================================================
 
@@ -531,4 +769,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     function _claimExists(uint256 claimId) internal view returns (bool) {
         return claims[claimId].claimId != 0;
     }
+
+    function _oracleRequestExists(uint256 requestId) internal view returns (bool) {
+        return oracleRequests[requestId].requestId != 0;
+    }
+
+    
 }
