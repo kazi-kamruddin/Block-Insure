@@ -120,4 +120,30 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
     await expect(insuranceManager.getRiskLevel(999))
       .to.be.revertedWith("Claim does not exist");
   });
+
+  it("Oracle-failed claim risk level returns ORACLE_FAILED", async function () {
+    const { insuranceManager, user, policy, admin } = await deployFixture();
+  
+    const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
+
+    await insuranceManager.grantProjectRole(ORACLE_ROLE, admin.address);
+
+    await submitClaim({ insuranceManager, user, policy });
+
+    await insuranceManager.requestOracleVerification(1);
+
+    await insuranceManager.submitOracleResult(
+      1,
+      false,
+      hashText("failed-oracle-risk-response"),
+      "HIGH",
+      "Oracle verification failed"
+    );
+
+    const claim = await insuranceManager.getClaim(1);
+
+    expect(claim.status).to.equal(5); // ORACLE_FAILED
+    expect(claim.riskScore).to.equal(90);
+    expect(await insuranceManager.getRiskLevel(1)).to.equal("ORACLE_FAILED");
+  });
 });

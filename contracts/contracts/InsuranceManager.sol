@@ -96,6 +96,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     uint256 public packageCounter = 1;
     uint256 public policyCounter = 1;
+    uint256 private adminRoleMemberCount = 1;
 
     mapping(uint256 => PolicyPackage) private policyPackages;
     mapping(uint256 => Policy) private policies;
@@ -197,11 +198,54 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     // =============================================================
 
     function grantProjectRole(bytes32 role, address account) external onlyRole(ADMIN_ROLE) {
-        grantRole(role, account);
+        _grantProjectRoleInternal(role, account);
     }
 
     function revokeProjectRole(bytes32 role, address account) external onlyRole(ADMIN_ROLE) {
-        revokeRole(role, account);
+        _revokeProjectRoleInternal(role, account);
+    }
+
+    function grantRole(bytes32 role, address account) public override onlyRole(ADMIN_ROLE) {
+        _grantProjectRoleInternal(role, account);
+    }
+
+    function revokeRole(bytes32 role, address account) public override onlyRole(ADMIN_ROLE) {
+        _revokeProjectRoleInternal(role, account);
+    }
+
+    function renounceRole(bytes32 role, address callerConfirmation) public override {
+        require(callerConfirmation == msg.sender, "Can only renounce roles for self");
+        require(role != DEFAULT_ADMIN_ROLE, "Cannot manage default admin role");
+
+        if (role == ADMIN_ROLE && hasRole(ADMIN_ROLE, callerConfirmation)) {
+            require(adminRoleMemberCount > 1, "Cannot revoke final admin");
+            adminRoleMemberCount--;
+        }
+
+        _revokeRole(role, callerConfirmation);
+    }
+
+    function _grantProjectRoleInternal(bytes32 role, address account) internal {
+        require(account != address(0), "Invalid account");
+        require(role != DEFAULT_ADMIN_ROLE, "Cannot manage default admin role");
+
+        if (role == ADMIN_ROLE && !hasRole(ADMIN_ROLE, account)) {
+            adminRoleMemberCount++;
+        }
+
+        _grantRole(role, account);
+    }
+
+    function _revokeProjectRoleInternal(bytes32 role, address account) internal {
+        require(account != address(0), "Invalid account");
+        require(role != DEFAULT_ADMIN_ROLE, "Cannot manage default admin role");
+
+        if (role == ADMIN_ROLE && hasRole(ADMIN_ROLE, account)) {
+            require(adminRoleMemberCount > 1, "Cannot revoke final admin");
+            adminRoleMemberCount--;
+        }
+
+        _revokeRole(role, account);
     }
 
     // =============================================================
@@ -622,6 +666,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             return "FRAUD_FLAGGED";
         }
 
+        if (claims[claimId].status == ClaimStatus.ORACLE_FAILED) {
+            return "ORACLE_FAILED";
+        }
+
         uint256 score = claims[claimId].riskScore;
 
         if (score >= 80) {
@@ -716,13 +764,18 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         OracleRequest storage requestData = oracleRequests[requestId];
 
+        uint256 claimId = requestData.claimId;
+
+        require(
+            claims[claimId].status == ClaimStatus.ORACLE_PENDING,
+            "Claim is not oracle pending"
+        );
+
         requestData.isFulfilled = true;
         requestData.verifiedResult = verified;
         requestData.resultHash = resultHash;
         requestData.riskLevel = riskLevel;
         requestData.remarks = remarks;
-
-        uint256 claimId = requestData.claimId;
 
         if (verified) {
             claims[claimId].status = ClaimStatus.ORACLE_VERIFIED;
@@ -774,5 +827,5 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         return oracleRequests[requestId].requestId != 0;
     }
 
-    
+
 }
