@@ -1,7 +1,10 @@
 const dns = require("dns");
 
 dns.setDefaultResultOrder("ipv4first");
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
+if (process.env.FORCE_PUBLIC_DNS === "true") {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+}
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -127,7 +130,7 @@ const startServer = async () => {
 
     console.log("MongoDB connected successfully");
 
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`Health check: http://localhost:${PORT}/health`);
     });
