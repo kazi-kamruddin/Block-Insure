@@ -90,6 +90,15 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         string remarks;
     }
 
+    struct SettlementRecord {
+        uint256 claimId;
+        address recipient;
+        uint256 amount;
+        string settlementReference;
+        uint256 settledAt;
+        bool paidOnChain;
+    }
+
     // =============================================================
     // Storage
     // =============================================================
@@ -119,6 +128,9 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     mapping(uint256 => OracleRequest) private oracleRequests;
     mapping(uint256 => uint256) private oracleRequestByClaimId;
+
+    mapping(uint256 => bytes32) private claimRejectionReasonHash;
+    mapping(uint256 => SettlementRecord) private settlementRecords;
 
     // =============================================================
     // Events
@@ -182,6 +194,48 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 indexed claimId,
         bool verified,
         string riskLevel
+    );
+
+    event ClaimApproved(
+        uint256 indexed claimId,
+        address indexed approvedBy,
+        uint256 timestamp
+    );
+
+    event ClaimRejected(
+        uint256 indexed claimId,
+        address indexed rejectedBy,
+        bytes32 reasonHash
+    );
+
+    event ClaimSentToManualReview(
+        uint256 indexed claimId,
+        address indexed sentBy,
+        uint256 timestamp
+    );
+
+    event ClaimSettled(
+        uint256 indexed claimId,
+        address indexed claimantWallet,
+        uint256 amount,
+        uint256 timestamp
+    );
+
+    event ClaimSettledRecordOnly(
+        uint256 indexed claimId,
+        uint256 amount,
+        string settlementReference,
+        uint256 timestamp
+    );
+
+    event ContractFunded(
+        address indexed fundedBy,
+        uint256 amount
+    );
+
+    event ExcessWithdrawn(
+        address indexed withdrawnBy,
+        uint256 amount
     );
 
     // =============================================================
@@ -455,7 +509,9 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         return address(this).balance;
     }
 
-    receive() external payable {}
+    receive() external payable {
+        emit ContractFunded(msg.sender, msg.value);
+    }
 
     // =============================================================
     // Phase 5,6: Claim Submission System & fraud detection
@@ -805,6 +861,145 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(requestId != 0, "Oracle request does not exist");
 
         return oracleRequests[requestId];
+    }
+
+    // =============================================================
+    // Phase 9: Admin Decision and Settlement
+    // =============================================================
+
+    function approveClaim(uint256 claimId) external {
+        require(
+            hasRole(ADMIN_ROLE, msg.sender) || hasRole(CLAIM_OFFICER_ROLE, msg.sender),
+            "Caller is not admin or claim officer"
+        );
+        require(_claimExists(claimId), "Claim does not exist");
+        require(
+            claims[claimId].status == ClaimStatus.ORACLE_VERIFIED ||
+                claims[claimId].status == ClaimStatus.MANUAL_REVIEW,
+            "Claim is not approvable"
+        );
+
+        claims[claimId].status = ClaimStatus.APPROVED;
+
+        emit ClaimApproved(claimId, msg.sender, block.timestamp);
+    }
+
+    function rejectClaim(uint256 claimId, bytes32 reasonHash) external {
+        require(
+            hasRole(ADMIN_ROLE, msg.sender) || hasRole(CLAIM_OFFICER_ROLE, msg.sender),
+            "Caller is not admin or claim officer"
+        );
+        require(_claimExists(claimId), "Claim does not exist");
+        require(reasonHash != bytes32(0), "Reason hash required");
+        require(claims[claimId].status != ClaimStatus.SETTLED, "Claim already settled");
+        require(claims[claimId].status != ClaimStatus.CLOSED, "Claim already closed");
+
+        claims[claimId].status = ClaimStatus.REJECTED;
+        claimRejectionReasonHash[claimId] = reasonHash;
+
+        emit ClaimRejected(claimId, msg.sender, reasonHash);
+    }
+
+    function sendToManualReview(uint256 claimId) external {
+        require(
+            hasRole(ADMIN_ROLE, msg.sender) || hasRole(CLAIM_OFFICER_ROLE, msg.sender),
+            "Caller is not admin or claim officer"
+        );
+        require(_claimExists(claimId), "Claim does not exist");
+        require(
+            claims[claimId].status == ClaimStatus.FRAUD_FLAGGED ||
+                claims[claimId].status == ClaimStatus.ORACLE_FAILED,
+            "Claim cannot be sent to manual review"
+        );
+
+        claims[claimId].status = ClaimStatus.MANUAL_REVIEW;
+
+        emit ClaimSentToManualReview(claimId, msg.sender, block.timestamp);
+    }
+
+    function settleClaim(uint256 claimId) external nonReentrant onlyRole(ADMIN_ROLE) {
+        require(_claimExists(claimId), "Claim does not exist");
+        require(claims[claimId].status == ClaimStatus.APPROVED, "Claim is not approved");
+        require(settlementRecords[claimId].settledAt == 0, "Claim already settled");
+        require(address(this).balance >= claims[claimId].claimAmount, "Insufficient contract balance");
+
+        uint256 amount = claims[claimId].claimAmount;
+        address recipient = claims[claimId].claimantWallet;
+
+        claims[claimId].status = ClaimStatus.SETTLED;
+
+        settlementRecords[claimId] = SettlementRecord({
+            claimId: claimId,
+            recipient: recipient,
+            amount: amount,
+            settlementReference: "",
+            settledAt: block.timestamp,
+            paidOnChain: true
+        });
+
+        (bool success, ) = payable(recipient).call{value: amount}("");
+        require(success, "Settlement transfer failed");
+
+        emit ClaimSettled(claimId, recipient, amount, block.timestamp);
+    }
+
+    function recordOnlySettlement(
+        uint256 claimId,
+        string memory settlementReference
+    ) external onlyRole(ADMIN_ROLE) {
+        require(_claimExists(claimId), "Claim does not exist");
+        require(claims[claimId].status == ClaimStatus.APPROVED, "Claim is not approved");
+        require(settlementRecords[claimId].settledAt == 0, "Claim already settled");
+        require(bytes(settlementReference).length > 0, "Settlement reference required");
+
+        uint256 amount = claims[claimId].claimAmount;
+        address recipient = claims[claimId].claimantWallet;
+
+        claims[claimId].status = ClaimStatus.SETTLED;
+
+        settlementRecords[claimId] = SettlementRecord({
+            claimId: claimId,
+            recipient: recipient,
+            amount: amount,
+            settlementReference: settlementReference,
+            settledAt: block.timestamp,
+            paidOnChain: false
+        });
+
+        emit ClaimSettledRecordOnly(
+            claimId,
+            amount,
+            settlementReference,
+            block.timestamp
+        );
+    }
+
+    function fundContract() external payable onlyRole(ADMIN_ROLE) {
+        require(msg.value > 0, "Funding amount required");
+
+        emit ContractFunded(msg.sender, msg.value);
+    }
+
+    function withdrawExcess(uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
+        require(amount > 0, "Withdrawal amount required");
+        require(address(this).balance >= amount, "Insufficient contract balance");
+
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Withdrawal failed");
+
+        emit ExcessWithdrawn(msg.sender, amount);
+    }
+
+    function getRejectionReasonHash(uint256 claimId) external view returns (bytes32) {
+        require(_claimExists(claimId), "Claim does not exist");
+        return claimRejectionReasonHash[claimId];
+    }
+
+    function getSettlementRecord(uint256 claimId) external view returns (SettlementRecord memory) {
+        require(_claimExists(claimId), "Claim does not exist");
+        require(settlementRecords[claimId].settledAt != 0, "Settlement does not exist");
+
+        return settlementRecords[claimId];
     }
 
     // =============================================================
