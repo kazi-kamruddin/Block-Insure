@@ -1,5 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
+require("solidity-coverage");
 
 const { RPC_URL, ADMIN_PRIVATE_KEY } = process.env;
 
