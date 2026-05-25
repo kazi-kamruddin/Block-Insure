@@ -1,4 +1,13 @@
+require("dotenv").config();
+
 const dns = require("dns");
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
+
+/* ----------------------------- DNS Config ----------------------------- */
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -6,16 +15,11 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
   dns.setServers(["8.8.8.8", "1.1.1.1"]);
 }
 
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const helmet = require("helmet");
-const morgan = require("morgan");
-require("dotenv").config();
+/* ----------------------------- App Setup ------------------------------ */
 
 const app = express();
 
-/* ----------------------------- Basic Config ----------------------------- */
+/* --------------------------- Basic Config ------------------------------ */
 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -30,14 +34,16 @@ if (!process.env.JWT_SECRET) {
 }
 
 if (!process.env.VITE_CONTRACT_ADDRESS) {
-  console.warn("Warning: VITE_CONTRACT_ADDRESS is not set. Contract service will fail later.");
+  console.warn(
+    "Warning: VITE_CONTRACT_ADDRESS is not set. Contract service will fail later."
+  );
 }
 
 if (!process.env.RPC_URL) {
   console.warn("Warning: RPC_URL is not set. Blockchain calls will fail later.");
 }
 
-/* ----------------------------- Middlewares ------------------------------ */
+/* ----------------------------- Middleware ----------------------------- */
 
 app.disable("x-powered-by");
 
@@ -61,7 +67,7 @@ if (process.env.NODE_ENV !== "test") {
   app.use(morgan("dev"));
 }
 
-/* ------------------------------- Routes -------------------------------- */
+/* ---------------------------- Base Routes ----------------------------- */
 
 app.get("/", (req, res) => {
   res.status(200).json({
@@ -83,26 +89,14 @@ app.get("/api", (req, res) => {
   res.status(200).json({
     success: true,
     message: "Welcome to the Block-Insure API",
-    availableRoutes: {
-      health: "/health",
-      api: "/api",
-    },
   });
 });
 
-/*
-  Later, when route files are created, mount them like this:
+/* ----------------------------- API Routes ----------------------------- */
 
-  app.use("/api/auth", require("./routes/authRoutes"));
-  app.use("/api/users", require("./routes/userRoutes"));
-  app.use("/api/documents", require("./routes/documentRoutes"));
-  app.use("/api/policies", require("./routes/policyRoutes"));
-  app.use("/api/claims", require("./routes/claimRoutes"));
-  app.use("/api/admin", require("./routes/adminRoutes"));
-  app.use("/api/audit", require("./routes/auditRoutes"));
-*/
+app.use("/api/auth", require("./routes/authRoutes"));
 
-/* ---------------------------- 404 Handler ------------------------------- */
+/* ---------------------------- 404 Handler ----------------------------- */
 
 app.use((req, res) => {
   res.status(404).json({
@@ -111,7 +105,7 @@ app.use((req, res) => {
   });
 });
 
-/* ------------------------- Global Error Handler ------------------------- */
+/* ------------------------ Global Error Handler ------------------------- */
 
 app.use((err, req, res, next) => {
   console.error("Server error:", err);
@@ -122,13 +116,18 @@ app.use((err, req, res, next) => {
   });
 });
 
-/* -------------------------- Database Connect ---------------------------- */
+/* -------------------------- Database Setup ----------------------------- */
+
+const connectDatabase = async () => {
+  await mongoose.connect(MONGODB_URI);
+  console.log("MongoDB connected successfully");
+};
+
+/* -------------------------- Server Startup ----------------------------- */
 
 const startServer = async () => {
   try {
-    await mongoose.connect(MONGODB_URI);
-
-    console.log("MongoDB connected successfully");
+    await connectDatabase();
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
@@ -142,18 +141,19 @@ const startServer = async () => {
 
 startServer();
 
-/* -------------------------- Graceful Shutdown --------------------------- */
+/* ------------------------ Graceful Shutdown ---------------------------- */
 
-process.on("SIGINT", async () => {
-  console.log("SIGINT received. Closing MongoDB connection...");
-  await mongoose.connection.close();
-  console.log("MongoDB connection closed");
-  process.exit(0);
-});
+const shutdownServer = async (signal) => {
+  try {
+    console.log(`${signal} received. Closing MongoDB connection...`);
+    await mongoose.connection.close();
+    console.log("MongoDB connection closed");
+    process.exit(0);
+  } catch (error) {
+    console.error("Error during shutdown:", error.message);
+    process.exit(1);
+  }
+};
 
-process.on("SIGTERM", async () => {
-  console.log("SIGTERM received. Closing MongoDB connection...");
-  await mongoose.connection.close();
-  console.log("MongoDB connection closed");
-  process.exit(0);
-});
+process.on("SIGINT", () => shutdownServer("SIGINT"));
+process.on("SIGTERM", () => shutdownServer("SIGTERM"));
