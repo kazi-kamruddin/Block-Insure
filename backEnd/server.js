@@ -102,6 +102,7 @@ app.use("/api/policies", require("./routes/policiesRoutes"));
 app.use("/api/claims", require("./routes/claimRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/audit", require("./routes/auditRoutes"));
+app.use("/api/oracle", require("./routes/oracleRoutes"));
 
 /* ----------------------------- Mock Routes ---------------------------- */
 

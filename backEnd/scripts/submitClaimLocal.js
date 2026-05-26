@@ -3,6 +3,34 @@ require("dotenv").config();
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 
+/* ----------------------------- Arg Parser ------------------------------ */
+
+const getFlagValue = (args, flagName) => {
+  const index = args.indexOf(flagName);
+
+  if (index === -1 || index + 1 >= args.length) {
+    return null;
+  }
+
+  return args[index + 1];
+};
+
+const getPositionals = (args) => {
+  const positionals = [];
+
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i].startsWith("--")) {
+      i += 1;
+    } else {
+      positionals.push(args[i]);
+    }
+  }
+
+  return positionals;
+};
+
+/* ----------------------------- Utilities ------------------------------- */
+
 const normalizeBytes32 = (value, fallbackText) => {
   if (!value) {
     return ethers.keccak256(ethers.toUtf8Bytes(fallbackText));
@@ -19,6 +47,8 @@ const normalizeBytes32 = (value, fallbackText) => {
   return ethers.keccak256(ethers.toUtf8Bytes(value));
 };
 
+/* ----------------------------- Main Script ----------------------------- */
+
 const submitClaimLocal = async () => {
   try {
     if (!process.env.RPC_URL) {
@@ -33,10 +63,22 @@ const submitClaimLocal = async () => {
       throw new Error("ADMIN_PRIVATE_KEY is missing in .env");
     }
 
-    const policyId = process.argv[2] || "1";
-    const claimAmountEth = process.argv[3] || "0.1";
-    const documentHashInput = process.argv[4];
-    const documentCID = process.argv[5] || "QmLocalTestCIDForClaimDocument";
+    const args = process.argv.slice(2);
+    const positionals = getPositionals(args);
+
+    const policyId = positionals[0] || "1";
+    const claimAmountEth = positionals[1] || "0.1";
+
+    const invoiceHashInput =
+      getFlagValue(args, "--invoice") || positionals[2] || null;
+
+    const documentHashInput =
+      getFlagValue(args, "--docHash") || positionals[3] || null;
+
+    const documentCID =
+      getFlagValue(args, "--cid") ||
+      positionals[4] ||
+      "QmLocalTestCIDForClaimDocument";
 
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
     const wallet = new ethers.Wallet(process.env.ADMIN_PRIVATE_KEY, provider);
@@ -55,14 +97,17 @@ const submitClaimLocal = async () => {
 
     const incidentDate = policy.startDate;
 
-    const claimAmount = ethers.parseEther(claimAmountEth);
-    const claimType = "HOSPITALIZATION";
-    const hospitalId = "HOSP-001";
-
-    const invoiceHash = normalizeBytes32(
-      null,
-      `invoice-${wallet.address}-${Date.now()}`
-    );
+   const claimAmount = ethers.parseEther(claimAmountEth);
+   const claimType = "HOSPITALIZATION";
+   
+   const hospitalId =
+     getFlagValue(args, "--hospital") ||
+     "HOSP-001";
+   
+   const invoiceHash = normalizeBytes32(
+     invoiceHashInput,
+     `invoice-${wallet.address}-${Date.now()}`
+   );
 
     const documentHash = normalizeBytes32(
       documentHashInput,
@@ -74,6 +119,7 @@ const submitClaimLocal = async () => {
     console.log("Policy start date:", policy.startDate.toString());
     console.log("Incident date used:", incidentDate.toString());
     console.log("Claim amount:", claimAmountEth, "ETH");
+    console.log("Hospital ID:", hospitalId);
     console.log("Invoice hash:", invoiceHash);
     console.log("Document hash:", documentHash);
     console.log("Document CID:", documentCID);
