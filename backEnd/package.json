@@ -12,7 +12,8 @@
     "claim:local": "node scripts/submitClaimLocal.js",
     "grant:oracle": "node scripts/grantOracleRoleLocal.js",
     "oracle:local": "node scripts/submitOracleResultLocal.js",
-    "fund:local": "node scripts/fundContractLocal.js"
+    "fund:local": "node scripts/fundContractLocal.js",
+    "seed:mock": "node scripts/seedMockData.js"
   },
   "keywords": [],
   "author": "",
