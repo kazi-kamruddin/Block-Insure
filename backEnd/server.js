@@ -101,6 +101,7 @@ app.use("/api/policy-packages", require("./routes/policyRoutes"));
 app.use("/api/policies", require("./routes/policiesRoutes"));
 app.use("/api/claims", require("./routes/claimRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
+app.use("/api/audit", require("./routes/auditRoutes"));
 
 /* ---------------------------- 404 Handler ----------------------------- */
 

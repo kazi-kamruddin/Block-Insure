@@ -53,6 +53,7 @@ const getAdminContract = () => {
 
 module.exports = {
   getProvider,
+  getContractAddress,
   getReadOnlyContract,
   getAdminContract,
 };
