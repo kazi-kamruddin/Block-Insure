@@ -98,6 +98,7 @@ app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/documents", require("./routes/documentRoutes"));
 app.use("/api/policy-packages", require("./routes/policyRoutes"));
+app.use("/api/admin", require("./routes/adminRoutes"));
 
 /* ---------------------------- 404 Handler ----------------------------- */
 
