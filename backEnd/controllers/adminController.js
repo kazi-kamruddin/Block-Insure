@@ -1,11 +1,80 @@
 const { ethers } = require("ethers");
-const { getAdminContract } = require("../services/contractService");
+const {
+  getAdminContract,
+  getReadOnlyContract,
+} = require("../services/contractService");
+
+/* ----------------------------- Status Map ------------------------------ */
+
+const CLAIM_STATUS = [
+  "SUBMITTED",
+  "DUPLICATE_CHECKED",
+  "FRAUD_FLAGGED",
+  "ORACLE_PENDING",
+  "ORACLE_VERIFIED",
+  "ORACLE_FAILED",
+  "MANUAL_REVIEW",
+  "APPROVED",
+  "REJECTED",
+  "SETTLED",
+  "CLOSED",
+];
+
+/* ----------------------------- Utilities ------------------------------- */
 
 const createError = (message, statusCode) => {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 };
+
+const formatTimestamp = (timestamp) => {
+  const value = Number(timestamp);
+
+  if (!value) {
+    return null;
+  }
+
+  return {
+    unix: value.toString(),
+    iso: new Date(value * 1000).toISOString(),
+  };
+};
+
+const formatClaim = (claim) => {
+  const statusNumber = Number(claim.status);
+
+  return {
+    claimId: claim.claimId.toString(),
+    policyId: claim.policyId.toString(),
+    claimantWallet: claim.claimantWallet,
+    claimAmountWei: claim.claimAmount.toString(),
+    claimAmountEth: ethers.formatEther(claim.claimAmount),
+    incidentDate: formatTimestamp(claim.incidentDate),
+    claimType: claim.claimType,
+    hospitalId: claim.hospitalId,
+    invoiceHash: claim.invoiceHash,
+    documentHash: claim.documentHash,
+    documentCID: claim.documentCID,
+    status: {
+      code: statusNumber,
+      label: CLAIM_STATUS[statusNumber] || "UNKNOWN",
+    },
+    riskScore: claim.riskScore.toString(),
+    submittedAt: formatTimestamp(claim.submittedAt),
+  };
+};
+
+const formatContractBalance = async (contract) => {
+  const balance = await contract.getContractBalance();
+
+  return {
+    wei: balance.toString(),
+    eth: ethers.formatEther(balance),
+  };
+};
+
+/* -------------------------- Policy Package Admin ------------------------ */
 
 const createPolicyPackage = async (req, res, next) => {
   try {
@@ -80,6 +149,236 @@ const createPolicyPackage = async (req, res, next) => {
   }
 };
 
+/* ----------------------------- Claim Admin ------------------------------ */
+
+const getAdminClaims = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+
+    const nextClaimId = await contract.claimCounter();
+    const totalCreatedClaims = Number(nextClaimId) - 1;
+
+    const claims = [];
+
+    for (let claimId = 1; claimId <= totalCreatedClaims; claimId += 1) {
+      const claim = await contract.getClaim(claimId);
+      claims.push(formatClaim(claim));
+    }
+
+    res.status(200).json({
+      success: true,
+      count: claims.length,
+      claims,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const requestOracleForClaim = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+
+    const tx = await contract.requestOracleVerification(id);
+    const receipt = await tx.wait();
+
+    let oracleRequest = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "OracleRequested") {
+          oracleRequest = {
+            requestId: parsedLog.args.requestId.toString(),
+            claimId: parsedLog.args.claimId.toString(),
+            oracleType: parsedLog.args.oracleType,
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    const updatedClaim = await contract.getClaim(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Oracle verification requested successfully",
+      transactionHash: tx.hash,
+      oracleRequest,
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const approveClaim = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+
+    const tx = await contract.approveClaim(id);
+    const receipt = await tx.wait();
+
+    let approvalEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "ClaimApproved") {
+          approvalEvent = {
+            claimId: parsedLog.args.claimId.toString(),
+            approvedBy: parsedLog.args.approvedBy,
+            timestamp: parsedLog.args.timestamp.toString(),
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    const updatedClaim = await contract.getClaim(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Claim approved successfully",
+      transactionHash: tx.hash,
+      approvalEvent,
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const settleClaim = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+
+    const balanceBefore = await formatContractBalance(contract);
+
+    const tx = await contract.settleClaim(id);
+    const receipt = await tx.wait();
+
+    let settlementEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "ClaimSettled") {
+          settlementEvent = {
+            claimId: parsedLog.args.claimId.toString(),
+            claimantWallet:
+              parsedLog.args.claimantWallet ||
+              parsedLog.args.recipient ||
+              parsedLog.args[1],
+            amountWei: parsedLog.args.amount.toString(),
+            amountEth: ethers.formatEther(parsedLog.args.amount),
+            timestamp: parsedLog.args.timestamp
+              ? parsedLog.args.timestamp.toString()
+              : null,
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    const updatedClaim = await contract.getClaim(id);
+    const balanceAfter = await formatContractBalance(contract);
+
+    res.status(200).json({
+      success: true,
+      message: "Claim settled successfully",
+      transactionHash: tx.hash,
+      settlementEvent,
+      contractBalance: {
+        before: balanceBefore,
+        after: balanceAfter,
+      },
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const rejectClaim = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { reason = "Claim rejected by admin" } = req.body;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+
+    const reasonHash = ethers.keccak256(ethers.toUtf8Bytes(reason));
+
+    const tx = await contract.rejectClaim(id, reasonHash);
+    const receipt = await tx.wait();
+
+    let rejectionEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "ClaimRejected") {
+          rejectionEvent = {
+            claimId: parsedLog.args.claimId.toString(),
+            rejectedBy: parsedLog.args.rejectedBy,
+            reasonHash: parsedLog.args.reasonHash,
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    const updatedClaim = await contract.getClaim(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Claim rejected successfully",
+      transactionHash: tx.hash,
+      rejectionEvent,
+      rejectionReason: reason,
+      reasonHash,
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createPolicyPackage,
+  getAdminClaims,
+  requestOracleForClaim,
+  approveClaim,
+  rejectClaim,
+  settleClaim,
 };
