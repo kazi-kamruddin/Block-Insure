@@ -63,8 +63,39 @@ button:disabled {
   min-width: 180px;
 }
 
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.form-grid {
+  display: grid;
+  gap: 14px;
+  max-width: 520px;
+  margin-top: 16px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 6px;
+  font-weight: bold;
+}
+
+.form-grid input,
+.form-grid select {
+  padding: 8px;
+  border: 1px solid #cccccc;
+  font: inherit;
+}
+
 .error-text {
   color: #b00020;
+}
+
+.success-text {
+  color: #027a28;
 }
 
 .status-badge {

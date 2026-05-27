@@ -4,6 +4,8 @@ import InsuranceManagerArtifact from "../abi/InsuranceManager.json";
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
 
+export const REQUIRED_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337);
+
 const ABI = InsuranceManagerArtifact.abi || InsuranceManagerArtifact;
 
 export const CLAIM_STATUS = {
@@ -44,7 +46,21 @@ export async function getBrowserProvider() {
   return new ethers.BrowserProvider(window.ethereum);
 }
 
+export async function assertCorrectNetwork() {
+  const provider = await getBrowserProvider();
+  const network = await provider.getNetwork();
+  const activeChainId = Number(network.chainId);
+
+  if (activeChainId !== REQUIRED_CHAIN_ID) {
+    throw new Error(
+      `Wrong MetaMask network. Expected chain ID ${REQUIRED_CHAIN_ID}, but got ${activeChainId}. Switch MetaMask to Hardhat Localhost.`
+    );
+  }
+}
+
 export async function getSigner() {
+  await assertCorrectNetwork();
+
   const provider = await getBrowserProvider();
   return provider.getSigner();
 }

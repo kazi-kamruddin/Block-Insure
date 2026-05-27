@@ -374,6 +374,53 @@ const rejectClaim = async (req, res, next) => {
   }
 };
 
+const sendClaimToManualReview = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+
+    const tx = await contract.sendToManualReview(id);
+    const receipt = await tx.wait();
+
+    let manualReviewEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "ClaimSentToManualReview") {
+          manualReviewEvent = {
+            claimId: parsedLog.args.claimId.toString(),
+            sentBy: parsedLog.args.sentBy,
+            timestamp: parsedLog.args.timestamp
+              ? parsedLog.args.timestamp.toString()
+              : null,
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    const updatedClaim = await contract.getClaim(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Claim sent to manual review successfully",
+      transactionHash: tx.hash,
+      manualReviewEvent,
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createPolicyPackage,
   getAdminClaims,
@@ -381,4 +428,5 @@ module.exports = {
   approveClaim,
   rejectClaim,
   settleClaim,
+  sendClaimToManualReview,
 };

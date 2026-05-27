@@ -37,6 +37,90 @@ export async function getCurrentUser() {
   return response.data;
 }
 
+export async function getPolicyPackages() {
+  const response = await api.get("/api/policy-packages");
+  return response.data;
+}
+
+export async function getMyPolicies() {
+  const response = await api.get("/api/policies/my");
+  return response.data;
+}
+
+export async function uploadClaimDocument({ file, documentType, claimId }) {
+  const formData = new FormData();
+
+  formData.append("document", file);
+
+  if (documentType) {
+    formData.append("documentType", documentType);
+  }
+
+  if (claimId) {
+    formData.append("claimId", claimId);
+  }
+
+  const response = await api.post("/api/documents/upload", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+
+  return response.data;
+}
+
+export async function getMyClaims() {
+  const response = await api.get("/api/claims/my");
+  return response.data;
+}
+
+export async function getClaimById(claimId) {
+  const response = await api.get(`/api/claims/${claimId}`);
+  return response.data;
+}
+
+export async function getAdminClaims() {
+  const response = await api.get("/api/admin/claims");
+  return response.data;
+}
+
+export async function requestOracleVerification(claimId) {
+  const response = await api.post(`/api/admin/claims/${claimId}/request-oracle`);
+  return response.data;
+}
+
+export async function sendClaimToManualReview(claimId) {
+  const response = await api.post(`/api/admin/claims/${claimId}/manual-review`);
+  return response.data;
+}
+
+export async function approveClaim(claimId) {
+  const response = await api.post(`/api/admin/claims/${claimId}/approve`);
+  return response.data;
+}
+
+export async function rejectClaim(claimId, reason) {
+  const response = await api.post(`/api/admin/claims/${claimId}/reject`, {
+    reason,
+  });
+  return response.data;
+}
+
+export async function settleClaim(claimId) {
+  const response = await api.post(`/api/admin/claims/${claimId}/settle`);
+  return response.data;
+}
+
+export async function getOracleResults(claimId) {
+  const response = await api.get(`/api/oracle/results/${claimId}`);
+  return response.data;
+}
+
+export async function getClaimAuditTimeline(claimId) {
+  const response = await api.get(`/api/audit/claims/${claimId}`);
+  return response.data;
+}
+
 export function clearStoredSession() {
   localStorage.removeItem("blockinsure_jwt");
   localStorage.removeItem("blockinsure_wallet");

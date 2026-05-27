@@ -20,6 +20,7 @@ export default function UserLayout() {
     <div>
       <div className="subnav">
         <Link to="/user/dashboard">Dashboard</Link>
+        <Link to="/user/policies/buy">Buy Policy</Link>
         <Link to="/user/policies">My Policies</Link>
         <Link to="/user/claims">My Claims</Link>
         <Link to="/user/claims/new">Submit Claim</Link>

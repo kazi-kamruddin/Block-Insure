@@ -6,6 +6,7 @@ const {
   approveClaim,
   rejectClaim,
   settleClaim,
+  sendClaimToManualReview,
 } = require("../controllers/adminController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
@@ -31,6 +32,13 @@ router.post(
   authMiddleware,
   requireRole("ADMIN"),
   requestOracleForClaim
+);
+
+router.post(
+  "/claims/:id/manual-review",
+  authMiddleware,
+  requireRole("ADMIN"),
+  sendClaimToManualReview
 );
 
 router.post(
