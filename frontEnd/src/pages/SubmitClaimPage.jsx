@@ -13,6 +13,39 @@ import {
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
 
+const VALID_MOCK_HOSPITAL_PRESETS = [
+  {
+    label: "Valid HOSP-001 / 0.1 ETH",
+    hospitalId: "HOSP-001",
+    invoiceNumber: "INV-HOSP-001-001",
+    claimAmount: "0.1",
+  },
+  {
+    label: "Valid HOSP-002 / 0.2 ETH",
+    hospitalId: "HOSP-002",
+    invoiceNumber: "INV-HOSP-002-001",
+    claimAmount: "0.2",
+  },
+  {
+    label: "Valid HOSP-003 / 0.15 ETH",
+    hospitalId: "HOSP-003",
+    invoiceNumber: "INV-HOSP-003-001",
+    claimAmount: "0.15",
+  },
+  {
+    label: "Valid HOSP-004 / 0.3 ETH",
+    hospitalId: "HOSP-004",
+    invoiceNumber: "INV-HOSP-004-001",
+    claimAmount: "0.3",
+  },
+  {
+    label: "Valid HOSP-005 / 0.25 ETH",
+    hospitalId: "HOSP-005",
+    invoiceNumber: "INV-HOSP-005-001",
+    claimAmount: "0.25",
+  },
+];
+
 function extractPolicies(data) {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.policies)) return data.policies;
@@ -112,6 +145,18 @@ export default function SubmitClaimPage() {
     if (nextPolicy?.startDate) {
       setIncidentDateTime(unixSecondsToDateTimeLocal(nextPolicy.startDate));
     }
+  }
+
+  function applyMockPreset(presetLabel) {
+    const preset = VALID_MOCK_HOSPITAL_PRESETS.find(
+      (item) => item.label === presetLabel
+    );
+
+    if (!preset) return;
+
+    setHospitalId(preset.hospitalId);
+    setInvoiceNumber(preset.invoiceNumber);
+    setClaimAmount(preset.claimAmount);
   }
 
   async function handleSubmit(event) {
@@ -289,6 +334,21 @@ export default function SubmitClaimPage() {
         </label>
 
         <label>
+          Mock hospital preset for verified oracle test
+          <select
+            defaultValue=""
+            onChange={(event) => applyMockPreset(event.target.value)}
+          >
+            <option value="">Manual / random invoice</option>
+            {VALID_MOCK_HOSPITAL_PRESETS.map((preset) => (
+              <option key={preset.label} value={preset.label}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
           Claim amount in ETH
           <input
             type="number"
@@ -336,7 +396,7 @@ export default function SubmitClaimPage() {
             type="text"
             value={invoiceNumber}
             onChange={(event) => setInvoiceNumber(event.target.value)}
-            placeholder="Example: INV-001"
+            placeholder="Example: INV-HOSP-001-001"
             required
           />
         </label>

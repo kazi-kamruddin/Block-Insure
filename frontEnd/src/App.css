@@ -90,6 +90,14 @@ button:disabled {
   font: inherit;
 }
 
+.pre-box {
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid #dddddd;
+  padding: 10px;
+  background: #f7f7f7;
+}
+
 .error-text {
   color: #b00020;
 }

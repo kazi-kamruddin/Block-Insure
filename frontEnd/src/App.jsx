@@ -12,6 +12,8 @@ import HomePage from "./pages/HomePage";
 import UserDashboardPage from "./pages/UserDashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AuditorDashboardPage from "./pages/AuditorDashboardPage";
+import AuditorClaimLookupPage from "./pages/AuditorClaimLookupPage";
+import AuditorClaimHistoryPage from "./pages/AuditorClaimHistoryPage";
 import PolicyListPage from "./pages/PolicyListPage";
 import MyPoliciesPage from "./pages/MyPoliciesPage";
 import SubmitClaimPage from "./pages/SubmitClaimPage";
@@ -58,19 +60,10 @@ export default function App() {
               </Route>
 
               <Route path="auditor" element={<AuditorLayout />}>
-                <Route
-                  index
-                  element={<Navigate to="/auditor/dashboard" replace />}
-                />
+                <Route index element={<Navigate to="/auditor/dashboard" replace />} />
                 <Route path="dashboard" element={<AuditorDashboardPage />} />
-                <Route
-                  path="claims"
-                  element={<PlaceholderPage title="Auditor Claims" />}
-                />
-                <Route
-                  path="claims/:id/history"
-                  element={<PlaceholderPage title="Auditor Claim History" />}
-                />
+                <Route path="claims" element={<AuditorClaimLookupPage />} />
+                <Route path="claims/:id/history" element={<AuditorClaimHistoryPage />} />
               </Route>
 
               <Route path="*" element={<NotFoundPage />} />
