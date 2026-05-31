@@ -14,6 +14,8 @@ import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AuditorDashboardPage from "./pages/AuditorDashboardPage";
 import AuditorClaimLookupPage from "./pages/AuditorClaimLookupPage";
 import AuditorClaimHistoryPage from "./pages/AuditorClaimHistoryPage";
+import AdminPolicyPackagesPage from "./pages/AdminPolicyPackagesPage";
+import AdminCreatePolicyPackagePage from "./pages/AdminCreatePolicyPackagePage";
 import PolicyListPage from "./pages/PolicyListPage";
 import MyPoliciesPage from "./pages/MyPoliciesPage";
 import SubmitClaimPage from "./pages/SubmitClaimPage";
@@ -21,7 +23,6 @@ import MyClaimsPage from "./pages/MyClaimsPage";
 import ClaimDetailPage from "./pages/ClaimDetailPage";
 import AdminClaimListPage from "./pages/AdminClaimListPage";
 import AdminClaimDetailPage from "./pages/AdminClaimDetailPage";
-import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 import "./App.css";
@@ -51,9 +52,10 @@ export default function App() {
               <Route path="admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard" element={<AdminDashboardPage />} />
+                <Route path="policy-packages" element={<AdminPolicyPackagesPage />} />
                 <Route
                   path="policy-packages/new"
-                  element={<PlaceholderPage title="Create Policy Package" />}
+                  element={<AdminCreatePolicyPackagePage />}
                 />
                 <Route path="claims" element={<AdminClaimListPage />} />
                 <Route path="claims/:id" element={<AdminClaimDetailPage />} />

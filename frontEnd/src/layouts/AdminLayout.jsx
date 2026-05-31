@@ -29,6 +29,7 @@ export default function AdminLayout() {
     <div>
       <div className="subnav">
         <Link to="/admin/dashboard">Dashboard</Link>
+        <Link to="/admin/policy-packages">Packages</Link>
         <Link to="/admin/policy-packages/new">Create Package</Link>
         <Link to="/admin/claims">Claims</Link>
       </div>

@@ -42,6 +42,11 @@ export async function getPolicyPackages() {
   return response.data;
 }
 
+export async function createPolicyPackage(payload) {
+  const response = await api.post("/api/admin/policy-packages", payload);
+  return response.data;
+}
+
 export async function getMyPolicies() {
   const response = await api.get("/api/policies/my");
   return response.data;
