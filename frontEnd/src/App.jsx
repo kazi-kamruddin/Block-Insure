@@ -1,122 +1,78 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-function App() {
-  const [count, setCount] = useState(0)
+import { WalletProvider } from "./context/WalletContext";
 
+import PublicLayout from "./layouts/PublicLayout";
+import UserLayout from "./layouts/UserLayout";
+import AdminLayout from "./layouts/AdminLayout";
+import AuditorLayout from "./layouts/AuditorLayout";
+
+import HomePage from "./pages/HomePage";
+import UserDashboardPage from "./pages/UserDashboardPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
+import AuditorDashboardPage from "./pages/AuditorDashboardPage";
+import AuditorClaimLookupPage from "./pages/AuditorClaimLookupPage";
+import AuditorClaimHistoryPage from "./pages/AuditorClaimHistoryPage";
+import AdminPolicyPackagesPage from "./pages/AdminPolicyPackagesPage";
+import AdminCreatePolicyPackagePage from "./pages/AdminCreatePolicyPackagePage";
+import PolicyListPage from "./pages/PolicyListPage";
+import MyPoliciesPage from "./pages/MyPoliciesPage";
+import SubmitClaimPage from "./pages/SubmitClaimPage";
+import MyClaimsPage from "./pages/MyClaimsPage";
+import ClaimDetailPage from "./pages/ClaimDetailPage";
+import AdminClaimListPage from "./pages/AdminClaimListPage";
+import AdminClaimDetailPage from "./pages/AdminClaimDetailPage";
+import NotFoundPage from "./pages/NotFoundPage";
+
+import "./App.css";
+
+const queryClient = new QueryClient();
+
+export default function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <QueryClientProvider client={queryClient}>
+      <WalletProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route index element={<HomePage />} />
+              <Route path="login" element={<HomePage />} />
 
-      <div className="ticks"></div>
+              <Route path="user" element={<UserLayout />}>
+                <Route index element={<Navigate to="/user/dashboard" replace />} />
+                <Route path="dashboard" element={<UserDashboardPage />} />
+                <Route path="policies" element={<MyPoliciesPage />} />
+                <Route path="policies/buy" element={<PolicyListPage />} />
+                <Route path="claims" element={<MyClaimsPage />} />
+                <Route path="claims/new" element={<SubmitClaimPage />} />
+                <Route path="claims/:id" element={<ClaimDetailPage />} />
+              </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+              <Route path="admin" element={<AdminLayout />}>
+                <Route index element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="dashboard" element={<AdminDashboardPage />} />
+                <Route path="policy-packages" element={<AdminPolicyPackagesPage />} />
+                <Route
+                  path="policy-packages/new"
+                  element={<AdminCreatePolicyPackagePage />}
+                />
+                <Route path="claims" element={<AdminClaimListPage />} />
+                <Route path="claims/:id" element={<AdminClaimDetailPage />} />
+              </Route>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+              <Route path="auditor" element={<AuditorLayout />}>
+                <Route index element={<Navigate to="/auditor/dashboard" replace />} />
+                <Route path="dashboard" element={<AuditorDashboardPage />} />
+                <Route path="claims" element={<AuditorClaimLookupPage />} />
+                <Route path="claims/:id/history" element={<AuditorClaimHistoryPage />} />
+              </Route>
+
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </WalletProvider>
+    </QueryClientProvider>
+  );
 }
-
-export default App

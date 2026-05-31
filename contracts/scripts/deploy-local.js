@@ -1,7 +1,34 @@
+require("dotenv").config();
 const hre = require("hardhat");
 
 async function main() {
-  const InsuranceManager = await hre.ethers.getContractFactory("InsuranceManager");
+  if (!process.env.ADMIN_PRIVATE_KEY) {
+    throw new Error("Missing ADMIN_PRIVATE_KEY in contracts/.env");
+  }
+
+  const provider = hre.ethers.provider;
+  const adminWallet = new hre.ethers.Wallet(
+    process.env.ADMIN_PRIVATE_KEY,
+    provider
+  );
+
+  const adminBalance = await provider.getBalance(adminWallet.address);
+
+  console.log("Deploying InsuranceManager with admin wallet:");
+  console.log("Admin address:", adminWallet.address);
+  console.log("Admin local balance:", hre.ethers.formatEther(adminBalance), "ETH");
+
+  if (adminBalance === 0n) {
+    throw new Error(
+      "Admin wallet has 0 local ETH. Fund adminAccount on localhost before deploying."
+    );
+  }
+
+  const InsuranceManager = await hre.ethers.getContractFactory(
+    "InsuranceManager",
+    adminWallet
+  );
+
   const insuranceManager = await InsuranceManager.deploy();
 
   await insuranceManager.waitForDeployment();
@@ -25,6 +52,13 @@ async function main() {
   await tx.wait();
 
   console.log("Health Basic policy package created");
+  console.log("");
+  console.log("Copy this contract address into:");
+  console.log("- backend/.env      VITE_CONTRACT_ADDRESS");
+  console.log("- frontend/.env     VITE_CONTRACT_ADDRESS");
+  console.log("- oracle/.env       CONTRACT_ADDRESS");
+  console.log("");
+  console.log("CONTRACT_ADDRESS =", contractAddress);
 }
 
 main().catch((error) => {

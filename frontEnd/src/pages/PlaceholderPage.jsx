@@ -1,0 +1,8 @@
+export default function PlaceholderPage({ title }) {
+  return (
+    <section className="page-container">
+      <h2>{title}</h2>
+      <p>This page shell is ready. We will wire functionality next.</p>
+    </section>
+  );
+}
