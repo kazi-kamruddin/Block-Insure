@@ -1,6 +1,10 @@
 const express = require("express");
 const {
+  getAllPolicyPackages,
   createPolicyPackage,
+  updatePolicyPackage,
+  deactivatePolicyPackage,
+  reactivatePolicyPackage,
   getAdminClaims,
   requestOracleForClaim,
   approveClaim,
@@ -13,11 +17,39 @@ const { requireRole } = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
+router.get(
+  "/policy-packages",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getAllPolicyPackages
+);
+
 router.post(
   "/policy-packages",
   authMiddleware,
   requireRole("ADMIN"),
   createPolicyPackage
+);
+
+router.put(
+  "/policy-packages/:id",
+  authMiddleware,
+  requireRole("ADMIN"),
+  updatePolicyPackage
+);
+
+router.post(
+  "/policy-packages/:id/deactivate",
+  authMiddleware,
+  requireRole("ADMIN"),
+  deactivatePolicyPackage
+);
+
+router.post(
+  "/policy-packages/:id/reactivate",
+  authMiddleware,
+  requireRole("ADMIN"),
+  reactivatePolicyPackage
 );
 
 router.get(

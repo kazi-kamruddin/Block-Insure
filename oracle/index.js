@@ -29,6 +29,7 @@ const ORACLE_START_BLOCK = Number(process.env.ORACLE_START_BLOCK || 0);
 const ORACLE_POLL_INTERVAL_MS = Number(
   process.env.ORACLE_POLL_INTERVAL_MS || 5000
 );
+const ORACLE_API_KEY = process.env.ORACLE_API_KEY || "";
 
 /* ----------------------------- Setup ----------------------------------- */
 
@@ -42,6 +43,8 @@ const contract = new ethers.Contract(
 );
 
 const processingRequests = new Set();
+let nextOracleScanBlock = ORACLE_START_BLOCK;
+let isPolling = false;
 
 /* ----------------------------- Helpers --------------------------------- */
 
@@ -61,17 +64,23 @@ const saveOracleLog = async ({
   submittedTxHash,
 }) => {
   try {
-    await axios.post(`${BACKEND_API_URL}/api/oracle/logs`, {
-      requestId,
-      claimId,
-      oracleType,
-      queryData,
-      responseData,
-      resultHash,
-      verified,
-      riskLevel,
-      submittedTxHash,
-    });
+    await axios.post(
+      `${BACKEND_API_URL}/api/oracle/logs`,
+      {
+        requestId,
+        claimId,
+        oracleType,
+        queryData,
+        responseData,
+        resultHash,
+        verified,
+        riskLevel,
+        submittedTxHash,
+      },
+      {
+        headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
+      }
+    );
 
     console.log("Oracle log saved to backend");
   } catch (error) {
@@ -214,14 +223,24 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
 /* ----------------------------- Polling --------------------------------- */
 
 const pollOracleRequests = async () => {
+  if (isPolling) {
+    return;
+  }
+
+  isPolling = true;
+
   try {
     const latestBlock = await provider.getBlockNumber();
+
+    if (nextOracleScanBlock > latestBlock) {
+      return;
+    }
 
     const filter = contract.filters.OracleRequested();
 
     const events = await contract.queryFilter(
       filter,
-      ORACLE_START_BLOCK,
+      nextOracleScanBlock,
       latestBlock
     );
 
@@ -230,8 +249,12 @@ const pollOracleRequests = async () => {
 
       await handleOracleRequested(requestId, claimId, oracleType);
     }
+
+    nextOracleScanBlock = latestBlock + 1;
   } catch (error) {
     console.error("Oracle polling failed:", error.message);
+  } finally {
+    isPolling = false;
   }
 };
 

@@ -28,6 +28,11 @@ function formatValue(value) {
 function formatTimestamp(value) {
   if (!value) return "-";
 
+  if (typeof value === "object") {
+    if (value.iso) return new Date(value.iso).toLocaleString();
+    if (value.unix) return new Date(Number(value.unix) * 1000).toLocaleString();
+  }
+
   const numericValue = Number(value);
 
   if (Number.isNaN(numericValue)) return String(value);

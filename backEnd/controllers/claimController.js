@@ -17,6 +17,14 @@ const CLAIM_STATUS = [
   "CLOSED",
 ];
 
+const canReadClaim = (req, claim) => {
+  if (req.user.role === "ADMIN" || req.user.role === "AUDITOR") {
+    return true;
+  }
+
+  return claim.claimantWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
+};
+
 /* ---------------------- Format Contract Responses ---------------------- */
 
 const formatTimestamp = (timestamp) => {
@@ -95,6 +103,14 @@ const getClaimById = async (req, res, next) => {
     const contract = getReadOnlyContract();
 
     const claim = await contract.getClaim(req.params.claimId);
+
+    if (!canReadClaim(req, claim)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: claim does not belong to this wallet",
+      });
+    }
+
     const documents = await contract.getClaimDocuments(req.params.claimId);
 
     res.status(200).json({

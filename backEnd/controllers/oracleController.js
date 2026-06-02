@@ -1,4 +1,16 @@
 const OracleLog = require("../models/OracleLog");
+const { getReadOnlyContract } = require("../services/contractService");
+
+const canReadClaimOracleLogs = async (req, claimId) => {
+  if (req.user.role === "ADMIN" || req.user.role === "AUDITOR") {
+    return true;
+  }
+
+  const contract = getReadOnlyContract();
+  const claim = await contract.getClaim(claimId);
+
+  return claim.claimantWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
+};
 
 const createOracleLog = async (req, res, next) => {
   try {
@@ -45,6 +57,15 @@ const createOracleLog = async (req, res, next) => {
 
 const getOracleLogsByClaim = async (req, res, next) => {
   try {
+    const canRead = await canReadClaimOracleLogs(req, req.params.claimId);
+
+    if (!canRead) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: claim does not belong to this wallet",
+      });
+    }
+
     const logs = await OracleLog.find({
       claimId: req.params.claimId.toString(),
     }).sort({ createdAt: -1 });

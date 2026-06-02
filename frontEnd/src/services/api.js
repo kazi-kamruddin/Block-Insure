@@ -47,6 +47,30 @@ export async function createPolicyPackage(payload) {
   return response.data;
 }
 
+export async function getAdminPolicyPackages() {
+  const response = await api.get("/api/admin/policy-packages");
+  return response.data;
+}
+
+export async function updatePolicyPackage(packageId, payload) {
+  const response = await api.put(`/api/admin/policy-packages/${packageId}`, payload);
+  return response.data;
+}
+
+export async function deactivatePolicyPackage(packageId) {
+  const response = await api.post(
+    `/api/admin/policy-packages/${packageId}/deactivate`
+  );
+  return response.data;
+}
+
+export async function reactivatePolicyPackage(packageId) {
+  const response = await api.post(
+    `/api/admin/policy-packages/${packageId}/reactivate`
+  );
+  return response.data;
+}
+
 export async function getMyPolicies() {
   const response = await api.get("/api/policies/my");
   return response.data;
@@ -130,4 +154,11 @@ export function clearStoredSession() {
   localStorage.removeItem("blockinsure_jwt");
   localStorage.removeItem("blockinsure_wallet");
   localStorage.removeItem("blockinsure_user");
+}
+
+export async function attachDocumentToClaim(documentId, claimId) {
+  const response = await api.patch(`/api/documents/${documentId}/claim`, {
+    claimId,
+  });
+  return response.data;
 }

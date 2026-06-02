@@ -60,6 +60,17 @@ const verifyDocument = async (req, res, next) => {
       });
     }
 
+    const isOwner =
+      fileRecord.uploaderWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
+    const canAudit = req.user.role === "ADMIN" || req.user.role === "AUDITOR";
+
+    if (!isOwner && !canAudit) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: document does not belong to this wallet",
+      });
+    }
+
     res.status(200).json({
       success: true,
       document: {
@@ -79,7 +90,56 @@ const verifyDocument = async (req, res, next) => {
   }
 };
 
+const attachClaimIdToDocument = async (req, res, next) => {
+  try {
+    const fileRecord = await File.findById(req.params.id);
+
+    if (!fileRecord) {
+      return res.status(404).json({
+        success: false,
+        message: "Document record not found",
+      });
+    }
+
+    const isOwner =
+      fileRecord.uploaderWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
+
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: document does not belong to this wallet",
+      });
+    }
+
+    const { claimId } = req.body;
+
+    if (!claimId) {
+      return res.status(400).json({
+        success: false,
+        message: "claimId is required",
+      });
+    }
+
+    fileRecord.claimId = claimId.toString();
+    await fileRecord.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Document linked to claim successfully",
+      document: {
+        id: fileRecord._id,
+        claimId: fileRecord.claimId,
+        sha256Hash: fileRecord.sha256Hash,
+        ipfsCID: fileRecord.ipfsCID,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   uploadDocument,
   verifyDocument,
+  attachClaimIdToDocument,
 };

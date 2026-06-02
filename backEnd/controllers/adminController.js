@@ -65,6 +65,21 @@ const formatClaim = (claim) => {
   };
 };
 
+const formatPolicyPackage = (policyPackage) => {
+  return {
+    packageId: policyPackage.packageId.toString(),
+    name: policyPackage.name,
+    policyType: policyPackage.policyType,
+    premiumAmountWei: policyPackage.premiumAmount.toString(),
+    premiumAmountEth: ethers.formatEther(policyPackage.premiumAmount),
+    coverageAmountWei: policyPackage.coverageAmount.toString(),
+    coverageAmountEth: ethers.formatEther(policyPackage.coverageAmount),
+    durationDays: policyPackage.durationDays.toString(),
+    requiredDocumentType: policyPackage.requiredDocumentType,
+    isActive: policyPackage.isActive,
+  };
+};
+
 const formatContractBalance = async (contract) => {
   const balance = await contract.getContractBalance();
 
@@ -75,6 +90,28 @@ const formatContractBalance = async (contract) => {
 };
 
 /* -------------------------- Policy Package Admin ------------------------ */
+
+const getAllPolicyPackages = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const packageIds = await contract.getAllPackageIds();
+
+    const packages = await Promise.all(
+      packageIds.map(async (packageId) => {
+        const policyPackage = await contract.getPolicyPackage(packageId);
+        return formatPolicyPackage(policyPackage);
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: packages.length,
+      packages,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 const createPolicyPackage = async (req, res, next) => {
   try {
@@ -143,6 +180,111 @@ const createPolicyPackage = async (req, res, next) => {
         durationDays: Number(durationDays),
         requiredDocumentType,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updatePolicyPackage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      policyType,
+      premiumAmountEth,
+      coverageAmountEth,
+      durationDays,
+      requiredDocumentType,
+    } = req.body;
+
+    if (
+      !id ||
+      !name ||
+      !policyType ||
+      !premiumAmountEth ||
+      !coverageAmountEth ||
+      !durationDays ||
+      !requiredDocumentType
+    ) {
+      throw createError("All policy package fields are required", 400);
+    }
+
+    const premiumAmountWei = ethers.parseEther(premiumAmountEth.toString());
+    const coverageAmountWei = ethers.parseEther(coverageAmountEth.toString());
+    const contract = getAdminContract();
+
+    const tx = await contract.updatePolicyPackage(
+      id,
+      name,
+      policyType,
+      premiumAmountWei,
+      coverageAmountWei,
+      Number(durationDays),
+      requiredDocumentType
+    );
+
+    await tx.wait();
+
+    const updatedPackage = await contract.getPolicyPackage(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Policy package updated successfully",
+      transactionHash: tx.hash,
+      package: formatPolicyPackage(updatedPackage),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deactivatePolicyPackage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Package id is required", 400);
+    }
+
+    const contract = getAdminContract();
+    const tx = await contract.deactivatePolicyPackage(id);
+
+    await tx.wait();
+
+    const updatedPackage = await contract.getPolicyPackage(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Policy package deactivated successfully",
+      transactionHash: tx.hash,
+      package: formatPolicyPackage(updatedPackage),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const reactivatePolicyPackage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Package id is required", 400);
+    }
+
+    const contract = getAdminContract();
+    const tx = await contract.reactivatePolicyPackage(id);
+
+    await tx.wait();
+
+    const updatedPackage = await contract.getPolicyPackage(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Policy package reactivated successfully",
+      transactionHash: tx.hash,
+      package: formatPolicyPackage(updatedPackage),
     });
   } catch (error) {
     next(error);
@@ -422,7 +564,11 @@ const sendClaimToManualReview = async (req, res, next) => {
 };
 
 module.exports = {
+  getAllPolicyPackages,
   createPolicyPackage,
+  updatePolicyPackage,
+  deactivatePolicyPackage,
+  reactivatePolicyPackage,
   getAdminClaims,
   requestOracleForClaim,
   approveClaim,

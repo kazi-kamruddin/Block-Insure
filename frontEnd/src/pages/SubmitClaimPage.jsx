@@ -2,7 +2,11 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import TransactionLink from "../components/TransactionLink";
-import { getMyPolicies, uploadClaimDocument } from "../services/api";
+import {
+  attachDocumentToClaim,
+  getMyPolicies,
+  uploadClaimDocument,
+} from "../services/api";
 
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
@@ -79,6 +83,33 @@ function getUploadedCid(uploadResponse) {
     uploadResponse.data?.ipfsCID ||
     ""
   );
+}
+
+function getUploadedDocumentId(uploadResponse) {
+  return (
+    uploadResponse.id ||
+    uploadResponse.documentId ||
+    uploadResponse.file?.id ||
+    uploadResponse.document?.id ||
+    uploadResponse.data?.id ||
+    ""
+  );
+}
+
+function extractClaimIdFromReceipt(contract, receipt) {
+  for (const log of receipt.logs || []) {
+    try {
+      const parsedLog = contract.interface.parseLog(log);
+
+      if (parsedLog?.name === "ClaimSubmitted") {
+        return parsedLog.args.claimId.toString();
+      }
+    } catch {
+      // Ignore logs from other contracts.
+    }
+  }
+
+  return "";
 }
 
 function unixSecondsToDateTimeLocal(unixSeconds) {
@@ -232,6 +263,7 @@ export default function SubmitClaimPage() {
 
       const sha256Hash = getUploadedHash(uploadResponse);
       const ipfsCID = getUploadedCid(uploadResponse);
+      const documentId = getUploadedDocumentId(uploadResponse);
 
       if (!sha256Hash || !ipfsCID) {
         console.log("Upload response:", uploadResponse);
@@ -239,6 +271,7 @@ export default function SubmitClaimPage() {
       }
 
       setUploadInfo({
+        documentId,
         sha256Hash,
         ipfsCID,
       });
@@ -261,9 +294,18 @@ export default function SubmitClaimPage() {
 
       setTxHash(tx.hash);
 
-      await tx.wait();
+      const receipt = await tx.wait();
+      const claimId = extractClaimIdFromReceipt(contract, receipt);
 
-      setSuccessMessage("Claim submitted successfully.");
+      if (documentId && claimId) {
+        await attachDocumentToClaim(documentId, claimId);
+      }
+
+      setSuccessMessage(
+        claimId
+          ? `Claim submitted successfully. Claim ID: ${claimId}`
+          : "Claim submitted successfully."
+      );
     } catch (err) {
       console.error(err);
       setError(
