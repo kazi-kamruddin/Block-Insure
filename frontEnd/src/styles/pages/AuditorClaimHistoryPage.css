@@ -1,0 +1,13 @@
+.page-auditor-claim-history .timeline {
+  max-width: 940px;
+  margin-top: 18px;
+}
+
+.page-auditor-claim-history .timeline-item h3 {
+  margin-top: 0;
+  color: var(--brand-strong);
+}
+
+.page-auditor-claim-history .pre-box {
+  margin-bottom: 0;
+}

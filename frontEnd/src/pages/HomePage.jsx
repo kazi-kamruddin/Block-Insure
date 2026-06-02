@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
+import "../styles/pages/HomePage.css";
 
 export default function HomePage() {
   const { isConnected, walletAddress, role } = useWallet();
 
   return (
-    <section className="page-container">
+    <section className="page-container page-home">
       <h1>Block-Insure</h1>
       <p>Transparent insurance claim management prototype.</p>
 

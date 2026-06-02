@@ -20,6 +20,7 @@ import {
   getReadOnlyContract,
 } from "../services/contractService";
 import { getClaimStatusName } from "../utils/claimStatus";
+import "../styles/pages/AdminClaimDetailPage.css";
 
 function extractClaim(data) {
   return data?.claim || data?.data?.claim || data?.data || data;
@@ -187,7 +188,7 @@ export default function AdminClaimDetailPage() {
   }
 
   return (
-    <section className="page-container">
+    <section className="page-container page-admin-claim-detail">
       <h2>Admin Claim Detail</h2>
 
       <p>

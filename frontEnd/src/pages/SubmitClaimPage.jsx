@@ -20,6 +20,7 @@ import {
   toBytes32FromBackendSha256,
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
+import "../styles/pages/SubmitClaimPage.css";
 
 const VALID_MOCK_HOSPITAL_PRESETS = [
   {
@@ -317,7 +318,7 @@ export default function SubmitClaimPage() {
   }
 
   return (
-    <section className="page-container">
+    <section className="page-container page-submit-claim">
       <h2>Submit Claim</h2>
 
       <button type="button" onClick={() => refetchPolicies()}>

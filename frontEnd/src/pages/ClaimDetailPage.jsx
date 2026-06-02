@@ -7,6 +7,7 @@ import IpfsLink from "../components/IpfsLink";
 import TransactionLink from "../components/TransactionLink";
 import { getClaimById, getOracleResults } from "../services/api";
 import { getClaimStatusName } from "../utils/claimStatus";
+import "../styles/pages/ClaimDetailPage.css";
 
 function extractClaim(data) {
   return data?.claim || data?.data?.claim || data?.data || data;
@@ -56,7 +57,7 @@ export default function ClaimDetailPage() {
   const statusName = getClaimStatusName(claim);
 
   return (
-    <section className="page-container">
+    <section className="page-container page-claim-detail">
       <h2>Claim Detail</h2>
 
       <button

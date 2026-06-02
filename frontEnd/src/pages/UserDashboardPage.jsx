@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { getMyClaims, getMyPolicies } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import { getStatusLabel } from "../services/contractService";
+import "../styles/pages/UserDashboardPage.css";
 
 function extractPolicies(data) {
   if (Array.isArray(data)) return data;
@@ -83,7 +84,7 @@ export default function UserDashboardPage() {
   );
 
   return (
-    <section className="page-container">
+    <section className="page-container page-user-dashboard">
       <h2>User Dashboard</h2>
 
       <div className="card">

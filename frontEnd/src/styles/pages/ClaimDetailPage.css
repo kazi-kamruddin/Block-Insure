@@ -1,0 +1,11 @@
+.page-claim-detail .card {
+  max-width: 860px;
+}
+
+.page-claim-detail h3 {
+  margin-top: 22px;
+}
+
+.page-claim-detail .card + .card {
+  border-left: 4px solid var(--brand);
+}

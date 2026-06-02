@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import "../styles/pages/AuditorClaimLookupPage.css";
 
 export default function AuditorClaimLookupPage() {
   const [claimId, setClaimId] = useState("");
@@ -14,7 +15,7 @@ export default function AuditorClaimLookupPage() {
   }
 
   return (
-    <section className="page-container">
+    <section className="page-container page-auditor-claim-lookup">
       <h2>Auditor Claim Lookup</h2>
 
       <p>

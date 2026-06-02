@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
+import "../styles/pages/AuditorDashboardPage.css";
 
 export default function AuditorDashboardPage() {
   const { walletAddress, role } = useWallet();
 
   return (
-    <section className="page-container">
+    <section className="page-container page-auditor-dashboard">
       <h2>Auditor Dashboard</h2>
 
       <div className="card">

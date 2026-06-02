@@ -1,0 +1,7 @@
+.page-auditor-dashboard .card:first-of-type {
+  background: linear-gradient(135deg, #ffffff, #f5f3ff);
+}
+
+.page-auditor-dashboard .card-row .card {
+  min-height: 170px;
+}

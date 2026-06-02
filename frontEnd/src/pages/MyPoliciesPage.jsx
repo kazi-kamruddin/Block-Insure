@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getMyPolicies } from "../services/api";
 import { useWallet } from "../context/useWallet";
+import "../styles/pages/MyPoliciesPage.css";
 
 function extractPolicies(data) {
   if (Array.isArray(data)) return data;
@@ -33,7 +34,7 @@ export default function MyPoliciesPage() {
   const policies = extractPolicies(data);
 
   return (
-    <section className="page-container">
+    <section className="page-container page-my-policies">
       <h2>My Policies</h2>
 
       <button

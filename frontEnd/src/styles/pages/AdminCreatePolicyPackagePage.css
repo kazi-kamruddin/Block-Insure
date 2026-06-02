@@ -1,0 +1,12 @@
+.page-admin-create-policy-package .form-grid {
+  max-width: 720px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.page-admin-create-policy-package > p {
+  margin-bottom: 4px;
+}

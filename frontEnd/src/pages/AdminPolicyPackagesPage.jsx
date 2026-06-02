@@ -9,6 +9,7 @@ import {
   reactivatePolicyPackage,
   updatePolicyPackage,
 } from "../services/api";
+import "../styles/pages/AdminPolicyPackagesPage.css";
 
 function extractPackages(data) {
   if (Array.isArray(data)) return data;
@@ -115,7 +116,7 @@ export default function AdminPolicyPackagesPage() {
   }
 
   return (
-    <section className="page-container">
+    <section className="page-container page-admin-policy-packages">
       <h2>Admin Policy Packages</h2>
 
       <div className="action-row">

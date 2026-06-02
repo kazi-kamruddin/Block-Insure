@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import { getAdminClaims } from "../services/api";
+import "../styles/pages/AdminClaimListPage.css";
 
 function extractClaims(data) {
   if (Array.isArray(data)) return data;
@@ -26,7 +27,7 @@ export default function AdminClaimListPage() {
   const claims = extractClaims(data);
 
   return (
-    <section className="page-container">
+    <section className="page-container page-admin-claim-list">
       <h2>Admin Claims</h2>
 
       <button type="button" onClick={() => refetch()} disabled={isFetching}>

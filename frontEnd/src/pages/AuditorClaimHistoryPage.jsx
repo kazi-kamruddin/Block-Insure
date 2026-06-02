@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import TransactionLink from "../components/TransactionLink";
 import CopyableText from "../components/CopyableText";
 import { getClaimAuditTimeline } from "../services/api";
+import "../styles/pages/AuditorClaimHistoryPage.css";
 
 function extractEvents(data) {
   if (Array.isArray(data)) return data;
@@ -58,7 +59,7 @@ export default function AuditorClaimHistoryPage() {
   const events = extractEvents(data);
 
   return (
-    <section className="page-container">
+    <section className="page-container page-auditor-claim-history">
       <h2>Auditor Claim History</h2>
 
       <p>

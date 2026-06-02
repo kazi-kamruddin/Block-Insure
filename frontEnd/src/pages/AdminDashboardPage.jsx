@@ -7,6 +7,7 @@ import {
   getReadOnlyContract,
 } from "../services/contractService";
 import { getClaimStatusName } from "../utils/claimStatus";
+import "../styles/pages/AdminDashboardPage.css";
 
 function extractClaims(data) {
   if (Array.isArray(data)) return data;
@@ -49,7 +50,7 @@ export default function AdminDashboardPage() {
   const claims = extractClaims(claimsData);
 
   return (
-    <section className="page-container">
+    <section className="page-container page-admin-dashboard">
       <h2>Admin Dashboard</h2>
 
       <div className="action-row">

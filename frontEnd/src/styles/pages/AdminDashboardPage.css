@@ -1,0 +1,12 @@
+.page-admin-dashboard .card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.page-admin-dashboard .card-row .card {
+  margin: 0;
+}
+
+.page-admin-dashboard .card:first-child {
+  background: linear-gradient(135deg, #ffffff, #eff6ff);
+}

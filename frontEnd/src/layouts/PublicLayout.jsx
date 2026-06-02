@@ -1,9 +1,10 @@
 import { Link, Outlet } from "react-router-dom";
+import Footer from "../components/Footer";
 import WalletConnectButton from "../components/WalletConnectButton";
 
 export default function PublicLayout() {
   return (
-    <div>
+    <div className="app-shell">
       <nav className="navbar">
         <Link className="brand" to="/">
           Block-Insure
@@ -18,9 +19,11 @@ export default function PublicLayout() {
         <WalletConnectButton />
       </nav>
 
-      <main>
+      <main className="app-main">
         <Outlet />
       </main>
+
+      <Footer />
     </div>
   );
 }

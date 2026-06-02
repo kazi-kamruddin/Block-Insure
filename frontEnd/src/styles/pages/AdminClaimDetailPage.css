@@ -1,0 +1,11 @@
+.page-admin-claim-detail .card {
+  max-width: 900px;
+}
+
+.page-admin-claim-detail .card:first-of-type {
+  background: linear-gradient(135deg, #ffffff, #f0fdfa);
+}
+
+.page-admin-claim-detail .form-grid {
+  max-width: 720px;
+}
