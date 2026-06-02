@@ -1,17 +1,28 @@
 import { getEtherscanTxUrl } from "../services/contractService";
+import CopyableText from "./CopyableText";
 
 export default function TransactionLink({ txHash }) {
-  if (!txHash) return <span>-</span>;
-
-  const url = getEtherscanTxUrl(txHash);
-
-  if (url === "#") {
-    return <code>{txHash}</code>;
+  if (!txHash) {
+    return <span>-</span>;
   }
 
+  const url = getEtherscanTxUrl(txHash);
+  const isLocal = url === "#";
+
   return (
-    <a href={url} target="_blank" rel="noreferrer">
-      {txHash.slice(0, 10)}...{txHash.slice(-8)}
-    </a>
+    <span className="transaction-link">
+      <CopyableText value={txHash} label="Copy tx" short />
+
+      {!isLocal ? (
+        <>
+          {" "}
+          <a href={url} target="_blank" rel="noreferrer">
+            View
+          </a>
+        </>
+      ) : (
+        <span className="muted-text"> local tx</span>
+      )}
+    </span>
   );
 }

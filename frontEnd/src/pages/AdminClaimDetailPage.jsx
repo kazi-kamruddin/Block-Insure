@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
+import EvidenceField from "../components/EvidenceField";
+import IpfsLink from "../components/IpfsLink";
 import TransactionLink from "../components/TransactionLink";
 import {
   approveClaim,
@@ -13,7 +15,11 @@ import {
   sendClaimToManualReview,
   settleClaim,
 } from "../services/api";
-import { getStatusLabel } from "../services/contractService";
+import {
+  formatEth,
+  getReadOnlyContract,
+} from "../services/contractService";
+import { getClaimStatusName } from "../utils/claimStatus";
 
 function extractClaim(data) {
   return data?.claim || data?.data?.claim || data?.data || data;
@@ -27,35 +33,9 @@ function extractOracleLogs(data) {
   return [];
 }
 
-function normalizeStatus(status) {
-  if (status === undefined || status === null) return "UNKNOWN";
-
-  if (typeof status === "object") {
-    if (status.label) return status.label;
-    if (status.name) return status.name;
-    if (status.statusLabel) return status.statusLabel;
-    if (status.statusName) return status.statusName;
-    if (status.code !== undefined) return getStatusLabel(status.code);
-    if (status.value !== undefined) return getStatusLabel(status.value);
-    if (status._hex) return getStatusLabel(Number(status._hex));
-    return "UNKNOWN";
-  }
-
-  if (typeof status === "number") return getStatusLabel(status);
-
-  if (!Number.isNaN(Number(status))) return getStatusLabel(Number(status));
-
-  return status;
-}
-
-function getClaimStatusName(claim) {
-  return normalizeStatus(
-    claim?.statusLabel || claim?.statusName || claim?.statusCode || claim?.status
-  );
-}
-
 function formatValue(value) {
   if (value === undefined || value === null || value === "") return "-";
+  if (typeof value === "bigint") return value.toString();
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
@@ -70,6 +50,12 @@ function getTransactionHash(result) {
     result?.oracleRequest?.txHash ||
     ""
   );
+}
+
+async function getContractReserveBalance() {
+  const contract = getReadOnlyContract();
+  const balance = await contract.getContractBalance();
+  return formatEth(balance);
 }
 
 export default function AdminClaimDetailPage() {
@@ -102,6 +88,15 @@ export default function AdminClaimDetailPage() {
     enabled: Boolean(id),
   });
 
+  const {
+    data: reserveBalance,
+    isLoading: reserveLoading,
+    refetch: refetchReserve,
+  } = useQuery({
+    queryKey: ["contractReserveBalance"],
+    queryFn: getContractReserveBalance,
+  });
+
   const claim = extractClaim(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
   const statusName = getClaimStatusName(claim);
@@ -118,6 +113,12 @@ export default function AdminClaimDetailPage() {
     statusName !== "UNKNOWN";
   const canSettle = statusName === "APPROVED";
 
+  async function refreshAll() {
+    await refetch();
+    await refetchOracle();
+    await refetchReserve();
+  }
+
   async function runAdminAction(actionFn, successText) {
     setActionError("");
     setActionMessage("");
@@ -131,8 +132,7 @@ export default function AdminClaimDetailPage() {
       setActionTxHash(getTransactionHash(result));
       setActionMessage(successText);
 
-      await refetch();
-      await refetchOracle();
+      await refreshAll();
     } catch (err) {
       console.error(err);
       setActionError(
@@ -178,7 +178,7 @@ export default function AdminClaimDetailPage() {
 
   function handleSettle() {
     const confirmed = window.confirm(
-      "Settle this claim now? This will transfer ETH from the contract if enough balance exists."
+      "Settle this claim now? This will transfer ETH from the contract reserve to the claimant."
     );
 
     if (!confirmed) return;
@@ -194,15 +194,15 @@ export default function AdminClaimDetailPage() {
         <Link to="/admin/claims">Back to Admin Claims</Link>
       </p>
 
-      <button
-        type="button"
-        onClick={() => {
-          refetch();
-          refetchOracle();
-        }}
-      >
+      <button type="button" onClick={refreshAll}>
         Refresh Claim
       </button>
+
+      <div className="card">
+        <h3>Contract Reserve</h3>
+        <p>{reserveLoading ? "Loading..." : `${reserveBalance} ETH`}</p>
+        <p>This is the central payout reserve used during claim settlement.</p>
+      </div>
 
       {isLoading ? <p>Loading claim...</p> : null}
 
@@ -230,21 +230,17 @@ export default function AdminClaimDetailPage() {
           <p>Amount: {formatValue(claim.claimAmountEth || claim.claimAmount)} ETH</p>
           <p>Claim type: {formatValue(claim.claimType)}</p>
           <p>Hospital ID: {formatValue(claim.hospitalId)}</p>
-          <p>Invoice hash: {formatValue(claim.invoiceHash)}</p>
-          <p>Document hash: {formatValue(claim.documentHash)}</p>
-          <p>Document CID: {formatValue(claim.documentCID)}</p>
           <p>
-            Status:{" "}
-            <ClaimStatusBadge
-              status={
-                claim.statusLabel ||
-                claim.statusName ||
-                claim.statusCode ||
-                claim.status
-              }
-            />
+            Status: <ClaimStatusBadge status={statusName} showHelp />
           </p>
           <p>Risk score: {formatValue(claim.riskScore)}</p>
+
+          <h3>Evidence</h3>
+          <EvidenceField label="Invoice hash" value={claim.invoiceHash} />
+          <EvidenceField label="Document hash" value={claim.documentHash} />
+          <p>
+            <strong>Document CID:</strong> <IpfsLink cid={claim.documentCID} />
+          </p>
         </div>
       ) : null}
 
@@ -296,7 +292,7 @@ export default function AdminClaimDetailPage() {
               type="text"
               value={rejectReason}
               onChange={(event) => setRejectReason(event.target.value)}
-              placeholder="Example: Oracle verification failed"
+              placeholder="Example: Duplicate invoice/document evidence detected"
             />
           </label>
 
@@ -308,11 +304,6 @@ export default function AdminClaimDetailPage() {
             Reject Claim
           </button>
         </div>
-
-        <p>
-          Available actions depend on claim status. For your current failed
-          oracle claim, use <strong>Send to Manual Review</strong> first.
-        </p>
       </div>
 
       <h3>Oracle Results</h3>
@@ -328,8 +319,10 @@ export default function AdminClaimDetailPage() {
           <p>Request ID: {formatValue(log.requestId)}</p>
           <p>Verified: {formatValue(log.verified)}</p>
           <p>Risk level: {formatValue(log.riskLevel)}</p>
-          <p>Result hash: {formatValue(log.resultHash)}</p>
-          <p>Tx hash: {formatValue(log.submittedTxHash || log.txHash)}</p>
+          <EvidenceField label="Result hash" value={log.resultHash} />
+          <p>
+            Tx hash: <TransactionLink txHash={log.submittedTxHash || log.txHash} />
+          </p>
         </div>
       ))}
     </section>
