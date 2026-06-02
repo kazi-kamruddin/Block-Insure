@@ -47,6 +47,57 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.copyable-text code {
+  word-break: break-word;
+  white-space: normal;
+}
+
+.small-button {
+  padding: 3px 8px;
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.ipfs-link,
+.transaction-link {
+  word-break: break-word;
+}
+
+.evidence-field {
+  word-break: break-word;
+}
+
+.muted-text {
+  color: #666666;
+  font-size: 13px;
+}
+
+.status-wrapper {
+  display: inline-grid;
+  gap: 4px;
+}
+
+.status-help-text {
+  display: block;
+  color: #555555;
+  font-size: 13px;
+  max-width: 720px;
+  margin-top: 4px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.pre-box {
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid #dddddd;
+  padding: 10px;
+  background: #f7f7f7;
+}
+
 .subnav {
   padding: 12px 20px;
   border-bottom: 1px solid #eeeeee;

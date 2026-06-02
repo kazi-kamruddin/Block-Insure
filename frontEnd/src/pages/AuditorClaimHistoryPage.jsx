@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import TransactionLink from "../components/TransactionLink";
+import CopyableText from "../components/CopyableText";
 import { getClaimAuditTimeline } from "../services/api";
 
 function extractEvents(data) {
@@ -15,6 +16,7 @@ function extractEvents(data) {
 
 function formatValue(value) {
   if (value === undefined || value === null || value === "") return "-";
+  if (typeof value === "bigint") return value.toString();
 
   if (typeof value === "object") {
     return JSON.stringify(value, null, 2);
@@ -94,9 +96,20 @@ export default function AuditorClaimHistoryPage() {
             </p>
 
             {event.args || event.details ? (
-              <pre className="pre-box">
-                {formatValue(event.args || event.details)}
-              </pre>
+              <>
+                <p>
+                  Raw details:{" "}
+                  <CopyableText
+                    value={formatValue(event.args || event.details)}
+                    label="Copy details"
+                    short
+                  />
+                </p>
+
+                <pre className="pre-box">
+                  {formatValue(event.args || event.details)}
+                </pre>
+              </>
             ) : null}
           </div>
         ))}

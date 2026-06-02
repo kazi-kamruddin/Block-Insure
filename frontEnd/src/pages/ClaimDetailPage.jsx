@@ -2,7 +2,11 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
+import EvidenceField from "../components/EvidenceField";
+import IpfsLink from "../components/IpfsLink";
+import TransactionLink from "../components/TransactionLink";
 import { getClaimById, getOracleResults } from "../services/api";
+import { getClaimStatusName } from "../utils/claimStatus";
 
 function extractClaim(data) {
   return data?.claim || data?.data?.claim || data?.data || data;
@@ -18,6 +22,7 @@ function extractOracleLogs(data) {
 
 function formatValue(value) {
   if (value === undefined || value === null || value === "") return "-";
+  if (typeof value === "bigint") return value.toString();
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
@@ -48,6 +53,7 @@ export default function ClaimDetailPage() {
 
   const claim = extractClaim(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
+  const statusName = getClaimStatusName(claim);
 
   return (
     <section className="page-container">
@@ -84,22 +90,18 @@ export default function ClaimDetailPage() {
           <p>Amount: {formatValue(claim.claimAmountEth || claim.claimAmount)} ETH</p>
           <p>Claim type: {formatValue(claim.claimType)}</p>
           <p>Hospital ID: {formatValue(claim.hospitalId)}</p>
-          <p>Invoice hash: {formatValue(claim.invoiceHash)}</p>
-          <p>Document hash: {formatValue(claim.documentHash)}</p>
-          <p>Document CID: {formatValue(claim.documentCID)}</p>
           <p>
-            Status:{" "}
-            <ClaimStatusBadge
-              status={
-                claim.statusLabel ||
-                claim.statusName ||
-                claim.statusCode ||
-                claim.status
-              }
-            />
+            Status: <ClaimStatusBadge status={statusName} showHelp />
           </p>
           <p>Risk score: {formatValue(claim.riskScore)}</p>
           <p>Submitted at: {formatValue(claim.submittedAtFormatted || claim.submittedAt)}</p>
+
+          <h3>Evidence</h3>
+          <EvidenceField label="Invoice hash" value={claim.invoiceHash} />
+          <EvidenceField label="Document hash" value={claim.documentHash} />
+          <p>
+            <strong>Document CID:</strong> <IpfsLink cid={claim.documentCID} />
+          </p>
         </div>
       ) : null}
 
@@ -116,8 +118,10 @@ export default function ClaimDetailPage() {
           <p>Request ID: {formatValue(log.requestId)}</p>
           <p>Verified: {formatValue(log.verified)}</p>
           <p>Risk level: {formatValue(log.riskLevel)}</p>
-          <p>Result hash: {formatValue(log.resultHash)}</p>
-          <p>Tx hash: {formatValue(log.submittedTxHash || log.txHash)}</p>
+          <EvidenceField label="Result hash" value={log.resultHash} />
+          <p>
+            Tx hash: <TransactionLink txHash={log.submittedTxHash || log.txHash} />
+          </p>
         </div>
       ))}
     </section>

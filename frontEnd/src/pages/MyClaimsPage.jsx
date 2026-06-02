@@ -2,8 +2,10 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
+import IpfsLink from "../components/IpfsLink";
 import { getMyClaims } from "../services/api";
 import { useWallet } from "../context/useWallet";
+import { getClaimStatusName } from "../utils/claimStatus";
 
 function extractClaims(data) {
   if (Array.isArray(data)) return data;
@@ -64,17 +66,12 @@ export default function MyClaimsPage() {
             <p>Hospital ID: {claim.hospitalId}</p>
             <p>
               Status:{" "}
-              <ClaimStatusBadge
-                status={
-                  claim.statusLabel ||
-                  claim.statusName ||
-                  claim.statusCode ||
-                  claim.status
-                }
-              />
+              <ClaimStatusBadge status={getClaimStatusName(claim)} showHelp />
             </p>
             <p>Risk score: {claim.riskScore ?? "-"}</p>
-            <p>Document CID: {claim.documentCID || "-"}</p>
+            <p>
+              Document CID: <IpfsLink cid={claim.documentCID} />
+            </p>
 
             <Link to={`/user/claims/${claim.claimId}`}>View Details</Link>
           </div>

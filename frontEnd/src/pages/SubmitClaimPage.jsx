@@ -3,6 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import TransactionLink from "../components/TransactionLink";
 import { getMyPolicies, uploadClaimDocument } from "../services/api";
+
+import EvidenceField from "../components/EvidenceField";
+import IpfsLink from "../components/IpfsLink";
+
 import {
   assertCorrectNetwork,
   getConnectedWalletAddress,
@@ -296,8 +300,10 @@ export default function SubmitClaimPage() {
       {uploadInfo ? (
         <div className="card">
           <h3>Uploaded Document</h3>
-          <p>SHA-256: {uploadInfo.sha256Hash}</p>
-          <p>IPFS CID: {uploadInfo.ipfsCID}</p>
+          <EvidenceField label="SHA-256" value={uploadInfo.sha256Hash} />
+          <p>
+            <strong>IPFS CID:</strong> <IpfsLink cid={uploadInfo.ipfsCID} />
+          </p>
         </div>
       ) : null}
 
