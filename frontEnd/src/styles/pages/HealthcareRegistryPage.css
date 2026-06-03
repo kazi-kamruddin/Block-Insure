@@ -54,6 +54,80 @@
   font-weight: 700;
 }
 
+.registry-chain-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(120px, auto) minmax(180px, auto) minmax(210px, auto);
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--success);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.registry-chain-card > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.registry-chain-card span:not(.registry-chain-status) {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.registry-chain-card strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.registry-chain-main {
+  align-content: start;
+}
+
+.registry-chain-status {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.registry-chain-status.is-committed {
+  background: #ecfdf3;
+  color: var(--success);
+}
+
+.registry-chain-status.is-empty {
+  background: #fff7ed;
+  color: var(--warning);
+}
+
+.registry-chain-actions {
+  justify-items: end;
+}
+
+.registry-chain-actions button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.registry-chain-message {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .registry-filter-bar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -214,5 +288,13 @@
 
   .registry-merkle-card {
     grid-template-columns: 1fr;
+  }
+
+  .registry-chain-card {
+    grid-template-columns: 1fr;
+  }
+
+  .registry-chain-actions {
+    justify-items: start;
   }
 }

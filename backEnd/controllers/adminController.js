@@ -4,6 +4,7 @@ const {
   getReadOnlyContract,
 } = require("../services/contractService");
 const { buildReserveIntelligence } = require("../services/settlementIntelligenceService");
+const { exportMerkleRoot } = require("../services/merkleRegistryService");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -87,6 +88,23 @@ const formatContractBalance = async (contract) => {
   return {
     wei: balance.toString(),
     eth: ethers.formatEther(balance),
+  };
+};
+
+const formatRegistrySnapshot = (snapshot) => {
+  const root = snapshot.root || snapshot[0];
+  const timestamp = snapshot.timestamp || snapshot[1];
+  const blockNumber = snapshot.blockNumber || snapshot[2];
+  const timestampValue = Number(timestamp);
+
+  return {
+    root,
+    timestamp: {
+      unix: timestamp.toString(),
+      iso: timestampValue ? new Date(timestampValue * 1000).toISOString() : null,
+    },
+    blockNumber: blockNumber.toString(),
+    committed: root !== ethers.ZeroHash && timestampValue > 0,
   };
 };
 
@@ -301,6 +319,42 @@ const getReserveIntelligence = async (req, res, next) => {
     res.status(200).json({
       success: true,
       reserveIntelligence,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getRegistryMerkleRoot = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const snapshot = await contract.getRegistrySnapshot();
+
+    res.status(200).json({
+      success: true,
+      registrySnapshot: formatRegistrySnapshot(snapshot),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const pushRegistryMerkleRoot = async (req, res, next) => {
+  try {
+    const root = await exportMerkleRoot();
+    const contract = getAdminContract();
+
+    const tx = await contract.updateRegistryMerkleRoot(root);
+    const receipt = await tx.wait();
+    const snapshot = await contract.getRegistrySnapshot();
+
+    res.status(200).json({
+      success: true,
+      message: "Registry Merkle root pushed on-chain successfully",
+      root,
+      transactionHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      registrySnapshot: formatRegistrySnapshot(snapshot),
     });
   } catch (error) {
     next(error);
@@ -584,6 +638,8 @@ module.exports = {
   deactivatePolicyPackage,
   reactivatePolicyPackage,
   getReserveIntelligence,
+  getRegistryMerkleRoot,
+  pushRegistryMerkleRoot,
   getAdminClaims,
   requestOracleForClaim,
   approveClaim,

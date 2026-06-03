@@ -165,6 +165,11 @@ const buildRegistryMerkleRoot = async () => {
   };
 };
 
+const exportMerkleRoot = async () => {
+  const merkleRoot = await buildRegistryMerkleRoot();
+  return merkleRoot.rootHash || `0x${"0".repeat(64)}`;
+};
+
 const buildRegistryMerkleProof = async ({ invoiceHash }) => {
   const records = await getRegistryRecordsForMerkle();
   const tree = buildMerkleTree(records);
@@ -219,6 +224,7 @@ module.exports = {
   buildMerkleTree,
   buildRegistryMerkleProof,
   buildRegistryMerkleRoot,
+  exportMerkleRoot,
   getCanonicalRecordPayload,
   verifyMerkleProof,
 };

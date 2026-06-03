@@ -169,6 +169,16 @@ export async function getHealthcareRegistryMerkleRoot() {
   return response.data;
 }
 
+export async function getOnChainRegistryMerkleRoot() {
+  const response = await api.get("/api/admin/registry/merkle-root");
+  return response.data;
+}
+
+export async function pushRegistryMerkleRoot() {
+  const response = await api.post("/api/admin/registry/push-merkle-root");
+  return response.data;
+}
+
 export async function getHealthcareRegistryMerkleProof(invoiceHash) {
   const response = await api.get("/mock/hospital/records/merkle-proof", {
     params: {

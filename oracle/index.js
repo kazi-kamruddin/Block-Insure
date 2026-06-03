@@ -52,6 +52,8 @@ const buildResultHash = (oracleResponse) => {
   return ethers.keccak256(ethers.toUtf8Bytes(JSON.stringify(oracleResponse)));
 };
 
+const normalizeHash = (value) => String(value || "").trim().toLowerCase();
+
 const saveOracleLog = async ({
   requestId,
   claimId,
@@ -166,6 +168,16 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       },
     });
 
+    const onChainSnapshot = await contract.getRegistrySnapshot();
+    const localMerkleRoot = hospitalResponse.data.merkleProof?.rootHash || "";
+    const onChainMerkleRoot = onChainSnapshot.root || onChainSnapshot[0];
+    const registrySnapshotTimestamp =
+      onChainSnapshot.timestamp || onChainSnapshot[1];
+    const registrySnapshotBlock =
+      onChainSnapshot.blockNumber || onChainSnapshot[2];
+    const merkleRootMatchesChain =
+      normalizeHash(localMerkleRoot) !== "" &&
+      normalizeHash(localMerkleRoot) === normalizeHash(onChainMerkleRoot);
     const verified = hospitalResponse.data.verified === true;
     const riskLevel =
       hospitalResponse.data.riskLevel || (verified ? "LOW" : "HIGH");
@@ -180,6 +192,13 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       oracleType,
       queryData,
       hospitalVerification: hospitalResponse.data,
+      merkleRootMatchesChain,
+      registryCommitment: {
+        localRoot: localMerkleRoot,
+        onChainRoot: onChainMerkleRoot,
+        snapshotTimestamp: registrySnapshotTimestamp.toString(),
+        snapshotBlock: registrySnapshotBlock.toString(),
+      },
       verified,
       riskLevel,
       remarks,
@@ -191,6 +210,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
     console.log("Submitting oracle result...");
     console.log("Verified:", verified);
     console.log("Risk level:", riskLevel);
+    console.log("Merkle root matches chain:", merkleRootMatchesChain);
     console.log("Result hash:", resultHash);
 
     const tx = await submitWithRetry(

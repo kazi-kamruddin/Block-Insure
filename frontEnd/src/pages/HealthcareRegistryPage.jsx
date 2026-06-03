@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   getHealthcareRegistryMerkleRoot,
   getHealthcareRegistryRecords,
+  getOnChainRegistryMerkleRoot,
+  pushRegistryMerkleRoot,
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import "../styles/pages/HealthcareRegistryPage.css";
@@ -39,6 +41,16 @@ function cleanFilters(filters) {
   );
 }
 
+function formatTimestamp(timestamp) {
+  const isoValue = timestamp?.iso;
+
+  if (!isoValue) {
+    return "-";
+  }
+
+  return new Date(isoValue).toLocaleString();
+}
+
 export default function HealthcareRegistryPage() {
   const { role } = useWallet();
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
@@ -72,9 +84,29 @@ export default function HealthcareRegistryPage() {
     queryFn: getHealthcareRegistryMerkleRoot,
   });
 
+  const {
+    data: onChainMerkleData,
+    isLoading: onChainMerkleLoading,
+    error: onChainMerkleError,
+    refetch: refetchOnChainMerkle,
+  } = useQuery({
+    queryKey: ["onChainRegistryMerkleRoot"],
+    queryFn: getOnChainRegistryMerkleRoot,
+    enabled: role === "ADMIN",
+  });
+
+  const pushMerkleMutation = useMutation({
+    mutationFn: pushRegistryMerkleRoot,
+    onSuccess: () => {
+      refetchOnChainMerkle();
+      refetchMerkle();
+    },
+  });
+
   const records = extractRecords(data);
   const summary = data?.summary || {};
   const merkleRoot = merkleData?.merkleRoot;
+  const registrySnapshot = onChainMerkleData?.registrySnapshot;
   const total = summary.total || 0;
 
   function updateFilter(field, value) {
@@ -112,6 +144,61 @@ export default function HealthcareRegistryPage() {
           </p>
         </div>
       </div>
+
+      {role === "ADMIN" ? (
+        <div className="registry-chain-card">
+          <div className="registry-chain-main">
+            <span className="registry-eyebrow">On-Chain Registry Commitment</span>
+            <strong>
+              {onChainMerkleLoading
+                ? "Loading root..."
+                : registrySnapshot?.root || "-"}
+            </strong>
+            <span
+              className={`registry-chain-status ${
+                registrySnapshot?.committed ? "is-committed" : "is-empty"
+              }`}
+            >
+              {registrySnapshot?.committed
+                ? "Committed to Blockchain"
+                : "Not Yet Committed"}
+            </span>
+          </div>
+          <div>
+            <span>Block Number</span>
+            <strong>{registrySnapshot?.blockNumber || "-"}</strong>
+          </div>
+          <div>
+            <span>Timestamp</span>
+            <strong>{formatTimestamp(registrySnapshot?.timestamp)}</strong>
+          </div>
+          <div className="registry-chain-actions">
+            <button
+              type="button"
+              onClick={() => pushMerkleMutation.mutate()}
+              disabled={pushMerkleMutation.isPending}
+            >
+              {pushMerkleMutation.isPending
+                ? "Pushing..."
+                : "Push Current Root On-Chain"}
+            </button>
+          </div>
+          {onChainMerkleError || pushMerkleMutation.error ? (
+            <p className="registry-chain-message error-text">
+              {onChainMerkleError?.response?.data?.message ||
+                pushMerkleMutation.error?.response?.data?.message ||
+                onChainMerkleError?.message ||
+                pushMerkleMutation.error?.message ||
+                "Could not update on-chain registry commitment"}
+            </p>
+          ) : null}
+          {pushMerkleMutation.data?.transactionHash ? (
+            <p className="registry-chain-message">
+              Root pushed in transaction {pushMerkleMutation.data.transactionHash}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="registry-metrics">
         <div className="card">

@@ -132,6 +132,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => bytes32) private claimRejectionReasonHash;
     mapping(uint256 => SettlementRecord) private settlementRecords;
 
+    bytes32 public registryMerkleRoot;
+    uint256 public registrySnapshotTimestamp;
+    uint256 public registrySnapshotBlock;
+
     // =============================================================
     // Events
     // =============================================================
@@ -236,6 +240,13 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     event ExcessWithdrawn(
         address indexed withdrawnBy,
         uint256 amount
+    );
+
+    event RegistryRootUpdated(
+        bytes32 indexed newRoot,
+        uint256 timestamp,
+        uint256 blockNumber,
+        address updatedBy
     );
 
     // =============================================================
@@ -507,6 +518,35 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     function getContractBalance() external view returns (uint256) {
         return address(this).balance;
+    }
+
+    // =============================================================
+    // Registry Merkle Commitment
+    // =============================================================
+
+    function updateRegistryMerkleRoot(bytes32 _root) external onlyRole(ADMIN_ROLE) {
+        registryMerkleRoot = _root;
+        registrySnapshotTimestamp = block.timestamp;
+        registrySnapshotBlock = block.number;
+
+        emit RegistryRootUpdated(
+            _root,
+            block.timestamp,
+            block.number,
+            msg.sender
+        );
+    }
+
+    function getRegistrySnapshot()
+        external
+        view
+        returns (bytes32 root, uint256 timestamp, uint256 blockNumber)
+    {
+        return (
+            registryMerkleRoot,
+            registrySnapshotTimestamp,
+            registrySnapshotBlock
+        );
     }
 
     receive() external payable {

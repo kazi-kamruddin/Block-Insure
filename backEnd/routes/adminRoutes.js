@@ -6,6 +6,8 @@ const {
   deactivatePolicyPackage,
   reactivatePolicyPackage,
   getReserveIntelligence,
+  getRegistryMerkleRoot,
+  pushRegistryMerkleRoot,
   getAdminClaims,
   requestOracleForClaim,
   approveClaim,
@@ -58,6 +60,20 @@ router.get(
   authMiddleware,
   requireRole("ADMIN"),
   getReserveIntelligence
+);
+
+router.get(
+  "/registry/merkle-root",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getRegistryMerkleRoot
+);
+
+router.post(
+  "/registry/push-merkle-root",
+  authMiddleware,
+  requireRole("ADMIN"),
+  pushRegistryMerkleRoot
 );
 
 router.get(
