@@ -32,6 +32,7 @@ export default function AdminLayout() {
         <Link to="/admin/policy-packages">Packages</Link>
         <Link to="/admin/policy-packages/new">Create Package</Link>
         <Link to="/admin/healthcare-registry">Registry</Link>
+        <Link to="/admin/thesis-dashboard">Thesis Results</Link>
         <Link to="/admin/claims">Claims</Link>
       </div>
 

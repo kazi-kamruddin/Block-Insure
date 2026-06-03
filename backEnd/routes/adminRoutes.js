@@ -15,6 +15,12 @@ const {
   settleClaim,
   sendClaimToManualReview,
 } = require("../controllers/adminController");
+const {
+  getEvaluationSummary,
+  getGasComparison,
+  getOracleStats,
+  getRiskDistribution,
+} = require("../controllers/evaluationController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
 
@@ -60,6 +66,41 @@ router.get(
   authMiddleware,
   requireRole("ADMIN"),
   getReserveIntelligence
+);
+
+router.get(
+  "/settlement-intelligence",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getReserveIntelligence
+);
+
+router.get(
+  "/evaluation/summary",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getEvaluationSummary
+);
+
+router.get(
+  "/evaluation/gas-comparison",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getGasComparison
+);
+
+router.get(
+  "/evaluation/risk-distribution",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getRiskDistribution
+);
+
+router.get(
+  "/evaluation/oracle-stats",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getOracleStats
 );
 
 router.get(

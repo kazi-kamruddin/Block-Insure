@@ -26,6 +26,7 @@ import ClaimDetailPage from "./pages/ClaimDetailPage";
 import AdminClaimListPage from "./pages/AdminClaimListPage";
 import AdminClaimDetailPage from "./pages/AdminClaimDetailPage";
 import HealthcareRegistryPage from "./pages/HealthcareRegistryPage";
+import ThesisResultsDashboardPage from "./pages/ThesisResultsDashboardPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 import "./App.css";
@@ -61,6 +62,7 @@ export default function App() {
                   element={<AdminCreatePolicyPackagePage />}
                 />
                 <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
+                <Route path="thesis-dashboard" element={<ThesisResultsDashboardPage />} />
                 <Route path="claims" element={<AdminClaimListPage />} />
                 <Route path="claims/:id" element={<AdminClaimDetailPage />} />
               </Route>

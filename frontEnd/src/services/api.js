@@ -143,6 +143,26 @@ export async function getReserveIntelligence() {
   return response.data;
 }
 
+export async function getEvaluationSummary() {
+  const response = await api.get("/api/admin/evaluation/summary");
+  return response.data;
+}
+
+export async function getGasComparison() {
+  const response = await api.get("/api/admin/evaluation/gas-comparison");
+  return response.data;
+}
+
+export async function getRiskDistribution() {
+  const response = await api.get("/api/admin/evaluation/risk-distribution");
+  return response.data;
+}
+
+export async function getOracleStats() {
+  const response = await api.get("/api/admin/evaluation/oracle-stats");
+  return response.data;
+}
+
 export async function requestOracleVerification(claimId) {
   const response = await api.post(`/api/admin/claims/${claimId}/request-oracle`);
   return response.data;
