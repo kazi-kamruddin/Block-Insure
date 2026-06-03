@@ -1,5 +1,6 @@
 const { ethers } = require("ethers");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
+const { buildRiskAssessment } = require("../services/riskScoringService");
 
 const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -116,6 +117,20 @@ const getRegistrySummary = async (filter = {}) => {
       count: item.count,
     })),
   };
+};
+
+const getHigherRiskLevel = (...levels) => {
+  const rank = {
+    LOW: 1,
+    MEDIUM: 2,
+    HIGH: 3,
+    FRAUD_FLAGGED: 3,
+    ORACLE_FAILED: 3,
+  };
+
+  return levels.reduce((highest, level) => {
+    return (rank[level] || 0) > (rank[highest] || 0) ? level : highest;
+  }, "LOW");
 };
 
 const normalizeText = (value) => String(value || "").trim().toUpperCase();
@@ -495,34 +510,48 @@ const verifyHospitalRecord = async (req, res, next) => {
       claimType,
       incidentDate,
     });
+    const verificationQuery = {
+      hospitalId,
+      invoiceHash: normalizedInvoiceHash,
+      claimAmountEth: claimAmountEth || null,
+      claimAmountWei: claimAmountWei || null,
+      claimType: claimType || null,
+      incidentDate: incidentDate || null,
+    };
+    const riskAssessment = await buildRiskAssessment({
+      record,
+      comparison,
+      query: verificationQuery,
+    });
 
     if (!record) {
       return res.status(200).json({
         success: true,
         verified: false,
-        riskLevel: "HIGH",
+        riskLevel: getHigherRiskLevel("HIGH", riskAssessment.riskLevel),
         message: "No matching synthetic healthcare registry record found",
         comparison,
-        query: {
-          hospitalId,
-          invoiceHash: normalizedInvoiceHash,
-          claimAmountEth: claimAmountEth || null,
-          claimAmountWei: claimAmountWei || null,
-          claimType: claimType || null,
-          incidentDate: incidentDate || null,
-        },
+        riskAssessment,
+        query: verificationQuery,
       });
     }
 
-    const verified = comparison.blockingFailureCount === 0;
+    const comparisonVerified = comparison.blockingFailureCount === 0;
+    const verified =
+      comparisonVerified &&
+      riskAssessment.recommendation !== "REJECT_ORACLE_VERIFICATION";
 
-    const riskLevel = verified
+    const comparisonRiskLevel = comparisonVerified
       ? comparison.warningFailureCount > 0
         ? "MEDIUM"
         : "LOW"
       : comparison.blockingFailures.some((failure) => failure.severity === "HIGH")
         ? "HIGH"
         : "MEDIUM";
+    const riskLevel = getHigherRiskLevel(
+      comparisonRiskLevel,
+      riskAssessment.riskLevel
+    );
     const failureSummary = comparison.blockingFailures
       .map((failure) => failure.label)
       .join(", ");
@@ -535,16 +564,12 @@ const verifyHospitalRecord = async (req, res, next) => {
         ? comparison.warningFailureCount > 0
           ? "Synthetic healthcare registry record matched with non-blocking warnings"
           : "Synthetic healthcare registry record matched"
-        : `Registry verification failed: ${failureSummary || record.fraudLabel}`,
+        : comparisonVerified
+          ? "Bayesian risk engine rejected the claim for high fraud probability"
+          : `Registry verification failed: ${failureSummary || record.fraudLabel}`,
       comparison,
-      query: {
-        hospitalId,
-        invoiceHash: normalizedInvoiceHash,
-        claimAmountEth: claimAmountEth || null,
-        claimAmountWei: claimAmountWei || null,
-        claimType: claimType || null,
-        incidentDate: incidentDate || null,
-      },
+      riskAssessment,
+      query: verificationQuery,
       record,
     });
   } catch (error) {

@@ -23,11 +23,26 @@ function extractHospitalVerification(log) {
   );
 }
 
+function extractRiskAssessment(log) {
+  return (
+    log?.responseData?.hospitalVerification?.riskAssessment ||
+    log?.hospitalVerification?.riskAssessment ||
+    log?.responseData?.riskAssessment ||
+    log?.riskAssessment ||
+    null
+  );
+}
+
 export default function OracleComparisonPanel({ log }) {
   const comparison = extractComparison(log);
   const hospitalVerification = extractHospitalVerification(log);
+  const riskAssessment = extractRiskAssessment(log);
   const checks = comparison?.fieldChecks
     ? Object.entries(comparison.fieldChecks)
+    : [];
+  const riskDrivers = riskAssessment?.riskDrivers || [];
+  const anomalySignals = riskAssessment?.anomalySignals
+    ? Object.entries(riskAssessment.anomalySignals)
     : [];
 
   if (!comparison) {
@@ -75,6 +90,70 @@ export default function OracleComparisonPanel({ log }) {
         <div className="oracle-comparison-alert is-warning">
           <strong>Non-blocking warning:</strong>{" "}
           {warningFailures.map((failure) => failure.label).join(", ")}
+        </div>
+      ) : null}
+
+      {riskAssessment ? (
+        <div className="oracle-risk-model">
+          <div className="oracle-risk-model-header">
+            <div>
+              <h4>Bayesian Risk Model</h4>
+              <p>{formatValue(riskAssessment.modelVersion)}</p>
+            </div>
+            <span
+              className={`oracle-risk-score is-${String(
+                riskAssessment.riskLevel || "low"
+              ).toLowerCase()}`}
+            >
+              {formatValue(riskAssessment.posteriorFraudPercent)}% fraud
+            </span>
+          </div>
+
+          <div className="oracle-comparison-metrics">
+            <span>Risk level: {formatValue(riskAssessment.riskLevel)}</span>
+            <span>
+              Prior fraud:{" "}
+              {formatValue(riskAssessment.dataset?.priorFraudPercent)}%
+            </span>
+            <span>
+              Active evidence: {formatValue(riskAssessment.activeEvidenceCount)}
+            </span>
+            <span>
+              Recommendation: {formatValue(riskAssessment.recommendation)}
+            </span>
+          </div>
+
+          {riskDrivers.length > 0 ? (
+            <div className="oracle-risk-drivers">
+              {riskDrivers.map((driver) => (
+                <span key={driver.key}>
+                  {driver.label} ({formatValue(driver.logLikelihoodRatio)})
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="oracle-comparison-source">
+              No active high-risk evidence was detected by the Bayesian model.
+            </p>
+          )}
+
+          {anomalySignals.length > 0 ? (
+            <div className="oracle-anomaly-grid">
+              {anomalySignals.map(([key, signal]) => (
+                <article
+                  className={`oracle-anomaly-signal ${
+                    signal.isAnomaly ? "is-anomaly" : ""
+                  }`}
+                  key={key}
+                >
+                  <strong>{formatValue(signal.metric || key)}</strong>
+                  <span>Z-score: {formatValue(signal.zScore)}</span>
+                  <span>Mean: {formatValue(signal.mean)}</span>
+                  <span>Value: {formatValue(signal.value)}</span>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

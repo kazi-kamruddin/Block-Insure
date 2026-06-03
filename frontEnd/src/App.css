@@ -483,6 +483,94 @@ button:disabled {
   font-size: 12px;
 }
 
+.oracle-risk-model {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #f8fafc;
+}
+
+.oracle-risk-model-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.oracle-risk-model-header h4 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.oracle-risk-model-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.oracle-risk-score {
+  min-width: 96px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  text-align: center;
+  font-weight: 800;
+}
+
+.oracle-risk-score.is-low {
+  background: #ecfdf3;
+  color: var(--success);
+}
+
+.oracle-risk-score.is-medium {
+  background: #fff7ed;
+  color: var(--warning);
+}
+
+.oracle-risk-score.is-high {
+  background: #fef3f2;
+  color: var(--danger);
+}
+
+.oracle-risk-drivers,
+.oracle-anomaly-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.oracle-risk-drivers span {
+  padding: 7px 9px;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius);
+  background: #fff7ed;
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.oracle-anomaly-signal {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--success);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+}
+
+.oracle-anomaly-signal.is-anomaly {
+  border-left-color: var(--danger);
+}
+
+.oracle-anomaly-signal strong {
+  color: var(--text);
+}
+
 .site-footer {
   margin-top: 32px;
   border-top: 1px solid var(--line);
