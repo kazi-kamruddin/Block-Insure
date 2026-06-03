@@ -145,6 +145,20 @@ export async function getOracleResults(claimId) {
   return response.data;
 }
 
+export async function getHealthcareRegistryRecords(params = {}) {
+  const response = await api.get("/mock/hospital/records", {
+    params,
+  });
+  return response.data;
+}
+
+export async function getHealthcareRegistrySummary(params = {}) {
+  const response = await api.get("/mock/hospital/records/summary", {
+    params,
+  });
+  return response.data;
+}
+
 export async function getClaimAuditTimeline(claimId) {
   const response = await api.get(`/api/audit/claims/${claimId}`);
   return response.data;

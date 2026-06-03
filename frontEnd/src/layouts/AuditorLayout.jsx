@@ -29,6 +29,7 @@ export default function AuditorLayout() {
     <div>
       <div className="subnav">
         <Link to="/auditor/dashboard">Dashboard</Link>
+        <Link to="/auditor/healthcare-registry">Registry</Link>
         <Link to="/auditor/claims">Claims</Link>
       </div>
 

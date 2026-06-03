@@ -23,6 +23,7 @@ import MyClaimsPage from "./pages/MyClaimsPage";
 import ClaimDetailPage from "./pages/ClaimDetailPage";
 import AdminClaimListPage from "./pages/AdminClaimListPage";
 import AdminClaimDetailPage from "./pages/AdminClaimDetailPage";
+import HealthcareRegistryPage from "./pages/HealthcareRegistryPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 import "./App.css";
@@ -57,6 +58,7 @@ export default function App() {
                   path="policy-packages/new"
                   element={<AdminCreatePolicyPackagePage />}
                 />
+                <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
                 <Route path="claims" element={<AdminClaimListPage />} />
                 <Route path="claims/:id" element={<AdminClaimDetailPage />} />
               </Route>
@@ -64,6 +66,7 @@ export default function App() {
               <Route path="auditor" element={<AuditorLayout />}>
                 <Route index element={<Navigate to="/auditor/dashboard" replace />} />
                 <Route path="dashboard" element={<AuditorDashboardPage />} />
+                <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
                 <Route path="claims" element={<AuditorClaimLookupPage />} />
                 <Route path="claims/:id/history" element={<AuditorClaimHistoryPage />} />
               </Route>
