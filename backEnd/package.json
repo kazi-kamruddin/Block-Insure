@@ -15,6 +15,7 @@
     "oracle:local": "node scripts/submitOracleResultLocal.js",
     "fund:local": "node scripts/fundContractLocal.js",
     "seed:mock": "node scripts/seedMockData.js",
+    "evaluate:risk": "node scripts/evaluateRiskModel.js",
     "role:set": "node scripts/setUserRole.js"
   },
   "keywords": [],

@@ -578,6 +578,7 @@ const verifyHospitalRecord = async (req, res, next) => {
 };
 
 module.exports = {
+  buildVerificationComparison,
   getAllHospitalRecords,
   getHospitalRecordById,
   getHospitalRegistrySummary,

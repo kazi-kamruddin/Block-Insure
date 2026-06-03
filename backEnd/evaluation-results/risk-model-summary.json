@@ -1,0 +1,76 @@
+{
+  "generatedAt": "2026-06-03T10:01:23.109Z",
+  "dataset": {
+    "totalRecords": 72,
+    "legitimateRecords": 33,
+    "fraudRecords": 39,
+    "fraudRate": 0.5417
+  },
+  "decisionRule": {
+    "predictedFraud": "recommendation != AUTO_VERIFY_RECOMMENDED OR blockingFailureCount > 0",
+    "riskBucket": "LOW < 35, MEDIUM 35-69, HIGH >= 70"
+  },
+  "confusionMatrix": {
+    "truePositive": 39,
+    "trueNegative": 33,
+    "falsePositive": 0,
+    "falseNegative": 0
+  },
+  "metrics": {
+    "accuracy": 1,
+    "precision": 1,
+    "recall": 1,
+    "specificity": 1,
+    "f1Score": 1,
+    "averageRiskScore": 56.46
+  },
+  "riskBuckets": {
+    "LOW": 33,
+    "MEDIUM": 0,
+    "HIGH": 39
+  },
+  "fraudLabelBreakdown": {
+    "LEGITIMATE": {
+      "total": 33,
+      "predictedFraud": 0,
+      "detectionRate": 0,
+      "averageRiskScore": 5
+    },
+    "DATE_MISMATCH": {
+      "total": 4,
+      "predictedFraud": 4,
+      "detectionRate": 1,
+      "averageRiskScore": 100
+    },
+    "CANCELLED_RECORD": {
+      "total": 6,
+      "predictedFraud": 6,
+      "detectionRate": 1,
+      "averageRiskScore": 100
+    },
+    "USED_INVOICE": {
+      "total": 9,
+      "predictedFraud": 9,
+      "detectionRate": 1,
+      "averageRiskScore": 100
+    },
+    "INFLATED_AMOUNT": {
+      "total": 5,
+      "predictedFraud": 5,
+      "detectionRate": 1,
+      "averageRiskScore": 100
+    },
+    "SUSPICIOUS_PATTERN": {
+      "total": 6,
+      "predictedFraud": 6,
+      "detectionRate": 1,
+      "averageRiskScore": 100
+    },
+    "BLACKLISTED_HOSPITAL": {
+      "total": 9,
+      "predictedFraud": 9,
+      "detectionRate": 1,
+      "averageRiskScore": 100
+    }
+  }
+}
