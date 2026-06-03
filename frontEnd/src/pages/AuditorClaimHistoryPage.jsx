@@ -3,8 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 
 import TransactionLink from "../components/TransactionLink";
 import CopyableText from "../components/CopyableText";
+import EvidenceChainPanel from "../components/EvidenceChainPanel";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
-import { getClaimAuditTimeline, getOracleResults } from "../services/api";
+import {
+  getClaimAuditTimeline,
+  getClaimById,
+  getOracleResults,
+} from "../services/api";
 import "../styles/pages/AuditorClaimHistoryPage.css";
 
 function extractEvents(data) {
@@ -22,6 +27,10 @@ function extractOracleLogs(data) {
   if (Array.isArray(data?.oracleLogs)) return data.oracleLogs;
   if (Array.isArray(data?.data)) return data.data;
   return [];
+}
+
+function extractEvidenceChain(data) {
+  return data?.evidenceChain || data?.data?.evidenceChain || null;
 }
 
 function formatValue(value) {
@@ -76,8 +85,20 @@ export default function AuditorClaimHistoryPage() {
     enabled: Boolean(id),
   });
 
+  const {
+    data: claimData,
+    isLoading: claimLoading,
+    isFetching: claimFetching,
+    refetch: refetchClaim,
+  } = useQuery({
+    queryKey: ["auditorClaimEvidence", id],
+    queryFn: () => getClaimById(id),
+    enabled: Boolean(id),
+  });
+
   const events = extractEvents(data);
   const oracleLogs = extractOracleLogs(oracleData);
+  const evidenceChain = extractEvidenceChain(claimData);
 
   return (
     <section className="page-container page-auditor-claim-history">
@@ -92,10 +113,13 @@ export default function AuditorClaimHistoryPage() {
         onClick={() => {
           refetch();
           refetchOracle();
+          refetchClaim();
         }}
-        disabled={isFetching || oracleFetching}
+        disabled={isFetching || oracleFetching || claimFetching}
       >
-        {isFetching || oracleFetching ? "Refreshing..." : "Refresh Timeline"}
+        {isFetching || oracleFetching || claimFetching
+          ? "Refreshing..."
+          : "Refresh Timeline"}
       </button>
 
       {isLoading ? <p>Loading audit timeline...</p> : null}
@@ -148,6 +172,14 @@ export default function AuditorClaimHistoryPage() {
           </div>
         ))}
       </div>
+
+      <h3>Evidence Hash Chain</h3>
+
+      {claimLoading ? <p>Loading evidence chain...</p> : null}
+
+      {!claimLoading ? (
+        <EvidenceChainPanel evidenceChain={evidenceChain} />
+      ) : null}
 
       <h3>Oracle Registry Comparison</h3>
 

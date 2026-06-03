@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
+import EvidenceChainPanel from "../components/EvidenceChainPanel";
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
@@ -33,6 +34,10 @@ function extractOracleLogs(data) {
   if (Array.isArray(data?.oracleLogs)) return data.oracleLogs;
   if (Array.isArray(data?.data)) return data.data;
   return [];
+}
+
+function extractEvidenceChain(data) {
+  return data?.evidenceChain || data?.data?.evidenceChain || null;
 }
 
 function formatValue(value) {
@@ -100,6 +105,7 @@ export default function AdminClaimDetailPage() {
   });
 
   const claim = extractClaim(claimData);
+  const evidenceChain = extractEvidenceChain(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
   const statusName = getClaimStatusName(claim);
 
@@ -243,6 +249,7 @@ export default function AdminClaimDetailPage() {
           <p>
             <strong>Document CID:</strong> <IpfsLink cid={claim.documentCID} />
           </p>
+          <EvidenceChainPanel evidenceChain={evidenceChain} />
         </div>
       ) : null}
 

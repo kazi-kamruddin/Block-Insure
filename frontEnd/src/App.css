@@ -571,6 +571,88 @@ button:disabled {
   color: var(--text);
 }
 
+.evidence-chain-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.evidence-chain-header,
+.evidence-chain-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.evidence-chain-header h3 {
+  margin: 0 0 4px;
+}
+
+.evidence-chain-header p,
+.evidence-chain-head {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.evidence-chain-status {
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.evidence-chain-status.is-verified {
+  background: #ecfdf3;
+  color: var(--success);
+}
+
+.evidence-chain-status.is-broken {
+  background: #fef3f2;
+  color: var(--danger);
+}
+
+.evidence-chain-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.evidence-chain-item {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--success);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.evidence-chain-item.is-broken {
+  border-left-color: var(--danger);
+}
+
+.evidence-chain-item p {
+  margin: 8px 0 0;
+  color: #334155;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.evidence-chain-item-head span {
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.evidence-chain-item.is-broken .evidence-chain-item-head span {
+  color: var(--danger);
+}
+
 .site-footer {
   margin-top: 32px;
   border-top: 1px solid var(--line);

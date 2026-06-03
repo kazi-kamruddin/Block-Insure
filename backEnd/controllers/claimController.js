@@ -1,5 +1,6 @@
 const { ethers } = require("ethers");
 const { getReadOnlyContract } = require("../services/contractService");
+const { getEvidenceChainForClaim } = require("../services/evidenceChainService");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -112,11 +113,13 @@ const getClaimById = async (req, res, next) => {
     }
 
     const documents = await contract.getClaimDocuments(req.params.claimId);
+    const evidenceChain = await getEvidenceChainForClaim(req.params.claimId);
 
     res.status(200).json({
       success: true,
       claim: formatClaim(claim),
       documents: documents.map(formatClaimDocument),
+      evidenceChain,
     });
   } catch (error) {
     next(error);
