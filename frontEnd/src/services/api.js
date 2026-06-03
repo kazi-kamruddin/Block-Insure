@@ -108,6 +108,21 @@ export async function getClaimById(claimId) {
   return response.data;
 }
 
+export async function submitAppeal(payload) {
+  const response = await api.post("/api/appeals", payload);
+  return response.data;
+}
+
+export async function getAppealByClaim(claimId) {
+  const response = await api.get(`/api/appeals/claim/${claimId}`);
+  return response.data;
+}
+
+export async function reviewAppeal(appealId, payload) {
+  const response = await api.patch(`/api/appeals/${appealId}/review`, payload);
+  return response.data;
+}
+
 export async function getAdminClaims() {
   const response = await api.get("/api/admin/claims");
   return response.data;

@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import EvidenceChainPanel from "../components/EvidenceChainPanel";
@@ -7,7 +8,14 @@ import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import TransactionLink from "../components/TransactionLink";
-import { getClaimById, getOracleResults } from "../services/api";
+import {
+  getAppealByClaim,
+  getClaimById,
+  getOracleResults,
+  submitAppeal,
+  uploadClaimDocument,
+} from "../services/api";
+import { getWalletContract } from "../services/contractService";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/ClaimDetailPage.css";
 
@@ -34,8 +42,27 @@ function formatValue(value) {
   return String(value);
 }
 
+function formatDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString();
+}
+
+async function hashAppealReason(reason) {
+  const encoded = new TextEncoder().encode(reason);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return `0x${Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
 export default function ClaimDetailPage() {
   const { id } = useParams();
+  const [appealReason, setAppealReason] = useState("");
+  const [appealFile, setAppealFile] = useState(null);
+  const [appealError, setAppealError] = useState("");
+  const [appealMessage, setAppealMessage] = useState("");
+  const [appealTxHash, setAppealTxHash] = useState("");
+  const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
 
   const {
     data: claimData,
@@ -58,10 +85,99 @@ export default function ClaimDetailPage() {
     enabled: Boolean(id),
   });
 
+  const {
+    data: appealData,
+    isLoading: appealLoading,
+    refetch: refetchAppeal,
+  } = useQuery({
+    queryKey: ["claimAppeal", id],
+    queryFn: async () => {
+      try {
+        return await getAppealByClaim(id);
+      } catch (err) {
+        if (err.response?.status === 404) {
+          return null;
+        }
+
+        throw err;
+      }
+    },
+    enabled: Boolean(id),
+    retry: false,
+  });
+
   const claim = extractClaim(claimData);
   const evidenceChain = extractEvidenceChain(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
   const statusName = getClaimStatusName(claim);
+  const appeal = appealData?.appeal || null;
+  const canAppeal = statusName === "REJECTED" && !appeal;
+
+  async function handleSubmitAppeal(event) {
+    event.preventDefault();
+    setAppealError("");
+    setAppealMessage("");
+    setAppealTxHash("");
+
+    const trimmedReason = appealReason.trim();
+
+    if (!trimmedReason) {
+      setAppealError("Enter an appeal reason first.");
+      return;
+    }
+
+    try {
+      setIsSubmittingAppeal(true);
+
+      const appealReasonHash = await hashAppealReason(trimmedReason);
+      let additionalDocumentHash = "";
+      let additionalDocumentCID = "";
+
+      if (appealFile) {
+        const uploadResult = await uploadClaimDocument({
+          file: appealFile,
+          documentType: "APPEAL_DOCUMENT",
+          claimId: id,
+        });
+
+        additionalDocumentHash = uploadResult.document?.sha256Hash || "";
+        additionalDocumentCID = uploadResult.document?.ipfsCID || "";
+      }
+
+      const contract = await getWalletContract();
+      const tx = await contract.submitAppeal(id, appealReasonHash);
+
+      setAppealTxHash(tx.hash);
+
+      await tx.wait();
+
+      await submitAppeal({
+        claimId: id,
+        appealReason: trimmedReason,
+        appealReasonHash,
+        additionalDocumentHash,
+        additionalDocumentCID,
+        transactionHash: tx.hash,
+      });
+
+      setAppealReason("");
+      setAppealFile(null);
+      setAppealMessage("Appeal submitted successfully.");
+      await refetchAppeal();
+      await refetch();
+    } catch (err) {
+      console.error(err);
+      setAppealError(
+        err.response?.data?.message ||
+          err.reason ||
+          err.shortMessage ||
+          err.message ||
+          "Appeal submission failed"
+      );
+    } finally {
+      setIsSubmittingAppeal(false);
+    }
+  }
 
   return (
     <section className="page-container page-claim-detail">
@@ -72,6 +188,7 @@ export default function ClaimDetailPage() {
         onClick={() => {
           refetch();
           refetchOracle();
+          refetchAppeal();
         }}
       >
         Refresh Claim
@@ -111,6 +228,74 @@ export default function ClaimDetailPage() {
             <strong>Document CID:</strong> <IpfsLink cid={claim.documentCID} />
           </p>
           <EvidenceChainPanel evidenceChain={evidenceChain} />
+        </div>
+      ) : null}
+
+      {claim ? (
+        <div className="card appeal-card">
+          <h3>Appeal</h3>
+
+          {appealLoading ? <p>Loading appeal status...</p> : null}
+
+          {appeal ? (
+            <div className="appeal-status">
+              <p>
+                Status: <span className={`appeal-pill appeal-${appeal.status?.toLowerCase()}`}>{appeal.status}</span>
+              </p>
+              <p>Submitted: {formatDate(appeal.submittedAt)}</p>
+              <p>Reason: {formatValue(appeal.appealReason)}</p>
+              {appeal.additionalDocumentCID ? (
+                <p>
+                  Additional document:{" "}
+                  <IpfsLink cid={appeal.additionalDocumentCID} />
+                </p>
+              ) : null}
+              {appeal.adminNote ? <p>Admin note: {appeal.adminNote}</p> : null}
+              {appeal.transactionHash ? (
+                <p>
+                  Appeal tx: <TransactionLink txHash={appeal.transactionHash} />
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {canAppeal ? (
+            <form className="appeal-form" onSubmit={handleSubmitAppeal}>
+              <label>
+                Appeal reason
+                <textarea
+                  value={appealReason}
+                  onChange={(event) => setAppealReason(event.target.value)}
+                  rows={5}
+                  placeholder="Explain why this rejected claim should be reviewed again."
+                />
+              </label>
+
+              <label>
+                Additional document
+                <input
+                  type="file"
+                  onChange={(event) => setAppealFile(event.target.files?.[0] || null)}
+                />
+              </label>
+
+              <button type="submit" disabled={isSubmittingAppeal}>
+                {isSubmittingAppeal ? "Submitting Appeal..." : "Appeal This Decision"}
+              </button>
+            </form>
+          ) : null}
+
+          {!appeal && statusName !== "REJECTED" ? (
+            <p>Appeals are available after a claim is rejected.</p>
+          ) : null}
+
+          {appealError ? <p className="error-text">{appealError}</p> : null}
+          {appealMessage ? <p className="success-text">{appealMessage}</p> : null}
+          {appealTxHash ? (
+            <p>
+              Appeal transaction: <TransactionLink txHash={appealTxHash} />
+            </p>
+          ) : null}
         </div>
       ) : null}
 

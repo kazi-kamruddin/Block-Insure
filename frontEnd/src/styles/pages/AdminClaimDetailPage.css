@@ -9,3 +9,32 @@
 .page-admin-claim-detail .form-grid {
   max-width: 720px;
 }
+
+.page-admin-claim-detail .appeal-review-card {
+  border-left: 4px solid var(--warning);
+}
+
+.page-admin-claim-detail .appeal-pill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.page-admin-claim-detail .appeal-pending,
+.page-admin-claim-detail .appeal-under_review {
+  background: #fff7ed;
+  color: var(--warning);
+}
+
+.page-admin-claim-detail .appeal-approved {
+  background: #ecfdf3;
+  color: var(--success);
+}
+
+.page-admin-claim-detail .appeal-rejected {
+  background: #fef3f2;
+  color: var(--danger);
+}

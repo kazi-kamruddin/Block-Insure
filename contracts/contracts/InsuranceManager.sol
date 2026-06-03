@@ -131,6 +131,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     mapping(uint256 => bytes32) private claimRejectionReasonHash;
     mapping(uint256 => SettlementRecord) private settlementRecords;
+    mapping(uint256 => bool) public claimAppealed;
 
     bytes32 public registryMerkleRoot;
     uint256 public registrySnapshotTimestamp;
@@ -210,6 +211,13 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 indexed claimId,
         address indexed rejectedBy,
         bytes32 reasonHash
+    );
+
+    event ClaimAppealed(
+        uint256 indexed claimId,
+        address indexed claimant,
+        string appealReasonHash,
+        uint256 timestamp
     );
 
     event ClaimSentToManualReview(
@@ -938,6 +946,18 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         claimRejectionReasonHash[claimId] = reasonHash;
 
         emit ClaimRejected(claimId, msg.sender, reasonHash);
+    }
+
+    function submitAppeal(uint256 claimId, string calldata appealReasonHash) external {
+        require(_claimExists(claimId), "Claim does not exist");
+        require(claims[claimId].claimantWallet == msg.sender, "Caller is not claimant");
+        require(claims[claimId].status == ClaimStatus.REJECTED, "Claim is not rejected");
+        require(!claimAppealed[claimId], "Claim already appealed");
+        require(bytes(appealReasonHash).length > 0, "Appeal reason hash required");
+
+        claimAppealed[claimId] = true;
+
+        emit ClaimAppealed(claimId, msg.sender, appealReasonHash, block.timestamp);
     }
 
     function sendToManualReview(uint256 claimId) external {

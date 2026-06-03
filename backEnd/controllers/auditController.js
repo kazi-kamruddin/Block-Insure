@@ -15,6 +15,7 @@ const CLAIM_EVENT_NAMES = new Set([
   "OracleResultSubmitted",
   "ClaimApproved",
   "ClaimRejected",
+  "ClaimAppealed",
   "ClaimSentToManualReview",
   "ClaimSettled",
   "ClaimSettledRecordOnly",

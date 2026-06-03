@@ -10,9 +10,11 @@ import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import TransactionLink from "../components/TransactionLink";
 import {
   approveClaim,
+  getAppealByClaim,
   getClaimById,
   getOracleResults,
   rejectClaim,
+  reviewAppeal,
   requestOracleVerification,
   sendClaimToManualReview,
   settleClaim,
@@ -73,6 +75,7 @@ export default function AdminClaimDetailPage() {
   const [actionTxHash, setActionTxHash] = useState("");
   const [isActing, setIsActing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [appealAdminNote, setAppealAdminNote] = useState("");
 
   const {
     data: claimData,
@@ -96,6 +99,27 @@ export default function AdminClaimDetailPage() {
   });
 
   const {
+    data: appealData,
+    isLoading: appealLoading,
+    refetch: refetchAppeal,
+  } = useQuery({
+    queryKey: ["adminClaimAppeal", id],
+    queryFn: async () => {
+      try {
+        return await getAppealByClaim(id);
+      } catch (err) {
+        if (err.response?.status === 404) {
+          return null;
+        }
+
+        throw err;
+      }
+    },
+    enabled: Boolean(id),
+    retry: false,
+  });
+
+  const {
     data: reserveBalance,
     isLoading: reserveLoading,
     refetch: refetchReserve,
@@ -108,6 +132,7 @@ export default function AdminClaimDetailPage() {
   const evidenceChain = extractEvidenceChain(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
   const statusName = getClaimStatusName(claim);
+  const appeal = appealData?.appeal || null;
 
   const canRequestOracle = statusName === "DUPLICATE_CHECKED";
   const canSendManualReview =
@@ -125,6 +150,7 @@ export default function AdminClaimDetailPage() {
     await refetch();
     await refetchOracle();
     await refetchReserve();
+    await refetchAppeal();
   }
 
   async function runAdminAction(actionFn, successText) {
@@ -192,6 +218,19 @@ export default function AdminClaimDetailPage() {
     if (!confirmed) return;
 
     runAdminAction(() => settleClaim(id), "Claim settled successfully.");
+  }
+
+  function handleReviewAppeal(status) {
+    if (!appeal?.id) return;
+
+    runAdminAction(
+      () =>
+        reviewAppeal(appeal.id, {
+          status,
+          adminNote: appealAdminNote.trim(),
+        }),
+      `Appeal marked ${status.toLowerCase().replace("_", " ")} successfully.`
+    );
   }
 
   return (
@@ -313,6 +352,83 @@ export default function AdminClaimDetailPage() {
             Reject Claim
           </button>
         </div>
+      </div>
+
+      <div className="card appeal-review-card">
+        <h3>Appeal</h3>
+
+        {appealLoading ? <p>Loading appeal...</p> : null}
+
+        {!appealLoading && !appeal ? (
+          <p>No appeal has been submitted for this claim.</p>
+        ) : null}
+
+        {appeal ? (
+          <>
+            <p>
+              Status:{" "}
+              <span className={`appeal-pill appeal-${appeal.status?.toLowerCase()}`}>
+                {appeal.status}
+              </span>
+            </p>
+            <p>Submitted: {formatValue(appeal.submittedAt)}</p>
+            <p>Claimant: {formatValue(appeal.claimantWallet)}</p>
+            <p>Reason: {formatValue(appeal.appealReason)}</p>
+            <EvidenceField label="Appeal reason hash" value={appeal.appealReasonHash} />
+            {appeal.additionalDocumentHash ? (
+              <EvidenceField
+                label="Additional document hash"
+                value={appeal.additionalDocumentHash}
+              />
+            ) : null}
+            {appeal.additionalDocumentCID ? (
+              <p>
+                Additional document: <IpfsLink cid={appeal.additionalDocumentCID} />
+              </p>
+            ) : null}
+            {appeal.transactionHash ? (
+              <p>
+                Appeal tx: <TransactionLink txHash={appeal.transactionHash} />
+              </p>
+            ) : null}
+
+            <div className="form-grid">
+              <label>
+                Admin note
+                <input
+                  type="text"
+                  value={appealAdminNote}
+                  onChange={(event) => setAppealAdminNote(event.target.value)}
+                  placeholder={appeal.adminNote || "Optional appeal review note"}
+                />
+              </label>
+            </div>
+
+            <div className="action-row">
+              <button
+                type="button"
+                onClick={() => handleReviewAppeal("UNDER_REVIEW")}
+                disabled={isActing}
+              >
+                Mark Under Review
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReviewAppeal("APPROVED")}
+                disabled={isActing}
+              >
+                Approve Appeal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReviewAppeal("REJECTED")}
+                disabled={isActing}
+              >
+                Reject Appeal
+              </button>
+            </div>
+          </>
+        ) : null}
       </div>
 
       <h3>Oracle Results</h3>

@@ -59,6 +59,25 @@ function formatTimestamp(value) {
   return new Date(numericValue * 1000).toLocaleString();
 }
 
+const EVENT_LABELS = {
+  ClaimSubmitted: "Claim Submitted",
+  DocumentAdded: "Document Added",
+  ClaimFlagged: "Claim Flagged",
+  OracleRequested: "Oracle Requested",
+  OracleResultSubmitted: "Oracle Result Submitted",
+  ClaimApproved: "Claim Approved",
+  ClaimRejected: "Claim Rejected",
+  ClaimAppealed: "Claim Appealed",
+  ClaimSentToManualReview: "Claim Sent To Manual Review",
+  ClaimSettled: "Claim Settled",
+  ClaimSettledRecordOnly: "Claim Settlement Recorded",
+};
+
+function getEventLabel(event) {
+  const eventName = event.eventName || event.name || event.label || "Event";
+  return EVENT_LABELS[eventName] || eventName;
+}
+
 export default function AuditorClaimHistoryPage() {
   const { id } = useParams();
 
@@ -143,7 +162,7 @@ export default function AuditorClaimHistoryPage() {
             className="timeline-item"
             key={`${event.eventName || event.name || "event"}-${index}`}
           >
-            <h3>{event.eventName || event.name || event.label || "Event"}</h3>
+            <h3>{getEventLabel(event)}</h3>
 
             <p>Block: {formatValue(event.blockNumber)}</p>
             <p>Log index: {formatValue(event.logIndex)}</p>
