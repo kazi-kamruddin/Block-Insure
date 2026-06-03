@@ -50,6 +50,9 @@ async function main() {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const adminWallet = new ethers.Wallet(adminPrivateKey, provider);
     const oracleWallet = new ethers.Wallet(oraclePrivateKey, provider);
+    const secondOracleWallet = process.env.ORACLE_PRIVATE_KEY_2
+      ? new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY_2, provider)
+      : null;
 
     const claimOfficerWalletAddress =
       process.env.CLAIM_OFFICER_WALLET_ADDRESS || adminWallet.address;
@@ -68,6 +71,10 @@ async function main() {
     console.log("Admin signer:", adminWallet.address);
     console.log("Admin starting nonce:", nonceState.current);
     console.log("Oracle wallet:", oracleWallet.address);
+    console.log(
+      "Second oracle wallet:",
+      secondOracleWallet ? secondOracleWallet.address : "not configured"
+    );
     console.log("Auditor wallet:", auditorWalletAddress);
     console.log("Claim officer wallet:", claimOfficerWalletAddress);
     console.log("");
@@ -112,6 +119,16 @@ async function main() {
       oracleWallet.address,
       nonceState
     );
+
+    if (secondOracleWallet) {
+      await grantRoleIfMissing(
+        contract,
+        "ORACLE_ROLE",
+        oracleRole,
+        secondOracleWallet.address,
+        nonceState
+      );
+    }
 
     await grantRoleIfMissing(
       contract,

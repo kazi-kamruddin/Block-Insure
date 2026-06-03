@@ -12,6 +12,7 @@ const CLAIM_EVENT_NAMES = new Set([
   "DocumentAdded",
   "ClaimFlagged",
   "OracleRequested",
+  "OracleConfirmationReceived",
   "OracleResultSubmitted",
   "ClaimApproved",
   "ClaimRejected",

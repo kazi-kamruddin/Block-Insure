@@ -129,9 +129,13 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(address => mapping(uint256 => mapping(bytes32 => bool))) private userDateClaimTypeUsed;
 
     uint256 public oracleRequestCounter = 1;
+    uint8 public oracleQuorumThreshold = 2;
 
     mapping(uint256 => OracleRequest) private oracleRequests;
     mapping(uint256 => uint256) private oracleRequestByClaimId;
+    mapping(uint256 => uint8) public oracleConfirmationCount;
+    mapping(uint256 => mapping(address => bool)) public oracleHasConfirmed;
+    mapping(uint256 => bool[]) public oracleConfirmationResults;
 
     mapping(uint256 => bytes32) private claimRejectionReasonHash;
     mapping(uint256 => SettlementRecord) private settlementRecords;
@@ -215,6 +219,14 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 indexed claimId,
         bool verified,
         string riskLevel
+    );
+
+    event OracleConfirmationReceived(
+        uint256 indexed requestId,
+        uint256 indexed claimId,
+        address indexed oracle,
+        bool verified,
+        uint8 confirmationCount
     );
 
     event ClaimApproved(
@@ -934,6 +946,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         string memory remarks
     ) external onlyRole(ORACLE_ROLE) {
         require(_oracleRequestExists(requestId), "Oracle request does not exist");
+        require(!oracleHasConfirmed[requestId][msg.sender], "Oracle already confirmed");
         require(!oracleRequests[requestId].isFulfilled, "Oracle request already fulfilled");
         require(resultHash != bytes32(0), "Result hash required");
         require(bytes(riskLevel).length > 0, "Risk level required");
@@ -948,13 +961,44 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             "Claim is not oracle pending"
         );
 
-        requestData.isFulfilled = true;
-        requestData.verifiedResult = verified;
+        oracleHasConfirmed[requestId][msg.sender] = true;
+        oracleConfirmationResults[requestId].push(verified);
+        oracleConfirmationCount[requestId]++;
+
         requestData.resultHash = resultHash;
         requestData.riskLevel = riskLevel;
         requestData.remarks = remarks;
 
-        if (verified) {
+        emit OracleConfirmationReceived(
+            requestId,
+            claimId,
+            msg.sender,
+            verified,
+            oracleConfirmationCount[requestId]
+        );
+
+        if (oracleConfirmationCount[requestId] < oracleQuorumThreshold) {
+            return;
+        }
+
+        uint256 verifiedCount = 0;
+        uint256 failedCount = 0;
+        bool[] storage confirmations = oracleConfirmationResults[requestId];
+
+        for (uint256 i = 0; i < confirmations.length; i++) {
+            if (confirmations[i]) {
+                verifiedCount++;
+            } else {
+                failedCount++;
+            }
+        }
+
+        bool finalVerified = verifiedCount > failedCount;
+
+        requestData.isFulfilled = true;
+        requestData.verifiedResult = finalVerified;
+
+        if (finalVerified) {
             claims[claimId].status = ClaimStatus.ORACLE_VERIFIED;
             _addOracleVerificationScore(claimId);
         } else {
@@ -964,8 +1008,28 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         emit OracleResultSubmitted(
             requestId,
             claimId,
-            verified,
+            finalVerified,
             riskLevel
+        );
+    }
+
+    function updateQuorumThreshold(uint8 threshold) external onlyRole(ADMIN_ROLE) {
+        require(threshold >= 1, "Quorum threshold must be at least 1");
+
+        oracleQuorumThreshold = threshold;
+    }
+
+    function getOracleConfirmationStatus(uint256 requestId)
+        external
+        view
+        returns (uint8 confirmations, uint8 required, bool finalized)
+    {
+        require(_oracleRequestExists(requestId), "Oracle request does not exist");
+
+        return (
+            oracleConfirmationCount[requestId],
+            oracleQuorumThreshold,
+            oracleRequests[requestId].isFulfilled
         );
     }
 

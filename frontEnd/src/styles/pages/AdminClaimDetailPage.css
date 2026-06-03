@@ -18,6 +18,30 @@
   border-left: 4px solid var(--brand);
 }
 
+.page-admin-claim-detail .oracle-quorum-card {
+  border-left: 4px solid var(--accent);
+}
+
+.oracle-confirmation-dots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.oracle-confirmation-dots span {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.oracle-confirmation-dots span.is-filled {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
 .page-admin-claim-detail .settlement-breakdown-card {
   border-left: 4px solid var(--success);
 }

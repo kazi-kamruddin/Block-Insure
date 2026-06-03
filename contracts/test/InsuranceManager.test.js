@@ -59,6 +59,7 @@ describe("InsuranceManager - Phase 2 Smoke Test", function () {
 
     const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
     await insuranceManager.connect(deployer).grantProjectRole(ORACLE_ROLE, oracle.address);
+    await insuranceManager.connect(deployer).updateQuorumThreshold(1);
     await insuranceManager.connect(deployer).requestOracleVerification(1);
 
     await insuranceManager.connect(oracle).submitOracleResult(

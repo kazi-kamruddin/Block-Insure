@@ -14,6 +14,7 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
 
     await insuranceManager.grantProjectRole(CLAIM_OFFICER_ROLE, claimOfficer.address);
     await insuranceManager.grantProjectRole(ORACLE_ROLE, oracle.address);
+    await insuranceManager.updateQuorumThreshold(1);
 
     const PREMIUM = ethers.parseEther("0.01");
     const COVERAGE = ethers.parseEther("1");

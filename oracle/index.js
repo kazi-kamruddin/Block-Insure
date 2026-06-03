@@ -1,4 +1,9 @@
-require("dotenv").config();
+const instanceFromEnvironment = process.env.ORACLE_INSTANCE_ID || "1";
+const envFile =
+  process.env.ORACLE_ENV_FILE ||
+  (instanceFromEnvironment === "2" ? ".env.oracle2" : ".env");
+
+require("dotenv").config({ path: envFile });
 
 const axios = require("axios");
 const { ethers } = require("ethers");
@@ -18,7 +23,11 @@ const getRequiredEnv = (key) => {
 
 const RPC_URL = getRequiredEnv("RPC_URL");
 const CONTRACT_ADDRESS = getRequiredEnv("CONTRACT_ADDRESS");
-const ORACLE_PRIVATE_KEY = getRequiredEnv("ORACLE_PRIVATE_KEY");
+const ORACLE_INSTANCE_ID = process.env.ORACLE_INSTANCE_ID || instanceFromEnvironment;
+const ORACLE_PRIVATE_KEY =
+  ORACLE_INSTANCE_ID === "2" && process.env.ORACLE_PRIVATE_KEY_2
+    ? process.env.ORACLE_PRIVATE_KEY_2
+    : getRequiredEnv("ORACLE_PRIVATE_KEY");
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL || "http://localhost:5000";
 const MOCK_HOSPITAL_API_URL =
@@ -84,9 +93,9 @@ const saveOracleLog = async ({
       }
     );
 
-    console.log("Oracle log saved to backend");
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle log saved to backend`);
   } catch (error) {
-    console.warn("Oracle log save failed:", error.message);
+    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle log save failed:`, error.message);
   }
 };
 
@@ -106,7 +115,7 @@ const submitWithRetry = async (
       remarks
     );
   } catch (error) {
-    console.warn("Submit failed once. Retrying in 5 seconds...");
+    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Submit failed once. Retrying in 5 seconds...`);
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
     return await contract.submitOracleResult(
@@ -137,10 +146,10 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       return;
     }
 
-    console.log("\nOracleRequested event received");
-    console.log("Request ID:", requestId.toString());
-    console.log("Claim ID:", claimId.toString());
-    console.log("Oracle Type:", oracleType);
+    console.log(`\n[Oracle ${ORACLE_INSTANCE_ID}] OracleRequested event received`);
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Request ID:`, requestId.toString());
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Claim ID:`, claimId.toString());
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle Type:`, oracleType);
 
     const claim = await contract.getClaim(claimId);
 
@@ -154,7 +163,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       incidentDate: claim.incidentDate.toString(),
     };
 
-    console.log("Checking mock hospital API...");
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Checking mock hospital API...`);
     console.log(queryData);
 
     const hospitalResponse = await axios.get(MOCK_HOSPITAL_API_URL, {
@@ -203,15 +212,17 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       riskLevel,
       remarks,
       checkedAt: new Date().toISOString(),
+      oracleInstanceId: ORACLE_INSTANCE_ID,
+      oracleWallet: oracleWallet.address,
     };
 
     const resultHash = buildResultHash(oracleResponse);
 
-    console.log("Submitting oracle result...");
-    console.log("Verified:", verified);
-    console.log("Risk level:", riskLevel);
-    console.log("Merkle root matches chain:", merkleRootMatchesChain);
-    console.log("Result hash:", resultHash);
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Submitting oracle result...`);
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Verified:`, verified);
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Risk level:`, riskLevel);
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Merkle root matches chain:`, merkleRootMatchesChain);
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Result hash:`, resultHash);
 
     const tx = await submitWithRetry(
       requestId,
@@ -221,11 +232,11 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       remarks
     );
 
-    console.log("Oracle tx sent:", tx.hash);
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle tx sent:`, tx.hash);
 
     await tx.wait();
 
-    console.log("Oracle result confirmed on-chain");
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle confirmation recorded on-chain`);
 
     await saveOracleLog({
       requestId: requestId.toString(),
@@ -239,7 +250,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       submittedTxHash: tx.hash,
     });
   } catch (error) {
-    console.error("Oracle handler failed:", error.message);
+    console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle handler failed:`, error.message);
   } finally {
     processingRequests.delete(requestKey);
   }
@@ -277,7 +288,7 @@ const pollOracleRequests = async () => {
 
     nextOracleScanBlock = latestBlock + 1;
   } catch (error) {
-    console.error("Oracle polling failed:", error.message);
+    console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle polling failed:`, error.message);
   } finally {
     isPolling = false;
   }
@@ -286,30 +297,31 @@ const pollOracleRequests = async () => {
 /* ----------------------------- Startup --------------------------------- */
 
 const startOracle = async () => {
-  console.log("Oracle service starting...");
-  console.log("Oracle wallet:", oracleWallet.address);
-  console.log("Contract:", CONTRACT_ADDRESS);
-  console.log("RPC:", RPC_URL);
-  console.log("Mock hospital API:", MOCK_HOSPITAL_API_URL);
-  console.log("Start block:", ORACLE_START_BLOCK);
-  console.log("Poll interval:", ORACLE_POLL_INTERVAL_MS, "ms");
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle service starting...`);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Env file:`, envFile);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle wallet:`, oracleWallet.address);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Contract:`, CONTRACT_ADDRESS);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] RPC:`, RPC_URL);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Mock hospital API:`, MOCK_HOSPITAL_API_URL);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Start block:`, ORACLE_START_BLOCK);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Poll interval:`, ORACLE_POLL_INTERVAL_MS, "ms");
 
   const oracleRole = await contract.ORACLE_ROLE();
   const hasOracleRole = await contract.hasRole(oracleRole, oracleWallet.address);
 
   if (!hasOracleRole) {
-    console.warn("Warning: oracle wallet does not have ORACLE_ROLE on contract.");
-    console.warn("Run backend script: npm run grant:oracle");
+    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Warning: oracle wallet does not have ORACLE_ROLE on contract.`);
+    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Run backend script: npm run grant:oracle`);
   }
 
   await pollOracleRequests();
 
   setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);
 
-  console.log("Oracle service polling for OracleRequested events...");
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle service polling for OracleRequested events...`);
 };
 
 startOracle().catch((error) => {
-  console.error("Oracle service failed to start:", error.message);
+  console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle service failed to start:`, error.message);
   process.exit(1);
 });

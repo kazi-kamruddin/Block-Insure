@@ -64,6 +64,7 @@ const EVENT_LABELS = {
   DocumentAdded: "Document Added",
   ClaimFlagged: "Claim Flagged",
   OracleRequested: "Oracle Requested",
+  OracleConfirmationReceived: "Oracle Confirmation Received",
   OracleResultSubmitted: "Oracle Result Submitted",
   ClaimApproved: "Claim Approved",
   ClaimRejected: "Claim Rejected",
@@ -75,8 +76,27 @@ const EVENT_LABELS = {
   ClaimSettledRecordOnly: "Claim Settlement Recorded",
 };
 
+function getEventArgs(event) {
+  return event.args || event.details || {};
+}
+
+function shortenAddress(value) {
+  if (!value || typeof value !== "string") return "-";
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
 function getEventLabel(event) {
   const eventName = event.eventName || event.name || event.label || "Event";
+
+  if (eventName === "OracleConfirmationReceived") {
+    const args = getEventArgs(event);
+    const confirmationCount = args.confirmationCount ?? "?";
+    const oracleLabel = args.oracle ? ` from ${shortenAddress(args.oracle)}` : "";
+
+    return `Oracle Confirmation #${confirmationCount} received${oracleLabel}`;
+  }
+
   return EVENT_LABELS[eventName] || eventName;
 }
 

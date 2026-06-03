@@ -117,6 +117,21 @@ async function getSettlementBreakdown(claimId) {
   };
 }
 
+async function getOracleQuorumStatus(claimId) {
+  const contract = getReadOnlyContract();
+  const oracleRequest = await contract.getOracleRequestByClaimId(claimId);
+  const status = await contract.getOracleConfirmationStatus(
+    oracleRequest.requestId
+  );
+
+  return {
+    requestId: oracleRequest.requestId.toString(),
+    confirmations: Number(status.confirmations ?? status[0] ?? 0),
+    required: Number(status.required ?? status[1] ?? 0),
+    finalized: Boolean(status.finalized ?? status[2]),
+  };
+}
+
 export default function AdminClaimDetailPage() {
   const { id } = useParams();
 
@@ -202,6 +217,18 @@ export default function AdminClaimDetailPage() {
   const evidenceChain = extractEvidenceChain(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
   const statusName = getClaimStatusName(claim);
+
+  const {
+    data: oracleQuorumStatus,
+    isLoading: quorumLoading,
+    refetch: refetchOracleQuorumStatus,
+  } = useQuery({
+    queryKey: ["adminClaimOracleQuorum", id],
+    queryFn: () => getOracleQuorumStatus(id),
+    enabled: Boolean(id) && statusName === "ORACLE_PENDING",
+    retry: false,
+  });
+
   const appeal = appealData?.appeal || null;
   const voteSummary = extractVoteSummary(voteData);
 
@@ -218,6 +245,10 @@ export default function AdminClaimDetailPage() {
   const canSettle = statusName === "APPROVED";
   const canShowVoting =
     statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
+  const isAwaitingOracleQuorum =
+    statusName === "ORACLE_PENDING" && !oracleQuorumStatus?.finalized;
+  const canShowOracleResultPanel =
+    statusName !== "ORACLE_PENDING" || oracleQuorumStatus?.finalized;
 
   async function refreshAll() {
     await refetch();
@@ -226,6 +257,10 @@ export default function AdminClaimDetailPage() {
     await refetchAppeal();
     await refetchVotes();
     await refetchSettlementBreakdown();
+
+    if (statusName === "ORACLE_PENDING") {
+      await refetchOracleQuorumStatus();
+    }
   }
 
   async function runAdminAction(actionFn, successText) {
@@ -478,6 +513,45 @@ export default function AdminClaimDetailPage() {
         </div>
       </div>
 
+      {statusName === "ORACLE_PENDING" ? (
+        <div className="card oracle-quorum-card">
+          <h3>Oracle Quorum</h3>
+
+          {quorumLoading ? <p>Loading oracle confirmations...</p> : null}
+
+          {oracleQuorumStatus ? (
+            <>
+              <p>
+                Oracle Confirmations:{" "}
+                <strong>
+                  {oracleQuorumStatus.confirmations} / {oracleQuorumStatus.required} required
+                </strong>
+              </p>
+
+              <div
+                className="oracle-confirmation-dots"
+                aria-label={`${oracleQuorumStatus.confirmations} of ${oracleQuorumStatus.required} oracle confirmations`}
+              >
+                {Array.from({ length: oracleQuorumStatus.required || 0 }).map((_, index) => (
+                  <span
+                    className={
+                      index < oracleQuorumStatus.confirmations ? "is-filled" : ""
+                    }
+                    key={`oracle-confirmation-${index}`}
+                  />
+                ))}
+              </div>
+
+              <p className={oracleQuorumStatus.finalized ? "success-text" : "muted-text"}>
+                {oracleQuorumStatus.finalized
+                  ? "Oracle quorum reached."
+                  : "Awaiting additional oracle confirmation."}
+              </p>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
       {canShowVoting ? (
         <div className="card voting-summary-card">
           <h3>Voting Summary</h3>
@@ -632,11 +706,17 @@ export default function AdminClaimDetailPage() {
 
       {oracleLoading ? <p>Loading oracle logs...</p> : null}
 
-      {!oracleLoading && oracleLogs.length === 0 ? (
+      {isAwaitingOracleQuorum ? (
+        <p className="muted-text">
+          Awaiting additional oracle confirmation before the final oracle result is shown.
+        </p>
+      ) : null}
+
+      {!oracleLoading && canShowOracleResultPanel && oracleLogs.length === 0 ? (
         <p>No oracle result found yet.</p>
       ) : null}
 
-      {oracleLogs.map((log) => (
+      {canShowOracleResultPanel ? oracleLogs.map((log) => (
         <div className="card" key={log._id || log.requestId || log.resultHash}>
           <p>Request ID: {formatValue(log.requestId)}</p>
           <p>Verified: {formatValue(log.verified)}</p>
@@ -647,7 +727,7 @@ export default function AdminClaimDetailPage() {
           </p>
           <OracleComparisonPanel log={log} />
         </div>
-      ))}
+      )) : null}
     </section>
   );
 }

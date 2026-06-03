@@ -3,7 +3,14 @@ const { ethers } = require("hardhat");
 
 describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
   async function deployFixture() {
-    const [admin, claimOfficer, oracle, user, attacker] = await ethers.getSigners();
+    const [
+      admin,
+      claimOfficer,
+      oracle,
+      secondOracle,
+      user,
+      attacker,
+    ] = await ethers.getSigners();
 
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
     const insuranceManager = await InsuranceManager.deploy();
@@ -13,6 +20,7 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
 
     await insuranceManager.grantProjectRole(CLAIM_OFFICER_ROLE, claimOfficer.address);
     await insuranceManager.grantProjectRole(ORACLE_ROLE, oracle.address);
+    await insuranceManager.grantProjectRole(ORACLE_ROLE, secondOracle.address);
 
     const PREMIUM = ethers.parseEther("0.01");
     const COVERAGE = ethers.parseEther("1");
@@ -53,6 +61,7 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
       admin,
       claimOfficer,
       oracle,
+      secondOracle,
       user,
       attacker,
       PREMIUM,
@@ -151,8 +160,8 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
     ).to.be.revertedWith("Claim is not ready for oracle");
   });
 
-  it("Oracle role can submit verified oracle result", async function () {
-    const { insuranceManager, oracle } = await deployFixture();
+  it("Oracle quorum finalizes a verified oracle result after enough confirmations", async function () {
+    const { insuranceManager, oracle, secondOracle } = await deployFixture();
 
     await insuranceManager.requestOracleVerification(1);
 
@@ -167,10 +176,32 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
         "Hospital record matched"
       )
     )
-      .to.emit(insuranceManager, "OracleResultSubmitted")
+      .to.emit(insuranceManager, "OracleConfirmationReceived")
+      .withArgs(1, 1, oracle.address, true, 1);
+
+    let claim = await insuranceManager.getClaim(1);
+    expect(claim.status).to.equal(3); // ORACLE_PENDING
+
+    let confirmationStatus = await insuranceManager.getOracleConfirmationStatus(1);
+    expect(confirmationStatus.confirmations).to.equal(1);
+    expect(confirmationStatus.required).to.equal(2);
+    expect(confirmationStatus.finalized).to.equal(false);
+
+    await expect(
+      insuranceManager.connect(secondOracle).submitOracleResult(
+        1,
+        true,
+        hashText("verified-oracle-response-2"),
+        "LOW",
+        "Second oracle matched hospital record"
+      )
+    )
+      .to.emit(insuranceManager, "OracleConfirmationReceived")
+      .withArgs(1, 1, secondOracle.address, true, 2)
+      .and.to.emit(insuranceManager, "OracleResultSubmitted")
       .withArgs(1, 1, true, "LOW");
 
-    const claim = await insuranceManager.getClaim(1);
+    claim = await insuranceManager.getClaim(1);
     expect(claim.status).to.equal(4); // ORACLE_VERIFIED
     expect(claim.riskScore).to.equal(100); // 90 + 25 capped at 100
 
@@ -178,13 +209,13 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
 
     expect(oracleRequest.isFulfilled).to.equal(true);
     expect(oracleRequest.verifiedResult).to.equal(true);
-    expect(oracleRequest.resultHash).to.equal(resultHash);
+    expect(oracleRequest.resultHash).to.equal(hashText("verified-oracle-response-2"));
     expect(oracleRequest.riskLevel).to.equal("LOW");
-    expect(oracleRequest.remarks).to.equal("Hospital record matched");
+    expect(oracleRequest.remarks).to.equal("Second oracle matched hospital record");
   });
 
-  it("Oracle role can submit failed oracle result", async function () {
-    const { insuranceManager, oracle } = await deployFixture();
+  it("Oracle quorum finalizes a failed oracle result after enough confirmations", async function () {
+    const { insuranceManager, oracle, secondOracle } = await deployFixture();
 
     await insuranceManager.requestOracleVerification(1);
 
@@ -199,10 +230,27 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
         "Invoice mismatch found"
       )
     )
-      .to.emit(insuranceManager, "OracleResultSubmitted")
+      .to.emit(insuranceManager, "OracleConfirmationReceived")
+      .withArgs(1, 1, oracle.address, false, 1);
+
+    let claim = await insuranceManager.getClaim(1);
+    expect(claim.status).to.equal(3); // ORACLE_PENDING
+
+    await expect(
+      insuranceManager.connect(secondOracle).submitOracleResult(
+        1,
+        false,
+        hashText("failed-oracle-response-2"),
+        "HIGH",
+        "Second oracle found invoice mismatch"
+      )
+    )
+      .to.emit(insuranceManager, "OracleConfirmationReceived")
+      .withArgs(1, 1, secondOracle.address, false, 2)
+      .and.to.emit(insuranceManager, "OracleResultSubmitted")
       .withArgs(1, 1, false, "HIGH");
 
-    const claim = await insuranceManager.getClaim(1);
+    claim = await insuranceManager.getClaim(1);
     expect(claim.status).to.equal(5); // ORACLE_FAILED
     expect(claim.riskScore).to.equal(90);
 
@@ -210,9 +258,9 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
 
     expect(oracleRequest.isFulfilled).to.equal(true);
     expect(oracleRequest.verifiedResult).to.equal(false);
-    expect(oracleRequest.resultHash).to.equal(resultHash);
+    expect(oracleRequest.resultHash).to.equal(hashText("failed-oracle-response-2"));
     expect(oracleRequest.riskLevel).to.equal("HIGH");
-    expect(oracleRequest.remarks).to.equal("Invoice mismatch found");
+    expect(oracleRequest.remarks).to.equal("Second oracle found invoice mismatch");
   });
 
   it("Non-oracle cannot submit oracle result", async function () {
@@ -231,7 +279,7 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
     ).to.be.reverted;
   });
 
-  it("Cannot submit oracle result twice", async function () {
+  it("Same oracle cannot confirm the same request twice", async function () {
     const { insuranceManager, oracle } = await deployFixture();
 
     await insuranceManager.requestOracleVerification(1);
@@ -252,7 +300,52 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
         "LOW",
         "Second submission"
       )
-    ).to.be.revertedWith("Oracle request already fulfilled");
+    ).to.be.revertedWith("Oracle already confirmed");
+  });
+
+  it("Admin can update oracle quorum threshold", async function () {
+    const { insuranceManager, attacker } = await deployFixture();
+
+    await insuranceManager.updateQuorumThreshold(1);
+
+    expect(await insuranceManager.oracleQuorumThreshold()).to.equal(1);
+
+    await expect(
+      insuranceManager.updateQuorumThreshold(0)
+    ).to.be.revertedWith("Quorum threshold must be at least 1");
+
+    await expect(
+      insuranceManager.connect(attacker).updateQuorumThreshold(2)
+    ).to.be.reverted;
+  });
+
+  it("Split oracle confirmations finalize conservatively as failed", async function () {
+    const { insuranceManager, oracle, secondOracle } = await deployFixture();
+
+    await insuranceManager.requestOracleVerification(1);
+
+    await insuranceManager.connect(oracle).submitOracleResult(
+      1,
+      true,
+      hashText("split-verified-result"),
+      "LOW",
+      "First oracle matched record"
+    );
+
+    await insuranceManager.connect(secondOracle).submitOracleResult(
+      1,
+      false,
+      hashText("split-failed-result"),
+      "HIGH",
+      "Second oracle found mismatch"
+    );
+
+    const claim = await insuranceManager.getClaim(1);
+    const oracleRequest = await insuranceManager.getOracleRequest(1);
+
+    expect(claim.status).to.equal(5); // ORACLE_FAILED
+    expect(oracleRequest.isFulfilled).to.equal(true);
+    expect(oracleRequest.verifiedResult).to.equal(false);
   });
 
   it("Rejects invalid oracle result data", async function () {
