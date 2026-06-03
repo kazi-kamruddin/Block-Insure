@@ -1,6 +1,10 @@
 const { ethers } = require("ethers");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const { buildRiskAssessment } = require("../services/riskScoringService");
+const {
+  buildRegistryMerkleProof,
+  buildRegistryMerkleRoot,
+} = require("../services/merkleRegistryService");
 
 const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -476,6 +480,41 @@ const getHospitalRegistrySummary = async (req, res, next) => {
   }
 };
 
+const getHospitalRegistryMerkleRoot = async (req, res, next) => {
+  try {
+    const merkleRoot = await buildRegistryMerkleRoot();
+
+    res.status(200).json({
+      success: true,
+      merkleRoot,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getHospitalRegistryMerkleProof = async (req, res, next) => {
+  try {
+    const { invoiceHash } = req.query;
+
+    if (!invoiceHash) {
+      return res.status(400).json({
+        success: false,
+        message: "invoiceHash is required",
+      });
+    }
+
+    const merkleProof = await buildRegistryMerkleProof({ invoiceHash });
+
+    res.status(200).json({
+      success: true,
+      merkleProof,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const verifyHospitalRecord = async (req, res, next) => {
   try {
     const {
@@ -498,6 +537,9 @@ const verifyHospitalRecord = async (req, res, next) => {
     const normalizedInvoiceHash = normalizeHash(invoiceHash);
 
     const record = await MockHospitalRecord.findOne({
+      invoiceHash: normalizedInvoiceHash,
+    });
+    const merkleProof = await buildRegistryMerkleProof({
       invoiceHash: normalizedInvoiceHash,
     });
 
@@ -532,6 +574,7 @@ const verifyHospitalRecord = async (req, res, next) => {
         message: "No matching synthetic healthcare registry record found",
         comparison,
         riskAssessment,
+        merkleProof,
         query: verificationQuery,
       });
     }
@@ -569,6 +612,7 @@ const verifyHospitalRecord = async (req, res, next) => {
           : `Registry verification failed: ${failureSummary || record.fraudLabel}`,
       comparison,
       riskAssessment,
+      merkleProof,
       query: verificationQuery,
       record,
     });
@@ -581,6 +625,8 @@ module.exports = {
   buildVerificationComparison,
   getAllHospitalRecords,
   getHospitalRecordById,
+  getHospitalRegistryMerkleProof,
+  getHospitalRegistryMerkleRoot,
   getHospitalRegistrySummary,
   verifyHospitalRecord,
 };

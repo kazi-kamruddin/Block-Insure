@@ -2,6 +2,8 @@ const express = require("express");
 const {
   getAllHospitalRecords,
   getHospitalRecordById,
+  getHospitalRegistryMerkleProof,
+  getHospitalRegistryMerkleRoot,
   getHospitalRegistrySummary,
   verifyHospitalRecord,
 } = require("../controllers/mockHospitalController");
@@ -21,6 +23,18 @@ router.get(
   authMiddleware,
   requireRole("ADMIN", "AUDITOR"),
   getHospitalRegistrySummary
+);
+router.get(
+  "/records/merkle-root",
+  authMiddleware,
+  requireRole("ADMIN", "AUDITOR"),
+  getHospitalRegistryMerkleRoot
+);
+router.get(
+  "/records/merkle-proof",
+  authMiddleware,
+  requireRole("ADMIN", "AUDITOR"),
+  getHospitalRegistryMerkleProof
 );
 router.get(
   "/records/:id",

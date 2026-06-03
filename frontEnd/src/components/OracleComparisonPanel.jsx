@@ -33,10 +33,21 @@ function extractRiskAssessment(log) {
   );
 }
 
+function extractMerkleProof(log) {
+  return (
+    log?.responseData?.hospitalVerification?.merkleProof ||
+    log?.hospitalVerification?.merkleProof ||
+    log?.responseData?.merkleProof ||
+    log?.merkleProof ||
+    null
+  );
+}
+
 export default function OracleComparisonPanel({ log }) {
   const comparison = extractComparison(log);
   const hospitalVerification = extractHospitalVerification(log);
   const riskAssessment = extractRiskAssessment(log);
+  const merkleProof = extractMerkleProof(log);
   const checks = comparison?.fieldChecks
     ? Object.entries(comparison.fieldChecks)
     : [];
@@ -154,6 +165,42 @@ export default function OracleComparisonPanel({ log }) {
               ))}
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {merkleProof ? (
+        <div className="oracle-merkle-proof">
+          <div className="oracle-merkle-proof-header">
+            <div>
+              <h4>Merkle Registry Proof</h4>
+              <p>{formatValue(merkleProof.treeVersion)}</p>
+            </div>
+            <span
+              className={`oracle-merkle-status ${
+                merkleProof.verified ? "is-verified" : "is-failed"
+              }`}
+            >
+              {merkleProof.verified ? "Proof valid" : "Not proven"}
+            </span>
+          </div>
+
+          <div className="oracle-comparison-metrics">
+            <span>Leaves: {formatValue(merkleProof.leafCount)}</span>
+            <span>Depth: {formatValue(merkleProof.treeDepth)}</span>
+            <span>Proof path: {formatValue(merkleProof.proofLength)}</span>
+            <span>Hash: {formatValue(merkleProof.hashAlgorithm)}</span>
+          </div>
+
+          <dl className="oracle-merkle-hashes">
+            <div>
+              <dt>Root hash</dt>
+              <dd>{formatValue(merkleProof.rootHash)}</dd>
+            </div>
+            <div>
+              <dt>Leaf hash</dt>
+              <dd>{formatValue(merkleProof.leafHash)}</dd>
+            </div>
+          </dl>
         </div>
       ) : null}
 

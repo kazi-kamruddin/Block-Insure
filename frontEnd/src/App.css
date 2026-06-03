@@ -571,6 +571,70 @@ button:disabled {
   color: var(--text);
 }
 
+.oracle-merkle-proof {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #f8fbff;
+}
+
+.oracle-merkle-proof-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.oracle-merkle-proof-header h4 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.oracle-merkle-proof-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.oracle-merkle-status {
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.oracle-merkle-status.is-verified {
+  background: #ecfdf3;
+  color: var(--success);
+}
+
+.oracle-merkle-status.is-failed {
+  background: #fef3f2;
+  color: var(--danger);
+}
+
+.oracle-merkle-hashes {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.oracle-merkle-hashes dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.oracle-merkle-hashes dd {
+  margin: 3px 0 0;
+  color: #1f2937;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
 .evidence-chain-panel {
   display: grid;
   gap: 14px;

@@ -159,6 +159,20 @@ export async function getHealthcareRegistrySummary(params = {}) {
   return response.data;
 }
 
+export async function getHealthcareRegistryMerkleRoot() {
+  const response = await api.get("/mock/hospital/records/merkle-root");
+  return response.data;
+}
+
+export async function getHealthcareRegistryMerkleProof(invoiceHash) {
+  const response = await api.get("/mock/hospital/records/merkle-proof", {
+    params: {
+      invoiceHash,
+    },
+  });
+  return response.data;
+}
+
 export async function getClaimAuditTimeline(claimId) {
   const response = await api.get(`/api/audit/claims/${claimId}`);
   return response.data;

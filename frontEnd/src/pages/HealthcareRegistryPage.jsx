@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { getHealthcareRegistryRecords } from "../services/api";
+import {
+  getHealthcareRegistryMerkleRoot,
+  getHealthcareRegistryRecords,
+} from "../services/api";
 import { useWallet } from "../context/useWallet";
 import "../styles/pages/HealthcareRegistryPage.css";
 
@@ -60,8 +63,18 @@ export default function HealthcareRegistryPage() {
     queryFn: () => getHealthcareRegistryRecords(queryParams),
   });
 
+  const {
+    data: merkleData,
+    isLoading: merkleLoading,
+    refetch: refetchMerkle,
+  } = useQuery({
+    queryKey: ["healthcareRegistryMerkleRoot"],
+    queryFn: getHealthcareRegistryMerkleRoot,
+  });
+
   const records = extractRecords(data);
   const summary = data?.summary || {};
+  const merkleRoot = merkleData?.merkleRoot;
   const total = summary.total || 0;
 
   function updateFilter(field, value) {
@@ -201,8 +214,34 @@ export default function HealthcareRegistryPage() {
           <button type="button" onClick={() => refetch()} disabled={isFetching}>
             Refresh
           </button>
+          <button
+            type="button"
+            onClick={() => refetchMerkle()}
+            disabled={merkleLoading}
+          >
+            Root
+          </button>
         </div>
       </form>
+
+      <div className="registry-merkle-card">
+        <div>
+          <span className="registry-eyebrow">Merkle registry commitment</span>
+          <strong>{merkleLoading ? "Loading root..." : merkleRoot?.rootHash || "-"}</strong>
+        </div>
+        <div>
+          <span>Leaves</span>
+          <strong>{merkleRoot?.leafCount ?? "-"}</strong>
+        </div>
+        <div>
+          <span>Depth</span>
+          <strong>{merkleRoot?.treeDepth ?? "-"}</strong>
+        </div>
+        <div>
+          <span>Hash</span>
+          <strong>{merkleRoot?.hashAlgorithm || "SHA-256"}</strong>
+        </div>
+      </div>
 
       {error ? (
         <p className="error-text">

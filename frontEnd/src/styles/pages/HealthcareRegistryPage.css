@@ -91,6 +91,39 @@
   flex-wrap: wrap;
 }
 
+.registry-merkle-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) repeat(3, minmax(110px, auto));
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.registry-merkle-card div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.registry-merkle-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.registry-merkle-card strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
 .registry-table-wrap {
   overflow: auto;
   border: 1px solid var(--line);
@@ -177,5 +210,9 @@
 @media (max-width: 760px) {
   .registry-filter-actions {
     grid-column: 1 / -1;
+  }
+
+  .registry-merkle-card {
+    grid-template-columns: 1fr;
   }
 }
