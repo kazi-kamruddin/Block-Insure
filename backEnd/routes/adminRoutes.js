@@ -5,6 +5,7 @@ const {
   updatePolicyPackage,
   deactivatePolicyPackage,
   reactivatePolicyPackage,
+  getReserveIntelligence,
   getAdminClaims,
   requestOracleForClaim,
   approveClaim,
@@ -50,6 +51,13 @@ router.post(
   authMiddleware,
   requireRole("ADMIN"),
   reactivatePolicyPackage
+);
+
+router.get(
+  "/reserve-intelligence",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getReserveIntelligence
 );
 
 router.get(

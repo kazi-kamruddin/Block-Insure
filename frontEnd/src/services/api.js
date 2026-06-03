@@ -113,6 +113,11 @@ export async function getAdminClaims() {
   return response.data;
 }
 
+export async function getReserveIntelligence() {
+  const response = await api.get("/api/admin/reserve-intelligence");
+  return response.data;
+}
+
 export async function requestOracleVerification(claimId) {
   const response = await api.post(`/api/admin/claims/${claimId}/request-oracle`);
   return response.data;

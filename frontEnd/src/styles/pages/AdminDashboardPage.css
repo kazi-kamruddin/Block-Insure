@@ -10,3 +10,81 @@
 .page-admin-dashboard .card:first-child {
   background: linear-gradient(135deg, #ffffff, #eff6ff);
 }
+
+.reserve-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--success);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.reserve-status-banner.status-watch_open_exposure {
+  border-left-color: var(--warning);
+}
+
+.reserve-status-banner.status-deficit_approved_claims {
+  border-left-color: var(--danger);
+}
+
+.reserve-status-banner span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.reserve-status-banner strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 24px;
+}
+
+.reserve-status-banner p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.reserve-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.reserve-table-card {
+  overflow: auto;
+}
+
+.reserve-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 420px;
+}
+
+.reserve-table th,
+.reserve-table td {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.reserve-table th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.reserve-table td {
+  color: var(--text);
+  font-size: 14px;
+}

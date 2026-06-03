@@ -3,6 +3,7 @@ const {
   getAdminContract,
   getReadOnlyContract,
 } = require("../services/contractService");
+const { buildReserveIntelligence } = require("../services/settlementIntelligenceService");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -293,6 +294,19 @@ const reactivatePolicyPackage = async (req, res, next) => {
 
 /* ----------------------------- Claim Admin ------------------------------ */
 
+const getReserveIntelligence = async (req, res, next) => {
+  try {
+    const reserveIntelligence = await buildReserveIntelligence();
+
+    res.status(200).json({
+      success: true,
+      reserveIntelligence,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAdminClaims = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
@@ -569,6 +583,7 @@ module.exports = {
   updatePolicyPackage,
   deactivatePolicyPackage,
   reactivatePolicyPackage,
+  getReserveIntelligence,
   getAdminClaims,
   requestOracleForClaim,
   approveClaim,
