@@ -24,32 +24,37 @@ import "../styles/pages/SubmitClaimPage.css";
 
 const VALID_MOCK_HOSPITAL_PRESETS = [
   {
-    label: "Valid HOSP-001 / 0.1 ETH",
+    label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH",
     hospitalId: "HOSP-001",
+    treatmentType: "HOSPITALIZATION",
     invoiceNumber: "INV-HOSP-001-001",
     claimAmount: "0.1",
   },
   {
-    label: "Valid HOSP-002 / 0.2 ETH",
+    label: "Valid HOSP-002 / SURGERY / 0.2 ETH",
     hospitalId: "HOSP-002",
+    treatmentType: "SURGERY",
     invoiceNumber: "INV-HOSP-002-001",
     claimAmount: "0.2",
   },
   {
-    label: "Valid HOSP-003 / 0.15 ETH",
+    label: "Valid HOSP-003 / HOSPITALIZATION / 0.15 ETH",
     hospitalId: "HOSP-003",
+    treatmentType: "HOSPITALIZATION",
     invoiceNumber: "INV-HOSP-003-001",
     claimAmount: "0.15",
   },
   {
-    label: "Valid HOSP-004 / 0.3 ETH",
+    label: "Valid HOSP-004 / SURGERY / 0.3 ETH",
     hospitalId: "HOSP-004",
+    treatmentType: "SURGERY",
     invoiceNumber: "INV-HOSP-004-001",
     claimAmount: "0.3",
   },
   {
-    label: "Valid HOSP-005 / 0.25 ETH",
+    label: "Valid HOSP-005 / EMERGENCY / 0.25 ETH",
     hospitalId: "HOSP-005",
+    treatmentType: "EMERGENCY",
     invoiceNumber: "INV-HOSP-005-001",
     claimAmount: "0.25",
   },
@@ -191,6 +196,7 @@ export default function SubmitClaimPage() {
     if (!preset) return;
 
     setHospitalId(preset.hospitalId);
+    setClaimType(preset.treatmentType);
     setInvoiceNumber(preset.invoiceNumber);
     setClaimAmount(preset.claimAmount);
   }

@@ -328,6 +328,161 @@ button:disabled {
   box-shadow: var(--shadow);
 }
 
+.oracle-comparison {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.oracle-comparison-header,
+.oracle-comparison-metrics,
+.oracle-comparison-check-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.oracle-comparison-header h4 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.oracle-comparison-header p,
+.oracle-comparison-source {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.oracle-comparison-score {
+  min-width: 96px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  text-align: center;
+  font-weight: 800;
+}
+
+.oracle-comparison-score.is-verified {
+  background: #ecfdf3;
+  color: var(--success);
+}
+
+.oracle-comparison-score.is-failed {
+  background: #fef3f2;
+  color: var(--danger);
+}
+
+.oracle-comparison-metrics {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.oracle-comparison-metrics span {
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.oracle-comparison-alert {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.oracle-comparison-alert.is-blocking {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: var(--danger);
+}
+
+.oracle-comparison-alert.is-warning {
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: var(--warning);
+}
+
+.oracle-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.oracle-comparison-check {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--danger);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.oracle-comparison-check.is-pass {
+  border-left-color: var(--success);
+}
+
+.oracle-comparison-check.is-soft:not(.is-pass) {
+  border-left-color: var(--warning);
+}
+
+.oracle-comparison-check-head strong {
+  font-size: 14px;
+}
+
+.oracle-comparison-check-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.oracle-comparison-check.is-pass .oracle-comparison-check-head span {
+  color: var(--success);
+}
+
+.oracle-comparison-check.is-fail .oracle-comparison-check-head span {
+  color: var(--danger);
+}
+
+.oracle-comparison-check.is-soft.is-fail .oracle-comparison-check-head span {
+  color: var(--warning);
+}
+
+.oracle-comparison-check dl {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.oracle-comparison-check dl > div {
+  min-width: 0;
+}
+
+.oracle-comparison-check dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.oracle-comparison-check dd {
+  margin: 3px 0 0;
+  color: #1f2937;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.oracle-comparison-check p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .site-footer {
   margin-top: 32px;
   border-top: 1px solid var(--line);

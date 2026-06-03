@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import TransactionLink from "../components/TransactionLink";
 import CopyableText from "../components/CopyableText";
-import { getClaimAuditTimeline } from "../services/api";
+import OracleComparisonPanel from "../components/OracleComparisonPanel";
+import { getClaimAuditTimeline, getOracleResults } from "../services/api";
 import "../styles/pages/AuditorClaimHistoryPage.css";
 
 function extractEvents(data) {
@@ -12,6 +13,14 @@ function extractEvents(data) {
   if (Array.isArray(data?.events)) return data.events;
   if (Array.isArray(data?.data)) return data.data;
   if (Array.isArray(data?.data?.timeline)) return data.data.timeline;
+  return [];
+}
+
+function extractOracleLogs(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.logs)) return data.logs;
+  if (Array.isArray(data?.oracleLogs)) return data.oracleLogs;
+  if (Array.isArray(data?.data)) return data.data;
   return [];
 }
 
@@ -56,7 +65,19 @@ export default function AuditorClaimHistoryPage() {
     enabled: Boolean(id),
   });
 
+  const {
+    data: oracleData,
+    isLoading: oracleLoading,
+    isFetching: oracleFetching,
+    refetch: refetchOracle,
+  } = useQuery({
+    queryKey: ["auditorOracleResults", id],
+    queryFn: () => getOracleResults(id),
+    enabled: Boolean(id),
+  });
+
   const events = extractEvents(data);
+  const oracleLogs = extractOracleLogs(oracleData);
 
   return (
     <section className="page-container page-auditor-claim-history">
@@ -66,8 +87,15 @@ export default function AuditorClaimHistoryPage() {
         <Link to="/auditor/claims">Back to claim lookup</Link>
       </p>
 
-      <button type="button" onClick={() => refetch()} disabled={isFetching}>
-        {isFetching ? "Refreshing..." : "Refresh Timeline"}
+      <button
+        type="button"
+        onClick={() => {
+          refetch();
+          refetchOracle();
+        }}
+        disabled={isFetching || oracleFetching}
+      >
+        {isFetching || oracleFetching ? "Refreshing..." : "Refresh Timeline"}
       </button>
 
       {isLoading ? <p>Loading audit timeline...</p> : null}
@@ -120,6 +148,27 @@ export default function AuditorClaimHistoryPage() {
           </div>
         ))}
       </div>
+
+      <h3>Oracle Registry Comparison</h3>
+
+      {oracleLoading ? <p>Loading oracle comparison...</p> : null}
+
+      {!oracleLoading && oracleLogs.length === 0 ? (
+        <p>No oracle registry comparison found for claim #{id}.</p>
+      ) : null}
+
+      {oracleLogs.map((log) => (
+        <div className="card" key={log._id || log.requestId || log.resultHash}>
+          <p>Request ID: {formatValue(log.requestId)}</p>
+          <p>Verified: {formatValue(log.verified)}</p>
+          <p>Risk level: {formatValue(log.riskLevel)}</p>
+          <p>
+            Transaction:{" "}
+            <TransactionLink txHash={log.submittedTxHash || log.txHash} />
+          </p>
+          <OracleComparisonPanel log={log} />
+        </div>
+      ))}
     </section>
   );
 }

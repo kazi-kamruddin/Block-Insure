@@ -148,6 +148,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       claimId: claim.claimId.toString(),
       claimAmountWei: claim.claimAmount.toString(),
       claimAmountEth: ethers.formatEther(claim.claimAmount),
+      claimType: claim.claimType,
       incidentDate: claim.incidentDate.toString(),
     };
 
@@ -158,6 +159,10 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       params: {
         hospitalId: claim.hospitalId,
         invoiceHash: claim.invoiceHash,
+        claimAmountWei: claim.claimAmount.toString(),
+        claimAmountEth: ethers.formatEther(claim.claimAmount),
+        claimType: claim.claimType,
+        incidentDate: claim.incidentDate.toString(),
       },
     });
 

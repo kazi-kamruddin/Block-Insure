@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
+import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import TransactionLink from "../components/TransactionLink";
 import { getClaimById, getOracleResults } from "../services/api";
 import { getClaimStatusName } from "../utils/claimStatus";
@@ -123,6 +124,7 @@ export default function ClaimDetailPage() {
           <p>
             Tx hash: <TransactionLink txHash={log.submittedTxHash || log.txHash} />
           </p>
+          <OracleComparisonPanel log={log} />
         </div>
       ))}
     </section>
