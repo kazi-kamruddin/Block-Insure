@@ -74,10 +74,47 @@ function formatPercent(value) {
   return `${Math.round(numericValue * 100)}%`;
 }
 
+function formatBpsPercent(value) {
+  const numericValue = Number(value || 0) / 100;
+  return `${numericValue.toFixed(2).replace(/\.00$/, "")}%`;
+}
+
 async function getContractReserveBalance() {
   const contract = getReadOnlyContract();
   const balance = await contract.getContractBalance();
   return formatEth(balance);
+}
+
+async function getSettlementBreakdown(claimId) {
+  const contract = getReadOnlyContract();
+  const [settlement, deductibleRateBps, deductibleCapWei, insurerShareBps] =
+    await Promise.all([
+      contract.calculateSettlement(claimId),
+      contract.deductibleRateBps(),
+      contract.deductibleCapWei(),
+      contract.insurerShareBps(),
+    ]);
+
+  return {
+    claimAmountWei: settlement.claimAmount.toString(),
+    claimAmountEth: formatEth(settlement.claimAmount),
+    deductibleWei: settlement.deductible.toString(),
+    deductibleEth: formatEth(settlement.deductible),
+    afterDeductibleWei: settlement.afterDeductible.toString(),
+    afterDeductibleEth: formatEth(settlement.afterDeductible),
+    insurerPaysWei: settlement.insurerPays.toString(),
+    insurerPaysEth: formatEth(settlement.insurerPays),
+    claimantResponsibilityWei: settlement.claimantResponsibility.toString(),
+    claimantResponsibilityEth: formatEth(settlement.claimantResponsibility),
+    params: {
+      deductibleRateBps: deductibleRateBps.toString(),
+      deductibleRatePercent: formatBpsPercent(deductibleRateBps),
+      deductibleCapWei: deductibleCapWei.toString(),
+      deductibleCapEth: formatEth(deductibleCapWei),
+      insurerShareBps: insurerShareBps.toString(),
+      insurerSharePercent: formatBpsPercent(insurerShareBps),
+    },
+  };
 }
 
 export default function AdminClaimDetailPage() {
@@ -151,6 +188,16 @@ export default function AdminClaimDetailPage() {
     enabled: Boolean(id),
   });
 
+  const {
+    data: settlementBreakdown,
+    isLoading: settlementLoading,
+    refetch: refetchSettlementBreakdown,
+  } = useQuery({
+    queryKey: ["adminClaimSettlementBreakdown", id],
+    queryFn: () => getSettlementBreakdown(id),
+    enabled: Boolean(id),
+  });
+
   const claim = extractClaim(claimData);
   const evidenceChain = extractEvidenceChain(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
@@ -178,6 +225,7 @@ export default function AdminClaimDetailPage() {
     await refetchReserve();
     await refetchAppeal();
     await refetchVotes();
+    await refetchSettlementBreakdown();
   }
 
   async function runAdminAction(actionFn, successText) {
@@ -239,7 +287,9 @@ export default function AdminClaimDetailPage() {
 
   function handleSettle() {
     const confirmed = window.confirm(
-      "Settle this claim now? This will transfer ETH from the contract reserve to the claimant."
+      `Settle this claim now? This will transfer ${
+        settlementBreakdown?.insurerPaysEth || "the calculated payout"
+      } ETH from the contract reserve to the claimant.`
     );
 
     if (!confirmed) return;
@@ -323,6 +373,46 @@ export default function AdminClaimDetailPage() {
             <strong>Document CID:</strong> <IpfsLink cid={claim.documentCID} />
           </p>
           <EvidenceChainPanel evidenceChain={evidenceChain} />
+        </div>
+      ) : null}
+
+      {canSettle ? (
+        <div className="card settlement-breakdown-card">
+          <h3>On-Chain Settlement Breakdown</h3>
+
+          {settlementLoading ? <p>Loading settlement formula...</p> : null}
+
+          {settlementBreakdown ? (
+            <>
+              <div className="settlement-breakdown-grid">
+                <div>
+                  <span>Claim Amount</span>
+                  <strong>{settlementBreakdown.claimAmountEth} ETH</strong>
+                </div>
+                <div>
+                  <span>Deductible</span>
+                  <strong>{settlementBreakdown.deductibleEth} ETH</strong>
+                </div>
+                <div>
+                  <span>Insurer Pays</span>
+                  <strong>{settlementBreakdown.insurerPaysEth} ETH</strong>
+                </div>
+                <div>
+                  <span>Claimant Responsibility</span>
+                  <strong>
+                    {settlementBreakdown.claimantResponsibilityEth} ETH
+                  </strong>
+                </div>
+              </div>
+
+              <p className="muted-text">
+                Formula: {settlementBreakdown.params.deductibleRatePercent} deductible
+                capped at {settlementBreakdown.params.deductibleCapEth} ETH,
+                then insurer pays {settlementBreakdown.params.insurerSharePercent}
+                {" "}of the remaining amount.
+              </p>
+            </>
+          ) : null}
         </div>
       ) : null}
 

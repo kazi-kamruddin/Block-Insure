@@ -18,6 +18,38 @@
   border-left: 4px solid var(--brand);
 }
 
+.page-admin-claim-detail .settlement-breakdown-card {
+  border-left: 4px solid var(--success);
+}
+
+.page-admin-claim-detail .settlement-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.page-admin-claim-detail .settlement-breakdown-grid > div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.page-admin-claim-detail .settlement-breakdown-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.page-admin-claim-detail .settlement-breakdown-grid strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 .page-admin-claim-detail .voting-metric-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));

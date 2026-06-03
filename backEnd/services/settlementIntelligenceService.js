@@ -30,10 +30,6 @@ const REVIEW_EXPOSURE_STATUSES = new Set([
   "MANUAL_REVIEW",
 ]);
 
-const DEDUCTIBLE_RATE = 0.1;
-const DEDUCTIBLE_CAP_ETH = "0.02";
-const INSURER_SHARE_RATE = 0.8;
-
 const zeroWei = 0n;
 
 const toEth = (weiValue) => ethers.formatEther(weiValue);
@@ -54,6 +50,8 @@ const formatRatio = (numerator, denominator) => {
 
 const addAmount = (currentValue, amount) => currentValue + amount;
 
+const toBpsRate = (bpsValue) => Number(bpsValue) / 10000;
+
 const getSolvencyStatus = ({ reserveWei, approvedLiabilityWei, openExposureWei }) => {
   if (approvedLiabilityWei > reserveWei) {
     return "DEFICIT_APPROVED_CLAIMS";
@@ -66,39 +64,59 @@ const getSolvencyStatus = ({ reserveWei, approvedLiabilityWei, openExposureWei }
   return "SUFFICIENT";
 };
 
-const getDeductibleModel = (claimAmountWei) => {
-  const deductibleCapWei = ethers.parseEther(DEDUCTIBLE_CAP_ETH);
-  const rateDeductibleWei = (claimAmountWei * BigInt(Math.round(DEDUCTIBLE_RATE * 100))) / 100n;
-  const deductibleWei =
-    rateDeductibleWei < deductibleCapWei ? rateDeductibleWei : deductibleCapWei;
-  const remainingWei =
-    claimAmountWei > deductibleWei ? claimAmountWei - deductibleWei : zeroWei;
-  const insurerShareWei =
-    (remainingWei * BigInt(Math.round(INSURER_SHARE_RATE * 100))) / 100n;
-  const claimantShareWei = claimAmountWei - insurerShareWei;
-
+const formatSettlementModel = (settlement, params) => {
   return {
-    model: "advisory_deductible_coinsurance",
-    note: "Advisory off-chain calculation only; current smart contract settlement still pays approved claim amount.",
-    deductibleRate: DEDUCTIBLE_RATE,
-    deductibleCapEth: DEDUCTIBLE_CAP_ETH,
-    insurerShareRate: INSURER_SHARE_RATE,
-    claimantShareRate: Number((1 - INSURER_SHARE_RATE).toFixed(2)),
-    deductibleWei: deductibleWei.toString(),
-    deductibleEth: toEth(deductibleWei),
-    insurerShareWei: insurerShareWei.toString(),
-    insurerShareEth: toEth(insurerShareWei),
-    claimantShareWei: claimantShareWei.toString(),
-    claimantShareEth: toEth(claimantShareWei),
+    model: "on_chain_deductible_coinsurance",
+    note: "Settlement math is enforced by InsuranceManager.calculateSettlement and settleClaim transfers only insurerPays.",
+    deductibleRateBps: params.deductibleRateBps.toString(),
+    deductibleRate: toBpsRate(params.deductibleRateBps),
+    deductibleCapWei: params.deductibleCapWei.toString(),
+    deductibleCapEth: toEth(params.deductibleCapWei),
+    insurerShareBps: params.insurerShareBps.toString(),
+    insurerShareRate: toBpsRate(params.insurerShareBps),
+    claimantShareRate: Number((1 - toBpsRate(params.insurerShareBps)).toFixed(4)),
+    claimAmountWei: settlement.claimAmountWei.toString(),
+    claimAmountEth: toEth(settlement.claimAmountWei),
+    deductibleWei: settlement.deductibleWei.toString(),
+    deductibleEth: toEth(settlement.deductibleWei),
+    afterDeductibleWei: settlement.afterDeductibleWei.toString(),
+    afterDeductibleEth: toEth(settlement.afterDeductibleWei),
+    insurerShareWei: settlement.insurerPaysWei.toString(),
+    insurerShareEth: toEth(settlement.insurerPaysWei),
+    claimantShareWei: settlement.claimantResponsibilityWei.toString(),
+    claimantShareEth: toEth(settlement.claimantResponsibilityWei),
   };
 };
 
-const formatClaimForSettlement = ({ claim, reserveAfterPreviousWei }) => {
+const normalizeSettlement = (rawSettlement) => ({
+  claimAmountWei: rawSettlement.claimAmount,
+  deductibleWei: rawSettlement.deductible,
+  afterDeductibleWei: rawSettlement.afterDeductible,
+  insurerPaysWei: rawSettlement.insurerPays,
+  claimantResponsibilityWei: rawSettlement.claimantResponsibility,
+});
+
+const getSettlementQuote = async (contract, claim, params) => {
+  const rawSettlement = await contract.calculateSettlement(claim.claimId);
+  const settlement = normalizeSettlement(rawSettlement);
+
+  return {
+    ...settlement,
+    settlementModel: formatSettlementModel(settlement, params),
+  };
+};
+
+const formatClaimForSettlement = ({
+  claim,
+  reserveAfterPreviousWei,
+  settlementQuote,
+}) => {
   const statusName = getStatusName(claim);
   const claimAmountWei = claim.claimAmount;
+  const insurerPaysWei = settlementQuote?.insurerPaysWei || claimAmountWei;
   const projectedReserveAfterWei =
-    reserveAfterPreviousWei >= claimAmountWei
-      ? reserveAfterPreviousWei - claimAmountWei
+    reserveAfterPreviousWei >= insurerPaysWei
+      ? reserveAfterPreviousWei - insurerPaysWei
       : zeroWei;
 
   return {
@@ -110,10 +128,10 @@ const formatClaimForSettlement = ({ claim, reserveAfterPreviousWei }) => {
     status: statusName,
     claimAmountWei: claimAmountWei.toString(),
     claimAmountEth: toEth(claimAmountWei),
-    canSettleWithCurrentReserve: reserveAfterPreviousWei >= claimAmountWei,
+    canSettleWithCurrentReserve: reserveAfterPreviousWei >= insurerPaysWei,
     projectedReserveAfterWei: projectedReserveAfterWei.toString(),
     projectedReserveAfterEth: toEth(projectedReserveAfterWei),
-    settlementModel: getDeductibleModel(claimAmountWei),
+    settlementModel: settlementQuote?.settlementModel || null,
   };
 };
 
@@ -183,11 +201,40 @@ const buildStatusBreakdown = (claims) => {
 
 const buildReserveIntelligence = async () => {
   const contract = getReadOnlyContract();
-  const [reserveWei, claims, policies] = await Promise.all([
+  const [
+    reserveWei,
+    claims,
+    policies,
+    deductibleRateBps,
+    deductibleCapWei,
+    insurerShareBps,
+  ] = await Promise.all([
     contract.getContractBalance(),
     getAllClaims(contract),
     getAllPolicies(contract),
+    contract.deductibleRateBps(),
+    contract.deductibleCapWei(),
+    contract.insurerShareBps(),
   ]);
+  const settlementParams = {
+    deductibleRateBps,
+    deductibleCapWei,
+    insurerShareBps,
+  };
+  const settlementQuotes = await Promise.all(
+    claims.map(async (claim) => {
+      const quote = await getSettlementQuote(contract, claim, settlementParams);
+
+      return [claim.claimId.toString(), quote];
+    })
+  );
+  const settlementQuoteByClaimId = new Map(settlementQuotes);
+  const getClaimLiabilityWei = (claim) => {
+    return (
+      settlementQuoteByClaimId.get(claim.claimId.toString())?.insurerPaysWei ||
+      claim.claimAmount
+    );
+  };
   const activePolicies = policies.filter((policy) => policy.isActive);
   const activeCoverageWei = activePolicies.reduce(
     (total, policy) => total + policy.coverageAmount,
@@ -199,28 +246,45 @@ const buildReserveIntelligence = async () => {
   );
   const openExposureWei = claims
     .filter((claim) => OPEN_EXPOSURE_STATUSES.has(getStatusName(claim)))
-    .reduce((total, claim) => total + claim.claimAmount, zeroWei);
+    .reduce((total, claim) => total + getClaimLiabilityWei(claim), zeroWei);
   const reviewExposureWei = claims
     .filter((claim) => REVIEW_EXPOSURE_STATUSES.has(getStatusName(claim)))
-    .reduce((total, claim) => total + claim.claimAmount, zeroWei);
+    .reduce((total, claim) => total + getClaimLiabilityWei(claim), zeroWei);
   const approvedLiabilityWei = claims
     .filter((claim) => SETTLE_READY_STATUSES.has(getStatusName(claim)))
-    .reduce((total, claim) => total + claim.claimAmount, zeroWei);
-  const settledWei = claims
-    .filter((claim) => getStatusName(claim) === "SETTLED")
-    .reduce((total, claim) => total + claim.claimAmount, zeroWei);
+    .reduce((total, claim) => total + getClaimLiabilityWei(claim), zeroWei);
+  const settledClaims = claims.filter((claim) => getStatusName(claim) === "SETTLED");
+  const settlementRecords = await Promise.all(
+    settledClaims.map(async (claim) => {
+      try {
+        return await contract.getSettlementRecord(claim.claimId);
+      } catch (_) {
+        return null;
+      }
+    })
+  );
+  const settledWei = settlementRecords.reduce((total, settlementRecord, index) => {
+    if (settlementRecord) {
+      return total + settlementRecord.amount;
+    }
+
+    return total + getClaimLiabilityWei(settledClaims[index]);
+  }, zeroWei);
   const pendingSettlementClaims = claims.filter((claim) =>
     SETTLE_READY_STATUSES.has(getStatusName(claim))
   );
   let rollingReserveWei = reserveWei;
   const settlementQueue = pendingSettlementClaims.map((claim) => {
+    const settlementQuote = settlementQuoteByClaimId.get(claim.claimId.toString());
     const formattedClaim = formatClaimForSettlement({
       claim,
       reserveAfterPreviousWei: rollingReserveWei,
+      settlementQuote,
     });
+    const insurerPaysWei = settlementQuote?.insurerPaysWei || claim.claimAmount;
 
-    if (rollingReserveWei >= claim.claimAmount) {
-      rollingReserveWei -= claim.claimAmount;
+    if (rollingReserveWei >= insurerPaysWei) {
+      rollingReserveWei -= insurerPaysWei;
     }
 
     return formattedClaim;
@@ -237,13 +301,16 @@ const buildReserveIntelligence = async () => {
     generatedAt: new Date().toISOString(),
     assumptions: {
       settlementModel:
-        "Advisory off-chain reserve intelligence. Contract settlement remains unchanged.",
+        "On-chain deductible/co-insurance formula enforced by InsuranceManager.settleClaim.",
       openExposureStatuses: Array.from(OPEN_EXPOSURE_STATUSES),
       reviewExposureStatuses: Array.from(REVIEW_EXPOSURE_STATUSES),
       settlementReadyStatuses: Array.from(SETTLE_READY_STATUSES),
-      deductibleRate: DEDUCTIBLE_RATE,
-      deductibleCapEth: DEDUCTIBLE_CAP_ETH,
-      insurerShareRate: INSURER_SHARE_RATE,
+      deductibleRateBps: deductibleRateBps.toString(),
+      deductibleRate: toBpsRate(deductibleRateBps),
+      deductibleCapWei: deductibleCapWei.toString(),
+      deductibleCapEth: toEth(deductibleCapWei),
+      insurerShareBps: insurerShareBps.toString(),
+      insurerShareRate: toBpsRate(insurerShareBps),
     },
     reserve: {
       wei: reserveWei.toString(),

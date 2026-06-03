@@ -70,6 +70,7 @@ const EVENT_LABELS = {
   ClaimAppealed: "Claim Appealed",
   ClaimSentToManualReview: "Claim Sent To Manual Review",
   AuditorVoteCast: "Auditor Vote Cast",
+  SettlementCalculated: "Settlement Calculated",
   ClaimSettled: "Claim Settled",
   ClaimSettledRecordOnly: "Claim Settlement Recorded",
 };

@@ -491,10 +491,28 @@ const settleClaim = async (req, res, next) => {
     const receipt = await tx.wait();
 
     let settlementEvent = null;
+    let settlementCalculation = null;
 
     for (const log of receipt.logs) {
       try {
         const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "SettlementCalculated") {
+          settlementCalculation = {
+            claimId: parsedLog.args.claimId.toString(),
+            claimAmountWei: parsedLog.args.claimAmount.toString(),
+            claimAmountEth: ethers.formatEther(parsedLog.args.claimAmount),
+            deductibleWei: parsedLog.args.deductible.toString(),
+            deductibleEth: ethers.formatEther(parsedLog.args.deductible),
+            insurerPaysWei: parsedLog.args.insurerPays.toString(),
+            insurerPaysEth: ethers.formatEther(parsedLog.args.insurerPays),
+            claimantResponsibilityWei:
+              parsedLog.args.claimantResponsibility.toString(),
+            claimantResponsibilityEth: ethers.formatEther(
+              parsedLog.args.claimantResponsibility
+            ),
+          };
+        }
 
         if (parsedLog && parsedLog.name === "ClaimSettled") {
           settlementEvent = {
@@ -523,6 +541,7 @@ const settleClaim = async (req, res, next) => {
       message: "Claim settled successfully",
       transactionHash: tx.hash,
       settlementEvent,
+      settlementCalculation,
       contractBalance: {
         before: balanceBefore,
         after: balanceAfter,

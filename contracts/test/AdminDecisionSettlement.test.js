@@ -50,6 +50,26 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     return ethers.keccak256(ethers.toUtf8Bytes(text));
   }
 
+  function getExpectedDefaultSettlement(claimAmount) {
+    const deductibleRateBps = 1000n;
+    const deductibleCapWei = ethers.parseEther("0.02");
+    const insurerShareBps = 8000n;
+    const rateDeductible = (claimAmount * deductibleRateBps) / 10000n;
+    const deductible =
+      rateDeductible < deductibleCapWei ? rateDeductible : deductibleCapWei;
+    const afterDeductible = claimAmount - deductible;
+    const insurerPays = (afterDeductible * insurerShareBps) / 10000n;
+    const claimantResponsibility = claimAmount - insurerPays;
+
+    return {
+      claimAmount,
+      deductible,
+      afterDeductible,
+      insurerPays,
+      claimantResponsibility,
+    };
+  }
+
   async function submitCleanClaim({
     insuranceManager,
     user,
@@ -286,6 +306,7 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     const { insuranceManager, user, CLAIM_AMOUNT } = fixture;
 
     const claimId = await createOracleVerifiedClaim(fixture);
+    const expectedSettlement = getExpectedDefaultSettlement(CLAIM_AMOUNT);
 
     await insuranceManager.approveClaim(claimId);
     await insuranceManager.fundContract({ value: CLAIM_AMOUNT });
@@ -293,7 +314,7 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     await expect(() => insuranceManager.settleClaim(claimId))
       .to.changeEtherBalances(
         [insuranceManager, user],
-        [-CLAIM_AMOUNT, CLAIM_AMOUNT]
+        [-expectedSettlement.insurerPays, expectedSettlement.insurerPays]
       );
 
     const claim = await insuranceManager.getClaim(claimId);
@@ -302,9 +323,72 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     const settlement = await insuranceManager.getSettlementRecord(claimId);
     expect(settlement.claimId).to.equal(claimId);
     expect(settlement.recipient).to.equal(user.address);
-    expect(settlement.amount).to.equal(CLAIM_AMOUNT);
+    expect(settlement.amount).to.equal(expectedSettlement.insurerPays);
     expect(settlement.settlementReference).to.equal("");
     expect(settlement.paidOnChain).to.equal(true);
+  });
+
+  it("Calculates default on-chain deductible and co-insurance settlement", async function () {
+    const fixture = await deployFixture();
+    const { insuranceManager, CLAIM_AMOUNT } = fixture;
+
+    const claimId = await createOracleVerifiedClaim(fixture);
+    const expectedSettlement = getExpectedDefaultSettlement(CLAIM_AMOUNT);
+
+    const settlement = await insuranceManager.calculateSettlement(claimId);
+
+    expect(settlement.claimAmount).to.equal(expectedSettlement.claimAmount);
+    expect(settlement.deductible).to.equal(expectedSettlement.deductible);
+    expect(settlement.afterDeductible).to.equal(expectedSettlement.afterDeductible);
+    expect(settlement.insurerPays).to.equal(expectedSettlement.insurerPays);
+    expect(settlement.claimantResponsibility).to.equal(
+      expectedSettlement.claimantResponsibility
+    );
+  });
+
+  it("Admin can update settlement parameters", async function () {
+    const fixture = await deployFixture();
+    const { insuranceManager, CLAIM_AMOUNT } = fixture;
+
+    const claimId = await createOracleVerifiedClaim(fixture);
+    const deductibleRateBps = 500n;
+    const deductibleCapWei = ethers.parseEther("0.01");
+    const insurerShareBps = 9000n;
+
+    await expect(
+      insuranceManager.updateSettlementParams(
+        deductibleRateBps,
+        deductibleCapWei,
+        insurerShareBps
+      )
+    )
+      .to.emit(insuranceManager, "SettlementParamsUpdated")
+      .withArgs(deductibleRateBps, deductibleCapWei, insurerShareBps, anyValue);
+
+    expect(await insuranceManager.deductibleRateBps()).to.equal(deductibleRateBps);
+    expect(await insuranceManager.deductibleCapWei()).to.equal(deductibleCapWei);
+    expect(await insuranceManager.insurerShareBps()).to.equal(insurerShareBps);
+
+    const settlement = await insuranceManager.calculateSettlement(claimId);
+    const expectedDeductible = (CLAIM_AMOUNT * 500n) / 10000n;
+    const expectedInsurerPays =
+      ((CLAIM_AMOUNT - expectedDeductible) * 9000n) / 10000n;
+
+    expect(settlement.deductible).to.equal(expectedDeductible);
+    expect(settlement.insurerPays).to.equal(expectedInsurerPays);
+  });
+
+  it("Rejects settlement parameters above 100 percent", async function () {
+    const fixture = await deployFixture();
+    const { insuranceManager } = fixture;
+
+    await expect(
+      insuranceManager.updateSettlementParams(10001, ethers.parseEther("0.02"), 8000)
+    ).to.be.revertedWith("Deductible rate exceeds maximum");
+
+    await expect(
+      insuranceManager.updateSettlementParams(1000, ethers.parseEther("0.02"), 10001)
+    ).to.be.revertedWith("Insurer share exceeds maximum");
   });
 
   it("Claim officer cannot settle claim", async function () {

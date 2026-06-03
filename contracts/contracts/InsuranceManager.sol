@@ -149,6 +149,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     uint256 public registrySnapshotTimestamp;
     uint256 public registrySnapshotBlock;
 
+    uint256 public deductibleRateBps = 1000;
+    uint256 public deductibleCapWei = 0.02 ether;
+    uint256 public insurerShareBps = 8000;
+
     // =============================================================
     // Events
     // =============================================================
@@ -248,6 +252,21 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     event AuditorReputationUpdated(
         address indexed auditor,
         uint256 newReputation,
+        uint256 timestamp
+    );
+
+    event SettlementCalculated(
+        uint256 indexed claimId,
+        uint256 claimAmount,
+        uint256 deductible,
+        uint256 insurerPays,
+        uint256 claimantResponsibility
+    );
+
+    event SettlementParamsUpdated(
+        uint256 deductibleRateBps,
+        uint256 deductibleCapWei,
+        uint256 insurerShareBps,
         uint256 timestamp
     );
 
@@ -1093,13 +1112,70 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         emit ClaimSentToManualReview(claimId, msg.sender, block.timestamp);
     }
 
+    function calculateSettlement(uint256 claimId)
+        public
+        view
+        returns (
+            uint256 claimAmount,
+            uint256 deductible,
+            uint256 afterDeductible,
+            uint256 insurerPays,
+            uint256 claimantResponsibility
+        )
+    {
+        require(_claimExists(claimId), "Claim does not exist");
+
+        claimAmount = claims[claimId].claimAmount;
+
+        uint256 rateDeductible = (claimAmount * deductibleRateBps) / 10000;
+        deductible = rateDeductible < deductibleCapWei
+            ? rateDeductible
+            : deductibleCapWei;
+
+        if (deductible > claimAmount) {
+            deductible = claimAmount;
+        }
+
+        afterDeductible = claimAmount - deductible;
+        insurerPays = (afterDeductible * insurerShareBps) / 10000;
+        claimantResponsibility = claimAmount - insurerPays;
+    }
+
+    function updateSettlementParams(
+        uint256 _deductibleRateBps,
+        uint256 _deductibleCapWei,
+        uint256 _insurerShareBps
+    ) external onlyRole(ADMIN_ROLE) {
+        require(_deductibleRateBps <= 10000, "Deductible rate exceeds maximum");
+        require(_insurerShareBps <= 10000, "Insurer share exceeds maximum");
+
+        deductibleRateBps = _deductibleRateBps;
+        deductibleCapWei = _deductibleCapWei;
+        insurerShareBps = _insurerShareBps;
+
+        emit SettlementParamsUpdated(
+            _deductibleRateBps,
+            _deductibleCapWei,
+            _insurerShareBps,
+            block.timestamp
+        );
+    }
+
     function settleClaim(uint256 claimId) external nonReentrant onlyRole(ADMIN_ROLE) {
         require(_claimExists(claimId), "Claim does not exist");
         require(claims[claimId].status == ClaimStatus.APPROVED, "Claim is not approved");
         require(settlementRecords[claimId].settledAt == 0, "Claim already settled");
-        require(address(this).balance >= claims[claimId].claimAmount, "Insufficient contract balance");
 
-        uint256 amount = claims[claimId].claimAmount;
+        (
+            uint256 claimAmount,
+            uint256 deductible,
+            ,
+            uint256 insurerPays,
+            uint256 claimantResponsibility
+        ) = calculateSettlement(claimId);
+
+        require(address(this).balance >= insurerPays, "Insufficient contract balance");
+
         address recipient = claims[claimId].claimantWallet;
 
         claims[claimId].status = ClaimStatus.SETTLED;
@@ -1107,16 +1183,24 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         settlementRecords[claimId] = SettlementRecord({
             claimId: claimId,
             recipient: recipient,
-            amount: amount,
+            amount: insurerPays,
             settlementReference: "",
             settledAt: block.timestamp,
             paidOnChain: true
         });
 
-        (bool success, ) = payable(recipient).call{value: amount}("");
+        emit SettlementCalculated(
+            claimId,
+            claimAmount,
+            deductible,
+            insurerPays,
+            claimantResponsibility
+        );
+
+        (bool success, ) = payable(recipient).call{value: insurerPays}("");
         require(success, "Settlement transfer failed");
 
-        emit ClaimSettled(claimId, recipient, amount, block.timestamp);
+        emit ClaimSettled(claimId, recipient, insurerPays, block.timestamp);
     }
 
     function recordOnlySettlement(
