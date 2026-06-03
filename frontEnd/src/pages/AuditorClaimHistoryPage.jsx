@@ -69,6 +69,7 @@ const EVENT_LABELS = {
   ClaimRejected: "Claim Rejected",
   ClaimAppealed: "Claim Appealed",
   ClaimSentToManualReview: "Claim Sent To Manual Review",
+  AuditorVoteCast: "Auditor Vote Cast",
   ClaimSettled: "Claim Settled",
   ClaimSettledRecordOnly: "Claim Settlement Recorded",
 };

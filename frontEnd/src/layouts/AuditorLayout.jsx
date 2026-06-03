@@ -31,6 +31,7 @@ export default function AuditorLayout() {
         <Link to="/auditor/dashboard">Dashboard</Link>
         <Link to="/auditor/healthcare-registry">Registry</Link>
         <Link to="/auditor/claims">Claims</Link>
+        <Link to="/auditor/reputation">Reputation</Link>
       </div>
 
       <Outlet />

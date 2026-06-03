@@ -14,6 +14,8 @@ import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AuditorDashboardPage from "./pages/AuditorDashboardPage";
 import AuditorClaimLookupPage from "./pages/AuditorClaimLookupPage";
 import AuditorClaimHistoryPage from "./pages/AuditorClaimHistoryPage";
+import AuditorVotingPage from "./pages/AuditorVotingPage";
+import AuditorReputationPage from "./pages/AuditorReputationPage";
 import AdminPolicyPackagesPage from "./pages/AdminPolicyPackagesPage";
 import AdminCreatePolicyPackagePage from "./pages/AdminCreatePolicyPackagePage";
 import PolicyListPage from "./pages/PolicyListPage";
@@ -69,6 +71,8 @@ export default function App() {
                 <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
                 <Route path="claims" element={<AuditorClaimLookupPage />} />
                 <Route path="claims/:id/history" element={<AuditorClaimHistoryPage />} />
+                <Route path="vote/:claimId" element={<AuditorVotingPage />} />
+                <Route path="reputation" element={<AuditorReputationPage />} />
               </Route>
 
               <Route path="*" element={<NotFoundPage />} />

@@ -123,6 +123,16 @@ export async function reviewAppeal(appealId, payload) {
   return response.data;
 }
 
+export async function getClaimVoteSummary(claimId) {
+  const response = await api.get(`/api/votes/claim/${claimId}`);
+  return response.data;
+}
+
+export async function finalizeClaimVoting(claimId) {
+  const response = await api.post(`/api/votes/finalize/${claimId}`);
+  return response.data;
+}
+
 export async function getAdminClaims() {
   const response = await api.get("/api/admin/claims");
   return response.data;

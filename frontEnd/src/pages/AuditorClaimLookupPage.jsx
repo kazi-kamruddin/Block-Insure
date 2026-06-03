@@ -14,6 +14,12 @@ export default function AuditorClaimLookupPage() {
     navigate(`/auditor/claims/${claimId.trim()}/history`);
   }
 
+  function handleOpenVoting() {
+    if (!claimId.trim()) return;
+
+    navigate(`/auditor/vote/${claimId.trim()}`);
+  }
+
   return (
     <section className="page-container page-auditor-claim-lookup">
       <h2>Auditor Claim Lookup</h2>
@@ -36,7 +42,12 @@ export default function AuditorClaimLookupPage() {
           />
         </label>
 
-        <button type="submit">Open Audit Timeline</button>
+        <div className="action-row">
+          <button type="submit">Open Audit Timeline</button>
+          <button type="button" onClick={handleOpenVoting}>
+            Open Voting Review
+          </button>
+        </div>
       </form>
     </section>
   );

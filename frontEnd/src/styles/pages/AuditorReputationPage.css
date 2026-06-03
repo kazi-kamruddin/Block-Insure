@@ -1,0 +1,64 @@
+.page-auditor-reputation .auditor-reputation-card {
+  overflow-x: auto;
+}
+
+.page-auditor-reputation table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+
+.page-auditor-reputation th,
+.page-auditor-reputation td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.page-auditor-reputation th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.reputation-meter {
+  display: inline-block;
+  width: 140px;
+  height: 8px;
+  margin-right: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+  vertical-align: middle;
+}
+
+.reputation-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+}
+
+.reliability-pill {
+  display: inline-flex;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.reliability-low {
+  background: #fef3f2;
+  color: var(--danger);
+}
+
+.reliability-medium {
+  background: #fff7ed;
+  color: var(--warning);
+}
+
+.reliability-high,
+.reliability-expert {
+  background: #ecfdf3;
+  color: var(--success);
+}

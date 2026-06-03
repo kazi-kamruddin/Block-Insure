@@ -15,6 +15,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     bytes32 public constant ORACLE_ROLE = keccak256("ORACLE_ROLE");
     bytes32 public constant AUDITOR_ROLE = keccak256("AUDITOR_ROLE");
 
+    uint8 public constant VOTE_VALID = 1;
+    uint8 public constant VOTE_INVALID = 2;
+    uint8 public constant VOTE_NEEDS_MORE = 3;
+
     // =============================================================
     // Structs
     // =============================================================
@@ -133,6 +137,14 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => SettlementRecord) private settlementRecords;
     mapping(uint256 => bool) public claimAppealed;
 
+    mapping(uint256 => mapping(address => uint8)) public auditorVotes;
+    mapping(uint256 => address[]) public claimVoters;
+    mapping(address => uint256) public auditorReputation;
+    mapping(address => uint256) public auditorTotalVotes;
+    mapping(address => bool) private auditorReputationInitialized;
+    address[] private auditorMembers;
+    mapping(address => bool) private auditorMemberTracked;
+
     bytes32 public registryMerkleRoot;
     uint256 public registrySnapshotTimestamp;
     uint256 public registrySnapshotBlock;
@@ -226,6 +238,19 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 timestamp
     );
 
+    event AuditorVoteCast(
+        uint256 indexed claimId,
+        address indexed auditor,
+        uint8 vote,
+        uint256 timestamp
+    );
+
+    event AuditorReputationUpdated(
+        address indexed auditor,
+        uint256 newReputation,
+        uint256 timestamp
+    );
+
     event ClaimSettled(
         uint256 indexed claimId,
         address indexed claimantWallet,
@@ -307,6 +332,11 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         }
 
         _grantRole(role, account);
+
+        if (role == AUDITOR_ROLE && !auditorMemberTracked[account]) {
+            auditorMemberTracked[account] = true;
+            auditorMembers.push(account);
+        }
     }
 
     function _revokeProjectRoleInternal(bytes32 role, address account) internal {
@@ -319,6 +349,30 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         }
 
         _revokeRole(role, account);
+    }
+
+    function getAuditors() external view returns (address[] memory) {
+        uint256 activeCount = 0;
+
+        for (uint256 i = 0; i < auditorMembers.length; i++) {
+            if (hasRole(AUDITOR_ROLE, auditorMembers[i])) {
+                activeCount++;
+            }
+        }
+
+        address[] memory activeAuditors = new address[](activeCount);
+        uint256 currentIndex = 0;
+
+        for (uint256 i = 0; i < auditorMembers.length; i++) {
+            address auditor = auditorMembers[i];
+
+            if (hasRole(AUDITOR_ROLE, auditor)) {
+                activeAuditors[currentIndex] = auditor;
+                currentIndex++;
+            }
+        }
+
+        return activeAuditors;
     }
 
     // =============================================================
@@ -958,6 +1012,68 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         claimAppealed[claimId] = true;
 
         emit ClaimAppealed(claimId, msg.sender, appealReasonHash, block.timestamp);
+    }
+
+    function castVote(uint256 claimId, uint8 vote) external onlyRole(AUDITOR_ROLE) {
+        require(_claimExists(claimId), "Claim does not exist");
+        require(
+            vote == VOTE_VALID ||
+                vote == VOTE_INVALID ||
+                vote == VOTE_NEEDS_MORE,
+            "Invalid vote"
+        );
+        require(auditorVotes[claimId][msg.sender] == 0, "Auditor already voted");
+        require(
+            claims[claimId].status == ClaimStatus.MANUAL_REVIEW ||
+                claims[claimId].status == ClaimStatus.ORACLE_FAILED,
+            "Claim is not open for auditor voting"
+        );
+
+        if (!auditorReputationInitialized[msg.sender]) {
+            auditorReputation[msg.sender] = 50;
+            auditorReputationInitialized[msg.sender] = true;
+        }
+
+        auditorVotes[claimId][msg.sender] = vote;
+        claimVoters[claimId].push(msg.sender);
+        auditorTotalVotes[msg.sender]++;
+
+        emit AuditorVoteCast(claimId, msg.sender, vote, block.timestamp);
+    }
+
+    function updateAuditorReputation(address auditor, uint256 newScore) external onlyRole(ADMIN_ROLE) {
+        require(auditor != address(0), "Invalid auditor");
+        require(newScore <= 100, "Reputation exceeds maximum");
+
+        auditorReputation[auditor] = newScore;
+        auditorReputationInitialized[auditor] = true;
+
+        emit AuditorReputationUpdated(auditor, newScore, block.timestamp);
+    }
+
+    function getClaimVotes(uint256 claimId)
+        external
+        view
+        returns (
+            address[] memory voters,
+            uint8[] memory votes,
+            uint256[] memory reputations
+        )
+    {
+        require(_claimExists(claimId), "Claim does not exist");
+
+        address[] memory currentVoters = claimVoters[claimId];
+        uint8[] memory currentVotes = new uint8[](currentVoters.length);
+        uint256[] memory currentReputations = new uint256[](currentVoters.length);
+
+        for (uint256 i = 0; i < currentVoters.length; i++) {
+            address voter = currentVoters[i];
+
+            currentVotes[i] = auditorVotes[claimId][voter];
+            currentReputations[i] = auditorReputation[voter];
+        }
+
+        return (currentVoters, currentVotes, currentReputations);
     }
 
     function sendToManualReview(uint256 claimId) external {

@@ -10,8 +10,10 @@ import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import TransactionLink from "../components/TransactionLink";
 import {
   approveClaim,
+  finalizeClaimVoting,
   getAppealByClaim,
   getClaimById,
+  getClaimVoteSummary,
   getOracleResults,
   rejectClaim,
   reviewAppeal,
@@ -53,12 +55,23 @@ function getTransactionHash(result) {
   return (
     result?.txHash ||
     result?.transactionHash ||
+    result?.transactionHashes?.[0] ||
     result?.data?.txHash ||
     result?.data?.transactionHash ||
+    result?.data?.transactionHashes?.[0] ||
     result?.claim?.txHash ||
     result?.oracleRequest?.txHash ||
     ""
   );
+}
+
+function extractVoteSummary(data) {
+  return data?.voteSummary || data?.data?.voteSummary || null;
+}
+
+function formatPercent(value) {
+  const numericValue = Number(value || 0);
+  return `${Math.round(numericValue * 100)}%`;
 }
 
 async function getContractReserveBalance() {
@@ -128,11 +141,22 @@ export default function AdminClaimDetailPage() {
     queryFn: getContractReserveBalance,
   });
 
+  const {
+    data: voteData,
+    isLoading: voteLoading,
+    refetch: refetchVotes,
+  } = useQuery({
+    queryKey: ["adminClaimVoteSummary", id],
+    queryFn: () => getClaimVoteSummary(id),
+    enabled: Boolean(id),
+  });
+
   const claim = extractClaim(claimData);
   const evidenceChain = extractEvidenceChain(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
   const statusName = getClaimStatusName(claim);
   const appeal = appealData?.appeal || null;
+  const voteSummary = extractVoteSummary(voteData);
 
   const canRequestOracle = statusName === "DUPLICATE_CHECKED";
   const canSendManualReview =
@@ -145,12 +169,15 @@ export default function AdminClaimDetailPage() {
     statusName !== "REJECTED" &&
     statusName !== "UNKNOWN";
   const canSettle = statusName === "APPROVED";
+  const canShowVoting =
+    statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
 
   async function refreshAll() {
     await refetch();
     await refetchOracle();
     await refetchReserve();
     await refetchAppeal();
+    await refetchVotes();
   }
 
   async function runAdminAction(actionFn, successText) {
@@ -230,6 +257,13 @@ export default function AdminClaimDetailPage() {
           adminNote: appealAdminNote.trim(),
         }),
       `Appeal marked ${status.toLowerCase().replace("_", " ")} successfully.`
+    );
+  }
+
+  function handleFinalizeVoting() {
+    runAdminAction(
+      () => finalizeClaimVoting(id),
+      "Voting finalized and auditor reputations updated successfully."
     );
   }
 
@@ -353,6 +387,79 @@ export default function AdminClaimDetailPage() {
           </button>
         </div>
       </div>
+
+      {canShowVoting ? (
+        <div className="card voting-summary-card">
+          <h3>Voting Summary</h3>
+
+          {voteLoading ? <p>Loading voting summary...</p> : null}
+
+          {voteSummary ? (
+            <>
+              <div className="voting-metric-row">
+                <div>
+                  <span>Total voters</span>
+                  <strong>{voteSummary.totalVoters || 0}</strong>
+                </div>
+                <div>
+                  <span>Weighted consensus</span>
+                  <strong>{voteSummary.consensusDisplayLabel || "No Consensus"}</strong>
+                </div>
+                <div>
+                  <span>Consensus strength</span>
+                  <strong>{formatPercent(voteSummary.consensusStrength)}</strong>
+                </div>
+              </div>
+
+              <div className="vote-breakdown-grid">
+                {Object.values(voteSummary.breakdown || {}).map((entry) => (
+                  <div className="vote-breakdown-item" key={entry.label}>
+                    <strong>{entry.displayLabel}</strong>
+                    <span>{entry.count} votes</span>
+                    <span>Weight {entry.weightedSum}</span>
+                  </div>
+                ))}
+              </div>
+
+              {voteSummary.voters?.length > 0 ? (
+                <table className="voter-table">
+                  <thead>
+                    <tr>
+                      <th>Auditor</th>
+                      <th>Vote</th>
+                      <th>Reputation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {voteSummary.voters.map((voter) => (
+                      <tr key={voter.auditorAddress}>
+                        <td>{voter.shortenedAddress}</td>
+                        <td>{voter.voteDisplayLabel}</td>
+                        <td>{voter.reputation}/100</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>No auditor votes have been cast yet.</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleFinalizeVoting}
+                disabled={
+                  isActing ||
+                  !voteSummary.totalVoters ||
+                  voteSummary.isTie ||
+                  !voteSummary.consensusCode
+                }
+              >
+                Finalize Voting & Update Reputations
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="card appeal-review-card">
         <h3>Appeal</h3>

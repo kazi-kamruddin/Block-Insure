@@ -25,6 +25,15 @@ export default function AuditorDashboardPage() {
         </div>
 
         <div className="card">
+          <h3>Weighted Voting</h3>
+          <p>
+            Review disputed claims, cast an auditor vote, and inspect reputation
+            scores that weight governance consensus.
+          </p>
+          <Link to="/auditor/reputation">View Reputation</Link>
+        </div>
+
+        <div className="card">
           <h3>Defense Demo Tip</h3>
           <p>
             Use Claim ID 1 or Claim ID 2 after running the full user/admin flow.
