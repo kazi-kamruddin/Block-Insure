@@ -18,6 +18,7 @@
     "push:merkle": "node scripts/pushMerkleRoot.js",
     "backfill:evidence-chain": "node scripts/backfillEvidenceChains.js",
     "evaluate:risk": "node scripts/evaluateRiskModel.js",
+    "charts:generate": "node scripts/generateEvaluationCharts.js",
     "role:set": "node scripts/setUserRole.js"
   },
   "keywords": [],
