@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-04T09:44:08.260Z",
+  "generatedAt": "2026-06-04T12:34:57.479Z",
   "dataset": {
     "totalRecords": 15,
     "legitimateRecords": 8,
@@ -8,7 +8,7 @@
   },
   "split": {
     "method": "Deterministic 80/20 split after stable hospital/invoice sort",
-    "source": "Deterministic synthetic seed generated in memory",
+    "source": "MongoDB MockHospitalRecord collection",
     "trainingRecords": 57,
     "testRecords": 15,
     "trainingPercent": 0.7917,

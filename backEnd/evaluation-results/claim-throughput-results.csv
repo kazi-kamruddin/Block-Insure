@@ -1,0 +1,6 @@
+concurrency,successfulClaims,failedClaims,throughputClaimsPerSecond,averageBackendResponseMs,averageBlockchainConfirmationMs,averageEndToEndMs,p95EndToEndMs
+1,1,0,6.574,2.78,125.28,151.99,151.99
+5,5,0,22.7484,3.88,201.61,219.06,219.76
+10,10,0,29.8951,11.59,293.08,332.19,334.39
+20,20,0,48.3827,14.65,374.95,411.42,412.74
+50,39,11,49.288,46.54,678.55,787.85,790.66
