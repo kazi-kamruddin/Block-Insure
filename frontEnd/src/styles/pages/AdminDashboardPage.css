@@ -7,14 +7,6 @@
   margin: 0;
 }
 
-.page-admin-dashboard .card:first-child {
-  background: linear-gradient(
-    135deg,
-    rgba(45, 212, 191, 0.08),
-    rgba(21, 31, 51, 0.98)
-  );
-}
-
 .reserve-status-banner {
   display: flex;
   align-items: center;

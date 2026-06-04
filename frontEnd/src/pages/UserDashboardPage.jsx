@@ -47,7 +47,7 @@ function getClaimStatusName(claim) {
 }
 
 export default function UserDashboardPage() {
-  const { walletAddress, role, isConnected } = useWallet();
+  const { walletAddress, isConnected } = useWallet();
 
   const {
     data: policiesData,
@@ -82,61 +82,108 @@ export default function UserDashboardPage() {
   const fraudClaims = claims.filter(
     (claim) => getClaimStatusName(claim) === "FRAUD_FLAGGED"
   );
+  const openClaims = claims.filter(
+    (claim) =>
+      !["SETTLED", "REJECTED", "CLOSED"].includes(getClaimStatusName(claim))
+  );
+  const recommendedAction =
+    activePolicies.length === 0
+      ? {
+          title: "Start with suitable coverage",
+          description:
+            "Purchase an active policy before an incident occurs so eligible claims can be submitted within its coverage period.",
+          label: "Browse Policies",
+          to: "/user/policies/buy",
+        }
+      : openClaims.length > 0
+        ? {
+            title: "Track your open claims",
+            description:
+              "Follow oracle verification, review decisions, evidence history, and settlement progress from your claim timeline.",
+            label: "Review Open Claims",
+            to: "/user/claims",
+          }
+        : {
+            title: "Your coverage is ready",
+            description:
+              "Your active policy can support an eligible claim. Keep hospital invoices and supporting evidence available.",
+            label: "Submit a Claim",
+            to: "/user/claims/new",
+          };
 
   return (
     <section className="page-container page-user-dashboard">
-      <h2>User Dashboard</h2>
-
-      <div className="card">
-        <p>Wallet: {walletAddress}</p>
-        <p>Role: {role}</p>
+      <div className="dashboard-heading">
+        <div>
+          <span className="dashboard-eyebrow">Policyholder workspace</span>
+          <h2>Coverage and claims overview</h2>
+          <p>
+            Manage active protection, submit evidence-backed claims, and follow
+            every decision through settlement.
+          </p>
+        </div>
+        <div className="dashboard-heading-side">
+          <span className="dashboard-context-pill">Private account view</span>
+          <button
+            className="dashboard-refresh-button"
+            type="button"
+            onClick={() => {
+              refetchPolicies();
+              refetchClaims();
+            }}
+          >
+            Refresh data
+          </button>
+        </div>
       </div>
 
-      <div className="action-row">
-        <button
-          type="button"
-          onClick={() => {
-            refetchPolicies();
-            refetchClaims();
-          }}
-        >
-          Refresh Dashboard
-        </button>
-
-        <Link to="/user/policies/buy">Buy Policy</Link>
-        <Link to="/user/claims/new">Submit Claim</Link>
-        <Link to="/user/claims">My Claims</Link>
+      <div className="card dashboard-guidance-card">
+        <div>
+          <span className="dashboard-eyebrow">Recommended next step</span>
+          <h3>{recommendedAction.title}</h3>
+          <p>{recommendedAction.description}</p>
+        </div>
+        <Link to={recommendedAction.to}>{recommendedAction.label}</Link>
       </div>
 
-      <div className="card-row">
+      <div className="card-row dashboard-metric-grid">
         <div className="card">
           <h3>Purchased Policies</h3>
-          <p>{policiesLoading ? "Loading..." : policies.length}</p>
+          <p className="metric-value">{policiesLoading ? "..." : policies.length}</p>
+          <p>All coverage records connected to this account.</p>
         </div>
 
         <div className="card">
           <h3>Active Policies</h3>
-          <p>{policiesLoading ? "Loading..." : activePolicies.length}</p>
+          <p className="metric-value">{policiesLoading ? "..." : activePolicies.length}</p>
+          <p>Policies currently eligible for claim submission.</p>
         </div>
 
         <div className="card">
           <h3>Total Claims</h3>
-          <p>{claimsLoading ? "Loading..." : claims.length}</p>
+          <p className="metric-value">{claimsLoading ? "..." : claims.length}</p>
+          <p>Complete claim history submitted by this account.</p>
         </div>
 
         <div className="card">
-          <h3>Settled Claims</h3>
-          <p>{claimsLoading ? "Loading..." : settledClaims.length}</p>
+          <h3>Open Claims</h3>
+          <p className="metric-value">{claimsLoading ? "..." : openClaims.length}</p>
+          <p>Claims still moving through verification or review.</p>
         </div>
+      </div>
 
-        <div className="card">
-          <h3>Rejected Claims</h3>
-          <p>{claimsLoading ? "Loading..." : rejectedClaims.length}</p>
+      <div className="dashboard-status-strip">
+        <div>
+          <span>Settled</span>
+          <strong>{claimsLoading ? "..." : settledClaims.length}</strong>
         </div>
-
-        <div className="card">
-          <h3>Fraud Flagged</h3>
-          <p>{claimsLoading ? "Loading..." : fraudClaims.length}</p>
+        <div>
+          <span>Rejected</span>
+          <strong>{claimsLoading ? "..." : rejectedClaims.length}</strong>
+        </div>
+        <div>
+          <span>Flagged for review</span>
+          <strong>{claimsLoading ? "..." : fraudClaims.length}</strong>
         </div>
       </div>
     </section>

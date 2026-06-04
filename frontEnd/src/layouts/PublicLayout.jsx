@@ -16,9 +16,7 @@ export default function PublicLayout() {
 
         <div className="nav-links" aria-label="Primary navigation">
           {isConnected && workspace ? (
-            <Link className="workspace-link" to={workspace.home}>
-              {workspace.label}
-            </Link>
+            <span className="portal-context">{workspace.label}</span>
           ) : (
             <>
               <a href="/#capabilities">Capabilities</a>

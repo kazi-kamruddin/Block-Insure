@@ -1,4 +1,4 @@
-import { Link, Navigate, Outlet } from "react-router-dom";
+import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
 
 export default function AuditorLayout() {
@@ -14,13 +14,13 @@ export default function AuditorLayout() {
 
   return (
     <div>
-      <div className="subnav">
-        <Link to="/auditor/dashboard">Dashboard</Link>
-        <Link to="/auditor/healthcare-registry">Registry</Link>
-        <Link to="/auditor/claims">Claims</Link>
-        <Link to="/auditor/verify-document">Verify Document</Link>
-        <Link to="/auditor/reputation">Reputation</Link>
-      </div>
+      <nav className="subnav" aria-label="Auditor navigation">
+        <NavLink to="/auditor/dashboard" end>Overview</NavLink>
+        <NavLink to="/auditor/healthcare-registry">Registry</NavLink>
+        <NavLink to="/auditor/claims">Claim Audit</NavLink>
+        <NavLink to="/auditor/verify-document">Verify Document</NavLink>
+        <NavLink to="/auditor/reputation">Reputation</NavLink>
+      </nav>
 
       <Outlet />
     </div>

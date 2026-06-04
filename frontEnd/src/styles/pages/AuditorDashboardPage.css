@@ -1,11 +1,16 @@
-.page-auditor-dashboard .card:first-of-type {
-  background: linear-gradient(
-    135deg,
-    rgba(96, 165, 250, 0.08),
-    rgba(21, 31, 51, 0.98)
-  );
+.page-auditor-dashboard .auditor-workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
 .page-auditor-dashboard .card-row .card {
-  min-height: 170px;
+  display: flex;
+  min-height: 230px;
+  margin: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.page-auditor-dashboard .card-row .card a {
+  margin-top: auto;
 }

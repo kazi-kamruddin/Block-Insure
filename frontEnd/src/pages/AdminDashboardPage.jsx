@@ -39,18 +39,25 @@ export default function AdminDashboardPage() {
 
   return (
     <section className="page-container page-admin-dashboard">
-      <h2>Admin Dashboard</h2>
-
-      <div className="action-row">
-        <button
-          type="button"
-          onClick={() => refetch()}
-        >
-          Refresh Dashboard
-        </button>
-
-        <Link to="/admin/policy-packages">Manage Packages</Link>
-        <Link to="/admin/claims">Review Claims</Link>
+      <div className="dashboard-heading">
+        <div>
+          <span className="dashboard-eyebrow">Administration workspace</span>
+          <h2>Portfolio oversight</h2>
+          <p>
+            Monitor reserve health, manage coverage products, review claim
+            decisions, and control final settlement.
+          </p>
+        </div>
+        <div className="dashboard-heading-side">
+          <span className="dashboard-context-pill">Privileged operations</span>
+          <button
+            className="dashboard-refresh-button"
+            type="button"
+            onClick={() => refetch()}
+          >
+            Refresh data
+          </button>
+        </div>
       </div>
 
       {error ? (
