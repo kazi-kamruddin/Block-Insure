@@ -70,11 +70,12 @@ const EVENT_LABELS = {
   ClaimRejected: "Claim Rejected",
   ClaimAppealed: "Claim Appealed",
   ClaimReopenedAfterAppeal: "Claim Reopened After Appeal",
+  ClaimAppealFinalized: "Claim Appeal Finalized",
   ClaimSentToManualReview: "Claim Sent To Manual Review",
   AuditorVoteCast: "Auditor Vote Cast",
   SettlementCalculated: "Settlement Calculated",
   ClaimSettled: "Claim Settled",
-  ClaimSettledRecordOnly: "Claim Settlement Recorded",
+  ClaimClosed: "Claim Closed",
 };
 
 function getEventArgs(event) {

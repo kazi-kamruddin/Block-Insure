@@ -6,6 +6,10 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
+const {
+  startBlockchainEventListener,
+  stopBlockchainEventListener,
+} = require("./services/notificationService");
 
 /* ----------------------------- DNS Config ----------------------------- */
 
@@ -143,6 +147,7 @@ const connectDatabase = async () => {
 const startServer = async () => {
   try {
     await connectDatabase();
+    await startBlockchainEventListener();
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
@@ -161,6 +166,7 @@ startServer();
 const shutdownServer = async (signal) => {
   try {
     console.log(`${signal} received. Closing MongoDB connection...`);
+    await stopBlockchainEventListener();
     await mongoose.connection.close();
     console.log("MongoDB connection closed");
     process.exit(0);

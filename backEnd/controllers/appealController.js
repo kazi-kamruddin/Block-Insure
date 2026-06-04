@@ -202,10 +202,7 @@ const reviewAppeal = async (req, res, next) => {
     let transactionHash = "";
     let reopenedClaim = null;
 
-    if (
-      normalizedStatus === "APPROVED" &&
-      existingAppeal.status !== "APPROVED"
-    ) {
+    if (normalizedStatus === "APPROVED" && existingAppeal.status !== "APPROVED") {
       const contract = getAdminContract();
       const tx = await contract.reopenClaimAfterAppeal(existingAppeal.claimId);
 
@@ -213,6 +210,15 @@ const reviewAppeal = async (req, res, next) => {
 
       transactionHash = tx.hash;
       reopenedClaim = await contract.getClaim(existingAppeal.claimId);
+    }
+
+    if (normalizedStatus === "REJECTED" && existingAppeal.status !== "REJECTED") {
+      const contract = getAdminContract();
+      const tx = await contract.finalizeRejectedAppeal(existingAppeal.claimId);
+
+      await tx.wait();
+
+      transactionHash = tx.hash;
     }
 
     const appeal = await Appeal.findByIdAndUpdate(

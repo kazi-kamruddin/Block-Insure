@@ -10,6 +10,7 @@ import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import TransactionLink from "../components/TransactionLink";
 import {
   approveClaim,
+  closeClaim,
   finalizeClaimVoting,
   getAppealByClaim,
   getClaimById,
@@ -251,6 +252,7 @@ export default function AdminClaimDetailPage() {
     statusName !== "REJECTED" &&
     statusName !== "UNKNOWN";
   const canSettle = statusName === "APPROVED";
+  const canClose = statusName === "SETTLED" || statusName === "REJECTED";
   const canShowVoting =
     statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
   const isAwaitingOracleQuorum =
@@ -338,6 +340,16 @@ export default function AdminClaimDetailPage() {
     if (!confirmed) return;
 
     runAdminAction(() => settleClaim(id), "Claim settled successfully.");
+  }
+
+  function handleClose() {
+    const confirmed = window.confirm(
+      "Close this claim lifecycle? Closed claims cannot return to an active workflow."
+    );
+
+    if (!confirmed) return;
+
+    runAdminAction(() => closeClaim(id), "Claim closed successfully.");
   }
 
   function handleReviewAppeal(status) {
@@ -497,6 +509,14 @@ export default function AdminClaimDetailPage() {
             disabled={!canSettle || isActing}
           >
             Settle Claim
+          </button>
+
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={!canClose || isActing}
+          >
+            Close Claim
           </button>
         </div>
 

@@ -13,6 +13,7 @@ const {
   approveClaim,
   rejectClaim,
   settleClaim,
+  closeClaim,
   sendClaimToManualReview,
 } = require("../controllers/adminController");
 const {
@@ -157,6 +158,13 @@ router.post(
   authMiddleware,
   requireRole("ADMIN"),
   settleClaim
+);
+
+router.post(
+  "/claims/:id/close",
+  authMiddleware,
+  requireRole("ADMIN"),
+  closeClaim
 );
 
 module.exports = router;

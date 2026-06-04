@@ -578,6 +578,57 @@ const settleClaim = async (req, res, next) => {
   }
 };
 
+const closeClaim = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+    const tx = await contract.closeClaim(id);
+    const receipt = await tx.wait();
+    let closureEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "ClaimClosed") {
+          closureEvent = {
+            claimId: parsedLog.args.claimId.toString(),
+            closedBy: parsedLog.args.closedBy,
+            timestamp: parsedLog.args.timestamp.toString(),
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    const updatedClaim = await contract.getClaim(id);
+
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "CLOSED",
+      transactionHash: tx.hash,
+      source: "admin-close",
+      message: `Claim #${id} lifecycle was closed.`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Claim closed successfully",
+      transactionHash: tx.hash,
+      closureEvent,
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const rejectClaim = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -705,5 +756,6 @@ module.exports = {
   approveClaim,
   rejectClaim,
   settleClaim,
+  closeClaim,
   sendClaimToManualReview,
 };

@@ -325,8 +325,6 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     expect(settlement.claimId).to.equal(claimId);
     expect(settlement.recipient).to.equal(user.address);
     expect(settlement.amount).to.equal(expectedSettlement.insurerPays);
-    expect(settlement.settlementReference).to.equal("");
-    expect(settlement.paidOnChain).to.equal(true);
   });
 
   it("Calculates default on-chain deductible and co-insurance settlement", async function () {
@@ -430,30 +428,6 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     await expect(
       insuranceManager.settleClaim(claimId)
     ).to.be.revertedWith("Insufficient contract balance");
-  });
-
-  it("Admin can use record-only settlement fallback", async function () {
-    const fixture = await deployFixture();
-    const { insuranceManager, user, CLAIM_AMOUNT } = fixture;
-
-    const claimId = await createOracleVerifiedClaim(fixture);
-    const settlementReference = "BANK-TX-001";
-
-    await insuranceManager.approveClaim(claimId);
-
-    await expect(insuranceManager.recordOnlySettlement(claimId, settlementReference))
-      .to.emit(insuranceManager, "ClaimSettledRecordOnly")
-      .withArgs(claimId, CLAIM_AMOUNT, settlementReference, anyValue);
-
-    const claim = await insuranceManager.getClaim(claimId);
-    expect(claim.status).to.equal(9); // SETTLED
-
-    const settlement = await insuranceManager.getSettlementRecord(claimId);
-    expect(settlement.claimId).to.equal(claimId);
-    expect(settlement.recipient).to.equal(user.address);
-    expect(settlement.amount).to.equal(CLAIM_AMOUNT);
-    expect(settlement.settlementReference).to.equal(settlementReference);
-    expect(settlement.paidOnChain).to.equal(false);
   });
 
   it("Rejects reading settlement record before settlement exists", async function () {

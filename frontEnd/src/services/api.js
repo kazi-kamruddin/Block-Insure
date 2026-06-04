@@ -210,6 +210,11 @@ export async function settleClaim(claimId) {
   return response.data;
 }
 
+export async function closeClaim(claimId) {
+  const response = await api.post(`/api/admin/claims/${claimId}/close`);
+  return response.data;
+}
+
 export async function getOracleResults(claimId) {
   const response = await api.get(`/api/oracle/results/${claimId}`);
   return response.data;

@@ -1,4 +1,9 @@
+const { ethers } = require("ethers");
 const Notification = require("../models/Notification");
+const { getReadOnlyContract } = require("./contractService");
+
+let listenerContract = null;
+let reserveLowHandler = null;
 
 const normalizeWallet = (walletAddress) =>
   String(walletAddress || "").trim().toLowerCase();
@@ -72,8 +77,55 @@ const notifyClaimStatusChange = ({
   });
 };
 
+const startBlockchainEventListener = async () => {
+  if (!process.env.RPC_URL || !process.env.VITE_CONTRACT_ADDRESS) {
+    console.warn(
+      "Reserve warning listener disabled: RPC_URL or VITE_CONTRACT_ADDRESS is missing."
+    );
+    return;
+  }
+
+  listenerContract = getReadOnlyContract();
+  reserveLowHandler = async (currentReserveWei, thresholdWei, eventPayload) => {
+    const eventLog = eventPayload?.log || eventPayload;
+    const transactionHash = eventLog?.transactionHash || "unknown";
+    const logIndex = eventLog?.index ?? eventLog?.logIndex ?? "unknown";
+
+    await notifyAdmins({
+      type: "RESERVE_LOW_WARNING",
+      title: "Contract reserve is below the warning threshold",
+      message:
+        `Current reserve: ${ethers.formatEther(currentReserveWei)} ETH. ` +
+        `Configured threshold: ${ethers.formatEther(thresholdWei)} ETH.`,
+      status: "RESERVE_LOW",
+      link: "/admin",
+      dedupeKey: `reserve-low:${transactionHash}:${logIndex}`,
+    });
+  };
+
+  await listenerContract.on("ReserveLowWarning", reserveLowHandler);
+  console.log("ReserveLowWarning blockchain listener started");
+};
+
+const stopBlockchainEventListener = async () => {
+  if (!listenerContract || !reserveLowHandler) {
+    return;
+  }
+
+  await listenerContract.off("ReserveLowWarning", reserveLowHandler);
+
+  if (typeof listenerContract.runner?.destroy === "function") {
+    listenerContract.runner.destroy();
+  }
+
+  listenerContract = null;
+  reserveLowHandler = null;
+};
+
 module.exports = {
   notifyAdmins,
   notifyWallet,
   notifyClaimStatusChange,
+  startBlockchainEventListener,
+  stopBlockchainEventListener,
 };

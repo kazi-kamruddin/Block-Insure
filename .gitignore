@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+.hardhat-appdata/
+.hardhat-localappdata/
 
 # Environment files
 .env
