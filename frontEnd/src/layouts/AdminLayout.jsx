@@ -1,28 +1,15 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, Navigate, Outlet } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
 
 export default function AdminLayout() {
-  const { isConnected, role, connectWallet, isConnecting } = useWallet();
+  const { isConnected, role, workspace } = useWallet();
 
   if (!isConnected) {
-    return (
-      <section className="page-container">
-        <h2>Admin area</h2>
-        <p>Connect admin wallet first.</p>
-        <button type="button" onClick={connectWallet} disabled={isConnecting}>
-          {isConnecting ? "Connecting..." : "Connect Wallet"}
-        </button>
-      </section>
-    );
+    return <Navigate to="/" replace />;
   }
 
   if (role !== "ADMIN") {
-    return (
-      <section className="page-container">
-        <h2>Access denied</h2>
-        <p>Your backend role is {role}. Admin role is required.</p>
-      </section>
-    );
+    return <Navigate to={workspace?.home || "/"} replace />;
   }
 
   return (

@@ -1,19 +1,15 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, Navigate, Outlet } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
 
 export default function UserLayout() {
-  const { isConnected, connectWallet, isConnecting } = useWallet();
+  const { isConnected, role, workspace } = useWallet();
 
   if (!isConnected) {
-    return (
-      <section className="page-container">
-        <h2>User area</h2>
-        <p>Connect wallet first.</p>
-        <button type="button" onClick={connectWallet} disabled={isConnecting}>
-          {isConnecting ? "Connecting..." : "Connect Wallet"}
-        </button>
-      </section>
-    );
+    return <Navigate to="/" replace />;
+  }
+
+  if (role !== "USER") {
+    return <Navigate to={workspace?.home || "/"} replace />;
   }
 
   return (

@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
+import { useWallet } from "../context/useWallet";
 
 export default function Footer() {
+  const { isConnected, workspace } = useWallet();
+
   return (
     <footer className="site-footer">
       <div className="footer-inner">
@@ -14,9 +17,15 @@ export default function Footer() {
         </div>
 
         <nav className="footer-links" aria-label="Footer navigation">
-          <Link to="/user/dashboard">User</Link>
-          <Link to="/admin/dashboard">Admin</Link>
-          <Link to="/auditor/dashboard">Auditor</Link>
+          {isConnected && workspace ? (
+            <Link to={workspace.home}>{workspace.label}</Link>
+          ) : (
+            <>
+              <a href="/#capabilities">Capabilities</a>
+              <a href="/#how-it-works">Workflow</a>
+              <a href="/#roles">Roles</a>
+            </>
+          )}
         </nav>
       </div>
     </footer>

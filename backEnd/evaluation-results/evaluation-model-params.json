@@ -1,6 +1,6 @@
 {
   "modelVersion": "bayesian-registry-trained-v2",
-  "trainedAt": "2026-06-04T12:34:57.459Z",
+  "trainedAt": "2026-06-04T19:56:10.974Z",
   "source": "Deterministic 80% evaluation training split",
   "trainingSet": {
     "totalRecords": 57,

@@ -19,8 +19,8 @@ export default function WalletConnectButton() {
   if (isConnected) {
     return (
       <div className="wallet-box">
-        <span>{shortAddress(walletAddress)}</span>
-        <span>Role: {role}</span>
+        <span className="wallet-address">{shortAddress(walletAddress)}</span>
+        <span className="wallet-role">{role}</span>
         <button type="button" onClick={logout}>
           Logout
         </button>
