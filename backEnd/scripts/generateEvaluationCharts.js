@@ -5,6 +5,11 @@ const zlib = require("zlib");
 const RESULTS_DIR = path.join(__dirname, "..", "evaluation-results");
 const SUMMARY_PATH = path.join(RESULTS_DIR, "risk-model-summary.json");
 const RECORDS_PATH = path.join(RESULTS_DIR, "risk-model-records.csv");
+const THROUGHPUT_PATH = path.join(RESULTS_DIR, "claim-throughput-results.json");
+const AUDITOR_ANALYSIS_PATH = path.join(
+  RESULTS_DIR,
+  "auditor-reputation-analysis.json"
+);
 const OUTPUT_DIR = path.join(RESULTS_DIR, "evaluation-charts");
 
 const COLORS = {
@@ -159,6 +164,25 @@ class Canvas {
       const x = x1 + (dx * step) / steps;
       const y = y1 + (dy * step) / steps;
       this.fillRect(x - thickness / 2, y - thickness / 2, thickness, thickness, color);
+    }
+  }
+
+  dashedLine(x1, y1, x2, y2, color, thickness = 2, dashLength = 12, gapLength = 8) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const distance = Math.sqrt(dx ** 2 + dy ** 2);
+
+    for (let offset = 0; offset < distance; offset += dashLength + gapLength) {
+      const startRatio = offset / distance;
+      const endRatio = Math.min((offset + dashLength) / distance, 1);
+      this.line(
+        x1 + dx * startRatio,
+        y1 + dy * startRatio,
+        x1 + dx * endRatio,
+        y1 + dy * endRatio,
+        color,
+        thickness
+      );
     }
   }
 
@@ -477,6 +501,247 @@ const drawFraudProbabilityDistribution = (records, filePath) => {
   canvas.save(filePath);
 };
 
+const drawCurveAxes = (canvas, chart, xLabel, yLabel) => {
+  canvas.line(
+    chart.x,
+    chart.y + chart.height,
+    chart.x + chart.width,
+    chart.y + chart.height,
+    COLORS.line,
+    3
+  );
+  canvas.line(chart.x, chart.y, chart.x, chart.y + chart.height, COLORS.line, 3);
+
+  [0, 0.25, 0.5, 0.75, 1].forEach((value) => {
+    const x = chart.x + value * chart.width;
+    const y = chart.y + chart.height - value * chart.height;
+    canvas.drawTextCentered(toPercent(value), x, chart.y + chart.height + 18, COLORS.muted, 1);
+    canvas.drawText(toPercent(value), chart.x - 54, y - 4, COLORS.muted, 1);
+  });
+
+  canvas.drawTextCentered(xLabel, chart.x + chart.width / 2, chart.y + chart.height + 48, COLORS.muted, 2);
+  canvas.drawText(yLabel, 40, chart.y - 38, COLORS.muted, 2);
+};
+
+const drawNormalizedSeries = (canvas, chart, points, xKey, yKey, color, thickness = 4) => {
+  const normalized = points
+    .map((point) => ({ x: Number(point[xKey]), y: Number(point[yKey]) }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    .sort((left, right) => left.x - right.x);
+
+  for (let index = 1; index < normalized.length; index += 1) {
+    const left = normalized[index - 1];
+    const right = normalized[index];
+    canvas.line(
+      chart.x + left.x * chart.width,
+      chart.y + chart.height - left.y * chart.height,
+      chart.x + right.x * chart.width,
+      chart.y + chart.height - right.y * chart.height,
+      color,
+      thickness
+    );
+  }
+};
+
+const drawRocCurve = (summary, filePath) => {
+  const canvas = setupChart("ROC CURVE", 1000, 720);
+  const chart = { x: 130, y: 150, width: 760, height: 420 };
+
+  drawCurveAxes(canvas, chart, "FALSE POSITIVE RATE", "TRUE POSITIVE RATE");
+  canvas.line(chart.x, chart.y + chart.height, chart.x + chart.width, chart.y, COLORS.line, 2);
+  drawNormalizedSeries(
+    canvas,
+    chart,
+    summary.curves?.roc || [],
+    "falsePositiveRate",
+    "truePositiveRate",
+    COLORS.blue,
+    5
+  );
+  canvas.drawText(`AUC ${Number(summary.metrics?.auc || 0).toFixed(4)}`, 690, 95, COLORS.blue, 2);
+  canvas.save(filePath);
+};
+
+const drawPrecisionRecallCurve = (summary, filePath) => {
+  const canvas = setupChart("PRECISION RECALL CURVE", 1000, 720);
+  const chart = { x: 130, y: 150, width: 760, height: 420 };
+  const prevalence = Number(summary.curves?.fraudPrevalence || 0);
+
+  drawCurveAxes(canvas, chart, "RECALL", "PRECISION");
+  canvas.dashedLine(
+    chart.x,
+    chart.y + chart.height - prevalence * chart.height,
+    chart.x + chart.width,
+    chart.y + chart.height - prevalence * chart.height,
+    COLORS.red,
+    2
+  );
+  drawNormalizedSeries(
+    canvas,
+    chart,
+    summary.curves?.precisionRecall || [],
+    "recall",
+    "precision",
+    COLORS.purple,
+    5
+  );
+  canvas.drawText(
+    `AP ${Number(summary.metrics?.averagePrecision || 0).toFixed(4)}`,
+    700,
+    95,
+    COLORS.purple,
+    2
+  );
+  canvas.drawText(`BASELINE ${toPercent(prevalence)}`, 600, 610, COLORS.red, 2);
+  canvas.save(filePath);
+};
+
+const drawThresholdSensitivity = (summary, filePath) => {
+  const canvas = setupChart("THRESHOLD SENSITIVITY", 1080, 740);
+  const chart = { x: 130, y: 150, width: 820, height: 430 };
+  const points = summary.thresholdAnalysis?.heldOutSensitivity || [];
+  const series = [
+    { key: "precision", color: COLORS.blue, label: "PRECISION" },
+    { key: "recall", color: COLORS.green, label: "RECALL" },
+  ];
+  const f1Points = points.map((point) => ({
+    threshold: point.threshold,
+    f1: point.f1Score,
+  }));
+
+  drawCurveAxes(canvas, chart, "THRESHOLD", "METRIC");
+
+  const drawThresholdSeries = (values, key, color) => {
+    const normalized = values
+      .filter((point) => point.threshold >= 0 && point.threshold <= 100)
+      .sort((left, right) => left.threshold - right.threshold);
+
+    for (let index = 1; index < normalized.length; index += 1) {
+      const left = normalized[index - 1];
+      const right = normalized[index];
+      canvas.line(
+        chart.x + (left.threshold / 100) * chart.width,
+        chart.y + chart.height - Number(left[key]) * chart.height,
+        chart.x + (right.threshold / 100) * chart.width,
+        chart.y + chart.height - Number(right[key]) * chart.height,
+        color,
+        4
+      );
+    }
+  };
+
+  series.forEach((item) => drawThresholdSeries(points, item.key, item.color));
+  drawThresholdSeries(f1Points, "f1", COLORS.purple);
+  [
+    ...series,
+    { color: COLORS.purple, label: "F1" },
+  ].forEach((item, index) => {
+    const x = 180 + index * 300;
+    canvas.fillRect(x, 675, 18, 18, item.color);
+    canvas.drawText(item.label, x + 28, 673, COLORS.text, 2);
+  });
+  canvas.save(filePath);
+};
+
+const drawBaselineComparison = (summary, filePath) => {
+  const canvas = setupChart("MODEL VS BASELINES F1", 1000, 700);
+  const rows = [
+    { label: "BAYESIAN MODEL", value: summary.metrics?.f1Score || 0, color: COLORS.blue },
+    ...(summary.baselines || []).map((baseline, index) => ({
+      label: baseline.label,
+      value: baseline.metrics.f1Score,
+      color: index === 0 ? COLORS.orange : COLORS.red,
+    })),
+  ];
+  const chart = { x: 330, y: 165, width: 560, height: 400 };
+  const rowHeight = chart.height / rows.length;
+
+  rows.forEach((row, index) => {
+    const y = chart.y + index * rowHeight + 20;
+    const width = Number(row.value) * chart.width;
+    canvas.drawText(row.label, 70, y + 10, COLORS.text, 2);
+    canvas.fillRect(chart.x, y, width, rowHeight - 36, row.color);
+    canvas.drawText(toPercent(row.value), chart.x + width + 12, y + 10, COLORS.text, 2);
+  });
+
+  canvas.save(filePath);
+};
+
+const drawThroughputLatency = (results, filePath) => {
+  const canvas = setupChart("THROUGHPUT VS LATENCY", 1080, 740);
+  const rows = results.rows || [];
+  const chart = { x: 130, y: 150, width: 820, height: 430 };
+  const maxConcurrency = Math.max(...rows.map((row) => row.concurrency), 1);
+  const maxLatency = Math.max(
+    ...rows.map((row) => Number(row.endToEnd?.averageMs || 0)),
+    1
+  );
+  const maxThroughput = Math.max(
+    ...rows.map((row) => Number(row.throughputClaimsPerSecond || 0)),
+    1
+  );
+
+  canvas.line(chart.x, chart.y + chart.height, chart.x + chart.width, chart.y + chart.height, COLORS.line, 3);
+  canvas.line(chart.x, chart.y, chart.x, chart.y + chart.height, COLORS.line, 3);
+  canvas.line(chart.x + chart.width, chart.y, chart.x + chart.width, chart.y + chart.height, COLORS.line, 3);
+  canvas.drawText("LATENCY MS", 40, 105, COLORS.muted, 2);
+  canvas.drawText("CLAIMS/S", 875, 105, COLORS.muted, 2);
+  canvas.drawTextCentered("PARALLEL CLAIMS", chart.x + chart.width / 2, 630, COLORS.muted, 2);
+
+  const drawSeries = (getValue, maximum, color) => {
+    const points = rows.map((row) => ({
+      x: chart.x + (row.concurrency / maxConcurrency) * chart.width,
+      y:
+        chart.y +
+        chart.height -
+        (Number(getValue(row) || 0) / maximum) * chart.height,
+    }));
+
+    for (let index = 1; index < points.length; index += 1) {
+      canvas.line(points[index - 1].x, points[index - 1].y, points[index].x, points[index].y, color, 5);
+    }
+
+    points.forEach((point) => {
+      canvas.fillRect(point.x - 4, point.y - 4, 8, 8, color);
+    });
+  };
+
+  drawSeries((row) => row.endToEnd?.averageMs, maxLatency, COLORS.orange);
+  drawSeries((row) => row.throughputClaimsPerSecond, maxThroughput, COLORS.blue);
+  [
+    { label: "END-TO-END LATENCY", color: COLORS.orange, x: 220 },
+    { label: "THROUGHPUT", color: COLORS.blue, x: 610 },
+  ].forEach((item) => {
+    canvas.fillRect(item.x, 675, 18, 18, item.color);
+    canvas.drawText(item.label, item.x + 28, 673, COLORS.text, 2);
+  });
+  canvas.save(filePath);
+};
+
+const drawAuditorReputationScatter = (analysis, filePath) => {
+  const canvas = setupChart("REPUTATION VS ACCURACY", 1000, 720);
+  const chart = { x: 130, y: 150, width: 760, height: 420 };
+
+  drawCurveAxes(canvas, chart, "REPUTATION SCORE", "HISTORICAL ACCURACY");
+
+  (analysis.auditors || []).forEach((auditor) => {
+    const x = chart.x + (Number(auditor.reputationScore) / 100) * chart.width;
+    const y =
+      chart.y + chart.height - Number(auditor.historicalAccuracy) * chart.height;
+    canvas.fillRect(x - 6, y - 6, 12, 12, COLORS.purple);
+  });
+
+  const correlation = analysis.pearsonCorrelation;
+  canvas.drawText(
+    `PEARSON ${correlation === null ? "N/A" : Number(correlation).toFixed(4)}`,
+    650,
+    100,
+    COLORS.purple,
+    2
+  );
+  canvas.save(filePath);
+};
+
 const assertInputsExist = () => {
   if (!fs.existsSync(SUMMARY_PATH)) {
     throw new Error(`Missing ${SUMMARY_PATH}. Run npm run evaluate:risk first.`);
@@ -499,7 +764,29 @@ const main = () => {
     ["fraud_label_breakdown.png", (filePath) => drawFraudLabelBreakdown(summary, filePath)],
     ["precision_recall_f1.png", (filePath) => drawPrecisionRecallF1(summary, filePath)],
     ["fraud_probability_distribution.png", (filePath) => drawFraudProbabilityDistribution(records, filePath)],
+    ["roc_curve.png", (filePath) => drawRocCurve(summary, filePath)],
+    ["precision_recall_curve.png", (filePath) => drawPrecisionRecallCurve(summary, filePath)],
+    ["threshold_sensitivity.png", (filePath) => drawThresholdSensitivity(summary, filePath)],
+    ["baseline_f1_comparison.png", (filePath) => drawBaselineComparison(summary, filePath)],
   ];
+
+  if (fs.existsSync(THROUGHPUT_PATH)) {
+    const throughput = JSON.parse(fs.readFileSync(THROUGHPUT_PATH, "utf8"));
+    outputs.push([
+      "throughput_vs_latency.png",
+      (filePath) => drawThroughputLatency(throughput, filePath),
+    ]);
+  }
+
+  if (fs.existsSync(AUDITOR_ANALYSIS_PATH)) {
+    const auditorAnalysis = JSON.parse(
+      fs.readFileSync(AUDITOR_ANALYSIS_PATH, "utf8")
+    );
+    outputs.push([
+      "auditor_reputation_accuracy_scatter.png",
+      (filePath) => drawAuditorReputationScatter(auditorAnalysis, filePath),
+    ]);
+  }
 
   outputs.forEach(([fileName, draw]) => {
     const filePath = path.join(OUTPUT_DIR, fileName);
@@ -508,4 +795,17 @@ const main = () => {
   });
 };
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  Canvas,
+  drawAuditorReputationScatter,
+  drawBaselineComparison,
+  drawPrecisionRecallCurve,
+  drawRocCurve,
+  drawThresholdSensitivity,
+  drawThroughputLatency,
+  main,
+};

@@ -39,12 +39,28 @@ const createOracleLog = async (req, res, next) => {
       verified,
       riskLevel = "MEDIUM",
       submittedTxHash = "",
+      responseTimeMs = null,
     } = req.body;
 
     if (!requestId || !claimId || !resultHash || verified === undefined) {
       return res.status(400).json({
         success: false,
         message: "requestId, claimId, resultHash, and verified are required",
+      });
+    }
+
+    const normalizedResponseTimeMs =
+      responseTimeMs === null || responseTimeMs === undefined || responseTimeMs === ""
+        ? null
+        : Number(responseTimeMs);
+
+    if (
+      normalizedResponseTimeMs !== null &&
+      (!Number.isFinite(normalizedResponseTimeMs) || normalizedResponseTimeMs < 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "responseTimeMs must be a non-negative number",
       });
     }
 
@@ -58,6 +74,7 @@ const createOracleLog = async (req, res, next) => {
       verified,
       riskLevel,
       submittedTxHash,
+      responseTimeMs: normalizedResponseTimeMs,
     });
 
     const contract = getReadOnlyContract();

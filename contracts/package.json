@@ -1,7 +1,7 @@
 {
   "name": "contracts",
   "version": "1.0.0",
-  "description": "",
+  "description": "Block-Insure smart contracts and Hardhat verification suite",
   "main": "index.js",
   "scripts": {
     "test": "hardhat test",

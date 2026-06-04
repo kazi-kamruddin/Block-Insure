@@ -193,6 +193,16 @@ export async function getOracleStats() {
   return response.data;
 }
 
+export async function getThroughputResults() {
+  const response = await api.get("/api/admin/evaluation/throughput");
+  return response.data;
+}
+
+export async function getAuditorReputationAnalysis() {
+  const response = await api.get("/api/admin/evaluation/auditor-reputation");
+  return response.data;
+}
+
 export async function requestOracleVerification(claimId) {
   const response = await api.post(`/api/admin/claims/${claimId}/request-oracle`);
   return response.data;

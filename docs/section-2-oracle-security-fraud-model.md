@@ -134,6 +134,7 @@ Model parameters and anomaly statistics come only from the training set. Accurac
 precision, recall, F1, AUC, confusion-matrix values, and scored-record details are
 calculated only from the held-out 20 percent.
 
-The evaluation prediction uses the posterior fraud score with a fixed threshold of
-`50`. It does not use the record's fraud label or rule-based blocking decision as
-an input.
+The evaluation prediction uses the posterior fraud score. Section 3 extends this
+workflow by selecting the decision threshold from the training split using maximum
+F1 before applying it to the held-out records. The prediction does not use the
+record's fraud label or rule-based blocking decision as an input.

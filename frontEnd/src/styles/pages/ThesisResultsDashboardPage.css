@@ -70,6 +70,10 @@
   overflow-wrap: anywhere;
 }
 
+.thesis-metric-grid strong.metric-text {
+  font-size: 15px;
+}
+
 .thesis-two-column,
 .gas-layout {
   display: grid;

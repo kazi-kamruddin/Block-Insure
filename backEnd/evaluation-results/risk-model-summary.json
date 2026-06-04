@@ -1,18 +1,36 @@
 {
-  "generatedAt": "2026-06-04T04:57:51.720Z",
+  "generatedAt": "2026-06-04T09:44:08.260Z",
   "dataset": {
-    "totalRecords": 72,
-    "legitimateRecords": 33,
-    "fraudRecords": 39,
-    "fraudRate": 0.5417
+    "totalRecords": 15,
+    "legitimateRecords": 8,
+    "fraudRecords": 7,
+    "fraudRate": 0.4667
+  },
+  "split": {
+    "method": "Deterministic 80/20 split after stable hospital/invoice sort",
+    "source": "Deterministic synthetic seed generated in memory",
+    "trainingRecords": 57,
+    "testRecords": 15,
+    "trainingPercent": 0.7917,
+    "testPercent": 0.2083,
+    "evaluationScope": "Metrics are calculated on the held-out test set only",
+    "modelVersion": "bayesian-registry-trained-v2"
+  },
+  "statisticalMethodology": {
+    "variance": "Sample variance with Bessel's correction (N-1)",
+    "thresholdSelection": "Selected on the 80% training split by maximum F1, then applied once to the held-out 20%",
+    "evaluationScope": "Primary metrics, ROC, AUC, precision-recall curve, AP, and baselines use the held-out 20% only"
   },
   "decisionRule": {
-    "predictedFraud": "recommendation != AUTO_VERIFY_RECOMMENDED OR blockingFailureCount > 0",
+    "predictedFraud": "posterior fraud risk score >= 85",
+    "selectedThreshold": 85,
+    "selectedFrom": "Training-split threshold sensitivity",
+    "selectionReason": "Maximum training F1 (1)",
     "riskBucket": "LOW < 35, MEDIUM 35-69, HIGH >= 70"
   },
   "confusionMatrix": {
-    "truePositive": 39,
-    "trueNegative": 33,
+    "truePositive": 7,
+    "trueNegative": 8,
     "falsePositive": 0,
     "falseNegative": 0
   },
@@ -21,56 +39,1530 @@
     "precision": 1,
     "recall": 1,
     "specificity": 1,
+    "falsePositiveRate": 0,
     "f1Score": 1,
-    "averageRiskScore": 56.46
+    "auc": 1,
+    "averagePrecision": 1,
+    "averageRiskScore": 49.4
+  },
+  "baselines": [
+    {
+      "key": "always_fraud",
+      "label": "Always Fraud",
+      "description": "Predict every held-out claim as fraud.",
+      "thresholdValue": null,
+      "confusionMatrix": {
+        "truePositive": 7,
+        "trueNegative": 0,
+        "falsePositive": 8,
+        "falseNegative": 0
+      },
+      "metrics": {
+        "accuracy": 0.4667,
+        "precision": 0.4667,
+        "recall": 1,
+        "specificity": 0,
+        "falsePositiveRate": 1,
+        "f1Score": 0.6364
+      }
+    },
+    {
+      "key": "amount_above_training_mean",
+      "label": "Amount Above Training Mean",
+      "description": "Predict fraud when claim amount exceeds the training-set mean.",
+      "thresholdValue": 0.330175,
+      "confusionMatrix": {
+        "truePositive": 3,
+        "trueNegative": 6,
+        "falsePositive": 2,
+        "falseNegative": 4
+      },
+      "metrics": {
+        "accuracy": 0.6,
+        "precision": 0.6,
+        "recall": 0.4286,
+        "specificity": 0.75,
+        "falsePositiveRate": 0.25,
+        "f1Score": 0.5
+      }
+    }
+  ],
+  "thresholdAnalysis": {
+    "selected": {
+      "threshold": 85,
+      "accuracy": 1,
+      "precision": 1,
+      "recall": 1,
+      "specificity": 1,
+      "falsePositiveRate": 0,
+      "f1Score": 1,
+      "truePositive": 32,
+      "trueNegative": 25,
+      "falsePositive": 0,
+      "falseNegative": 0
+    },
+    "heldOutBestObserved": {
+      "threshold": 95,
+      "accuracy": 1,
+      "precision": 1,
+      "recall": 1,
+      "specificity": 1,
+      "falsePositiveRate": 0,
+      "f1Score": 1,
+      "truePositive": 7,
+      "trueNegative": 8,
+      "falsePositive": 0,
+      "falseNegative": 0
+    },
+    "heldOutSensitivity": [
+      {
+        "threshold": 100,
+        "accuracy": 0.8,
+        "precision": 1,
+        "recall": 0.5714,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 0.7273,
+        "truePositive": 4,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 3
+      },
+      {
+        "threshold": 95,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 90,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 85,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 80,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 75,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 70,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 65,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 60,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 55,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 50,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 45,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 40,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 35,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 30,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 25,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 20,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0,
+        "f1Score": 1,
+        "truePositive": 7,
+        "trueNegative": 8,
+        "falsePositive": 0,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 15,
+        "accuracy": 0.9333,
+        "precision": 0.875,
+        "recall": 1,
+        "specificity": 0.875,
+        "falsePositiveRate": 0.125,
+        "f1Score": 0.9333,
+        "truePositive": 7,
+        "trueNegative": 7,
+        "falsePositive": 1,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 10,
+        "accuracy": 0.9333,
+        "precision": 0.875,
+        "recall": 1,
+        "specificity": 0.875,
+        "falsePositiveRate": 0.125,
+        "f1Score": 0.9333,
+        "truePositive": 7,
+        "trueNegative": 7,
+        "falsePositive": 1,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 5,
+        "accuracy": 0.9333,
+        "precision": 0.875,
+        "recall": 1,
+        "specificity": 0.875,
+        "falsePositiveRate": 0.125,
+        "f1Score": 0.9333,
+        "truePositive": 7,
+        "trueNegative": 7,
+        "falsePositive": 1,
+        "falseNegative": 0
+      },
+      {
+        "threshold": 0,
+        "accuracy": 0.4667,
+        "precision": 0.4667,
+        "recall": 1,
+        "specificity": 0,
+        "falsePositiveRate": 1,
+        "f1Score": 0.6364,
+        "truePositive": 7,
+        "trueNegative": 0,
+        "falsePositive": 8,
+        "falseNegative": 0
+      }
+    ],
+    "note": "The held-out best threshold is reported for sensitivity analysis only and is not used to calculate primary metrics."
+  },
+  "curves": {
+    "roc": [
+      {
+        "threshold": 101,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 0
+      },
+      {
+        "threshold": 100,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 0.5714
+      },
+      {
+        "threshold": 99,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 98,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 97,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 96,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 95,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 94,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 93,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 92,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 91,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 90,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 89,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 88,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 87,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 86,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 85,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 84,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 83,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 82,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 81,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 80,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 79,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 78,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 77,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 76,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 75,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 74,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 73,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 72,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 71,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 70,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 69,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 68,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 67,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 66,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 65,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 64,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 63,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 62,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 61,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 60,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 59,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 58,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 57,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 56,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 55,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 54,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 53,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 52,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 51,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 50,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 49,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 48,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 47,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 46,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 45,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 44,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 43,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 42,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 41,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 40,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 39,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 38,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 37,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 36,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 35,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 34,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 33,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 32,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 31,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 30,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 29,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 28,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 27,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 26,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 25,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 24,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 23,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 22,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 21,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 20,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 19,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 18,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 17,
+        "falsePositiveRate": 0,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 16,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 15,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 14,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 13,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 12,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 11,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 10,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 9,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 8,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 7,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 6,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 5,
+        "falsePositiveRate": 0.125,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 4,
+        "falsePositiveRate": 1,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 3,
+        "falsePositiveRate": 1,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 2,
+        "falsePositiveRate": 1,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 1,
+        "falsePositiveRate": 1,
+        "truePositiveRate": 1
+      },
+      {
+        "threshold": 0,
+        "falsePositiveRate": 1,
+        "truePositiveRate": 1
+      }
+    ],
+    "precisionRecall": [
+      {
+        "threshold": 101,
+        "precision": 1,
+        "recall": 0,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 100,
+        "precision": 1,
+        "recall": 0.5714,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 99,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 98,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 97,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 96,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 95,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 94,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 93,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 92,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 91,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 90,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 89,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 88,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 87,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 86,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 85,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 84,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 83,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 82,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 81,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 80,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 79,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 78,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 77,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 76,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 75,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 74,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 73,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 72,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 71,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 70,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 69,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 68,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 67,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 66,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 65,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 64,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 63,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 62,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 61,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 60,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 59,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 58,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 57,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 56,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 55,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 54,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 53,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 52,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 51,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 50,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 49,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 48,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 47,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 46,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 45,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 44,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 43,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 42,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 41,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 40,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 39,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 38,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 37,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 36,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 35,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 34,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 33,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 32,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 31,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 30,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 29,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 28,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 27,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 26,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 25,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 24,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 23,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 22,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 21,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 20,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 19,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 18,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 17,
+        "precision": 1,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 16,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 15,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 14,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 13,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 12,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 11,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 10,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 9,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 8,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 7,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 6,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 5,
+        "precision": 0.875,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 4,
+        "precision": 0.4667,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 3,
+        "precision": 0.4667,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 2,
+        "precision": 0.4667,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 1,
+        "precision": 0.4667,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      },
+      {
+        "threshold": 0,
+        "precision": 0.4667,
+        "recall": 1,
+        "fraudPrevalence": 0.4667
+      }
+    ],
+    "auc": 1,
+    "averagePrecision": 1,
+    "fraudPrevalence": 0.4667
   },
   "riskBuckets": {
-    "LOW": 33,
+    "LOW": 8,
     "MEDIUM": 0,
-    "HIGH": 39
+    "HIGH": 7
   },
   "fraudLabelBreakdown": {
     "LEGITIMATE": {
-      "total": 33,
+      "total": 8,
       "predictedFraud": 0,
       "detectionRate": 0,
-      "averageRiskScore": 5
-    },
-    "DATE_MISMATCH": {
-      "total": 4,
-      "predictedFraud": 4,
-      "detectionRate": 1,
-      "averageRiskScore": 100
-    },
-    "CANCELLED_RECORD": {
-      "total": 6,
-      "predictedFraud": 6,
-      "detectionRate": 1,
-      "averageRiskScore": 100
+      "averageRiskScore": 5.5
     },
     "USED_INVOICE": {
-      "total": 9,
-      "predictedFraud": 9,
+      "total": 1,
+      "predictedFraud": 1,
       "detectionRate": 1,
       "averageRiskScore": 100
     },
-    "INFLATED_AMOUNT": {
-      "total": 5,
-      "predictedFraud": 5,
+    "DATE_MISMATCH": {
+      "total": 1,
+      "predictedFraud": 1,
       "detectionRate": 1,
       "averageRiskScore": 100
     },
     "SUSPICIOUS_PATTERN": {
-      "total": 6,
-      "predictedFraud": 6,
+      "total": 2,
+      "predictedFraud": 2,
       "detectionRate": 1,
       "averageRiskScore": 100
     },
-    "BLACKLISTED_HOSPITAL": {
-      "total": 9,
-      "predictedFraud": 9,
+    "CANCELLED_RECORD": {
+      "total": 1,
+      "predictedFraud": 1,
       "detectionRate": 1,
-      "averageRiskScore": 100
+      "averageRiskScore": 99
+    },
+    "BLACKLISTED_HOSPITAL": {
+      "total": 2,
+      "predictedFraud": 2,
+      "detectionRate": 1,
+      "averageRiskScore": 99
     }
   }
 }

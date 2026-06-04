@@ -46,8 +46,10 @@ const calculateStats = (values) => {
   const mean =
     cleanValues.reduce((total, value) => total + value, 0) / cleanValues.length;
   const variance =
-    cleanValues.reduce((total, value) => total + (value - mean) ** 2, 0) /
-    cleanValues.length;
+    cleanValues.length > 1
+      ? cleanValues.reduce((total, value) => total + (value - mean) ** 2, 0) /
+        (cleanValues.length - 1)
+      : 0;
   const stdDev = Math.sqrt(variance);
 
   return {
@@ -362,4 +364,5 @@ const buildRiskAssessment = async ({
 
 module.exports = {
   buildRiskAssessment,
+  calculateStats,
 };

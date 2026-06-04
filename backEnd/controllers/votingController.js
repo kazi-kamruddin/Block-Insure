@@ -6,6 +6,7 @@ const {
   calculateReputationUpdate,
   calculateWeightedConsensus,
 } = require("../services/votingService");
+const VotingFinalization = require("../models/VotingFinalization");
 
 const createError = (message, statusCode) => {
   const error = new Error(message);
@@ -84,6 +85,16 @@ const finalizeVoting = async (req, res, next) => {
       throw createError("claimId is required", 400);
     }
 
+    const existingFinalization = await VotingFinalization.findOne({
+      claimId: claimId.toString(),
+    })
+      .select("_id")
+      .lean();
+
+    if (existingFinalization) {
+      throw createError("Voting has already been finalized for this claim", 409);
+    }
+
     const contract = getAdminContract();
     const rawVotes = await contract.getClaimVotes(claimId);
     const voteSummary = formatVoteSummary(
@@ -126,6 +137,27 @@ const finalizeVoting = async (req, res, next) => {
       });
       transactionHashes.push(tx.hash);
     }
+
+    await VotingFinalization.findOneAndUpdate(
+      { claimId: claimId.toString() },
+      {
+        claimId: claimId.toString(),
+        consensus: voteSummary.consensus,
+        consensusCode: voteSummary.consensusCode,
+        consensusStrength: voteSummary.consensusStrength,
+        totalVoters: voteSummary.totalVoters,
+        voters: voteSummary.voters.map((voter) => ({
+          auditorAddress: voter.auditorAddress,
+          vote: voter.vote,
+          voteLabel: voter.voteLabel,
+          reputationAtFinalization: voter.reputation,
+          votedWithConsensus: voter.vote === voteSummary.consensusCode,
+        })),
+        reputationTransactionHashes: transactionHashes,
+        finalizedBy: req.user.walletAddress,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     res.status(200).json({
       success: true,

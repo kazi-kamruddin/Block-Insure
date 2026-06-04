@@ -7,8 +7,17 @@ const mongoose = require("mongoose");
 
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const { buildVerificationComparison } = require("../controllers/mockHospitalController");
-const { buildRiskAssessment } = require("../services/riskScoringService");
+const {
+  calculateBaselines,
+  calculateClassificationMetrics,
+  calculateCurves,
+  calculateThresholdSensitivity,
+  getThresholdPoint,
+  selectBestThreshold,
+} = require("../services/evaluationMetricsService");
 const { trainModelParams } = require("../services/modelTrainingService");
+const { buildRiskAssessment } = require("../services/riskScoringService");
+const { buildSyntheticRecords } = require("./seedMockData");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -17,7 +26,6 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 }
 
 const RESULTS_DIR = path.join(__dirname, "..", "evaluation-results");
-const EVALUATION_THRESHOLD = 50;
 
 const formatDate = (value) => {
   if (!value) return null;
@@ -30,9 +38,7 @@ const round = (value, decimals = 4) => {
   return Number(value.toFixed(decimals));
 };
 
-const isFraudRecord = (record) => {
-  return record.fraudLabel !== "LEGITIMATE";
-};
+const isFraudRecord = (record) => record.fraudLabel !== "LEGITIMATE";
 
 const getRiskBucket = (score) => {
   if (score >= 70) return "HIGH";
@@ -72,33 +78,31 @@ const createEmptyLabelStats = () => ({
   avgRiskScoreTotal: 0,
 });
 
-const calculateAuc = (rows) => {
-  const positiveRows = rows.filter((row) => row.actualFraud);
-  const negativeRows = rows.filter((row) => !row.actualFraud);
-
-  if (positiveRows.length === 0 || negativeRows.length === 0) {
-    return null;
-  }
-
-  let pairScore = 0;
-
-  positiveRows.forEach((positive) => {
-    negativeRows.forEach((negative) => {
-      if (positive.riskScore > negative.riskScore) pairScore += 1;
-      if (positive.riskScore === negative.riskScore) pairScore += 0.5;
-    });
-  });
-
-  return pairScore / (positiveRows.length * negativeRows.length);
+const applyThreshold = (rows, threshold) => {
+  return rows.map((row) => ({
+    ...row,
+    predictedFraud: row.riskScore >= threshold,
+    verified: row.riskScore < threshold,
+  }));
 };
 
-const calculateMetrics = (rows, split) => {
-  const matrix = {
-    truePositive: 0,
-    trueNegative: 0,
-    falsePositive: 0,
-    falseNegative: 0,
+const calculateMetrics = ({
+  rows,
+  split,
+  selectedThreshold,
+  curves,
+  baselines,
+  thresholdSelection,
+  heldOutSensitivity,
+}) => {
+  const thresholdPoint = getThresholdPoint(rows, selectedThreshold);
+  const confusionMatrix = {
+    truePositive: thresholdPoint.truePositive,
+    trueNegative: thresholdPoint.trueNegative,
+    falsePositive: thresholdPoint.falsePositive,
+    falseNegative: thresholdPoint.falseNegative,
   };
+  const classificationMetrics = calculateClassificationMetrics(confusionMatrix);
   const riskBuckets = {
     LOW: 0,
     MEDIUM: 0,
@@ -108,11 +112,6 @@ const calculateMetrics = (rows, split) => {
   let riskScoreTotal = 0;
 
   rows.forEach((row) => {
-    if (row.actualFraud && row.predictedFraud) matrix.truePositive += 1;
-    if (!row.actualFraud && !row.predictedFraud) matrix.trueNegative += 1;
-    if (!row.actualFraud && row.predictedFraud) matrix.falsePositive += 1;
-    if (row.actualFraud && !row.predictedFraud) matrix.falseNegative += 1;
-
     riskBuckets[row.riskBucket] += 1;
     riskScoreTotal += row.riskScore;
 
@@ -125,51 +124,45 @@ const calculateMetrics = (rows, split) => {
     labelBreakdown[row.fraudLabel].avgRiskScoreTotal += row.riskScore;
   });
 
-  const { truePositive, trueNegative, falsePositive, falseNegative } = matrix;
-  const accuracy =
-    rows.length > 0 ? (truePositive + trueNegative) / rows.length : 0;
-  const precision =
-    truePositive + falsePositive > 0
-      ? truePositive / (truePositive + falsePositive)
-      : 0;
-  const recall =
-    truePositive + falseNegative > 0
-      ? truePositive / (truePositive + falseNegative)
-      : 0;
-  const specificity =
-    trueNegative + falsePositive > 0
-      ? trueNegative / (trueNegative + falsePositive)
-      : 0;
-  const f1Score =
-    precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
-
   return {
     generatedAt: new Date().toISOString(),
     dataset: {
       totalRecords: rows.length,
       legitimateRecords: rows.filter((row) => !row.actualFraud).length,
       fraudRecords: rows.filter((row) => row.actualFraud).length,
-      fraudRate: round(
-        rows.length > 0
-          ? rows.filter((row) => row.actualFraud).length / rows.length
-          : 0
-      ),
+      fraudRate: curves.fraudPrevalence,
     },
     split,
+    statisticalMethodology: {
+      variance: "Sample variance with Bessel's correction (N-1)",
+      thresholdSelection:
+        "Selected on the 80% training split by maximum F1, then applied once to the held-out 20%",
+      evaluationScope:
+        "Primary metrics, ROC, AUC, precision-recall curve, AP, and baselines use the held-out 20% only",
+    },
     decisionRule: {
-      predictedFraud: `posterior fraud risk score >= ${EVALUATION_THRESHOLD}`,
+      predictedFraud: `posterior fraud risk score >= ${selectedThreshold}`,
+      selectedThreshold,
+      selectedFrom: "Training-split threshold sensitivity",
+      selectionReason: `Maximum training F1 (${thresholdSelection.f1Score})`,
       riskBucket: "LOW < 35, MEDIUM 35-69, HIGH >= 70",
     },
-    confusionMatrix: matrix,
+    confusionMatrix,
     metrics: {
-      accuracy: round(accuracy),
-      precision: round(precision),
-      recall: round(recall),
-      specificity: round(specificity),
-      f1Score: round(f1Score),
-      auc: round(calculateAuc(rows)),
+      ...classificationMetrics,
+      auc: curves.auc,
+      averagePrecision: curves.averagePrecision,
       averageRiskScore: round(riskScoreTotal / Math.max(rows.length, 1), 2),
     },
+    baselines,
+    thresholdAnalysis: {
+      selected: thresholdSelection,
+      heldOutBestObserved: selectBestThreshold(heldOutSensitivity),
+      heldOutSensitivity,
+      note:
+        "The held-out best threshold is reported for sensitivity analysis only and is not used to calculate primary metrics.",
+    },
+    curves,
     riskBuckets,
     fraudLabelBreakdown: Object.fromEntries(
       Object.entries(labelBreakdown).map(([label, stats]) => [
@@ -211,17 +204,14 @@ const evaluateRecord = async (record, trainingRecords, modelParams) => {
     records: trainingRecords,
     modelParams,
   });
-  const actualFraud = isFraudRecord(record);
-  const predictedFraud = riskAssessment.riskScore >= EVALUATION_THRESHOLD;
 
   return {
     hospitalId: record.hospitalId,
     invoiceNumber: record.invoiceNumber,
     treatmentType: record.treatmentType,
     fraudLabel: record.fraudLabel,
-    actualFraud,
-    predictedFraud,
-    verified: !predictedFraud,
+    actualFraud: isFraudRecord(record),
+    claimAmountEth: Number(record.billAmount),
     riskScore: riskAssessment.riskScore,
     posteriorFraudPercent: riskAssessment.posteriorFraudPercent,
     riskBucket: getRiskBucket(riskAssessment.riskScore),
@@ -238,42 +228,51 @@ const evaluateRecord = async (record, trainingRecords, modelParams) => {
   };
 };
 
-const runEvaluation = async () => {
+const scoreRecords = async (records, trainingRecords, modelParams) => {
+  const rows = [];
+
+  for (const record of records) {
+    rows.push(await evaluateRecord(record, trainingRecords, modelParams));
+  }
+
+  return rows;
+};
+
+const getEvaluationRecords = async ({ useSynthetic }) => {
+  if (useSynthetic) {
+    return {
+      records: buildSyntheticRecords().sort(
+        (left, right) =>
+          left.hospitalId.localeCompare(right.hospitalId) ||
+          left.invoiceNumber.localeCompare(right.invoiceNumber)
+      ),
+      source: "Deterministic synthetic seed generated in memory",
+      close: async () => {},
+    };
+  }
+
   if (!process.env.MONGODB_URI) {
     throw new Error("MONGODB_URI is missing in .env");
   }
 
   await mongoose.connect(process.env.MONGODB_URI);
 
-  const records = await MockHospitalRecord.find()
-    .sort({ hospitalId: 1, invoiceNumber: 1 })
-    .lean();
+  return {
+    records: await MockHospitalRecord.find()
+      .sort({ hospitalId: 1, invoiceNumber: 1 })
+      .lean(),
+    source: "MongoDB MockHospitalRecord collection",
+    close: async () => mongoose.connection.close(),
+  };
+};
 
-  if (records.length === 0) {
-    throw new Error("No synthetic registry records found. Run npm run seed:mock first.");
-  }
-
-  const trainingRecords = records.filter((_, index) => index % 5 !== 0);
-  const testRecords = records.filter((_, index) => index % 5 === 0);
-  const modelParams = trainModelParams(trainingRecords, {
-    source: "Deterministic 80% evaluation training split",
-  });
-  const rows = [];
-
-  for (const record of testRecords) {
-    rows.push(await evaluateRecord(record, trainingRecords, modelParams));
-  }
-
-  const summary = calculateMetrics(rows, {
-    method: "Deterministic 80/20 split after stable hospital/invoice sort",
-    trainingRecords: trainingRecords.length,
-    testRecords: testRecords.length,
-    trainingPercent: round(trainingRecords.length / records.length),
-    testPercent: round(testRecords.length / records.length),
-    evaluationScope: "Metrics are calculated on the held-out test set only",
-    modelVersion: modelParams.modelVersion,
-  });
-
+const writeEvaluationOutputs = ({
+  summary,
+  modelParams,
+  heldOutRows,
+  trainingSensitivity,
+  heldOutSensitivity,
+}) => {
   fs.mkdirSync(RESULTS_DIR, { recursive: true });
   fs.writeFileSync(
     path.join(RESULTS_DIR, "risk-model-summary.json"),
@@ -285,37 +284,133 @@ const runEvaluation = async () => {
     `${JSON.stringify(modelParams, null, 2)}\n`,
     "utf8"
   );
-  writeCsv(path.join(RESULTS_DIR, "risk-model-records.csv"), rows);
+  writeCsv(path.join(RESULTS_DIR, "risk-model-records.csv"), heldOutRows);
+  writeCsv(path.join(RESULTS_DIR, "baseline-comparison.csv"), summary.baselines.map(
+    (baseline) => ({
+      baseline: baseline.label,
+      thresholdValue: baseline.thresholdValue,
+      accuracy: baseline.metrics.accuracy,
+      precision: baseline.metrics.precision,
+      recall: baseline.metrics.recall,
+      f1Score: baseline.metrics.f1Score,
+    })
+  ));
+  writeCsv(path.join(RESULTS_DIR, "roc-curve.csv"), summary.curves.roc);
+  writeCsv(
+    path.join(RESULTS_DIR, "precision-recall-curve.csv"),
+    summary.curves.precisionRecall
+  );
+  writeCsv(path.join(RESULTS_DIR, "threshold-sensitivity.csv"), heldOutSensitivity);
+  writeCsv(
+    path.join(RESULTS_DIR, "threshold-selection-training.csv"),
+    trainingSensitivity
+  );
+};
+
+const runEvaluation = async ({ useSynthetic = false, writeOutputs = true } = {}) => {
+  const source = await getEvaluationRecords({ useSynthetic });
+
+  try {
+    if (source.records.length === 0) {
+      throw new Error("No synthetic registry records found. Run npm run seed:mock first.");
+    }
+
+    const trainingRecords = source.records.filter((_, index) => index % 5 !== 0);
+    const testRecords = source.records.filter((_, index) => index % 5 === 0);
+    const modelParams = trainModelParams(trainingRecords, {
+      source: "Deterministic 80% evaluation training split",
+    });
+    const trainingRows = await scoreRecords(
+      trainingRecords,
+      trainingRecords,
+      modelParams
+    );
+    const trainingSensitivity = calculateThresholdSensitivity(trainingRows);
+    const thresholdSelection = selectBestThreshold(trainingSensitivity);
+    const selectedThreshold = thresholdSelection.threshold;
+    const rawHeldOutRows = await scoreRecords(testRecords, trainingRecords, modelParams);
+    const heldOutRows = applyThreshold(rawHeldOutRows, selectedThreshold);
+    const curves = calculateCurves(heldOutRows);
+    const heldOutSensitivity = calculateThresholdSensitivity(heldOutRows);
+    const meanTrainingClaimAmount =
+      trainingRecords.reduce(
+        (total, record) => total + Number(record.billAmount),
+        0
+      ) / trainingRecords.length;
+    const baselines = calculateBaselines(heldOutRows, meanTrainingClaimAmount);
+    const summary = calculateMetrics({
+      rows: heldOutRows,
+      split: {
+        method: "Deterministic 80/20 split after stable hospital/invoice sort",
+        source: source.source,
+        trainingRecords: trainingRecords.length,
+        testRecords: testRecords.length,
+        trainingPercent: round(trainingRecords.length / source.records.length),
+        testPercent: round(testRecords.length / source.records.length),
+        evaluationScope: "Metrics are calculated on the held-out test set only",
+        modelVersion: modelParams.modelVersion,
+      },
+      selectedThreshold,
+      curves,
+      baselines,
+      thresholdSelection,
+      heldOutSensitivity,
+    });
+
+    if (writeOutputs) {
+      writeEvaluationOutputs({
+        summary,
+        modelParams,
+        heldOutRows,
+        trainingSensitivity,
+        heldOutSensitivity,
+      });
+    }
+
+    return {
+      summary,
+      modelParams,
+      trainingRows,
+      heldOutRows,
+      trainingSensitivity,
+      heldOutSensitivity,
+    };
+  } finally {
+    await source.close();
+  }
+};
+
+const printSummary = (result) => {
+  const { summary } = result;
 
   console.log("Risk model evaluation completed");
-  console.log(`Training records: ${trainingRecords.length}`);
+  console.log(`Training records: ${summary.split.trainingRecords}`);
   console.log(`Held-out records evaluated: ${summary.dataset.totalRecords}`);
+  console.log(`Selected threshold: ${summary.decisionRule.selectedThreshold}`);
   console.log(`Accuracy: ${(summary.metrics.accuracy * 100).toFixed(2)}%`);
   console.log(`Precision: ${(summary.metrics.precision * 100).toFixed(2)}%`);
   console.log(`Recall: ${(summary.metrics.recall * 100).toFixed(2)}%`);
   console.log(`F1 score: ${(summary.metrics.f1Score * 100).toFixed(2)}%`);
-  console.log(
-    `AUC: ${
-      summary.metrics.auc === null
-        ? "Unavailable (held-out set needs both classes)"
-        : summary.metrics.auc.toFixed(4)
-    }`
-  );
+  console.log(`AUC: ${summary.metrics.auc.toFixed(4)}`);
+  console.log(`Average precision: ${summary.metrics.averagePrecision.toFixed(4)}`);
   console.log(`Results folder: ${RESULTS_DIR}`);
-
-  await mongoose.connection.close();
 };
 
 if (require.main === module) {
-  runEvaluation().catch(async (error) => {
-    console.error("Risk model evaluation failed:", error.message);
-    await mongoose.connection.close();
-    process.exit(1);
-  });
+  runEvaluation({ useSynthetic: process.argv.includes("--synthetic") })
+    .then(printSummary)
+    .catch(async (error) => {
+      console.error("Risk model evaluation failed:", error.message);
+      await mongoose.connection.close();
+      process.exit(1);
+    });
 }
 
 module.exports = {
-  calculateAuc,
+  applyThreshold,
   calculateMetrics,
   evaluateRecord,
+  runEvaluation,
+  scoreRecords,
+  writeCsv,
 };

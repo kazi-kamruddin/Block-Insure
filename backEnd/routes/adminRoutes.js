@@ -18,10 +18,12 @@ const {
   sendClaimToManualReview,
 } = require("../controllers/adminController");
 const {
+  getAuditorReputationAnalysis,
   getEvaluationSummary,
   getGasComparison,
   getOracleStats,
   getRiskDistribution,
+  getThroughputResults,
 } = require("../controllers/evaluationController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
@@ -103,6 +105,20 @@ router.get(
   authMiddleware,
   requireRole("ADMIN"),
   getOracleStats
+);
+
+router.get(
+  "/evaluation/throughput",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getThroughputResults
+);
+
+router.get(
+  "/evaluation/auditor-reputation",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getAuditorReputationAnalysis
 );
 
 router.get(

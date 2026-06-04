@@ -1,0 +1,116 @@
+{
+  "modelVersion": "bayesian-registry-trained-v2",
+  "trainedAt": "2026-06-04T09:44:08.249Z",
+  "source": "Deterministic 80% evaluation training split",
+  "trainingSet": {
+    "totalRecords": 57,
+    "fraudRecords": 32,
+    "legitimateRecords": 25,
+    "priorFraudProbability": 0.561404,
+    "classDistribution": {
+      "fraud": 32,
+      "legitimate": 25
+    },
+    "smoothing": "Laplace +1"
+  },
+  "factorLikelihoods": {
+    "clean_registry_match": {
+      "fraud": 0.029412,
+      "legitimate": 0.962963,
+      "fraudMatches": 0,
+      "legitimateMatches": 25,
+      "smoothing": "Laplace +1"
+    },
+    "registry_record_missing": {
+      "fraud": 0.029412,
+      "legitimate": 0.037037,
+      "fraudMatches": 0,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "hospital_id_mismatch": {
+      "fraud": 0.029412,
+      "legitimate": 0.037037,
+      "fraudMatches": 0,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "invoice_hash_mismatch": {
+      "fraud": 0.029412,
+      "legitimate": 0.037037,
+      "fraudMatches": 0,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "claim_exceeds_registry_bill": {
+      "fraud": 0.176471,
+      "legitimate": 0.037037,
+      "fraudMatches": 5,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "bill_range_anomaly": {
+      "fraud": 0.176471,
+      "legitimate": 0.037037,
+      "fraudMatches": 5,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "treatment_type_mismatch": {
+      "fraud": 0.029412,
+      "legitimate": 0.037037,
+      "fraudMatches": 0,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "date_mismatch": {
+      "fraud": 0.117647,
+      "legitimate": 0.037037,
+      "fraudMatches": 3,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "invalid_record_status": {
+      "fraud": 0.823529,
+      "legitimate": 0.037037,
+      "fraudMatches": 27,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "used_invoice": {
+      "fraud": 0.264706,
+      "legitimate": 0.037037,
+      "fraudMatches": 8,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "cancelled_record": {
+      "fraud": 0.176471,
+      "legitimate": 0.037037,
+      "fraudMatches": 5,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "license_suspended": {
+      "fraud": 0.235294,
+      "legitimate": 0.037037,
+      "fraudMatches": 7,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "license_blacklisted": {
+      "fraud": 0.235294,
+      "legitimate": 0.037037,
+      "fraudMatches": 7,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    },
+    "repeat_claim_pattern": {
+      "fraud": 0.382353,
+      "legitimate": 0.037037,
+      "fraudMatches": 12,
+      "legitimateMatches": 0,
+      "smoothing": "Laplace +1"
+    }
+  }
+}

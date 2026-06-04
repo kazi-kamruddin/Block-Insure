@@ -1,10 +1,10 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Block-Insure API, oracle registry, and thesis evaluation tools",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm run test:section3",
     "dev": "nodemon server.js",
     "start": "node server.js",
     "test:wallet-login": "node scripts/testWalletLogin.js",
@@ -19,7 +19,11 @@
     "push:merkle": "node scripts/pushMerkleRoot.js",
     "backfill:evidence-chain": "node scripts/backfillEvidenceChains.js",
     "evaluate:risk": "node scripts/evaluateRiskModel.js",
+    "evaluate:risk:synthetic": "node scripts/evaluateRiskModel.js --synthetic",
     "charts:generate": "node scripts/generateEvaluationCharts.js",
+    "analyze:auditors": "node scripts/analyzeAuditorReputation.js",
+    "loadtest:claims": "node scripts/loadTestClaims.js",
+    "test:section3": "node scripts/testSection3Analytics.js",
     "role:set": "node scripts/setUserRole.js"
   },
   "keywords": [],

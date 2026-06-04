@@ -83,6 +83,7 @@ const saveOracleLog = async ({
   verified,
   riskLevel,
   submittedTxHash,
+  responseTimeMs,
 }) => {
   try {
     await axios.post(
@@ -97,6 +98,7 @@ const saveOracleLog = async ({
         verified,
         riskLevel,
         submittedTxHash,
+        responseTimeMs,
       },
       {
         headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
@@ -148,6 +150,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
   }
 
   processingRequests.add(requestKey);
+  const startedAt = Date.now();
 
   try {
     const oracleRequest = await contract.getOracleRequest(requestId);
@@ -265,6 +268,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
     await tx.wait();
 
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle confirmation recorded on-chain`);
+    const responseTimeMs = Date.now() - startedAt;
 
     await saveOracleLog({
       requestId: requestId.toString(),
@@ -276,6 +280,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       verified,
       riskLevel,
       submittedTxHash: tx.hash,
+      responseTimeMs,
     });
   } catch (error) {
     console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle handler failed:`, error.message);

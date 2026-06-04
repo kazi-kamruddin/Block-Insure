@@ -1,10 +1,10 @@
 {
   "name": "oracle",
   "version": "1.0.0",
-  "description": "",
+  "description": "Block-Insure independent oracle node simulator",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --check index.js",
     "dev": "node index.js",
     "dev:oracle2": "node -e \"process.env.ORACLE_INSTANCE_ID='2'; require('./index')\"",
     "start": "node index.js"

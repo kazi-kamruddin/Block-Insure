@@ -2,12 +2,14 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  getAuditorReputationAnalysis,
   getEvaluationSummary,
   getGasComparison,
   getOnChainRegistryMerkleRoot,
   getOracleStats,
   getReserveIntelligence,
   getRiskDistribution,
+  getThroughputResults,
 } from "../services/api";
 import "../styles/pages/ThesisResultsDashboardPage.css";
 
@@ -33,6 +35,14 @@ function extractReserveIntelligence(data) {
 
 function extractRegistrySnapshot(data) {
   return data?.registrySnapshot || data?.data?.registrySnapshot || null;
+}
+
+function extractThroughputResults(data) {
+  return data?.throughputResults || data?.data?.throughputResults || null;
+}
+
+function extractAuditorAnalysis(data) {
+  return data?.auditorAnalysis || data?.data?.auditorAnalysis || null;
 }
 
 function formatPercent(value, digits = 1) {
@@ -151,6 +161,14 @@ export default function ThesisResultsDashboardPage() {
     queryKey: ["thesisRegistrySnapshot"],
     queryFn: getOnChainRegistryMerkleRoot,
   });
+  const throughputQuery = useQuery({
+    queryKey: ["claimThroughputResults"],
+    queryFn: getThroughputResults,
+  });
+  const auditorAnalysisQuery = useQuery({
+    queryKey: ["auditorReputationAnalysis"],
+    queryFn: getAuditorReputationAnalysis,
+  });
 
   const summary = extractSummary(summaryQuery.data);
   const gasRows = extractRows(gasQuery.data);
@@ -158,6 +176,8 @@ export default function ThesisResultsDashboardPage() {
   const oracleStats = extractOracleStats(oracleQuery.data);
   const reserve = extractReserveIntelligence(reserveQuery.data);
   const registrySnapshot = extractRegistrySnapshot(registryQuery.data);
+  const throughputResults = extractThroughputResults(throughputQuery.data);
+  const auditorAnalysis = extractAuditorAnalysis(auditorAnalysisQuery.data);
   const chartGasRow = getGasRowForChart(gasRows);
   const maxRiskBucketCount = Math.max(
     ...riskBuckets.map((bucket) => bucket.count),
@@ -165,7 +185,7 @@ export default function ThesisResultsDashboardPage() {
   );
   const riskLevelRows = useMemo(
     () =>
-      ["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((level) => [
+      ["LOW", "MEDIUM", "HIGH"].map((level) => [
         level,
         summary?.riskBuckets?.[level] || 0,
       ]),
@@ -180,7 +200,9 @@ export default function ThesisResultsDashboardPage() {
     riskQuery.isLoading ||
     oracleQuery.isLoading ||
     reserveQuery.isLoading ||
-    registryQuery.isLoading;
+    registryQuery.isLoading ||
+    throughputQuery.isLoading ||
+    auditorAnalysisQuery.isLoading;
 
   function refreshAll() {
     summaryQuery.refetch();
@@ -189,6 +211,8 @@ export default function ThesisResultsDashboardPage() {
     oracleQuery.refetch();
     reserveQuery.refetch();
     registryQuery.refetch();
+    throughputQuery.refetch();
+    auditorAnalysisQuery.refetch();
   }
 
   return (
@@ -202,7 +226,7 @@ export default function ThesisResultsDashboardPage() {
       <div className="thesis-section card">
         <div className="thesis-section-head">
           <h3>Fraud Detection Performance</h3>
-          <span>{summary?.dataset?.totalRecords || 0} registry records</span>
+          <span>{summary?.dataset?.totalRecords || 0} held-out records</span>
         </div>
         <DataNotice data={summaryQuery.data} fallback="Run npm run evaluate:risk first" />
         {summaryQuery.error ? (
@@ -225,6 +249,18 @@ export default function ThesisResultsDashboardPage() {
           <div>
             <span>F1 Score</span>
             <strong>{formatPercent(metrics.f1Score)}</strong>
+          </div>
+          <div>
+            <span>ROC AUC</span>
+            <strong>{Number(metrics.auc || 0).toFixed(4)}</strong>
+          </div>
+          <div>
+            <span>Average Precision</span>
+            <strong>{Number(metrics.averagePrecision || 0).toFixed(4)}</strong>
+          </div>
+          <div>
+            <span>Selected Threshold</span>
+            <strong>{summary?.decisionRule?.selectedThreshold ?? "-"}</strong>
           </div>
         </div>
 
@@ -266,6 +302,102 @@ export default function ThesisResultsDashboardPage() {
                 <strong>{count}</strong>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="thesis-table-wrap">
+          <table className="thesis-table">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Accuracy</th>
+                <th>Precision</th>
+                <th>Recall</th>
+                <th>F1</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Bayesian Model</td>
+                <td>{formatPercent(metrics.accuracy)}</td>
+                <td>{formatPercent(metrics.precision)}</td>
+                <td>{formatPercent(metrics.recall)}</td>
+                <td>{formatPercent(metrics.f1Score)}</td>
+              </tr>
+              {(summary?.baselines || []).map((baseline) => (
+                <tr key={baseline.key}>
+                  <td>{baseline.label}</td>
+                  <td>{formatPercent(baseline.metrics.accuracy)}</td>
+                  <td>{formatPercent(baseline.metrics.precision)}</td>
+                  <td>{formatPercent(baseline.metrics.recall)}</td>
+                  <td>{formatPercent(baseline.metrics.f1Score)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="thesis-section card">
+        <div className="thesis-section-head">
+          <h3>Claim Throughput and Latency</h3>
+          <span>{throughputResults?.rows?.length || 0} concurrency levels</span>
+        </div>
+        <DataNotice
+          data={throughputQuery.data}
+          fallback="Run npm run loadtest:claims first"
+        />
+
+        <div className="thesis-table-wrap">
+          <table className="thesis-table">
+            <thead>
+              <tr>
+                <th>Parallel Claims</th>
+                <th>Claims/s</th>
+                <th>Backend Avg</th>
+                <th>Blockchain Avg</th>
+                <th>End-to-End Avg</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(throughputResults?.rows || []).map((row) => (
+                <tr key={row.concurrency}>
+                  <td>{row.concurrency}</td>
+                  <td>{row.throughputClaimsPerSecond}</td>
+                  <td>{row.backend.averageMs} ms</td>
+                  <td>{row.blockchain.averageMs} ms</td>
+                  <td>{row.endToEnd.averageMs} ms</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="thesis-section card">
+        <div className="thesis-section-head">
+          <h3>Auditor Reputation Validation</h3>
+          <span>{auditorAnalysis?.auditorsAnalyzed || 0} auditors</span>
+        </div>
+        <DataNotice
+          data={auditorAnalysisQuery.data}
+          fallback="Run npm run analyze:auditors after finalizing demo votes"
+        />
+
+        <div className="thesis-metric-grid compact">
+          <div>
+            <span>Finalized Claims</span>
+            <strong>{auditorAnalysis?.finalizedClaimsAnalyzed || 0}</strong>
+          </div>
+          <div>
+            <span>Pearson Correlation</span>
+            <strong>{auditorAnalysis?.pearsonCorrelation ?? "-"}</strong>
+          </div>
+          <div>
+            <span>Interpretation</span>
+            <strong className="metric-text">
+              {auditorAnalysis?.interpretation || "No analysis available"}
+            </strong>
           </div>
         </div>
       </div>

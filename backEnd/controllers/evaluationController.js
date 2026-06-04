@@ -8,6 +8,14 @@ const projectRoot = path.resolve(backendRoot, "..");
 const EVALUATION_RESULTS_DIR = path.join(backendRoot, "evaluation-results");
 const LEGACY_SCRIPTS_DIR = path.join(backendRoot, "scripts");
 const GAS_RESULTS_PATH = path.join(projectRoot, "contracts", "gas-comparison-results.csv");
+const THROUGHPUT_RESULTS_PATH = path.join(
+  EVALUATION_RESULTS_DIR,
+  "claim-throughput-results.json"
+);
+const AUDITOR_ANALYSIS_PATH = path.join(
+  EVALUATION_RESULTS_DIR,
+  "auditor-reputation-analysis.json"
+);
 
 const parseCsvLine = (line) => {
   const values = [];
@@ -192,6 +200,16 @@ const getOracleStats = async (req, res, next) => {
     const logs = await OracleLog.find({}).lean();
     const verifiedCount = logs.filter((log) => log.verified === true).length;
     const failedCount = logs.filter((log) => log.verified === false).length;
+    const responseTimes = logs
+      .map((log) => log.responseTimeMs)
+      .filter((responseTimeMs) => Number.isFinite(responseTimeMs) && responseTimeMs >= 0);
+    const averageResponseTimeMs =
+      responseTimes.length > 0
+        ? Math.round(
+            responseTimes.reduce((total, responseTimeMs) => total + responseTimeMs, 0) /
+              responseTimes.length
+          )
+        : null;
     const riskLevelCounts = {};
 
     logs.forEach((log) => {
@@ -209,7 +227,7 @@ const getOracleStats = async (req, res, next) => {
         totalVerifications: logs.length,
         verifiedCount,
         failedCount,
-        averageResponseTimeMs: null,
+        averageResponseTimeMs,
         mostCommonRiskLevels,
         riskLevelCounts,
       },
@@ -219,9 +237,63 @@ const getOracleStats = async (req, res, next) => {
   }
 };
 
+const getJsonEvaluationArtifact = async ({
+  res,
+  filePath,
+  responseKey,
+  missingMessage,
+}) => {
+  try {
+    const contents = await fs.readFile(filePath, "utf8");
+
+    res.status(200).json({
+      success: true,
+      [responseKey]: JSON.parse(contents),
+      sourceFile: path.relative(projectRoot, filePath),
+    });
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return res.status(200).json({
+        success: false,
+        error: missingMessage,
+      });
+    }
+
+    throw error;
+  }
+};
+
+const getThroughputResults = async (req, res, next) => {
+  try {
+    await getJsonEvaluationArtifact({
+      res,
+      filePath: THROUGHPUT_RESULTS_PATH,
+      responseKey: "throughputResults",
+      missingMessage: "Run npm run loadtest:claims first",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getAuditorReputationAnalysis = async (req, res, next) => {
+  try {
+    await getJsonEvaluationArtifact({
+      res,
+      filePath: AUDITOR_ANALYSIS_PATH,
+      responseKey: "auditorAnalysis",
+      missingMessage: "Run npm run analyze:auditors after finalizing demo votes",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
+  getAuditorReputationAnalysis,
   getEvaluationSummary,
   getGasComparison,
   getRiskDistribution,
   getOracleStats,
+  getThroughputResults,
 };
