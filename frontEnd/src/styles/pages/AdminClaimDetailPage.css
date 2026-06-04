@@ -3,7 +3,11 @@
 }
 
 .page-admin-claim-detail .card:first-of-type {
-  background: linear-gradient(135deg, #ffffff, #f0fdfa);
+  background: linear-gradient(
+    135deg,
+    rgba(45, 212, 191, 0.08),
+    rgba(21, 31, 51, 0.98)
+  );
 }
 
 .page-admin-claim-detail .form-grid {
@@ -34,7 +38,7 @@
   height: 18px;
   border: 2px solid var(--line);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--surface-strong);
 }
 
 .oracle-confirmation-dots span.is-filled {
@@ -154,16 +158,16 @@
 
 .page-admin-claim-detail .appeal-pending,
 .page-admin-claim-detail .appeal-under_review {
-  background: #fff7ed;
+  background: rgba(251, 191, 36, 0.12);
   color: var(--warning);
 }
 
 .page-admin-claim-detail .appeal-approved {
-  background: #ecfdf3;
+  background: rgba(52, 211, 153, 0.12);
   color: var(--success);
 }
 
 .page-admin-claim-detail .appeal-rejected {
-  background: #fef3f2;
+  background: rgba(251, 113, 133, 0.12);
   color: var(--danger);
 }

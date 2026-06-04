@@ -1,5 +1,9 @@
 .page-user-dashboard .card:first-of-type {
-  background: linear-gradient(135deg, #ffffff, #f0fdfa);
+  background: linear-gradient(
+    135deg,
+    rgba(45, 212, 191, 0.08),
+    rgba(21, 31, 51, 0.98)
+  );
 }
 
 .page-user-dashboard .card-row {

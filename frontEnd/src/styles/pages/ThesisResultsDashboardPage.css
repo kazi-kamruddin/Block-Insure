@@ -115,17 +115,17 @@
 }
 
 .matrix-good {
-  background: #ecfdf3;
+  background: rgba(52, 211, 153, 0.12);
   color: var(--success);
 }
 
 .matrix-warn {
-  background: #fff7ed;
+  background: rgba(251, 191, 36, 0.12);
   color: var(--warning);
 }
 
 .matrix-bad {
-  background: #fef3f2;
+  background: rgba(251, 113, 133, 0.12);
   color: var(--danger);
 }
 
@@ -149,7 +149,7 @@
   height: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #f8fafc;
+  background: var(--surface-strong);
 }
 
 .gas-chart line {
@@ -162,7 +162,7 @@
 }
 
 .gas-chart text {
-  fill: #334155;
+  fill: var(--muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -190,7 +190,7 @@
 .risk-bar-row > span,
 .risk-bar-row > strong,
 .risk-bar-row > em {
-  color: #334155;
+  color: var(--muted);
   font-size: 13px;
   font-style: normal;
   font-weight: 800;
@@ -200,7 +200,7 @@
   height: 14px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: #26344a;
 }
 
 .risk-bar-row b {

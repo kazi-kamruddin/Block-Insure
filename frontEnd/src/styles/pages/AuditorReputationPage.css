@@ -28,7 +28,7 @@
   margin-right: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: #26344a;
   vertical-align: middle;
 }
 
@@ -48,17 +48,17 @@
 }
 
 .reliability-low {
-  background: #fef3f2;
+  background: rgba(251, 113, 133, 0.12);
   color: var(--danger);
 }
 
 .reliability-medium {
-  background: #fff7ed;
+  background: rgba(251, 191, 36, 0.12);
   color: var(--warning);
 }
 
 .reliability-high,
 .reliability-expert {
-  background: #ecfdf3;
+  background: rgba(52, 211, 153, 0.12);
   color: var(--success);
 }

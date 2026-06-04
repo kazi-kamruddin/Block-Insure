@@ -56,16 +56,16 @@
 
 .appeal-pending,
 .appeal-under_review {
-  background: #fff7ed;
+  background: rgba(251, 191, 36, 0.12);
   color: var(--warning);
 }
 
 .appeal-approved {
-  background: #ecfdf3;
+  background: rgba(52, 211, 153, 0.12);
   color: var(--success);
 }
 
 .appeal-rejected {
-  background: #fef3f2;
+  background: rgba(251, 113, 133, 0.12);
   color: var(--danger);
 }

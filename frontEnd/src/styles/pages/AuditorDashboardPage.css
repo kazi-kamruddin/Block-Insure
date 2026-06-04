@@ -1,5 +1,9 @@
 .page-auditor-dashboard .card:first-of-type {
-  background: linear-gradient(135deg, #ffffff, #f5f3ff);
+  background: linear-gradient(
+    135deg,
+    rgba(96, 165, 250, 0.08),
+    rgba(21, 31, 51, 0.98)
+  );
 }
 
 .page-auditor-dashboard .card-row .card {

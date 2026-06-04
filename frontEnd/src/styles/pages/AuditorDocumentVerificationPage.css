@@ -26,7 +26,8 @@
 
 .document-drop-zone.is-dragging {
   border-color: var(--brand);
-  background: #eff6ff;
+  background: rgba(45, 212, 191, 0.08);
+  box-shadow: var(--glow);
 }
 
 .document-drop-zone span {
@@ -86,7 +87,7 @@
   height: 54px;
   border-radius: 50%;
   background: var(--success);
-  color: #ffffff;
+  color: #07131f;
   font-size: 34px;
   font-weight: 900;
   line-height: 1;

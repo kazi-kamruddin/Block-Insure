@@ -38,7 +38,7 @@
 .home-hero h1 {
   max-width: 720px;
   margin: 18px 0 20px;
-  color: #0b172a;
+  color: var(--text);
   font-size: clamp(48px, 6vw, 76px);
   line-height: 0.98;
   letter-spacing: -0.055em;
@@ -47,7 +47,7 @@
 .home-hero-copy > p {
   max-width: 680px;
   margin: 0;
-  color: #526277;
+  color: var(--muted);
   font-size: 19px;
   line-height: 1.65;
 }
@@ -73,8 +73,8 @@
   padding: 10px 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.82);
-  color: #334155;
+  background: rgba(21, 31, 51, 0.82);
+  color: var(--muted);
 }
 
 .home-secondary-action:hover {
@@ -97,10 +97,10 @@
 
 .home-proof-row span {
   padding: 7px 10px;
-  border: 1px solid rgba(15, 118, 110, 0.14);
+  border: 1px solid rgba(45, 212, 191, 0.22);
   border-radius: 999px;
-  background: rgba(236, 253, 245, 0.72);
-  color: #315b58;
+  background: rgba(45, 212, 191, 0.08);
+  color: var(--brand-strong);
   font-size: 12px;
   font-weight: 700;
 }
@@ -216,7 +216,7 @@
 .home-section-heading h2,
 .home-cta h2 {
   margin: 12px 0 14px;
-  color: #0b172a;
+  color: var(--text);
   font-size: clamp(34px, 4vw, 50px);
   line-height: 1.08;
   letter-spacing: -0.045em;
@@ -224,7 +224,7 @@
 
 .home-section-heading p {
   margin: 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 17px;
   line-height: 1.65;
 }
@@ -242,8 +242,18 @@
   padding: 24px;
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.06);
+  background: rgba(21, 31, 51, 0.88);
+  box-shadow: var(--shadow);
+  transition: border-color 180ms ease, box-shadow 180ms ease,
+    transform 180ms ease, background 180ms ease;
+}
+
+.home-feature-grid article:hover,
+.home-role-grid article:hover {
+  border-color: rgba(45, 212, 191, 0.5);
+  background: var(--surface-soft);
+  box-shadow: var(--glow);
+  transform: translateY(-5px);
 }
 
 .home-feature-grid article > span,
@@ -259,7 +269,7 @@
 .home-role-grid h3,
 .home-workflow-list h3 {
   margin: 28px 0 10px;
-  color: #152238;
+  color: var(--text);
   font-size: 20px;
 }
 
@@ -267,7 +277,7 @@
 .home-role-grid p,
 .home-workflow-list p {
   margin: 0;
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.58;
 }
 
@@ -301,6 +311,16 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
+  transition: border-color 180ms ease, box-shadow 180ms ease,
+    transform 180ms ease, background 180ms ease;
+}
+
+.home-workflow-list li:hover {
+  border-color: rgba(45, 212, 191, 0.5);
+  background: rgba(45, 212, 191, 0.065);
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.12),
+    0 20px 48px rgba(45, 212, 191, 0.13);
+  transform: translateY(-5px);
 }
 
 .home-workflow-list > li > span {
@@ -324,7 +344,7 @@
 .home-role-grid article {
   min-height: 250px;
   background:
-    linear-gradient(180deg, rgba(236, 253, 245, 0.72), rgba(255, 255, 255, 0.94));
+    linear-gradient(180deg, rgba(45, 212, 191, 0.075), rgba(21, 31, 51, 0.96));
 }
 
 .home-cta {
@@ -334,11 +354,11 @@
   gap: 28px;
   margin-bottom: 80px;
   padding: 34px;
-  border: 1px solid rgba(15, 118, 110, 0.16);
+  border: 1px solid rgba(45, 212, 191, 0.22);
   border-radius: 20px;
   background:
     radial-gradient(circle at 85% 0, rgba(45, 212, 191, 0.2), transparent 32%),
-    #ffffff;
+    var(--surface);
   box-shadow: var(--shadow);
 }
 
