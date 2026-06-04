@@ -108,6 +108,11 @@ export async function getClaimById(claimId) {
   return response.data;
 }
 
+export async function getClaimDocumentHash(claimId) {
+  const response = await api.get(`/api/claims/${claimId}/document-hash`);
+  return response.data;
+}
+
 export async function submitAppeal(payload) {
   const response = await api.post("/api/appeals", payload);
   return response.data;

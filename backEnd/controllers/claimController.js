@@ -26,6 +26,10 @@ const canReadClaim = (req, claim) => {
   return claim.claimantWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
 };
 
+const canVerifyDocumentHash = (req) => {
+  return req.user.role === "ADMIN" || req.user.role === "AUDITOR";
+};
+
 /* ---------------------- Format Contract Responses ---------------------- */
 
 const formatTimestamp = (timestamp) => {
@@ -126,7 +130,48 @@ const getClaimById = async (req, res, next) => {
   }
 };
 
+const getClaimDocumentHash = async (req, res, next) => {
+  try {
+    if (!canVerifyDocumentHash(req)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: auditor or admin role is required",
+      });
+    }
+
+    const contract = getReadOnlyContract();
+    const claimId = BigInt(req.params.claimId);
+    const claim = await contract.getClaim(claimId);
+
+    let blockNumber = null;
+
+    try {
+      const filter = contract.filters.ClaimSubmitted(claimId);
+      const logs = await contract.queryFilter(filter, 0, "latest");
+      blockNumber = logs[0]?.blockNumber ?? null;
+    } catch (eventError) {
+      console.warn(
+        "Could not resolve claim document commit block:",
+        eventError.message
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      claimId: claim.claimId.toString(),
+      claimantWallet: claim.claimantWallet,
+      documentHash: claim.documentHash,
+      documentCID: claim.documentCID,
+      submittedAt: formatTimestamp(claim.submittedAt),
+      blockNumber,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getMyClaims,
   getClaimById,
+  getClaimDocumentHash,
 };
