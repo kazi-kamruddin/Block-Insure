@@ -5,6 +5,7 @@ const {
 } = require("../services/contractService");
 const { buildReserveIntelligence } = require("../services/settlementIntelligenceService");
 const { exportMerkleRoot } = require("../services/merkleRegistryService");
+const { notifyClaimStatusChange } = require("../services/notificationService");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -418,6 +419,14 @@ const requestOracleForClaim = async (req, res, next) => {
 
     const updatedClaim = await contract.getClaim(id);
 
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "ORACLE_PENDING",
+      transactionHash: tx.hash,
+      source: "admin-request-oracle",
+      message: `Oracle verification started for claim #${id}.`,
+    });
+
     res.status(200).json({
       success: true,
       message: "Oracle verification requested successfully",
@@ -462,6 +471,14 @@ const approveClaim = async (req, res, next) => {
     }
 
     const updatedClaim = await contract.getClaim(id);
+
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "APPROVED",
+      transactionHash: tx.hash,
+      source: "admin-approve",
+      message: `Claim #${id} was approved and is ready for settlement.`,
+    });
 
     res.status(200).json({
       success: true,
@@ -536,6 +553,14 @@ const settleClaim = async (req, res, next) => {
     const updatedClaim = await contract.getClaim(id);
     const balanceAfter = await formatContractBalance(contract);
 
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "SETTLED",
+      transactionHash: tx.hash,
+      source: "admin-settle",
+      message: `Claim #${id} was settled successfully.`,
+    });
+
     res.status(200).json({
       success: true,
       message: "Claim settled successfully",
@@ -589,6 +614,14 @@ const rejectClaim = async (req, res, next) => {
 
     const updatedClaim = await contract.getClaim(id);
 
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "REJECTED",
+      transactionHash: tx.hash,
+      source: "admin-reject",
+      message: `Claim #${id} was rejected. You may submit one appeal.`,
+    });
+
     res.status(200).json({
       success: true,
       message: "Claim rejected successfully",
@@ -637,6 +670,14 @@ const sendClaimToManualReview = async (req, res, next) => {
     }
 
     const updatedClaim = await contract.getClaim(id);
+
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "MANUAL_REVIEW",
+      transactionHash: tx.hash,
+      source: "admin-manual-review",
+      message: `Claim #${id} was sent to manual review.`,
+    });
 
     res.status(200).json({
       success: true,

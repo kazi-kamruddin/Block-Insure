@@ -113,6 +113,21 @@ export async function getClaimDocumentHash(claimId) {
   return response.data;
 }
 
+export async function getNotifications() {
+  const response = await api.get("/api/notifications");
+  return response.data;
+}
+
+export async function markNotificationRead(notificationId) {
+  const response = await api.patch(`/api/notifications/${notificationId}/read`);
+  return response.data;
+}
+
+export async function markAllNotificationsRead() {
+  const response = await api.patch("/api/notifications/read-all");
+  return response.data;
+}
+
 export async function submitAppeal(payload) {
   const response = await api.post("/api/appeals", payload);
   return response.data;

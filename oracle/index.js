@@ -24,6 +24,10 @@ const getRequiredEnv = (key) => {
 const RPC_URL = getRequiredEnv("RPC_URL");
 const CONTRACT_ADDRESS = getRequiredEnv("CONTRACT_ADDRESS");
 const ORACLE_INSTANCE_ID = process.env.ORACLE_INSTANCE_ID || instanceFromEnvironment;
+const ORACLE_SUBMISSION_DELAY_MS = Number(
+  process.env.ORACLE_SUBMISSION_DELAY_MS ||
+    (ORACLE_INSTANCE_ID === "2" ? 3000 : 0)
+);
 const ORACLE_PRIVATE_KEY =
   ORACLE_INSTANCE_ID === "2" && process.env.ORACLE_PRIVATE_KEY_2
     ? process.env.ORACLE_PRIVATE_KEY_2
@@ -62,6 +66,8 @@ const buildResultHash = (oracleResponse) => {
 };
 
 const normalizeHash = (value) => String(value || "").trim().toLowerCase();
+const sleep = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const saveOracleLog = async ({
   requestId,
@@ -150,6 +156,22 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Request ID:`, requestId.toString());
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Claim ID:`, claimId.toString());
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle Type:`, oracleType);
+
+    if (ORACLE_SUBMISSION_DELAY_MS > 0) {
+      console.log(
+        `[Oracle ${ORACLE_INSTANCE_ID}] Waiting ${ORACLE_SUBMISSION_DELAY_MS}ms before verification...`
+      );
+      await sleep(ORACLE_SUBMISSION_DELAY_MS);
+
+      const refreshedRequest = await contract.getOracleRequest(requestId);
+
+      if (refreshedRequest.isFulfilled) {
+        console.log(
+          `[Oracle ${ORACLE_INSTANCE_ID}] Request already finalized while waiting`
+        );
+        return;
+      }
+    }
 
     const claim = await contract.getClaim(claimId);
 
@@ -305,6 +327,11 @@ const startOracle = async () => {
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Mock hospital API:`, MOCK_HOSPITAL_API_URL);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Start block:`, ORACLE_START_BLOCK);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Poll interval:`, ORACLE_POLL_INTERVAL_MS, "ms");
+  console.log(
+    `[Oracle ${ORACLE_INSTANCE_ID}] Submission delay:`,
+    ORACLE_SUBMISSION_DELAY_MS,
+    "ms"
+  );
 
   const oracleRole = await contract.ORACLE_ROLE();
   const hasOracleRole = await contract.hasRole(oracleRole, oracleWallet.address);

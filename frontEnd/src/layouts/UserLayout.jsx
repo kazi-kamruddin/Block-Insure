@@ -24,6 +24,7 @@ export default function UserLayout() {
         <Link to="/user/policies">My Policies</Link>
         <Link to="/user/claims">My Claims</Link>
         <Link to="/user/claims/new">Submit Claim</Link>
+        <Link to="/user/notifications">Notifications</Link>
       </div>
 
       <Outlet />

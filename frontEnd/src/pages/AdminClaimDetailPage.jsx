@@ -151,6 +151,8 @@ export default function AdminClaimDetailPage() {
     queryKey: ["adminClaim", id],
     queryFn: () => getClaimById(id),
     enabled: Boolean(id),
+    refetchInterval: 1200,
+    refetchIntervalInBackground: true,
   });
 
   const {
@@ -161,6 +163,8 @@ export default function AdminClaimDetailPage() {
     queryKey: ["adminOracleResults", id],
     queryFn: () => getOracleResults(id),
     enabled: Boolean(id),
+    refetchInterval: 1200,
+    refetchIntervalInBackground: true,
   });
 
   const {
@@ -227,10 +231,14 @@ export default function AdminClaimDetailPage() {
     queryFn: () => getOracleQuorumStatus(id),
     enabled: Boolean(id) && statusName === "ORACLE_PENDING",
     retry: false,
+    refetchInterval: statusName === "ORACLE_PENDING" ? 900 : false,
+    refetchIntervalInBackground: true,
   });
 
   const appeal = appealData?.appeal || null;
   const voteSummary = extractVoteSummary(voteData);
+  const appealIsFinal =
+    appeal?.status === "APPROVED" || appeal?.status === "REJECTED";
 
   const canRequestOracle = statusName === "DUPLICATE_CHECKED";
   const canSendManualReview =
@@ -679,21 +687,21 @@ export default function AdminClaimDetailPage() {
               <button
                 type="button"
                 onClick={() => handleReviewAppeal("UNDER_REVIEW")}
-                disabled={isActing}
+                disabled={isActing || appealIsFinal || appeal.status === "UNDER_REVIEW"}
               >
                 Mark Under Review
               </button>
               <button
                 type="button"
                 onClick={() => handleReviewAppeal("APPROVED")}
-                disabled={isActing}
+                disabled={isActing || appealIsFinal}
               >
                 Approve Appeal
               </button>
               <button
                 type="button"
                 onClick={() => handleReviewAppeal("REJECTED")}
-                disabled={isActing}
+                disabled={isActing || appealIsFinal}
               >
                 Reject Appeal
               </button>

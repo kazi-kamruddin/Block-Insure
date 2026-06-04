@@ -6,6 +6,7 @@ const {
 const { getReadOnlyContract } = require("../services/contractService");
 const { calculateSHA256 } = require("../services/hashService");
 const { uploadToPinata } = require("../services/ipfsService");
+const { notifyAdmins } = require("../services/notificationService");
 
 const formatDocumentRecord = (fileRecord) => ({
   id: fileRecord._id,
@@ -150,6 +151,16 @@ const attachClaimIdToDocument = async (req, res, next) => {
     await assertClaimBelongsToWallet(claimId, req.user.walletAddress);
 
     await assignEvidenceChainLink(fileRecord, claimId);
+
+    await notifyAdmins({
+      actorWallet: req.user.walletAddress,
+      type: "CLAIM_SUBMITTED",
+      title: `New claim #${claimId} submitted`,
+      message: `A new claim was submitted by ${req.user.walletAddress}.`,
+      claimId,
+      link: `/admin/claims/${claimId}`,
+      dedupeKey: `claim:${claimId}:submitted`,
+    });
 
     res.status(200).json({
       success: true,

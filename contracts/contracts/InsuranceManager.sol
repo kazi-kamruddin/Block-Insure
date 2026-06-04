@@ -123,6 +123,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => Claim) private claims;
     mapping(uint256 => ClaimDocument[]) private claimDocuments;
     mapping(address => uint256[]) private claimsByWallet;
+    mapping(uint256 => uint256) private claimBaseRiskScore;
 
     mapping(bytes32 => bool) private usedDocumentHashes;
     mapping(bytes32 => bool) private usedInvoiceHashes;
@@ -245,6 +246,12 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 indexed claimId,
         address indexed claimant,
         string appealReasonHash,
+        uint256 timestamp
+    );
+
+    event ClaimReopenedAfterAppeal(
+        uint256 indexed claimId,
+        address indexed reopenedBy,
         uint256 timestamp
     );
 
@@ -752,6 +759,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         userDateClaimTypeUsed[msg.sender][incidentDate][claimTypeHash] = true;
 
         claims[newClaimId].riskScore = calculatedRiskScore;
+        claimBaseRiskScore[newClaimId] = calculatedRiskScore;
         claims[newClaimId].status = ClaimStatus.DUPLICATE_CHECKED;
 
         claimCounter++;
@@ -1095,6 +1103,26 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         claimAppealed[claimId] = true;
 
         emit ClaimAppealed(claimId, msg.sender, appealReasonHash, block.timestamp);
+    }
+
+    function reopenClaimAfterAppeal(uint256 claimId) external onlyRole(ADMIN_ROLE) {
+        require(_claimExists(claimId), "Claim does not exist");
+        require(claimAppealed[claimId], "Claim has not been appealed");
+        require(claims[claimId].status == ClaimStatus.REJECTED, "Claim is not rejected");
+
+        address[] storage existingVoters = claimVoters[claimId];
+
+        for (uint256 i = 0; i < existingVoters.length; i++) {
+            delete auditorVotes[claimId][existingVoters[i]];
+        }
+
+        delete claimVoters[claimId];
+        delete claimRejectionReasonHash[claimId];
+        oracleRequestByClaimId[claimId] = 0;
+        claims[claimId].riskScore = claimBaseRiskScore[claimId];
+        claims[claimId].status = ClaimStatus.DUPLICATE_CHECKED;
+
+        emit ClaimReopenedAfterAppeal(claimId, msg.sender, block.timestamp);
     }
 
     function castVote(uint256 claimId, uint8 vote) external onlyRole(AUDITOR_ROLE) {

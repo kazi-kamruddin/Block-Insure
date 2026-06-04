@@ -28,6 +28,7 @@ import AdminClaimListPage from "./pages/AdminClaimListPage";
 import AdminClaimDetailPage from "./pages/AdminClaimDetailPage";
 import HealthcareRegistryPage from "./pages/HealthcareRegistryPage";
 import ThesisResultsDashboardPage from "./pages/ThesisResultsDashboardPage";
+import NotificationsPage from "./pages/NotificationsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 import "./App.css";
@@ -52,6 +53,7 @@ export default function App() {
                 <Route path="claims" element={<MyClaimsPage />} />
                 <Route path="claims/new" element={<SubmitClaimPage />} />
                 <Route path="claims/:id" element={<ClaimDetailPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
               </Route>
 
               <Route path="admin" element={<AdminLayout />}>
@@ -66,6 +68,7 @@ export default function App() {
                 <Route path="thesis-dashboard" element={<ThesisResultsDashboardPage />} />
                 <Route path="claims" element={<AdminClaimListPage />} />
                 <Route path="claims/:id" element={<AdminClaimDetailPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
               </Route>
 
               <Route path="auditor" element={<AuditorLayout />}>

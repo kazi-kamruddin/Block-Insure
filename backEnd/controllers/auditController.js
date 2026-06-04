@@ -17,6 +17,7 @@ const CLAIM_EVENT_NAMES = new Set([
   "ClaimApproved",
   "ClaimRejected",
   "ClaimAppealed",
+  "ClaimReopenedAfterAppeal",
   "ClaimSentToManualReview",
   "AuditorVoteCast",
   "SettlementCalculated",

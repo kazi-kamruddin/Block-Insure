@@ -1,6 +1,13 @@
 const crypto = require("crypto");
 const Appeal = require("../models/Appeal");
-const { getReadOnlyContract } = require("../services/contractService");
+const {
+  getAdminContract,
+  getReadOnlyContract,
+} = require("../services/contractService");
+const {
+  notifyAdmins,
+  notifyWallet,
+} = require("../services/notificationService");
 
 const CLAIM_STATUS = [
   "SUBMITTED",
@@ -126,6 +133,17 @@ const submitAppeal = async (req, res, next) => {
       transactionHash: req.body.transactionHash || "",
     });
 
+    await notifyAdmins({
+      actorWallet: claimantWallet,
+      type: "APPEAL_SUBMITTED",
+      title: `Appeal submitted for claim #${claimId}`,
+      message: `The claimant appealed rejected claim #${claimId}.`,
+      claimId,
+      appealId: appeal._id.toString(),
+      link: `/admin/claims/${claimId}`,
+      dedupeKey: `appeal:${appeal._id}:submitted`,
+    });
+
     res.status(201).json({
       success: true,
       message: "Appeal submitted successfully",
@@ -168,6 +186,35 @@ const reviewAppeal = async (req, res, next) => {
       throw createError("Invalid appeal review status", 400);
     }
 
+    const existingAppeal = await Appeal.findById(req.params.id);
+
+    if (!existingAppeal) {
+      throw createError("Appeal not found", 404);
+    }
+
+    if (
+      ["APPROVED", "REJECTED"].includes(existingAppeal.status) &&
+      normalizedStatus !== existingAppeal.status
+    ) {
+      throw createError("Finalized appeal decisions cannot be changed", 409);
+    }
+
+    let transactionHash = "";
+    let reopenedClaim = null;
+
+    if (
+      normalizedStatus === "APPROVED" &&
+      existingAppeal.status !== "APPROVED"
+    ) {
+      const contract = getAdminContract();
+      const tx = await contract.reopenClaimAfterAppeal(existingAppeal.claimId);
+
+      await tx.wait();
+
+      transactionHash = tx.hash;
+      reopenedClaim = await contract.getClaim(existingAppeal.claimId);
+    }
+
     const appeal = await Appeal.findByIdAndUpdate(
       req.params.id,
       {
@@ -178,13 +225,34 @@ const reviewAppeal = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
-    if (!appeal) {
-      throw createError("Appeal not found", 404);
-    }
+    const displayStatus = normalizedStatus.replaceAll("_", " ");
+    const appealMessage =
+      normalizedStatus === "APPROVED"
+        ? `Your appeal for claim #${appeal.claimId} was approved. The claim was reopened for a fresh oracle verification cycle.`
+        : `Your appeal for claim #${appeal.claimId} is now ${displayStatus}.`;
+
+    await notifyWallet(appeal.claimantWallet, {
+      actorWallet: req.user.walletAddress,
+      type: "APPEAL_STATUS_CHANGED",
+      title: `Appeal for claim #${appeal.claimId}: ${displayStatus}`,
+      message: appealMessage,
+      claimId: appeal.claimId,
+      appealId: appeal._id.toString(),
+      status: normalizedStatus,
+      link: `/user/claims/${appeal.claimId}`,
+      dedupeKey: `appeal:${appeal._id}:review:${normalizedStatus}`,
+    });
 
     res.status(200).json({
       success: true,
-      message: "Appeal review updated successfully",
+      message:
+        normalizedStatus === "APPROVED"
+          ? "Appeal approved and claim reopened successfully"
+          : "Appeal review updated successfully",
+      transactionHash,
+      reopenedClaimStatus: reopenedClaim
+        ? CLAIM_STATUS[Number(reopenedClaim.status)] || "UNKNOWN"
+        : null,
       appeal: formatAppeal(appeal),
     });
   } catch (error) {

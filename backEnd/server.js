@@ -105,6 +105,7 @@ app.use("/api/votes", require("./routes/votingRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/audit", require("./routes/auditRoutes"));
 app.use("/api/oracle", require("./routes/oracleRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 /* ----------------------------- Mock Routes ---------------------------- */
 

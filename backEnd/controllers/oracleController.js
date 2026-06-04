@@ -1,5 +1,20 @@
 const OracleLog = require("../models/OracleLog");
 const { getReadOnlyContract } = require("../services/contractService");
+const { notifyClaimStatusChange } = require("../services/notificationService");
+
+const CLAIM_STATUS = [
+  "SUBMITTED",
+  "DUPLICATE_CHECKED",
+  "FRAUD_FLAGGED",
+  "ORACLE_PENDING",
+  "ORACLE_VERIFIED",
+  "ORACLE_FAILED",
+  "MANUAL_REVIEW",
+  "APPROVED",
+  "REJECTED",
+  "SETTLED",
+  "CLOSED",
+];
 
 const canReadClaimOracleLogs = async (req, claimId) => {
   if (req.user.role === "ADMIN" || req.user.role === "AUDITOR") {
@@ -44,6 +59,22 @@ const createOracleLog = async (req, res, next) => {
       riskLevel,
       submittedTxHash,
     });
+
+    const contract = getReadOnlyContract();
+    const request = await contract.getOracleRequest(requestId);
+
+    if (request.isFulfilled) {
+      const claim = await contract.getClaim(claimId);
+      const status = CLAIM_STATUS[Number(claim.status)] || "UNKNOWN";
+
+      await notifyClaimStatusChange({
+        claim,
+        status,
+        transactionHash: submittedTxHash,
+        source: `oracle-request-${requestId}`,
+        message: `Oracle quorum completed for claim #${claimId}. Final result: ${status.replaceAll("_", " ")}.`,
+      });
+    }
 
     res.status(201).json({
       success: true,
