@@ -1,6 +1,9 @@
 const { ethers } = require("ethers");
-const MockHospitalRecord = require("../models/MockHospitalRecord");
 const { buildRiskAssessment } = require("../services/riskScoringService");
+const {
+  getRegistryModel,
+  normalizeRegistrySnapshot,
+} = require("../services/oracleRegistryService");
 const {
   buildRegistryMerkleProof,
   buildRegistryMerkleRoot,
@@ -57,7 +60,7 @@ const buildRegistryFilter = (query) => {
   return filter;
 };
 
-const getRegistrySummary = async (filter = {}) => {
+const getRegistrySummary = async (filter = {}, RegistryModel = getRegistryModel()) => {
   const [
     total,
     legitimate,
@@ -72,25 +75,25 @@ const getRegistrySummary = async (filter = {}) => {
     treatmentBreakdown,
     fraudBreakdown,
   ] = await Promise.all([
-    MockHospitalRecord.countDocuments(filter),
-    MockHospitalRecord.countDocuments({ ...filter, fraudLabel: "LEGITIMATE" }),
-    MockHospitalRecord.countDocuments({
+    RegistryModel.countDocuments(filter),
+    RegistryModel.countDocuments({ ...filter, fraudLabel: "LEGITIMATE" }),
+    RegistryModel.countDocuments({
       ...filter,
       fraudLabel: { $ne: "LEGITIMATE" },
     }),
-    MockHospitalRecord.countDocuments({ ...filter, recordStatus: "VALID" }),
-    MockHospitalRecord.countDocuments({ ...filter, recordStatus: "INVALID" }),
-    MockHospitalRecord.countDocuments({ ...filter, recordStatus: "USED" }),
-    MockHospitalRecord.countDocuments({ ...filter, recordStatus: "CANCELLED" }),
-    MockHospitalRecord.countDocuments({ ...filter, licenseStatus: "ACTIVE" }),
-    MockHospitalRecord.countDocuments({ ...filter, licenseStatus: "SUSPENDED" }),
-    MockHospitalRecord.countDocuments({ ...filter, licenseStatus: "BLACKLISTED" }),
-    MockHospitalRecord.aggregate([
+    RegistryModel.countDocuments({ ...filter, recordStatus: "VALID" }),
+    RegistryModel.countDocuments({ ...filter, recordStatus: "INVALID" }),
+    RegistryModel.countDocuments({ ...filter, recordStatus: "USED" }),
+    RegistryModel.countDocuments({ ...filter, recordStatus: "CANCELLED" }),
+    RegistryModel.countDocuments({ ...filter, licenseStatus: "ACTIVE" }),
+    RegistryModel.countDocuments({ ...filter, licenseStatus: "SUSPENDED" }),
+    RegistryModel.countDocuments({ ...filter, licenseStatus: "BLACKLISTED" }),
+    RegistryModel.aggregate([
       { $match: filter },
       { $group: { _id: "$treatmentType", count: { $sum: 1 } } },
       { $sort: { count: -1, _id: 1 } },
     ]),
-    MockHospitalRecord.aggregate([
+    RegistryModel.aggregate([
       { $match: filter },
       { $group: { _id: "$fraudLabel", count: { $sum: 1 } } },
       { $sort: { count: -1, _id: 1 } },
@@ -420,17 +423,19 @@ const buildVerificationComparison = ({
 
 const getAllHospitalRecords = async (req, res, next) => {
   try {
+    const registrySnapshot = normalizeRegistrySnapshot(req.query.registrySnapshot);
+    const RegistryModel = getRegistryModel(registrySnapshot);
     const filter = buildRegistryFilter(req.query);
     const limit = Math.min(Number(req.query.limit || 100), 500);
     const page = Math.max(Number(req.query.page || 1), 1);
     const skip = (page - 1) * limit;
 
     const [records, summary] = await Promise.all([
-      MockHospitalRecord.find(filter)
+      RegistryModel.find(filter)
         .sort({ hospitalId: 1, invoiceDate: -1, invoiceNumber: 1 })
         .skip(skip)
         .limit(limit),
-      getRegistrySummary(filter),
+      getRegistrySummary(filter, RegistryModel),
     ]);
 
     res.status(200).json({
@@ -438,6 +443,7 @@ const getAllHospitalRecords = async (req, res, next) => {
       count: records.length,
       page,
       limit,
+      registrySnapshot,
       summary,
       records,
     });
@@ -448,7 +454,9 @@ const getAllHospitalRecords = async (req, res, next) => {
 
 const getHospitalRecordById = async (req, res, next) => {
   try {
-    const record = await MockHospitalRecord.findById(req.params.id);
+    const registrySnapshot = normalizeRegistrySnapshot(req.query.registrySnapshot);
+    const RegistryModel = getRegistryModel(registrySnapshot);
+    const record = await RegistryModel.findById(req.params.id);
 
     if (!record) {
       return res.status(404).json({
@@ -459,6 +467,7 @@ const getHospitalRecordById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
+      registrySnapshot,
       record,
     });
   } catch (error) {
@@ -468,11 +477,14 @@ const getHospitalRecordById = async (req, res, next) => {
 
 const getHospitalRegistrySummary = async (req, res, next) => {
   try {
+    const registrySnapshot = normalizeRegistrySnapshot(req.query.registrySnapshot);
+    const RegistryModel = getRegistryModel(registrySnapshot);
     const filter = buildRegistryFilter(req.query);
-    const summary = await getRegistrySummary(filter);
+    const summary = await getRegistrySummary(filter, RegistryModel);
 
     res.status(200).json({
       success: true,
+      registrySnapshot,
       summary,
     });
   } catch (error) {
@@ -482,10 +494,12 @@ const getHospitalRegistrySummary = async (req, res, next) => {
 
 const getHospitalRegistryMerkleRoot = async (req, res, next) => {
   try {
-    const merkleRoot = await buildRegistryMerkleRoot();
+    const registrySnapshot = normalizeRegistrySnapshot(req.query.registrySnapshot);
+    const merkleRoot = await buildRegistryMerkleRoot(registrySnapshot);
 
     res.status(200).json({
       success: true,
+      registrySnapshot,
       merkleRoot,
     });
   } catch (error) {
@@ -496,6 +510,7 @@ const getHospitalRegistryMerkleRoot = async (req, res, next) => {
 const getHospitalRegistryMerkleProof = async (req, res, next) => {
   try {
     const { invoiceHash } = req.query;
+    const registrySnapshot = normalizeRegistrySnapshot(req.query.registrySnapshot);
 
     if (!invoiceHash) {
       return res.status(400).json({
@@ -504,10 +519,14 @@ const getHospitalRegistryMerkleProof = async (req, res, next) => {
       });
     }
 
-    const merkleProof = await buildRegistryMerkleProof({ invoiceHash });
+    const merkleProof = await buildRegistryMerkleProof({
+      invoiceHash,
+      registrySnapshot,
+    });
 
     res.status(200).json({
       success: true,
+      registrySnapshot,
       merkleProof,
     });
   } catch (error) {
@@ -524,6 +543,7 @@ const verifyHospitalRecord = async (req, res, next) => {
       claimAmountWei,
       claimType,
       incidentDate,
+      registrySnapshot: requestedRegistrySnapshot,
     } = req.query;
 
     if (!hospitalId || !invoiceHash) {
@@ -535,13 +555,17 @@ const verifyHospitalRecord = async (req, res, next) => {
     }
 
     const normalizedInvoiceHash = normalizeHash(invoiceHash);
+    const registrySnapshot = normalizeRegistrySnapshot(requestedRegistrySnapshot);
+    const RegistryModel = getRegistryModel(registrySnapshot);
 
-    const record = await MockHospitalRecord.findOne({
+    const record = await RegistryModel.findOne({
       invoiceHash: normalizedInvoiceHash,
     });
     const merkleProof = await buildRegistryMerkleProof({
       invoiceHash: normalizedInvoiceHash,
+      registrySnapshot,
     });
+    const modelRecords = await RegistryModel.find().lean();
 
     const comparison = buildVerificationComparison({
       record,
@@ -564,6 +588,7 @@ const verifyHospitalRecord = async (req, res, next) => {
       record,
       comparison,
       query: verificationQuery,
+      records: modelRecords,
     });
 
     if (!record) {
@@ -576,6 +601,7 @@ const verifyHospitalRecord = async (req, res, next) => {
         riskAssessment,
         merkleProof,
         query: verificationQuery,
+        registrySnapshot,
       });
     }
 
@@ -614,6 +640,7 @@ const verifyHospitalRecord = async (req, res, next) => {
       riskAssessment,
       merkleProof,
       query: verificationQuery,
+      registrySnapshot,
       record,
     });
   } catch (error) {

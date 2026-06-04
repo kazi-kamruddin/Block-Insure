@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const { buildVerificationComparison } = require("../controllers/mockHospitalController");
 const { buildRiskAssessment } = require("../services/riskScoringService");
+const { trainModelParams } = require("../services/modelTrainingService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -16,6 +17,7 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 }
 
 const RESULTS_DIR = path.join(__dirname, "..", "evaluation-results");
+const EVALUATION_THRESHOLD = 50;
 
 const formatDate = (value) => {
   if (!value) return null;
@@ -70,7 +72,27 @@ const createEmptyLabelStats = () => ({
   avgRiskScoreTotal: 0,
 });
 
-const calculateMetrics = (rows) => {
+const calculateAuc = (rows) => {
+  const positiveRows = rows.filter((row) => row.actualFraud);
+  const negativeRows = rows.filter((row) => !row.actualFraud);
+
+  if (positiveRows.length === 0 || negativeRows.length === 0) {
+    return null;
+  }
+
+  let pairScore = 0;
+
+  positiveRows.forEach((positive) => {
+    negativeRows.forEach((negative) => {
+      if (positive.riskScore > negative.riskScore) pairScore += 1;
+      if (positive.riskScore === negative.riskScore) pairScore += 0.5;
+    });
+  });
+
+  return pairScore / (positiveRows.length * negativeRows.length);
+};
+
+const calculateMetrics = (rows, split) => {
   const matrix = {
     truePositive: 0,
     trueNegative: 0,
@@ -133,9 +155,9 @@ const calculateMetrics = (rows) => {
           : 0
       ),
     },
+    split,
     decisionRule: {
-      predictedFraud:
-        "recommendation != AUTO_VERIFY_RECOMMENDED OR blockingFailureCount > 0",
+      predictedFraud: `posterior fraud risk score >= ${EVALUATION_THRESHOLD}`,
       riskBucket: "LOW < 35, MEDIUM 35-69, HIGH >= 70",
     },
     confusionMatrix: matrix,
@@ -145,6 +167,7 @@ const calculateMetrics = (rows) => {
       recall: round(recall),
       specificity: round(specificity),
       f1Score: round(f1Score),
+      auc: round(calculateAuc(rows)),
       averageRiskScore: round(riskScoreTotal / Math.max(rows.length, 1), 2),
     },
     riskBuckets,
@@ -165,7 +188,7 @@ const calculateMetrics = (rows) => {
   };
 };
 
-const evaluateRecord = async (record) => {
+const evaluateRecord = async (record, trainingRecords, modelParams) => {
   const query = {
     hospitalId: record.hospitalId,
     invoiceHash: record.invoiceHash,
@@ -185,11 +208,11 @@ const evaluateRecord = async (record) => {
     record,
     comparison,
     query,
+    records: trainingRecords,
+    modelParams,
   });
   const actualFraud = isFraudRecord(record);
-  const predictedFraud =
-    comparison.blockingFailureCount > 0 ||
-    riskAssessment.recommendation !== "AUTO_VERIFY_RECOMMENDED";
+  const predictedFraud = riskAssessment.riskScore >= EVALUATION_THRESHOLD;
 
   return {
     hospitalId: record.hospitalId,
@@ -230,13 +253,26 @@ const runEvaluation = async () => {
     throw new Error("No synthetic registry records found. Run npm run seed:mock first.");
   }
 
+  const trainingRecords = records.filter((_, index) => index % 5 !== 0);
+  const testRecords = records.filter((_, index) => index % 5 === 0);
+  const modelParams = trainModelParams(trainingRecords, {
+    source: "Deterministic 80% evaluation training split",
+  });
   const rows = [];
 
-  for (const record of records) {
-    rows.push(await evaluateRecord(record));
+  for (const record of testRecords) {
+    rows.push(await evaluateRecord(record, trainingRecords, modelParams));
   }
 
-  const summary = calculateMetrics(rows);
+  const summary = calculateMetrics(rows, {
+    method: "Deterministic 80/20 split after stable hospital/invoice sort",
+    trainingRecords: trainingRecords.length,
+    testRecords: testRecords.length,
+    trainingPercent: round(trainingRecords.length / records.length),
+    testPercent: round(testRecords.length / records.length),
+    evaluationScope: "Metrics are calculated on the held-out test set only",
+    modelVersion: modelParams.modelVersion,
+  });
 
   fs.mkdirSync(RESULTS_DIR, { recursive: true });
   fs.writeFileSync(
@@ -244,21 +280,42 @@ const runEvaluation = async () => {
     `${JSON.stringify(summary, null, 2)}\n`,
     "utf8"
   );
+  fs.writeFileSync(
+    path.join(RESULTS_DIR, "evaluation-model-params.json"),
+    `${JSON.stringify(modelParams, null, 2)}\n`,
+    "utf8"
+  );
   writeCsv(path.join(RESULTS_DIR, "risk-model-records.csv"), rows);
 
   console.log("Risk model evaluation completed");
-  console.log(`Records evaluated: ${summary.dataset.totalRecords}`);
+  console.log(`Training records: ${trainingRecords.length}`);
+  console.log(`Held-out records evaluated: ${summary.dataset.totalRecords}`);
   console.log(`Accuracy: ${(summary.metrics.accuracy * 100).toFixed(2)}%`);
   console.log(`Precision: ${(summary.metrics.precision * 100).toFixed(2)}%`);
   console.log(`Recall: ${(summary.metrics.recall * 100).toFixed(2)}%`);
   console.log(`F1 score: ${(summary.metrics.f1Score * 100).toFixed(2)}%`);
+  console.log(
+    `AUC: ${
+      summary.metrics.auc === null
+        ? "Unavailable (held-out set needs both classes)"
+        : summary.metrics.auc.toFixed(4)
+    }`
+  );
   console.log(`Results folder: ${RESULTS_DIR}`);
 
   await mongoose.connection.close();
 };
 
-runEvaluation().catch(async (error) => {
-  console.error("Risk model evaluation failed:", error.message);
-  await mongoose.connection.close();
-  process.exit(1);
-});
+if (require.main === module) {
+  runEvaluation().catch(async (error) => {
+    console.error("Risk model evaluation failed:", error.message);
+    await mongoose.connection.close();
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  calculateAuc,
+  calculateMetrics,
+  evaluateRecord,
+};

@@ -66,6 +66,7 @@ const EVENT_LABELS = {
   OracleRequested: "Oracle Requested",
   OracleConfirmationReceived: "Oracle Confirmation Received",
   OracleResultSubmitted: "Oracle Result Submitted",
+  OracleTimedOut: "Oracle Timed Out",
   ClaimApproved: "Claim Approved",
   ClaimRejected: "Claim Rejected",
   ClaimAppealed: "Claim Appealed",

@@ -1,5 +1,5 @@
-const MockHospitalRecord = require("../models/MockHospitalRecord");
 const { calculateTextSHA256 } = require("./hashService");
+const { getRegistryModel } = require("./oracleRegistryService");
 
 const TREE_VERSION = "phase-6-registry-merkle-v1";
 const HASH_ALGORITHM = "SHA-256";
@@ -143,16 +143,18 @@ const buildMerkleTree = (records) => {
   };
 };
 
-const getRegistryRecordsForMerkle = async () => {
-  return MockHospitalRecord.find()
+const getRegistryRecordsForMerkle = async (registrySnapshot = "primary") => {
+  const RegistryModel = getRegistryModel(registrySnapshot);
+
+  return RegistryModel.find()
     .select(
       "hospitalId hospitalName licenseStatus patientHash treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel"
     )
     .lean();
 };
 
-const buildRegistryMerkleRoot = async () => {
-  const records = await getRegistryRecordsForMerkle();
+const buildRegistryMerkleRoot = async (registrySnapshot = "primary") => {
+  const records = await getRegistryRecordsForMerkle(registrySnapshot);
   const tree = buildMerkleTree(records);
 
   return {
@@ -170,8 +172,8 @@ const exportMerkleRoot = async () => {
   return merkleRoot.rootHash || `0x${"0".repeat(64)}`;
 };
 
-const buildRegistryMerkleProof = async ({ invoiceHash }) => {
-  const records = await getRegistryRecordsForMerkle();
+const buildRegistryMerkleProof = async ({ invoiceHash, registrySnapshot = "primary" }) => {
+  const records = await getRegistryRecordsForMerkle(registrySnapshot);
   const tree = buildMerkleTree(records);
   const normalizedInvoiceHash = normalizeHash(invoiceHash);
   const leaf = tree.leaves.find(

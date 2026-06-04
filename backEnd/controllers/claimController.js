@@ -1,6 +1,7 @@
 const { ethers } = require("ethers");
 const { getReadOnlyContract } = require("../services/contractService");
 const { getEvidenceChainForClaim } = require("../services/evidenceChainService");
+const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -170,7 +171,50 @@ const getClaimDocumentHash = async (req, res, next) => {
   }
 };
 
+const authorizeClaimSubmission = async (req, res, next) => {
+  try {
+    const policyId = String(req.body.policyId || "").trim();
+
+    if (!policyId) {
+      return res.status(400).json({
+        success: false,
+        message: "policyId is required",
+      });
+    }
+
+    const maximumPerDay = Number(process.env.CLAIMS_PER_WALLET_24H || 3);
+    const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentAttempts = await ClaimSubmissionAttempt.countDocuments({
+      walletAddress: req.user.walletAddress,
+      createdAt: { $gte: windowStart },
+    });
+
+    if (recentAttempts >= maximumPerDay) {
+      return res.status(429).json({
+        success: false,
+        message: `Wallet claim submission limit reached (${maximumPerDay} per 24 hours).`,
+      });
+    }
+
+    const attempt = await ClaimSubmissionAttempt.create({
+      walletAddress: req.user.walletAddress,
+      policyId,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Claim submission authorized",
+      attemptId: attempt._id,
+      remainingToday: Math.max(maximumPerDay - recentAttempts - 1, 0),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
+  authorizeClaimSubmission,
   getMyClaims,
   getClaimById,
   getClaimDocumentHash,

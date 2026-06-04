@@ -95,6 +95,7 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
     expect(oracleRequest.requestId).to.equal(1);
     expect(oracleRequest.claimId).to.equal(1);
     expect(oracleRequest.oracleType).to.equal("HOSPITAL");
+    expect(oracleRequest.requestBlock).to.be.greaterThan(0);
     expect(oracleRequest.isFulfilled).to.equal(false);
     expect(oracleRequest.verifiedResult).to.equal(false);
   });
@@ -316,6 +317,55 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
 
     await expect(
       insuranceManager.connect(attacker).updateQuorumThreshold(2)
+    ).to.be.reverted;
+  });
+
+  it("Admin can resolve an oracle request after its block timeout", async function () {
+    const { insuranceManager, attacker, oracle } = await deployFixture();
+
+    await expect(insuranceManager.updateOracleTimeoutBlocks(2))
+      .to.emit(insuranceManager, "OracleTimeoutBlocksUpdated");
+    expect(await insuranceManager.oracleTimeoutBlocks()).to.equal(2);
+
+    await expect(
+      insuranceManager.updateOracleTimeoutBlocks(0)
+    ).to.be.revertedWith("Oracle timeout must be greater than zero");
+
+    await expect(
+      insuranceManager.connect(attacker).updateOracleTimeoutBlocks(2)
+    ).to.be.reverted;
+
+    await insuranceManager.requestOracleVerification(1);
+
+    await expect(
+      insuranceManager.resolveTimedOutOracle(1)
+    ).to.be.revertedWith("Oracle request has not timed out");
+
+    await ethers.provider.send("hardhat_mine", ["0x3"]);
+
+    await expect(insuranceManager.resolveTimedOutOracle(1))
+      .to.emit(insuranceManager, "OracleTimedOut");
+
+    const claim = await insuranceManager.getClaim(1);
+    const request = await insuranceManager.getOracleRequest(1);
+
+    expect(claim.status).to.equal(5); // ORACLE_FAILED
+    expect(request.isFulfilled).to.equal(true);
+    expect(request.verifiedResult).to.equal(false);
+    expect(request.riskLevel).to.equal("ORACLE_FAILED");
+
+    await expect(
+      insuranceManager.connect(oracle).submitOracleResult(
+        1,
+        true,
+        hashText("late-result"),
+        "LOW",
+        "Late result"
+      )
+    ).to.be.revertedWith("Oracle request already fulfilled");
+
+    await expect(
+      insuranceManager.connect(attacker).resolveTimedOutOracle(1)
     ).to.be.reverted;
   });
 

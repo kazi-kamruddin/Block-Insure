@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import TransactionLink from "../components/TransactionLink";
 import {
+  authorizeClaimSubmission,
   attachDocumentToClaim,
   getMyPolicies,
   uploadClaimDocument,
@@ -261,6 +262,8 @@ export default function SubmitClaimPage() {
       }
 
       setIsSubmitting(true);
+
+      await authorizeClaimSubmission(policyId);
 
       const uploadResponse = await uploadClaimDocument({
         file,

@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
 
 const authMiddleware = async (req, res, next) => {
@@ -17,10 +18,21 @@ const authMiddleware = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const walletAddress = decoded.walletAddress?.toLowerCase();
 
-    if (!walletAddress) {
+    if (!walletAddress || !decoded.jti) {
       return res.status(401).json({
         success: false,
         message: "Invalid token payload",
+      });
+    }
+
+    const revokedToken = await RevokedToken.findOne({ jti: decoded.jti })
+      .select("_id")
+      .lean();
+
+    if (revokedToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Token has been revoked",
       });
     }
 
@@ -37,6 +49,7 @@ const authMiddleware = async (req, res, next) => {
       walletAddress: user.walletAddress,
       role: user.role,
     };
+    req.authToken = decoded;
 
     next();
   } catch (error) {

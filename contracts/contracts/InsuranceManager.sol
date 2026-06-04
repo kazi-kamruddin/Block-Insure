@@ -88,6 +88,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         string oracleType;
         bytes32 queryHash;
         uint256 requestedAt;
+        uint256 requestBlock;
         bool isFulfilled;
         bool verifiedResult;
         bytes32 resultHash;
@@ -135,6 +136,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     uint256 public oracleRequestCounter = 1;
     uint8 public oracleQuorumThreshold = 2;
+    uint256 public oracleTimeoutBlocks = 50;
 
     mapping(uint256 => OracleRequest) private oracleRequests;
     mapping(uint256 => uint256) private oracleRequestByClaimId;
@@ -229,6 +231,14 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         bool verified,
         string riskLevel
     );
+
+    event OracleTimedOut(
+        uint256 indexed requestId,
+        uint256 indexed claimId,
+        uint256 resolvedAtBlock
+    );
+
+    event OracleTimeoutBlocksUpdated(uint256 timeoutBlocks, uint256 timestamp);
 
     event OracleConfirmationReceived(
         uint256 indexed requestId,
@@ -977,6 +987,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             oracleType: oracleType,
             queryHash: queryHash,
             requestedAt: block.timestamp,
+            requestBlock: block.number,
             isFulfilled: false,
             verifiedResult: false,
             resultHash: bytes32(0),
@@ -1073,6 +1084,39 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(threshold >= 1, "Quorum threshold must be at least 1");
 
         oracleQuorumThreshold = threshold;
+    }
+
+    function updateOracleTimeoutBlocks(uint256 timeoutBlocks) external onlyRole(ADMIN_ROLE) {
+        require(timeoutBlocks > 0, "Oracle timeout must be greater than zero");
+
+        oracleTimeoutBlocks = timeoutBlocks;
+
+        emit OracleTimeoutBlocksUpdated(timeoutBlocks, block.timestamp);
+    }
+
+    function resolveTimedOutOracle(uint256 claimId) external onlyRole(ADMIN_ROLE) {
+        require(_claimExists(claimId), "Claim does not exist");
+        require(claims[claimId].status == ClaimStatus.ORACLE_PENDING, "Claim is not oracle pending");
+
+        uint256 requestId = oracleRequestByClaimId[claimId];
+
+        require(requestId != 0, "Oracle request does not exist");
+
+        OracleRequest storage requestData = oracleRequests[requestId];
+
+        require(!requestData.isFulfilled, "Oracle request already fulfilled");
+        require(
+            block.number > requestData.requestBlock + oracleTimeoutBlocks,
+            "Oracle request has not timed out"
+        );
+
+        requestData.isFulfilled = true;
+        requestData.verifiedResult = false;
+        requestData.riskLevel = "ORACLE_FAILED";
+        requestData.remarks = "Oracle quorum timed out";
+        claims[claimId].status = ClaimStatus.ORACLE_FAILED;
+
+        emit OracleTimedOut(requestId, claimId, block.number);
     }
 
     function updateMaxClaimsPerPolicy(uint256 newMaximum) external onlyRole(ADMIN_ROLE) {

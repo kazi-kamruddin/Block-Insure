@@ -47,6 +47,11 @@ export async function createPolicyPackage(payload) {
   return response.data;
 }
 
+export async function logoutSession() {
+  const response = await api.post("/api/auth/logout");
+  return response.data;
+}
+
 export async function getAdminPolicyPackages() {
   const response = await api.get("/api/admin/policy-packages");
   return response.data;
@@ -105,6 +110,11 @@ export async function getMyClaims() {
 
 export async function getClaimById(claimId) {
   const response = await api.get(`/api/claims/${claimId}`);
+  return response.data;
+}
+
+export async function authorizeClaimSubmission(policyId) {
+  const response = await api.post("/api/claims/submission-check", { policyId });
   return response.data;
 }
 
@@ -207,6 +217,13 @@ export async function rejectClaim(claimId, reason) {
 
 export async function settleClaim(claimId) {
   const response = await api.post(`/api/admin/claims/${claimId}/settle`);
+  return response.data;
+}
+
+export async function resolveOracleTimeout(claimId) {
+  const response = await api.post(
+    `/api/admin/claims/${claimId}/resolve-oracle-timeout`
+  );
   return response.data;
 }
 

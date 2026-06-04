@@ -17,6 +17,7 @@ import {
   getClaimVoteSummary,
   getOracleResults,
   rejectClaim,
+  resolveOracleTimeout,
   reviewAppeal,
   requestOracleVerification,
   sendClaimToManualReview,
@@ -342,6 +343,13 @@ export default function AdminClaimDetailPage() {
     runAdminAction(() => settleClaim(id), "Claim settled successfully.");
   }
 
+  function handleResolveOracleTimeout() {
+    runAdminAction(
+      () => resolveOracleTimeout(id),
+      "Timed-out oracle request resolved successfully."
+    );
+  }
+
   function handleClose() {
     const confirmed = window.confirm(
       "Close this claim lifecycle? Closed claims cannot return to an active workflow."
@@ -493,6 +501,14 @@ export default function AdminClaimDetailPage() {
             disabled={!canSendManualReview || isActing}
           >
             Send to Manual Review
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResolveOracleTimeout}
+            disabled={statusName !== "ORACLE_PENDING" || isActing}
+          >
+            Resolve Oracle Timeout
           </button>
 
           <button

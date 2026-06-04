@@ -578,6 +578,57 @@ const settleClaim = async (req, res, next) => {
   }
 };
 
+const resolveTimedOutOracle = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+    const tx = await contract.resolveTimedOutOracle(id);
+    const receipt = await tx.wait();
+    let timeoutEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "OracleTimedOut") {
+          timeoutEvent = {
+            requestId: parsedLog.args.requestId.toString(),
+            claimId: parsedLog.args.claimId.toString(),
+            resolvedAtBlock: parsedLog.args.resolvedAtBlock.toString(),
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    const updatedClaim = await contract.getClaim(id);
+
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "ORACLE_FAILED",
+      transactionHash: tx.hash,
+      source: "oracle-timeout",
+      message: `Oracle verification timed out for claim #${id}; the claim is ready for manual review.`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Timed-out oracle request resolved successfully",
+      transactionHash: tx.hash,
+      timeoutEvent,
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const closeClaim = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -753,6 +804,7 @@ module.exports = {
   pushRegistryMerkleRoot,
   getAdminClaims,
   requestOracleForClaim,
+  resolveTimedOutOracle,
   approveClaim,
   rejectClaim,
   settleClaim,

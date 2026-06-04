@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const { ethers } = require("ethers");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
+const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -316,8 +317,29 @@ const seedMockData = async () => {
     await mongoose.connect(process.env.MONGODB_URI);
 
     await MockHospitalRecord.deleteMany({});
+    await MockHospitalRecordOracle2.deleteMany({});
 
     await MockHospitalRecord.insertMany(mockRecords);
+    const oracle2Records = mockRecords.map((record, index) => {
+      if (index !== 0) {
+        return record;
+      }
+
+      return {
+        ...record,
+        invoiceStatus: "USED",
+        recordStatus: "USED",
+        fraudLabel: "USED_INVOICE",
+        fraudSignals: {
+          ...record.fraudSignals,
+          usedInvoice: true,
+        },
+        previousClaimCount: 2,
+        syntheticSource: "phase-2-oracle2-independent-snapshot-v1",
+      };
+    });
+
+    await MockHospitalRecordOracle2.insertMany(oracle2Records);
 
     const legitimateCount = mockRecords.filter(
       (record) => record.fraudLabel === "LEGITIMATE"
@@ -328,6 +350,7 @@ const seedMockData = async () => {
     console.log(`Inserted records: ${mockRecords.length}`);
     console.log(`Legitimate records: ${legitimateCount}`);
     console.log(`Fraud-labeled records: ${fraudulentCount}`);
+    console.log("Oracle 2 snapshot divergence: INV-HOSP-001-001 is marked USED");
 
     console.log("\nUseful verified test invoices:");
     mockRecords
@@ -356,4 +379,10 @@ const seedMockData = async () => {
   }
 };
 
-seedMockData();
+if (require.main === module) {
+  seedMockData();
+}
+
+module.exports = {
+  buildSyntheticRecords,
+};

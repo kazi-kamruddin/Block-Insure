@@ -24,10 +24,11 @@ const getRequiredEnv = (key) => {
 const RPC_URL = getRequiredEnv("RPC_URL");
 const CONTRACT_ADDRESS = getRequiredEnv("CONTRACT_ADDRESS");
 const ORACLE_INSTANCE_ID = process.env.ORACLE_INSTANCE_ID || instanceFromEnvironment;
-const ORACLE_SUBMISSION_DELAY_MS = Number(
-  process.env.ORACLE_SUBMISSION_DELAY_MS ||
-    (ORACLE_INSTANCE_ID === "2" ? 3000 : 0)
-);
+// Simulates network propagation variance between geographically distributed nodes.
+const oracle2SimulatedNetworkDelayMs =
+  ORACLE_INSTANCE_ID === "2"
+    ? Number(process.env.ORACLE2_SIMULATED_NETWORK_DELAY_MS || 3000)
+    : 0;
 const ORACLE_PRIVATE_KEY =
   ORACLE_INSTANCE_ID === "2" && process.env.ORACLE_PRIVATE_KEY_2
     ? process.env.ORACLE_PRIVATE_KEY_2
@@ -43,6 +44,9 @@ const ORACLE_POLL_INTERVAL_MS = Number(
   process.env.ORACLE_POLL_INTERVAL_MS || 5000
 );
 const ORACLE_API_KEY = process.env.ORACLE_API_KEY || "";
+const ORACLE_REGISTRY_SNAPSHOT =
+  process.env.ORACLE_REGISTRY_SNAPSHOT ||
+  (ORACLE_INSTANCE_ID === "2" ? "oracle2" : "primary");
 
 /* ----------------------------- Setup ----------------------------------- */
 
@@ -157,11 +161,11 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Claim ID:`, claimId.toString());
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle Type:`, oracleType);
 
-    if (ORACLE_SUBMISSION_DELAY_MS > 0) {
+    if (oracle2SimulatedNetworkDelayMs > 0) {
       console.log(
-        `[Oracle ${ORACLE_INSTANCE_ID}] Waiting ${ORACLE_SUBMISSION_DELAY_MS}ms before verification...`
+        `[Oracle ${ORACLE_INSTANCE_ID}] Simulating ${oracle2SimulatedNetworkDelayMs}ms of network propagation variance...`
       );
-      await sleep(ORACLE_SUBMISSION_DELAY_MS);
+      await sleep(oracle2SimulatedNetworkDelayMs);
 
       const refreshedRequest = await contract.getOracleRequest(requestId);
 
@@ -196,6 +200,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
         claimAmountEth: ethers.formatEther(claim.claimAmount),
         claimType: claim.claimType,
         incidentDate: claim.incidentDate.toString(),
+        registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
       },
     });
 
@@ -236,6 +241,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       checkedAt: new Date().toISOString(),
       oracleInstanceId: ORACLE_INSTANCE_ID,
       oracleWallet: oracleWallet.address,
+      registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
     };
 
     const resultHash = buildResultHash(oracleResponse);
@@ -325,11 +331,12 @@ const startOracle = async () => {
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Contract:`, CONTRACT_ADDRESS);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] RPC:`, RPC_URL);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Mock hospital API:`, MOCK_HOSPITAL_API_URL);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Registry snapshot:`, ORACLE_REGISTRY_SNAPSHOT);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Start block:`, ORACLE_START_BLOCK);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Poll interval:`, ORACLE_POLL_INTERVAL_MS, "ms");
   console.log(
-    `[Oracle ${ORACLE_INSTANCE_ID}] Submission delay:`,
-    ORACLE_SUBMISSION_DELAY_MS,
+    `[Oracle ${ORACLE_INSTANCE_ID}] Simulated network delay:`,
+    oracle2SimulatedNetworkDelayMs,
     "ms"
   );
 

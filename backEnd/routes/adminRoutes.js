@@ -10,6 +10,7 @@ const {
   pushRegistryMerkleRoot,
   getAdminClaims,
   requestOracleForClaim,
+  resolveTimedOutOracle,
   approveClaim,
   rejectClaim,
   settleClaim,
@@ -130,6 +131,13 @@ router.post(
   authMiddleware,
   requireRole("ADMIN"),
   requestOracleForClaim
+);
+
+router.post(
+  "/claims/:id/resolve-oracle-timeout",
+  authMiddleware,
+  requireRole("ADMIN"),
+  resolveTimedOutOracle
 );
 
 router.post(

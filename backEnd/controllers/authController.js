@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { verifyMessage, getAddress } = require("ethers");
+const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
 
 const normalizeWalletAddress = (walletAddress) => {
@@ -76,6 +77,7 @@ const walletLogin = async (req, res, next) => {
 
     const token = jwt.sign(
       {
+        jti: crypto.randomUUID(),
         walletAddress: user.walletAddress,
         role: user.role,
       },
@@ -99,7 +101,37 @@ const walletLogin = async (req, res, next) => {
   }
 };
 
+const logout = async (req, res, next) => {
+  try {
+    const { jti, exp } = req.authToken || {};
+
+    if (!jti || !exp) {
+      throw createError("Token cannot be revoked", 400);
+    }
+
+    await RevokedToken.findOneAndUpdate(
+      { jti },
+      {
+        $setOnInsert: {
+          jti,
+          walletAddress: req.user.walletAddress,
+          expiresAt: new Date(exp * 1000),
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Logout successful",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getNonce,
+  logout,
   walletLogin,
 };

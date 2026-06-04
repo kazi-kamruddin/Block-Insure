@@ -4,6 +4,7 @@ import {
   clearStoredSession,
   getWalletNonce,
   loginWithWallet,
+  logoutSession,
 } from "../services/api";
 import { WalletContext } from "./walletContextObject";
 
@@ -113,7 +114,15 @@ export function WalletProvider({ children }) {
     }
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      if (localStorage.getItem("blockinsure_jwt")) {
+        await logoutSession();
+      }
+    } catch (logoutError) {
+      console.warn("Backend logout failed:", logoutError.message);
+    }
+
     clearStoredSession();
     setWalletAddress("");
     setJwt("");

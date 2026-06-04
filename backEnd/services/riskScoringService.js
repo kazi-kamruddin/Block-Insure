@@ -1,11 +1,10 @@
 const MockHospitalRecord = require("../models/MockHospitalRecord");
+const loadedModelParams = require("../model-params.json");
 
-const MODEL_VERSION = "phase-3-bayesian-zscore-v1";
 const LOW_RISK_THRESHOLD = 35;
 const HIGH_RISK_THRESHOLD = 70;
 const HARD_BLOCK_THRESHOLD = 85;
 const ANOMALY_Z_THRESHOLD = 2;
-const BILL_RANGE_TOLERANCE_RATE = 0.15;
 
 const clampProbability = (value) => {
   return Math.min(Math.max(value, 0.001), 0.999);
@@ -23,6 +22,12 @@ const isFraudRecord = (record) => {
 const checkFailed = (comparison, field) => {
   const check = comparison?.fieldChecks?.[field];
   return Boolean(check && check.matched === false);
+};
+
+const hasComparisonFailureExceptFraudLabel = (comparison) => {
+  return Object.entries(comparison?.fieldChecks || {}).some(
+    ([field, check]) => field !== "fraudLabel" && check.matched === false
+  );
 };
 
 const calculateStats = (values) => {
@@ -69,57 +74,6 @@ const getZScore = (value, stats) => {
   }
 
   return (value - stats.mean) / stats.stdDev;
-};
-
-const getDatasetStats = (records) => {
-  const totalRecords = records.length;
-  const fraudRecords = records.filter(isFraudRecord).length;
-  const legitimateRecords = totalRecords - fraudRecords;
-
-  return {
-    totalRecords,
-    fraudRecords,
-    legitimateRecords,
-    priorFraudProbability: totalRecords
-      ? fraudRecords / totalRecords
-      : 0.2,
-    smoothing: "Laplace +1",
-  };
-};
-
-const getLikelihood = ({ records, datasetStats, predicate, fallback }) => {
-  if (!predicate || records.length === 0) {
-    return fallback;
-  }
-
-  const fraudRecords = records.filter(isFraudRecord);
-  const legitimateRecords = records.filter((record) => !isFraudRecord(record));
-  const fraudMatches = fraudRecords.filter(predicate).length;
-  const legitimateMatches = legitimateRecords.filter(predicate).length;
-
-  return {
-    fraud: (fraudMatches + 1) / (datasetStats.fraudRecords + 2),
-    legitimate: (legitimateMatches + 1) / (datasetStats.legitimateRecords + 2),
-  };
-};
-
-const isBillRangeOutlier = (record) => {
-  const billAmount = toNumber(record?.billAmount);
-  const expectedBillMin = toNumber(record?.expectedBillMin);
-  const expectedBillMax = toNumber(record?.expectedBillMax);
-
-  if (
-    billAmount === null ||
-    expectedBillMin === null ||
-    expectedBillMax === null
-  ) {
-    return false;
-  }
-
-  return (
-    billAmount < expectedBillMin * (1 - BILL_RANGE_TOLERANCE_RATE) ||
-    billAmount > expectedBillMax * (1 + BILL_RANGE_TOLERANCE_RATE)
-  );
 };
 
 const buildAnomalySignals = ({ records, record, query }) => {
@@ -178,39 +132,27 @@ const buildEvidenceFactors = ({ record, comparison, anomalySignals }) => {
       label: "Clean registry match",
       active:
         Boolean(record) &&
-        comparison?.blockingFailureCount === 0 &&
-        comparison?.warningFailureCount === 0 &&
-        !isFraudRecord(record),
-      likelihood: { fraud: 0.04, legitimate: 0.96 },
-      source: "fixed",
+        !hasComparisonFailureExceptFraudLabel(comparison),
     },
     {
       key: "registry_record_missing",
       label: "Registry record missing",
       active: !record,
-      likelihood: { fraud: 0.98, legitimate: 0.02 },
-      source: "fixed",
     },
     {
       key: "hospital_id_mismatch",
       label: "Hospital ID mismatch",
       active: checkFailed(comparison, "hospitalId"),
-      likelihood: { fraud: 0.92, legitimate: 0.04 },
-      source: "fixed",
     },
     {
       key: "invoice_hash_mismatch",
       label: "Invoice hash mismatch",
       active: checkFailed(comparison, "invoiceHash"),
-      likelihood: { fraud: 0.95, legitimate: 0.03 },
-      source: "fixed",
     },
     {
       key: "claim_exceeds_registry_bill",
       label: "Claim amount exceeds registry bill",
       active: checkFailed(comparison, "billAmount"),
-      likelihood: { fraud: 0.88, legitimate: 0.06 },
-      source: "fixed",
     },
     {
       key: "bill_range_anomaly",
@@ -218,36 +160,23 @@ const buildEvidenceFactors = ({ record, comparison, anomalySignals }) => {
       active:
         checkFailed(comparison, "expectedBillRange") ||
         anomalySignals.amountZScore.isAnomaly,
-      predicate: isBillRangeOutlier,
-      fallback: { fraud: 0.7, legitimate: 0.12 },
-      source: "synthetic_registry",
     },
     {
       key: "treatment_type_mismatch",
       label: "Treatment type mismatch",
       active: checkFailed(comparison, "treatmentType"),
-      likelihood: { fraud: 0.78, legitimate: 0.07 },
-      source: "fixed",
     },
     {
       key: "date_mismatch",
       label: "Treatment date mismatch",
       active:
         checkFailed(comparison, "dateConsistency") ||
-        record?.fraudSignals?.dateMismatch ||
-        record?.fraudLabel === "DATE_MISMATCH",
-      predicate: (item) =>
-        item.fraudSignals?.dateMismatch || item.fraudLabel === "DATE_MISMATCH",
-      fallback: { fraud: 0.55, legitimate: 0.08 },
-      source: "synthetic_registry",
+        record?.fraudSignals?.dateMismatch,
     },
     {
       key: "invalid_record_status",
       label: "Invalid registry status",
       active: record ? record.recordStatus !== "VALID" : true,
-      predicate: (item) => item.recordStatus !== "VALID",
-      fallback: { fraud: 0.8, legitimate: 0.08 },
-      source: "synthetic_registry",
     },
     {
       key: "used_invoice",
@@ -256,12 +185,6 @@ const buildEvidenceFactors = ({ record, comparison, anomalySignals }) => {
         record?.invoiceStatus === "USED" ||
         record?.recordStatus === "USED" ||
         record?.fraudSignals?.usedInvoice,
-      predicate: (item) =>
-        item.invoiceStatus === "USED" ||
-        item.recordStatus === "USED" ||
-        item.fraudSignals?.usedInvoice,
-      fallback: { fraud: 0.65, legitimate: 0.05 },
-      source: "synthetic_registry",
     },
     {
       key: "cancelled_record",
@@ -270,20 +193,11 @@ const buildEvidenceFactors = ({ record, comparison, anomalySignals }) => {
         record?.invoiceStatus === "CANCELLED" ||
         record?.recordStatus === "CANCELLED" ||
         record?.fraudSignals?.cancelledRecord,
-      predicate: (item) =>
-        item.invoiceStatus === "CANCELLED" ||
-        item.recordStatus === "CANCELLED" ||
-        item.fraudSignals?.cancelledRecord,
-      fallback: { fraud: 0.62, legitimate: 0.05 },
-      source: "synthetic_registry",
     },
     {
       key: "license_suspended",
       label: "Suspended hospital license",
       active: record?.licenseStatus === "SUSPENDED",
-      predicate: (item) => item.licenseStatus === "SUSPENDED",
-      fallback: { fraud: 0.5, legitimate: 0.1 },
-      source: "synthetic_registry",
     },
     {
       key: "license_blacklisted",
@@ -291,19 +205,6 @@ const buildEvidenceFactors = ({ record, comparison, anomalySignals }) => {
       active:
         record?.licenseStatus === "BLACKLISTED" ||
         record?.fraudSignals?.blacklistedHospital,
-      predicate: (item) =>
-        item.licenseStatus === "BLACKLISTED" ||
-        item.fraudSignals?.blacklistedHospital,
-      fallback: { fraud: 0.75, legitimate: 0.04 },
-      source: "synthetic_registry",
-    },
-    {
-      key: "fraud_label_present",
-      label: "Synthetic fraud label present",
-      active: record ? isFraudRecord(record) : true,
-      predicate: isFraudRecord,
-      fallback: { fraud: 0.95, legitimate: 0.05 },
-      source: "synthetic_registry",
     },
     {
       key: "repeat_claim_pattern",
@@ -311,9 +212,6 @@ const buildEvidenceFactors = ({ record, comparison, anomalySignals }) => {
       active:
         (toNumber(record?.previousClaimCount) ?? 0) >= 2 ||
         anomalySignals.repeatClaimZScore.isAnomaly,
-      predicate: (item) => (toNumber(item.previousClaimCount) ?? 0) >= 2,
-      fallback: { fraud: 0.52, legitimate: 0.12 },
-      source: "synthetic_registry",
     },
   ];
 };
@@ -343,13 +241,21 @@ const getRecommendation = ({ riskScore, comparison, hasAnomaly }) => {
   return "AUTO_VERIFY_RECOMMENDED";
 };
 
-const buildRiskAssessment = async ({ record, comparison, query }) => {
-  const records = await MockHospitalRecord.find()
-    .select(
-      "billAmount expectedBillMin expectedBillMax treatmentType recordStatus invoiceStatus licenseStatus fraudLabel fraudSignals previousClaimCount"
-    )
-    .lean();
-  const datasetStats = getDatasetStats(records);
+const buildRiskAssessment = async ({
+  record,
+  comparison,
+  query,
+  records: suppliedRecords,
+  modelParams = loadedModelParams,
+}) => {
+  const records =
+    suppliedRecords ||
+    (await MockHospitalRecord.find()
+      .select(
+        "billAmount expectedBillMin expectedBillMax treatmentType recordStatus invoiceStatus licenseStatus fraudLabel fraudSignals previousClaimCount"
+      )
+      .lean());
+  const datasetStats = modelParams.trainingSet;
   const anomalySignals = buildAnomalySignals({ records, record, query });
   const factors = buildEvidenceFactors({
     record,
@@ -361,14 +267,12 @@ const buildRiskAssessment = async ({ record, comparison, query }) => {
     clampProbability(1 - datasetStats.priorFraudProbability)
   );
   const evidence = factors.map((factor) => {
-    const likelihood = factor.predicate
-      ? getLikelihood({
-          records,
-          datasetStats,
-          predicate: factor.predicate,
-          fallback: factor.fallback,
-        })
-      : factor.likelihood;
+    const likelihood = modelParams.factorLikelihoods[factor.key];
+
+    if (!likelihood) {
+      throw new Error(`Missing trained likelihood for factor: ${factor.key}`);
+    }
+
     const active = Boolean(factor.active);
     const fraudLikelihood = clampProbability(active ? likelihood.fraud : 1);
     const legitimateLikelihood = clampProbability(
@@ -385,7 +289,7 @@ const buildRiskAssessment = async ({ record, comparison, query }) => {
       key: factor.key,
       label: factor.label,
       active,
-      source: factor.source,
+      source: "trained_model_params",
       likelihoodGivenFraud: round(likelihood.fraud),
       likelihoodGivenLegitimate: round(likelihood.legitimate),
       appliedFraudLikelihood: round(fraudLikelihood),
@@ -416,8 +320,8 @@ const buildRiskAssessment = async ({ record, comparison, query }) => {
   const activeEvidence = evidence.filter((item) => item.active);
 
   return {
-    modelVersion: MODEL_VERSION,
-    method: "Naive Bayes with Laplace-smoothed synthetic registry likelihoods and Z-score anomaly checks",
+    modelVersion: modelParams.modelVersion,
+    method: "Naive Bayes with likelihoods trained from the synthetic registry using Laplace smoothing and Z-score anomaly checks",
     formula:
       "P(fraud | evidence) = P(evidence | fraud) * P(fraud) / P(evidence)",
     thresholds: {
@@ -433,6 +337,8 @@ const buildRiskAssessment = async ({ record, comparison, query }) => {
       priorFraudProbability: round(datasetStats.priorFraudProbability),
       priorFraudPercent: Math.round(datasetStats.priorFraudProbability * 100),
       smoothing: datasetStats.smoothing,
+      trainedAt: modelParams.trainedAt,
+      source: modelParams.source,
     },
     posteriorFraudProbability: round(posteriorFraudProbability),
     posteriorFraudPercent: riskScore,
