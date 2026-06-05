@@ -144,7 +144,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => mapping(address => bool)) public oracleHasConfirmed;
     mapping(uint256 => bool[]) public oracleConfirmationResults;
 
-    mapping(uint256 => bytes32) private claimRejectionReasonHash;
     mapping(uint256 => SettlementRecord) private settlementRecords;
     mapping(uint256 => bool) public claimAppealed;
     mapping(uint256 => bool) public claimAppealFinalized;
@@ -668,10 +667,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         emit PolicyExpired(policyId, block.timestamp);
     }
 
-    function getContractBalance() external view returns (uint256) {
-        return address(this).balance;
-    }
-
     // =============================================================
     // Registry Merkle Commitment
     // =============================================================
@@ -686,18 +681,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             block.timestamp,
             block.number,
             msg.sender
-        );
-    }
-
-    function getRegistrySnapshot()
-        external
-        view
-        returns (bytes32 root, uint256 timestamp, uint256 blockNumber)
-    {
-        return (
-            registryMerkleRoot,
-            registrySnapshotTimestamp,
-            registrySnapshotBlock
         );
     }
 
@@ -842,11 +825,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     function getClaimStatus(uint256 claimId) external view returns (ClaimStatus) {
         require(_claimExists(claimId), "Claim does not exist");
         return claims[claimId].status;
-    }
-
-    function isFraudFlagged(uint256 claimId) external view returns (bool) {
-        require(_claimExists(claimId), "Claim does not exist");
-        return claims[claimId].status == ClaimStatus.FRAUD_FLAGGED;
     }
 
     // =============================================================
@@ -1141,20 +1119,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         emit ReserveWarningThresholdUpdated(newThresholdWei, block.timestamp);
     }
 
-    function getOracleConfirmationStatus(uint256 requestId)
-        external
-        view
-        returns (uint8 confirmations, uint8 required, bool finalized)
-    {
-        require(_oracleRequestExists(requestId), "Oracle request does not exist");
-
-        return (
-            oracleConfirmationCount[requestId],
-            oracleQuorumThreshold,
-            oracleRequests[requestId].isFulfilled
-        );
-    }
-
     function getOracleRequest(uint256 requestId) external view returns (OracleRequest memory) {
         require(_oracleRequestExists(requestId), "Oracle request does not exist");
         return oracleRequests[requestId];
@@ -1202,7 +1166,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(claims[claimId].status != ClaimStatus.CLOSED, "Claim already closed");
 
         claims[claimId].status = ClaimStatus.REJECTED;
-        claimRejectionReasonHash[claimId] = reasonHash;
         claimResolvedAt[claimId] = block.timestamp;
 
         emit ClaimRejected(claimId, msg.sender, reasonHash);
@@ -1232,7 +1195,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         }
 
         delete claimVoters[claimId];
-        delete claimRejectionReasonHash[claimId];
         delete claimResolvedAt[claimId];
         oracleRequestByClaimId[claimId] = 0;
         claims[claimId].riskScore = claimBaseRiskScore[claimId];
@@ -1466,13 +1428,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         emit ExcessWithdrawn(msg.sender, amount);
     }
 
-    function getRejectionReasonHash(uint256 claimId) external view returns (bytes32) {
-        require(_claimExists(claimId), "Claim does not exist");
-        return claimRejectionReasonHash[claimId];
-    }
-
     function getSettlementRecord(uint256 claimId) external view returns (SettlementRecord memory) {
-        require(_claimExists(claimId), "Claim does not exist");
         require(settlementRecords[claimId].settledAt != 0, "Settlement does not exist");
 
         return settlementRecords[claimId];

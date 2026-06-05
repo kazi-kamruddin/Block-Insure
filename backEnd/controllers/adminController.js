@@ -1,6 +1,8 @@
 const { ethers } = require("ethers");
 const {
   getAdminContract,
+  getContractBalance,
+  getRegistrySnapshot,
   getReadOnlyContract,
 } = require("../services/contractService");
 const { buildReserveIntelligence } = require("../services/settlementIntelligenceService");
@@ -83,8 +85,8 @@ const formatPolicyPackage = (policyPackage) => {
   };
 };
 
-const formatContractBalance = async (contract) => {
-  const balance = await contract.getContractBalance();
+const formatContractBalance = async () => {
+  const balance = await getContractBalance();
 
   return {
     wei: balance.toString(),
@@ -329,7 +331,7 @@ const getReserveIntelligence = async (req, res, next) => {
 const getRegistryMerkleRoot = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
-    const snapshot = await contract.getRegistrySnapshot();
+    const snapshot = await getRegistrySnapshot(contract);
 
     res.status(200).json({
       success: true,
@@ -347,7 +349,7 @@ const pushRegistryMerkleRoot = async (req, res, next) => {
 
     const tx = await contract.updateRegistryMerkleRoot(root);
     const receipt = await tx.wait();
-    const snapshot = await contract.getRegistrySnapshot();
+    const snapshot = await getRegistrySnapshot(contract);
 
     res.status(200).json({
       success: true,

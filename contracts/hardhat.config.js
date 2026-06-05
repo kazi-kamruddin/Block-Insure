@@ -13,12 +13,16 @@ module.exports = {
         runs: 1,
       },
       viaIR: true,
+      debug: {
+        revertStrings: "strip",
+      },
+      metadata: {
+        bytecodeHash: "none",
+      },
     },
   },
   networks: {
-    hardhat: {
-      allowUnlimitedContractSize: true,
-    },
+    hardhat: {},
     sepolia: {
       url: RPC_URL || "",
       accounts: ADMIN_PRIVATE_KEY ? [ADMIN_PRIVATE_KEY] : [],

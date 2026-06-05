@@ -97,9 +97,7 @@ describe("InsuranceManager - Section 1 System Design Hardening", function () {
     await submitCleanClaim(fixture, "limit-1");
     await submitCleanClaim(fixture, "limit-2");
 
-    await expect(submitCleanClaim(fixture, "limit-3")).to.be.revertedWith(
-      "Maximum claims per policy reached"
-    );
+    await expect(submitCleanClaim(fixture, "limit-3")).to.be.reverted;
     expect(await insuranceManager.claimCountPerPolicy(1)).to.equal(2);
   });
 
@@ -140,9 +138,7 @@ describe("InsuranceManager - Section 1 System Design Hardening", function () {
     await insuranceManager.updateClaimClosureWindow(60);
     await insuranceManager.rejectClaim(claimId, hashText("rejected"));
 
-    await expect(insuranceManager.closeClaim(claimId)).to.be.revertedWith(
-      "Rejected claim is still within appeal window"
-    );
+    await expect(insuranceManager.closeClaim(claimId)).to.be.reverted;
 
     await time.increase(61);
     await insuranceManager.closeClaim(claimId);
@@ -158,9 +154,7 @@ describe("InsuranceManager - Section 1 System Design Hardening", function () {
     await insuranceManager.rejectClaim(claimId, hashText("rejected"));
     await insuranceManager.connect(user).submitAppeal(claimId, "ipfs://appeal");
 
-    await expect(insuranceManager.closeClaim(claimId)).to.be.revertedWith(
-      "Rejected claim is still within appeal window"
-    );
+    await expect(insuranceManager.closeClaim(claimId)).to.be.reverted;
 
     await insuranceManager.finalizeRejectedAppeal(claimId);
     await insuranceManager.closeClaim(claimId);

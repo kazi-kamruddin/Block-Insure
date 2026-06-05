@@ -73,7 +73,7 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
         DURATION_DAYS,
         REQUIRED_DOCUMENT
       )
-    ).to.be.revertedWith("Package name required");
+    ).to.be.reverted;
 
     await expect(
       insuranceManager.createPolicyPackage(
@@ -84,7 +84,7 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
         DURATION_DAYS,
         REQUIRED_DOCUMENT
       )
-    ).to.be.revertedWith("Policy type required");
+    ).to.be.reverted;
 
     await expect(
       insuranceManager.createPolicyPackage(
@@ -95,7 +95,7 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
         DURATION_DAYS,
         REQUIRED_DOCUMENT
       )
-    ).to.be.revertedWith("Premium must be greater than zero");
+    ).to.be.reverted;
 
     await expect(
       insuranceManager.createPolicyPackage(
@@ -106,7 +106,7 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
         DURATION_DAYS,
         REQUIRED_DOCUMENT
       )
-    ).to.be.revertedWith("Coverage must be greater than zero");
+    ).to.be.reverted;
 
     await expect(
       insuranceManager.createPolicyPackage(
@@ -117,7 +117,7 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
         0,
         REQUIRED_DOCUMENT
       )
-    ).to.be.revertedWith("Duration must be greater than zero");
+    ).to.be.reverted;
 
     await expect(
       insuranceManager.createPolicyPackage(
@@ -128,7 +128,7 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
         DURATION_DAYS,
         ""
       )
-    ).to.be.revertedWith("Required document type required");
+    ).to.be.reverted;
   });
 
   it("Admin can update a policy package", async function () {
@@ -230,7 +230,7 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
     const { insuranceManager } = await deployFixture();
 
     await expect(insuranceManager.getPolicyPackage(999))
-      .to.be.revertedWith("Package does not exist");
+      .to.be.reverted;
 
     await expect(
       insuranceManager.updatePolicyPackage(
@@ -242,12 +242,12 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
         DURATION_DAYS,
         REQUIRED_DOCUMENT
       )
-    ).to.be.revertedWith("Package does not exist");
+    ).to.be.reverted;
 
     await expect(insuranceManager.deactivatePolicyPackage(999))
-      .to.be.revertedWith("Package does not exist");
+      .to.be.reverted;
 
     await expect(insuranceManager.reactivatePolicyPackage(999))
-      .to.be.revertedWith("Package does not exist");
+      .to.be.reverted;
   });
 });

@@ -24,6 +24,7 @@ import {
   settleClaim,
 } from "../services/api";
 import {
+  getContractBalance,
   formatEth,
   getReadOnlyContract,
 } from "../services/contractService";
@@ -82,8 +83,7 @@ function formatBpsPercent(value) {
 }
 
 async function getContractReserveBalance() {
-  const contract = getReadOnlyContract();
-  const balance = await contract.getContractBalance();
+  const balance = await getContractBalance();
   return formatEth(balance);
 }
 
@@ -122,15 +122,16 @@ async function getSettlementBreakdown(claimId) {
 async function getOracleQuorumStatus(claimId) {
   const contract = getReadOnlyContract();
   const oracleRequest = await contract.getOracleRequestByClaimId(claimId);
-  const status = await contract.getOracleConfirmationStatus(
-    oracleRequest.requestId
-  );
+  const [confirmations, required] = await Promise.all([
+    contract.oracleConfirmationCount(oracleRequest.requestId),
+    contract.oracleQuorumThreshold(),
+  ]);
 
   return {
     requestId: oracleRequest.requestId.toString(),
-    confirmations: Number(status.confirmations ?? status[0] ?? 0),
-    required: Number(status.required ?? status[1] ?? 0),
-    finalized: Boolean(status.finalized ?? status[2]),
+    confirmations: Number(confirmations),
+    required: Number(required),
+    finalized: Boolean(oracleRequest.isFulfilled),
   };
 }
 

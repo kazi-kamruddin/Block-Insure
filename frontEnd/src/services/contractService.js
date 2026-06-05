@@ -30,12 +30,20 @@ function requireContractAddress() {
   return CONTRACT_ADDRESS;
 }
 
+export function getContractAddress() {
+  return requireContractAddress();
+}
+
 export function getReadProvider() {
   return new ethers.JsonRpcProvider(RPC_URL);
 }
 
 export function getReadOnlyContract() {
   return new ethers.Contract(requireContractAddress(), ABI, getReadProvider());
+}
+
+export async function getContractBalance() {
+  return getReadProvider().getBalance(requireContractAddress());
 }
 
 export async function getBrowserProvider() {

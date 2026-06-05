@@ -33,6 +33,21 @@ const getReadOnlyContract = () => {
   );
 };
 
+const getContractBalance = async () => {
+  const provider = getProvider();
+  return provider.getBalance(getContractAddress());
+};
+
+const getRegistrySnapshot = async (contract = getReadOnlyContract()) => {
+  const [root, timestamp, blockNumber] = await Promise.all([
+    contract.registryMerkleRoot(),
+    contract.registrySnapshotTimestamp(),
+    contract.registrySnapshotBlock(),
+  ]);
+
+  return { root, timestamp, blockNumber };
+};
+
 const getAdminWallet = () => {
   const provider = getProvider();
   const privateKey = getRequiredEnv("ADMIN_PRIVATE_KEY");
@@ -58,6 +73,8 @@ const getAdminContract = () => {
 module.exports = {
   getProvider,
   getContractAddress,
+  getContractBalance,
+  getRegistrySnapshot,
   getReadOnlyContract,
   getAdminContract,
 };

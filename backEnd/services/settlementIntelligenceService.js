@@ -1,5 +1,5 @@
 const { ethers } = require("ethers");
-const { getReadOnlyContract } = require("./contractService");
+const { getContractBalance, getReadOnlyContract } = require("./contractService");
 
 const CLAIM_STATUS = [
   "SUBMITTED",
@@ -209,7 +209,7 @@ const buildReserveIntelligence = async () => {
     deductibleCapWei,
     insurerShareBps,
   ] = await Promise.all([
-    contract.getContractBalance(),
+    getContractBalance(),
     getAllClaims(contract),
     getAllPolicies(contract),
     contract.deductibleRateBps(),

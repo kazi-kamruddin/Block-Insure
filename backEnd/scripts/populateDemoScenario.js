@@ -364,7 +364,12 @@ async function verifyAgainstRegistry({
       ? "HIGH"
       : "MEDIUM";
   const riskLevel = getHigherRiskLevel(comparisonRiskLevel, riskAssessment.riskLevel);
-  const snapshot = await contract.getRegistrySnapshot();
+  const [root, timestamp, blockNumber] = await Promise.all([
+    contract.registryMerkleRoot(),
+    contract.registrySnapshotTimestamp(),
+    contract.registrySnapshotBlock(),
+  ]);
+  const snapshot = { root, timestamp, blockNumber };
 
   return {
     success: true,

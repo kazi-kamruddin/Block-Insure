@@ -23,7 +23,11 @@ describe("InsuranceManager - Registry Merkle Root Commitment", function () {
       .to.emit(insuranceManager, "RegistryRootUpdated")
       .withArgs(root, block.timestamp, receipt.blockNumber, admin.address);
 
-    const snapshot = await insuranceManager.getRegistrySnapshot();
+    const snapshot = {
+      root: await insuranceManager.registryMerkleRoot(),
+      timestamp: await insuranceManager.registrySnapshotTimestamp(),
+      blockNumber: await insuranceManager.registrySnapshotBlock(),
+    };
 
     expect(snapshot.root).to.equal(root);
     expect(snapshot.timestamp).to.equal(block.timestamp);

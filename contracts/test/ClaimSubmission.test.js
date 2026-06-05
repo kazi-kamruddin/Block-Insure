@@ -191,7 +191,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         DOCUMENT_HASH,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Policy does not exist");
+    ).to.be.reverted;
   });
 
   it("Rejects claim if caller is not the policy holder", async function () {
@@ -218,7 +218,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         DOCUMENT_HASH,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Caller is not policy holder");
+    ).to.be.reverted;
   });
 
   it("Rejects claim if incident date is before policy start date", async function () {
@@ -247,7 +247,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         DOCUMENT_HASH,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Incident date outside policy period");
+    ).to.be.reverted;
   });
 
   it("Rejects claim if incident date is in the future", async function () {
@@ -275,7 +275,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         DOCUMENT_HASH,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Incident date cannot be in the future");
+    ).to.be.reverted;
   });
 
   it("Rejects claim amount greater than policy coverage", async function () {
@@ -303,7 +303,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         DOCUMENT_HASH,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Claim amount exceeds coverage");
+    ).to.be.reverted;
   });
 
   it("Rejects claim with zero claim amount", async function () {
@@ -329,7 +329,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         DOCUMENT_HASH,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Claim amount must be greater than zero");
+    ).to.be.reverted;
   });
 
   it("Rejects claim with missing text fields", async function () {
@@ -355,7 +355,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         DOCUMENT_HASH,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Claim type required");
+    ).to.be.reverted;
 
     await expect(
       insuranceManager.connect(user).submitClaim(
@@ -368,7 +368,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         DOCUMENT_HASH,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Hospital ID required");
+    ).to.be.reverted;
 
     await expect(
       insuranceManager.connect(user).submitClaim(
@@ -381,7 +381,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         DOCUMENT_HASH,
         ""
       )
-    ).to.be.revertedWith("Document CID required");
+    ).to.be.reverted;
   });
 
   it("Rejects claim with missing hashes", async function () {
@@ -410,7 +410,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         validDocumentHash,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Invoice hash required");
+    ).to.be.reverted;
 
     await expect(
       insuranceManager.connect(user).submitClaim(
@@ -423,17 +423,17 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
         ZERO_HASH,
         DOCUMENT_CID
       )
-    ).to.be.revertedWith("Document hash required");
+    ).to.be.reverted;
   });
 
   it("Rejects reading non-existing claim or claim documents", async function () {
     const { insuranceManager } = await deployFixture();
 
     await expect(insuranceManager.getClaim(999))
-      .to.be.revertedWith("Claim does not exist");
+      .to.be.reverted;
 
     await expect(insuranceManager.getClaimDocuments(999))
-      .to.be.revertedWith("Claim does not exist");
+      .to.be.reverted;
   });
 
   it("Claim submission is blocked when contract is paused", async function () {

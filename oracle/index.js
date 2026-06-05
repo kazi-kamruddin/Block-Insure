@@ -207,7 +207,16 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       },
     });
 
-    const onChainSnapshot = await contract.getRegistrySnapshot();
+    const [registryRoot, registryTimestamp, registryBlock] = await Promise.all([
+      contract.registryMerkleRoot(),
+      contract.registrySnapshotTimestamp(),
+      contract.registrySnapshotBlock(),
+    ]);
+    const onChainSnapshot = {
+      root: registryRoot,
+      timestamp: registryTimestamp,
+      blockNumber: registryBlock,
+    };
     const localMerkleRoot = hospitalResponse.data.merkleProof?.rootHash || "";
     const onChainMerkleRoot = onChainSnapshot.root || onChainSnapshot[0];
     const registrySnapshotTimestamp =
@@ -217,13 +226,18 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
     const merkleRootMatchesChain =
       normalizeHash(localMerkleRoot) !== "" &&
       normalizeHash(localMerkleRoot) === normalizeHash(onChainMerkleRoot);
-    const verified = hospitalResponse.data.verified === true;
+    const hospitalVerified = hospitalResponse.data.verified === true;
+    const verified = hospitalVerified && merkleRootMatchesChain;
     const riskLevel =
-      hospitalResponse.data.riskLevel || (verified ? "LOW" : "HIGH");
+      !merkleRootMatchesChain
+        ? "HIGH"
+        : hospitalResponse.data.riskLevel || (verified ? "LOW" : "HIGH");
 
     const remarks =
-      hospitalResponse.data.message ||
-      (verified ? "Hospital record matched" : "Hospital record mismatch");
+      !merkleRootMatchesChain
+        ? "Hospital registry Merkle root mismatch"
+        : hospitalResponse.data.message ||
+          (verified ? "Hospital record matched" : "Hospital record mismatch");
 
     const oracleResponse = {
       requestId: requestId.toString(),
@@ -231,6 +245,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       oracleType,
       queryData,
       hospitalVerification: hospitalResponse.data,
+      hospitalVerified,
       merkleRootMatchesChain,
       registryCommitment: {
         localRoot: localMerkleRoot,
