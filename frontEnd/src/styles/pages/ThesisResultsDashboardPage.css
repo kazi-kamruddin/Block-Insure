@@ -1,0 +1,310 @@
+.page-thesis-results {
+  display: grid;
+  gap: 16px;
+}
+
+.page-thesis-results > button {
+  justify-self: start;
+}
+
+.page-thesis-results .thesis-section {
+  max-width: 100%;
+  margin: 0;
+}
+
+.thesis-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.thesis-section-head h3 {
+  margin: 0;
+}
+
+.thesis-section-head span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.thesis-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.thesis-metric-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.thesis-metric-grid > div,
+.risk-level-list > div,
+.registry-commitment-grid > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.thesis-metric-grid span,
+.risk-level-list span,
+.registry-commitment-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.thesis-metric-grid strong,
+.risk-level-list strong,
+.registry-commitment-grid strong {
+  color: var(--text);
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.thesis-metric-grid strong.metric-text {
+  font-size: 15px;
+}
+
+.thesis-two-column,
+.gas-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.throughput-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 430px) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+
+.confusion-matrix,
+.thesis-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.confusion-matrix th,
+.confusion-matrix td,
+.thesis-table th,
+.thesis-table td {
+  padding: 11px 10px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.confusion-matrix th,
+.thesis-table th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.confusion-matrix td {
+  font-weight: 800;
+}
+
+.confusion-matrix td strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 24px;
+}
+
+.matrix-good {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--success);
+}
+
+.matrix-warn {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--warning);
+}
+
+.matrix-bad {
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--danger);
+}
+
+.risk-level-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.thesis-table-wrap {
+  overflow: auto;
+}
+
+.thesis-table {
+  min-width: 620px;
+}
+
+.gas-chart {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.throughput-chart {
+  width: 100%;
+  max-width: 430px;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.gas-chart line,
+.throughput-chart line {
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.gas-chart rect,
+.throughput-chart rect {
+  rx: 4;
+}
+
+.gas-chart text,
+.throughput-chart text {
+  fill: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.throughput-chart polyline {
+  fill: none;
+  stroke: var(--brand);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.throughput-chart circle {
+  fill: var(--brand-strong);
+}
+
+.throughput-latency-bar {
+  fill: rgba(96, 165, 250, 0.28);
+}
+
+.thesis-chart-note {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.thesis-chart-note strong {
+  color: var(--text);
+}
+
+.thesis-chart-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.gas-chart-individual {
+  fill: var(--danger);
+}
+
+.gas-chart-merkle {
+  fill: var(--success);
+}
+
+.risk-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.risk-bar-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 44px 96px;
+  align-items: center;
+  gap: 10px;
+}
+
+.risk-bar-row > span,
+.risk-bar-row > strong,
+.risk-bar-row > em {
+  color: var(--muted);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.risk-bar-row > div {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #26344a;
+}
+
+.risk-bar-row b {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: var(--success);
+}
+
+.risk-high b {
+  background: var(--warning);
+}
+
+.risk-critical b {
+  background: var(--danger);
+}
+
+.registry-commitment-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) repeat(3, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.registry-commitment-grid strong {
+  font-size: 15px;
+}
+
+@media (max-width: 820px) {
+  .thesis-section-head,
+  .thesis-two-column,
+  .gas-layout,
+  .throughput-layout,
+  .registry-commitment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .thesis-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .risk-bar-row {
+    grid-template-columns: 58px 1fr 36px;
+  }
+
+  .risk-bar-row > em {
+    grid-column: 2 / span 2;
+  }
+}

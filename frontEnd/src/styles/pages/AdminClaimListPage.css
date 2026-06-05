@@ -1,0 +1,12 @@
+.page-admin-claim-list .card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.page-admin-claim-list .card {
+  margin: 0;
+}
+
+.page-admin-claim-list .card h3 {
+  color: var(--brand-strong);
+}

@@ -1,10 +1,13 @@
 # Dependencies
 node_modules/
+.hardhat-appdata/
+.hardhat-localappdata/
 
 # Environment files
 .env
 .env.*
 !.env.example
+!.env.oracle2.example
 
 # Build outputs
 dist/

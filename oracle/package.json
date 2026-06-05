@@ -1,0 +1,20 @@
+{
+  "name": "oracle",
+  "version": "1.0.0",
+  "description": "Block-Insure independent oracle node simulator",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --check index.js",
+    "dev": "node index.js",
+    "dev:oracle2": "node -e \"process.env.ORACLE_INSTANCE_ID='2'; require('./index')\"",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.16.1",
+    "dotenv": "^17.4.2",
+    "ethers": "^6.16.0"
+  }
+}

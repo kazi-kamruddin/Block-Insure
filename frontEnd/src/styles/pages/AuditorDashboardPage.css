@@ -1,0 +1,16 @@
+.page-auditor-dashboard .auditor-workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.page-auditor-dashboard .card-row .card {
+  display: flex;
+  min-height: 230px;
+  margin: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.page-auditor-dashboard .card-row .card a {
+  margin-top: auto;
+}

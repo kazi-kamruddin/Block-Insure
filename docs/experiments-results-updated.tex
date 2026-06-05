@@ -1,0 +1,694 @@
+\chapter{Experiments and Results}
+\label{chap:experiments_results}
+
+\section{Overview}
+\label{sec:results_overview}
+
+This chapter evaluates the Block-Insure prototype against the research questions
+defined in Chapter~\ref{chap:methodology}. The evaluation covers smart-contract
+correctness, code coverage, deployability constraints, gas efficiency of Merkle
+commitment, synthetic fraud-risk classification, and exploratory local
+claim-submission throughput. The auditor-reputation study is also reported as an
+implemented but currently unmeasurable study because no finalized voting
+sessions exist.
+
+The results must be interpreted within the experimental boundary. The
+blockchain is a local Hardhat network, healthcare records are deterministic and
+synthetic, both oracle workers share prototype infrastructure, and the
+throughput study consists of one local batch at each concurrency level.
+Consequently, the results demonstrate implemented behavior and reproducibility;
+they do not establish production performance, public-chain deployability, or
+real-world fraud-model generalization.
+
+\begin{table}[htbp]
+\centering
+\caption{Summary of research questions and principal findings}
+\label{tab:rq_findings}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{|p{1.1cm}|p{7.1cm}|p{7.0cm}|}
+\hline
+\textbf{RQ} & \textbf{Principal Finding} & \textbf{Interpretation} \\
+\hline
+RQ1 & 117 contract tests passed; statement, function, and line coverage exceeded
+98\%, while branch coverage was 77.21\% & Strong evidence of conformance to the
+specified test suite, but not a security audit \\
+\hline
+RQ2 & Merkle-root storage saved 82.41\%--99.62\% gas across tested registry
+sizes & Compact commitment scales substantially better than individual hash
+storage \\
+\hline
+RQ3 & Held-out synthetic evaluation produced \(TP=7\), \(TN=8\), \(FP=0\),
+\(FN=0\), with AUC and AP of 1.0000 & The model separates deliberately
+structured synthetic cases; result is not generalizable to real fraud \\
+\hline
+RQ4 & Throughput increased to 48.3827 successful claims/s at concurrency 20
+with no failures; concurrency 50 achieved 49.2880 successful claims/s but only
+78\% success & Local automining and nonce handling became the limiting factor \\
+\hline
+RQ5 & No finalized voting sessions were available & No correlation is reported;
+fabricating a result was avoided \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\section{Experimental Environment and Verification Status}
+\label{sec:experimental_environment}
+
+The implementation and generated artifacts were audited on 4 June 2026 using
+the local workspace configuration shown in Table~\ref{tab:environment}.
+Contract tests, backend analytics tests, oracle syntax validation, frontend lint,
+and the frontend build attempt were rerun during the audit. The retained
+coverage report was generated earlier by the same project test suite.
+Node-visible memory is reported because it was measured programmatically;
+installed physical memory should be manually confirmed before final thesis
+submission.
+
+\begin{table}[htbp]
+\centering
+\caption{Experimental environment}
+\label{tab:environment}
+\begin{tabular}{|p{5.0cm}|p{8.4cm}|}
+\hline
+\textbf{Component} & \textbf{Observed Configuration} \\
+\hline
+Operating system & Windows, \texttt{win32 x64}, release \texttt{10.0.26200} \\
+\hline
+Processor & AMD Ryzen 5 5600H with Radeon Graphics, 12 logical processors \\
+\hline
+Node-visible memory & 7,883,206,656 bytes, approximately 7.34 GiB \\
+\hline
+Node.js and npm & Node.js \texttt{v24.16.0}; npm \texttt{10.2.5} \\
+\hline
+Blockchain toolchain & Solidity \texttt{0.8.28}; Hardhat \texttt{2.28.0};
+OpenZeppelin Contracts \texttt{5.6.1}; ethers.js \texttt{6.16.0} \\
+\hline
+Application stack & Express \texttt{5.2.1}; Mongoose \texttt{9.6.2}; React
+\texttt{19.2.6}; Vite \texttt{8.0.14} \\
+\hline
+Blockchain network & Local Hardhat network with automining and unlimited
+contract size enabled \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Verification and artifact status}
+\label{tab:verification_status}
+\begin{tabular}{|p{6.0cm}|p{3.2cm}|p{4.4cm}|}
+\hline
+\textbf{Check or Study} & \textbf{Status} & \textbf{Observed Result} \\
+\hline
+Hardhat smart-contract tests & Complete & 117 passing, 0 failing \\
+\hline
+Solidity coverage artifact & Complete & 98.64\% statements; 77.21\% branches;
+100\% functions; 98.91\% lines \\
+\hline
+Backend analytics tests & Complete & Passed \\
+\hline
+Oracle syntax validation & Complete & Passed \\
+\hline
+Frontend lint & Complete & Passed \\
+\hline
+Frontend production build & Environment-blocked & Vite/Rolldown rejected the
+Windows workspace path containing spaces \\
+\hline
+Gas comparison & Complete & Six registry sizes measured \\
+\hline
+Fraud-risk evaluation and chart generation & Complete & Held-out artifacts and
+10 PNG charts generated \\
+\hline
+Claim throughput benchmark & Complete & Five concurrency levels measured \\
+\hline
+Auditor reputation analysis & Not yet measurable & No finalized voting
+sessions \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Smart-Contract Correctness and Coverage}
+\label{sec:contract_results}
+
+\subsection{Functional Test Results}
+
+The Hardhat suite exercised successful operations, invalid inputs, unauthorized
+calls, duplicate detection, oracle quorum, timeout behavior, appeals, voting,
+settlement, closure, and emergency controls. All 117 tests passed.
+
+\begin{table}[htbp]
+\centering
+\caption{Smart-contract test-suite results}
+\label{tab:contract_tests}
+\begin{tabular}{|p{8.0cm}|r|p{2.8cm}|}
+\hline
+\textbf{Test Category} & \textbf{Passing Tests} & \textbf{Result} \\
+\hline
+Admin decision and settlement & 20 & Passed \\
+\hline
+Claim appeal workflow & 5 & Passed \\
+\hline
+Claim submission & 13 & Passed \\
+\hline
+Fraud and duplicate detection & 7 & Passed \\
+\hline
+Roles, pause, and voting & 22 & Passed \\
+\hline
+Oracle contract logic & 16 & Passed \\
+\hline
+Policy package management & 7 & Passed \\
+\hline
+Policy purchase & 12 & Passed \\
+\hline
+Registry Merkle-root commitment & 2 & Passed \\
+\hline
+On-chain risk score & 5 & Passed \\
+\hline
+System-design hardening & 8 & Passed \\
+\hline
+\textbf{Total} & \textbf{117} & \textbf{Passed} \\
+\hline
+\end{tabular}
+\end{table}
+
+The result supports RQ1 by showing that the implemented contract conforms to the
+tested lifecycle and authorization requirements. Passing tests do not establish
+the absence of vulnerabilities outside the test cases. No independent audit,
+formal verification, invariant-based fuzzing, or public-network test is claimed.
+The risk-score tests also confirm that a clean claim receives 90 before oracle
+verification. Since the score's conditions overlap submission validation and
+duplicate checks, this should be interpreted as lifecycle confidence rather
+than empirical fraud-risk discrimination.
+
+\subsection{Coverage Results}
+
+\begin{table}[htbp]
+\centering
+\caption{Solidity coverage results}
+\label{tab:coverage_results}
+\begin{tabular}{|p{4.0cm}|r|r|r|}
+\hline
+\textbf{Coverage Type} & \textbf{Covered} & \textbf{Total} &
+\textbf{Coverage (\%)} \\
+\hline
+Statements & 217 & 220 & 98.64 \\
+\hline
+Branches & 210 & 272 & 77.21 \\
+\hline
+Functions & 50 & 50 & 100.00 \\
+\hline
+Lines & 273 & 276 & 98.91 \\
+\hline
+\end{tabular}
+\end{table}
+
+Statement, function, and line coverage are high. Branch coverage is materially
+lower at 77.21\%, indicating that some combinations of conditions and revert
+paths remain unexecuted. The branch result is therefore a more informative
+remaining testing gap than the overall passing-test count.
+
+\subsection{Deployability Constraint}
+
+\begin{table}[htbp]
+\centering
+\caption{Compiled contract size compared with EIP-170}
+\label{tab:contract_size}
+\begin{tabular}{|p{6.0cm}|r|}
+\hline
+\textbf{Measurement} & \textbf{Bytes} \\
+\hline
+Creation bytecode & 30,576 \\
+\hline
+Deployed runtime bytecode & 30,028 \\
+\hline
+EIP-170 deployed-bytecode limit & 24,576 \\
+\hline
+Amount above limit & 5,452 \\
+\hline
+Percentage above limit & 22.18\% \\
+\hline
+\end{tabular}
+\end{table}
+
+The contract cannot be deployed unchanged to an EIP-170-enforcing public EVM
+network. The local Hardhat configuration succeeds because
+\texttt{allowUnlimitedContractSize} is enabled. This is a significant
+engineering limitation: a production version must split responsibilities into
+smaller governed modules or libraries.
+
+\section{Gas-Efficiency Study}
+\label{sec:gas_results}
+
+\subsection{Protocol}
+
+The gas study compared two first-write operations on a fresh
+\texttt{GasTestContract}: storing \(N\) individual \texttt{bytes32} hashes in a
+mapping and storing one \texttt{bytes32} Merkle root. Receipt gas includes
+transaction execution and calldata for the tested operation. The independent
+variable was
+\begin{equation}
+N\in\{10,25,50,100,200,500\}.
+\end{equation}
+For each \(N\),
+\begin{equation}
+Saving(\%)=
+\frac{Gas_{\mathrm{individual}}-Gas_{\mathrm{root}}}
+{Gas_{\mathrm{individual}}}\times100.
+\label{eq:gas_saving_result}
+\end{equation}
+
+\subsection{Measured Results}
+
+\begin{table}[htbp]
+\centering
+\caption{Gas comparison: individual hashes versus one Merkle root}
+\label{tab:gas_results}
+\begin{tabular}{|r|r|r|r|r|}
+\hline
+\textbf{Records} & \textbf{Individual Gas} & \textbf{Root Gas} &
+\textbf{Gas Saved} & \textbf{Saving (\%)} \\
+\hline
+10 & 249,300 & 43,852 & 205,448 & 82.41 \\
+\hline
+25 & 590,754 & 43,852 & 546,902 & 92.58 \\
+\hline
+50 & 1,159,916 & 43,852 & 1,116,064 & 96.22 \\
+\hline
+100 & 2,298,072 & 43,852 & 2,254,220 & 98.09 \\
+\hline
+200 & 4,574,588 & 43,852 & 4,530,736 & 99.04 \\
+\hline
+500 & 11,403,692 & 43,852 & 11,359,840 & 99.62 \\
+\hline
+\end{tabular}
+\end{table}
+
+Across these six observations, a least-squares linear fit for individual storage
+is approximately
+\begin{equation}
+Gas_{\mathrm{individual}}(N)\approx21,686+22,764N,
+\end{equation}
+whereas first-write root storage remained 43,852 gas. The result supports RQ2:
+compact commitment is substantially more scalable for anchoring a registry
+snapshot. It does not include off-chain tree-construction cost, proof-generation
+cost, or the gas cost of verifying inclusion proofs on-chain because the current
+prototype verifies proofs off-chain.
+
+\section{Bayesian Fraud-Risk Evaluation}
+\label{sec:risk_results}
+
+\subsection{Dataset and Evaluation Protocol}
+
+The deterministic synthetic registry contains 72 records: 39 fraud-labeled and
+33 legitimate. After stable sorting by hospital and invoice, every fifth record
+was held out and the remaining four were used for training. This produced 57
+training records and 15 held-out records.
+
+\begin{table}[htbp]
+\centering
+\caption{Synthetic dataset composition}
+\label{tab:dataset_composition}
+\begin{tabular}{|p{6.5cm}|r|r|r|}
+\hline
+\textbf{Split} & \textbf{Total} & \textbf{Fraud} & \textbf{Legitimate} \\
+\hline
+Full registry & 72 & 39 & 33 \\
+\hline
+Training & 57 & 32 & 25 \\
+\hline
+Held-out & 15 & 7 & 8 \\
+\hline
+\end{tabular}
+\end{table}
+
+Model likelihoods and anomaly statistics were calculated only from the training
+split. Thresholds from 0 to 100 in steps of five were evaluated on the training
+records. The selected threshold maximized training F1, with ties broken by
+higher precision and then the higher threshold. The selected threshold,
+\(\theta=85\), was applied once to the held-out records. Held-out labels were
+not used for threshold selection.
+
+\subsection{Threshold Selection}
+
+\begin{table}[htbp]
+\centering
+\caption{Representative training threshold-selection results}
+\label{tab:threshold_selection_results}
+\begin{tabular}{|r|r|r|r|r|}
+\hline
+\textbf{Threshold} & \textbf{Precision} & \textbf{Recall} &
+\textbf{F1} & \textbf{Selection Role} \\
+\hline
+100 & 1.0000 & 0.5313 & 0.6939 & Too restrictive \\
+\hline
+95 & 1.0000 & 0.8438 & 0.9153 & High precision, lower recall \\
+\hline
+90 & 1.0000 & 0.8438 & 0.9153 & High precision, lower recall \\
+\hline
+85 & 1.0000 & 1.0000 & 1.0000 & Selected threshold \\
+\hline
+20 & 1.0000 & 1.0000 & 1.0000 & Tied maximum F1 \\
+\hline
+5 & 1.0000 & 1.0000 & 1.0000 & Tied maximum F1 \\
+\hline
+0 & 0.5614 & 1.0000 & 0.7191 & Predicts every training record as fraud \\
+\hline
+\end{tabular}
+\end{table}
+
+The broad interval of perfect training F1, from threshold 5 through 85,
+demonstrates unusually strong separation in the synthetic data. It also shows
+that the selected value of 85 is primarily a consequence of the explicit
+tie-breaking rule, not evidence that 85 is a generally optimal real-world fraud
+threshold.
+
+\subsection{Held-Out Classification}
+
+\begin{table}[htbp]
+\centering
+\caption{Held-out confusion matrix at \(\theta=85\)}
+\label{tab:heldout_confusion}
+\begin{tabular}{|p{4.3cm}|c|c|}
+\hline
+\textbf{Actual / Predicted} & \textbf{Fraud} & \textbf{Legitimate} \\
+\hline
+Actual Fraud & \(TP=7\) & \(FN=0\) \\
+\hline
+Actual Legitimate & \(FP=0\) & \(TN=8\) \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Held-out classification metrics}
+\label{tab:heldout_metrics}
+\begin{tabular}{|p{6.5cm}|r|}
+\hline
+\textbf{Metric} & \textbf{Value} \\
+\hline
+Accuracy & 1.0000 \\
+\hline
+Precision & 1.0000 \\
+\hline
+Recall / sensitivity & 1.0000 \\
+\hline
+Specificity & 1.0000 \\
+\hline
+False-positive rate & 0.0000 \\
+\hline
+F1 score & 1.0000 \\
+\hline
+ROC AUC & 1.0000 \\
+\hline
+Average Precision & 1.0000 \\
+\hline
+Fraud prevalence & 0.4667 \\
+\hline
+Average held-out risk score & 49.4 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Baseline Comparison}
+
+\begin{table}[htbp]
+\centering
+\caption{Held-out comparison with simple baselines}
+\label{tab:baseline_results}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{|p{4.7cm}|r|r|r|r|r|r|r|r|}
+\hline
+\textbf{Model} & \textbf{TP} & \textbf{TN} & \textbf{FP} & \textbf{FN} &
+\textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\hline
+Bayesian model, \(\theta=85\) & 7 & 8 & 0 & 0 & 1.0000 & 1.0000 &
+1.0000 & 1.0000 \\
+\hline
+Always Fraud & 7 & 0 & 8 & 0 & 0.4667 & 0.4667 & 1.0000 & 0.6364 \\
+\hline
+Amount above training mean (0.330175 ETH) & 3 & 6 & 2 & 4 & 0.6000 &
+0.6000 & 0.4286 & 0.5000 \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+The Bayesian model outperformed both simple baselines on the held-out synthetic
+set. The comparison demonstrates that the result is not explained merely by
+class prevalence or claim amount.
+
+\subsection{Fraud-Scenario Breakdown}
+
+\begin{table}[htbp]
+\centering
+\caption{Held-out risk score by synthetic scenario}
+\label{tab:fraud_scenario_breakdown}
+\begin{tabular}{|p{5.0cm}|r|r|r|}
+\hline
+\textbf{Scenario} & \textbf{Records} & \textbf{Detection Rate} &
+\textbf{Mean Risk Score} \\
+\hline
+Legitimate & 8 & 0.0000 & 5.5 \\
+\hline
+Used invoice & 1 & 1.0000 & 100.0 \\
+\hline
+Date mismatch & 1 & 1.0000 & 100.0 \\
+\hline
+Suspicious repeated pattern & 2 & 1.0000 & 100.0 \\
+\hline
+Cancelled record & 1 & 1.0000 & 99.0 \\
+\hline
+Blacklisted hospital & 2 & 1.0000 & 99.0 \\
+\hline
+\end{tabular}
+\end{table}
+
+The scenario table explains the perfect aggregate metrics. Fraud cases were
+constructed with strong indicators such as invalid registry status, repeated
+claim count, cancelled invoice, suspended license, or blacklisted hospital,
+while most legitimate records activated only the clean-match factor. One
+legitimate record received a manual-review recommendation due to a bill-range
+anomaly but remained below the fraud threshold.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.75\textwidth]
+{backend/evaluation-results/evaluation-charts/confusion_matrix.png}
+\caption{Held-out confusion matrix for the Bayesian fraud model}
+\label{fig:confusion_matrix}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.75\textwidth]
+{backend/evaluation-results/evaluation-charts/roc_curve.png}
+\caption{Held-out ROC curve}
+\label{fig:roc_curve}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.75\textwidth]
+{backend/evaluation-results/evaluation-charts/precision_recall_curve.png}
+\caption{Held-out precision-recall curve}
+\label{fig:precision_recall_curve}
+\end{figure}
+
+\subsection{Interpretation}
+
+The results support RQ3 only within the synthetic experiment. The training and
+held-out protocol avoids direct test-label leakage during parameter training and
+threshold selection. However, the data-generation rules strongly couple fraud
+labels to observable statuses and signals. Evaluation queries are also
+constructed from the same registry records, so ordinary legitimate cases are
+exact matches. Furthermore, the runtime rule-based oracle comparison directly
+checks the synthetic \texttt{fraudLabel}, although that label is excluded from
+the Bayesian evidence factors. The perfect AUC, AP, and confusion matrix
+therefore demonstrate correct separation of designed scenarios, not expected
+performance on noisy or adversarial real insurance data.
+
+\section{Claim-Submission Throughput Study}
+\label{sec:throughput_results}
+
+\subsection{Protocol and Measurement Boundary}
+
+The exploratory benchmark tested
+\begin{equation}
+C\in\{1,5,10,20,50\}
+\end{equation}
+concurrent claim submissions. Before each timed batch, the script purchased one
+policy per claim; setup time was excluded. Every claim used unique document and
+invoice hashes. The script measured:
+\begin{enumerate}
+    \item response time of the backend \texttt{/health} endpoint;
+    \item blockchain \texttt{submitClaim} send-to-receipt time;
+    \item combined end-to-end time; and
+    \item successful-claim throughput based on batch wall-clock duration.
+\end{enumerate}
+
+The backend measurement represents basic API responsiveness, not the latency of
+a backend claim-processing endpoint. All blockchain submissions used one signer
+managed by an ethers.js \texttt{NonceManager}. Each concurrency level was run
+once; therefore, the results are exploratory rather than statistically stable.
+
+\subsection{Results}
+
+\begin{table}[htbp]
+\centering
+\caption{Local claim-submission throughput and latency}
+\label{tab:throughput_results}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{|r|r|r|r|r|r|r|r|r|}
+\hline
+\textbf{Concurrency} & \textbf{Successful} & \textbf{Failed} &
+\textbf{Success (\%)} & \textbf{Avg Backend (ms)} &
+\textbf{Avg Blockchain (ms)} & \textbf{Avg E2E (ms)} &
+\textbf{P95 E2E (ms)} & \textbf{Successful Claims/s} \\
+\hline
+1 & 1 & 0 & 100 & 2.78 & 125.28 & 151.99 & 151.99 & 6.5740 \\
+\hline
+5 & 5 & 0 & 100 & 3.88 & 201.61 & 219.06 & 219.76 & 22.7484 \\
+\hline
+10 & 10 & 0 & 100 & 11.59 & 293.08 & 332.19 & 334.39 & 29.8951 \\
+\hline
+20 & 20 & 0 & 100 & 14.65 & 374.95 & 411.42 & 412.74 & 48.3827 \\
+\hline
+50 & 39 & 11 & 78 & 46.54 & 678.55 & 787.85 & 790.66 & 49.2880 \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+Throughput increased rapidly up to concurrency 20, where all submissions
+succeeded at 48.3827 claims/s. Increasing concurrency to 50 produced only a
+small throughput gain, to 49.2880 successful claims/s, while success rate fell
+to 78\%. All 11 failures reported ``nonce too high'' because local Hardhat
+automining does not queue out-of-order transactions. The result therefore
+identifies a local signer/automining saturation point, not a smart-contract
+validation limit.
+
+Blockchain confirmation dominated the measured end-to-end duration. Depending
+on concurrency, average blockchain time represented approximately
+82.43\%--92.03\% of average end-to-end time, while the health-endpoint response
+represented approximately 1.77\%--5.91\%. This supports RQ4's local conclusion
+that transaction processing, rather than basic backend responsiveness, is the
+primary measured bottleneck.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.82\textwidth]
+{backend/evaluation-results/evaluation-charts/throughput_vs_latency.png}
+\caption{Local successful throughput and latency by concurrency}
+\label{fig:throughput_latency}
+\end{figure}
+
+\section{Auditor-Reputation Study Status}
+\label{sec:auditor_result_status}
+
+The implemented analysis groups finalized votes by auditor, calculates
+historical agreement with finalized consensus, reads current on-chain
+reputation, and computes Pearson correlation:
+\begin{equation}
+r=
+\frac{\sum_i(x_i-\bar{x})(y_i-\bar{y})}
+{\sqrt{\sum_i(x_i-\bar{x})^2\sum_i(y_i-\bar{y})^2}}.
+\label{eq:auditor_pearson_result}
+\end{equation}
+At least two auditors and nonzero variation are required. No finalized voting
+sessions existed at the time of evaluation; consequently, no defensible
+correlation can be calculated. RQ5 therefore remains unanswered. Agreement with
+consensus would in any case be only a proxy for correctness because consensus
+itself is not independent ground truth.
+
+\section{Threats to Validity}
+\label{sec:threats_to_validity}
+
+\begin{table}[htbp]
+\centering
+\caption{Principal threats to validity}
+\label{tab:validity_threats}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{|p{3.3cm}|p{6.3cm}|p{6.0cm}|}
+\hline
+\textbf{Validity Type} & \textbf{Threat} & \textbf{Mitigation or Required Future
+Work} \\
+\hline
+Internal validity & Deterministic synthetic generation creates strongly
+separable fraud patterns; throughput has one batch per level & Repeat with
+multiple random seeds, repeated trials, confidence intervals, and independent
+datasets \\
+\hline
+Construct validity & Passing tests measure conformance to specified behavior,
+not security; health-endpoint latency is not claim-API latency & Add independent
+security audit, fuzzing, full workflow latency, and public-network experiments \\
+\hline
+External validity & Local Hardhat automining, one machine, synthetic healthcare
+records, and shared oracle infrastructure differ from production & Deploy a
+modular contract to a public testnet and use independently operated data sources \\
+\hline
+Conclusion validity & Held-out set contains only 15 records; AUC and AP are
+perfect because of strong separation; no repeated throughput runs & Use larger
+expert-labeled data, cross-validation, stronger baselines, and statistical
+uncertainty estimates \\
+\hline
+Security validity & Merkle-root matching, evidence-chain integrity, and reserve
+intelligence are audit signals rather than fully enforced gates & Anchor
+evidence-chain heads, require committed-root proof validity, constrain
+withdrawals, and use multisignature administration \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\section{Result Synthesis}
+\label{sec:result_synthesis}
+
+\begin{table}[htbp]
+\centering
+\caption{Implemented objective mapped to experimental evidence}
+\label{tab:objective_evidence}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{|p{5.7cm}|p{7.1cm}|p{3.0cm}|}
+\hline
+\textbf{Objective} & \textbf{Evidence} & \textbf{Assessment} \\
+\hline
+Enforce auditable lifecycle and role boundaries & 117 passing contract tests;
+98.64\% statement and 98.91\% line coverage & Demonstrated within tested scope \\
+\hline
+Detect exact duplicate claims & Passing document-hash, invoice-hash, and
+wallet/date/type duplicate tests & Demonstrated for exact duplicates \\
+\hline
+Provide fault-aware external verification & Two-confirmation quorum, split
+decision fails conservatively, timeout tested & Demonstrated in local simulation \\
+\hline
+Reduce registry commitment gas & 82.41\%--99.62\% gas savings & Demonstrated for
+tested first-write operations \\
+\hline
+Evaluate explainable fraud scoring & Held-out metrics, baselines, AUC, AP, and
+scenario breakdown & Demonstrated only on synthetic cases \\
+\hline
+Measure concurrent submissions & Five local concurrency levels; saturation and
+nonce failures identified & Exploratory local evidence \\
+\hline
+Validate auditor reputation & Analysis tooling implemented & Pending data \\
+\hline
+Support public-network deployment & Runtime bytecode exceeds EIP-170 by 22.18\%
+& Not achieved; modularization required \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\section{Summary}
+
+The evaluation demonstrates that Block-Insure implements and tests a substantial
+claim-processing lifecycle, produces compact and highly gas-efficient registry
+commitments, and separates deliberately designed synthetic fraud scenarios. It
+also exposes important limitations that improve the credibility of the result:
+branch coverage remains lower than other coverage measures, the contract
+exceeds EIP-170, fraud metrics are based on a small deterministic dataset,
+high-concurrency results are affected by local nonce handling, and the auditor
+study has no data. The defensible conclusion is that Block-Insure is a working
+and reproducible research prototype with clearly identified paths toward
+production-grade decentralization, privacy, validation, and deployment.

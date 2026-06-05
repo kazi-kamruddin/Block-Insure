@@ -1,0 +1,71 @@
+.page-claim-detail .card {
+  max-width: 860px;
+}
+
+.page-claim-detail h3 {
+  margin-top: 22px;
+}
+
+.page-claim-detail .card + .card {
+  border-left: 4px solid var(--brand);
+}
+
+.page-claim-detail .appeal-card {
+  border-left: 4px solid var(--warning);
+}
+
+.appeal-form {
+  display: grid;
+  gap: 14px;
+  max-width: 720px;
+}
+
+.appeal-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.appeal-form textarea,
+.appeal-form input[type="file"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.appeal-status {
+  display: grid;
+  gap: 8px;
+}
+
+.appeal-pill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.appeal-pending,
+.appeal-under_review {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--warning);
+}
+
+.appeal-approved {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--success);
+}
+
+.appeal-rejected {
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--danger);
+}

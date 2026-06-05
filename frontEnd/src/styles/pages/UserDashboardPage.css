@@ -1,0 +1,8 @@
+.page-user-dashboard .card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.page-user-dashboard .card-row .card {
+  margin: 0;
+}
