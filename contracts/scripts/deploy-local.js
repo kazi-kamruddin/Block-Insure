@@ -54,8 +54,8 @@ async function main() {
   console.log("Health Basic policy package created");
   console.log("");
   console.log("Copy this contract address into:");
-  console.log("- backend/.env      VITE_CONTRACT_ADDRESS");
-  console.log("- frontend/.env     VITE_CONTRACT_ADDRESS");
+  console.log("- backEnd/.env      VITE_CONTRACT_ADDRESS");
+  console.log("- frontEnd/.env     VITE_CONTRACT_ADDRESS");
   console.log("- oracle/.env       CONTRACT_ADDRESS");
   console.log("");
   console.log("CONTRACT_ADDRESS =", contractAddress);

@@ -3,6 +3,29 @@ require("dotenv").config();
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 
+async function grantOracleRoleIfMissing(contract, oracleRole, oracleWallet) {
+  const alreadyHasRole = await contract.hasRole(
+    oracleRole,
+    oracleWallet.address
+  );
+
+  if (alreadyHasRole) {
+    console.log("Oracle wallet already has ORACLE_ROLE:");
+    console.log(oracleWallet.address);
+    return;
+  }
+
+  console.log("Granting ORACLE_ROLE to:", oracleWallet.address);
+
+  const tx = await contract.grantProjectRole(oracleRole, oracleWallet.address);
+
+  console.log("Transaction sent:", tx.hash);
+
+  await tx.wait();
+
+  console.log("ORACLE_ROLE granted successfully");
+}
+
 const grantOracleRoleLocal = async () => {
   try {
     if (!process.env.RPC_URL) {
@@ -24,6 +47,9 @@ const grantOracleRoleLocal = async () => {
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
     const adminWallet = new ethers.Wallet(process.env.ADMIN_PRIVATE_KEY, provider);
     const oracleWallet = new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY, provider);
+    const secondOracleWallet = process.env.ORACLE_PRIVATE_KEY_2
+      ? new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY_2, provider)
+      : null;
 
     const contract = new ethers.Contract(
       process.env.VITE_CONTRACT_ADDRESS,
@@ -33,26 +59,13 @@ const grantOracleRoleLocal = async () => {
 
     const oracleRole = await contract.ORACLE_ROLE();
 
-    const alreadyHasRole = await contract.hasRole(
-      oracleRole,
-      oracleWallet.address
-    );
+    await grantOracleRoleIfMissing(contract, oracleRole, oracleWallet);
 
-    if (alreadyHasRole) {
-      console.log("Oracle wallet already has ORACLE_ROLE:");
-      console.log(oracleWallet.address);
-      return;
+    if (secondOracleWallet) {
+      await grantOracleRoleIfMissing(contract, oracleRole, secondOracleWallet);
+    } else {
+      console.log("ORACLE_PRIVATE_KEY_2 not configured; skipped second oracle role grant.");
     }
-
-    console.log("Granting ORACLE_ROLE to:", oracleWallet.address);
-
-    const tx = await contract.grantProjectRole(oracleRole, oracleWallet.address);
-
-    console.log("Transaction sent:", tx.hash);
-
-    await tx.wait();
-
-    console.log("ORACLE_ROLE granted successfully");
   } catch (error) {
     console.error("Grant oracle role failed:", error.message);
     process.exit(1);

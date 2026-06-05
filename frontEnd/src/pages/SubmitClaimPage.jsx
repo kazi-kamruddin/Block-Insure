@@ -2,7 +2,12 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import TransactionLink from "../components/TransactionLink";
-import { getMyPolicies, uploadClaimDocument } from "../services/api";
+import {
+  authorizeClaimSubmission,
+  attachDocumentToClaim,
+  getMyPolicies,
+  uploadClaimDocument,
+} from "../services/api";
 
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
@@ -16,35 +21,41 @@ import {
   toBytes32FromBackendSha256,
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
+import "../styles/pages/SubmitClaimPage.css";
 
 const VALID_MOCK_HOSPITAL_PRESETS = [
   {
-    label: "Valid HOSP-001 / 0.1 ETH",
+    label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH",
     hospitalId: "HOSP-001",
+    treatmentType: "HOSPITALIZATION",
     invoiceNumber: "INV-HOSP-001-001",
     claimAmount: "0.1",
   },
   {
-    label: "Valid HOSP-002 / 0.2 ETH",
+    label: "Valid HOSP-002 / SURGERY / 0.2 ETH",
     hospitalId: "HOSP-002",
+    treatmentType: "SURGERY",
     invoiceNumber: "INV-HOSP-002-001",
     claimAmount: "0.2",
   },
   {
-    label: "Valid HOSP-003 / 0.15 ETH",
+    label: "Valid HOSP-003 / HOSPITALIZATION / 0.15 ETH",
     hospitalId: "HOSP-003",
+    treatmentType: "HOSPITALIZATION",
     invoiceNumber: "INV-HOSP-003-001",
     claimAmount: "0.15",
   },
   {
-    label: "Valid HOSP-004 / 0.3 ETH",
+    label: "Valid HOSP-004 / SURGERY / 0.3 ETH",
     hospitalId: "HOSP-004",
+    treatmentType: "SURGERY",
     invoiceNumber: "INV-HOSP-004-001",
     claimAmount: "0.3",
   },
   {
-    label: "Valid HOSP-005 / 0.25 ETH",
+    label: "Valid HOSP-005 / EMERGENCY / 0.25 ETH",
     hospitalId: "HOSP-005",
+    treatmentType: "EMERGENCY",
     invoiceNumber: "INV-HOSP-005-001",
     claimAmount: "0.25",
   },
@@ -79,6 +90,33 @@ function getUploadedCid(uploadResponse) {
     uploadResponse.data?.ipfsCID ||
     ""
   );
+}
+
+function getUploadedDocumentId(uploadResponse) {
+  return (
+    uploadResponse.id ||
+    uploadResponse.documentId ||
+    uploadResponse.file?.id ||
+    uploadResponse.document?.id ||
+    uploadResponse.data?.id ||
+    ""
+  );
+}
+
+function extractClaimIdFromReceipt(contract, receipt) {
+  for (const log of receipt.logs || []) {
+    try {
+      const parsedLog = contract.interface.parseLog(log);
+
+      if (parsedLog?.name === "ClaimSubmitted") {
+        return parsedLog.args.claimId.toString();
+      }
+    } catch {
+      // Ignore logs from other contracts.
+    }
+  }
+
+  return "";
 }
 
 function unixSecondsToDateTimeLocal(unixSeconds) {
@@ -159,6 +197,7 @@ export default function SubmitClaimPage() {
     if (!preset) return;
 
     setHospitalId(preset.hospitalId);
+    setClaimType(preset.treatmentType);
     setInvoiceNumber(preset.invoiceNumber);
     setClaimAmount(preset.claimAmount);
   }
@@ -224,6 +263,8 @@ export default function SubmitClaimPage() {
 
       setIsSubmitting(true);
 
+      await authorizeClaimSubmission(policyId);
+
       const uploadResponse = await uploadClaimDocument({
         file,
         documentType: "HOSPITAL_BILL",
@@ -232,6 +273,7 @@ export default function SubmitClaimPage() {
 
       const sha256Hash = getUploadedHash(uploadResponse);
       const ipfsCID = getUploadedCid(uploadResponse);
+      const documentId = getUploadedDocumentId(uploadResponse);
 
       if (!sha256Hash || !ipfsCID) {
         console.log("Upload response:", uploadResponse);
@@ -239,6 +281,7 @@ export default function SubmitClaimPage() {
       }
 
       setUploadInfo({
+        documentId,
         sha256Hash,
         ipfsCID,
       });
@@ -261,9 +304,18 @@ export default function SubmitClaimPage() {
 
       setTxHash(tx.hash);
 
-      await tx.wait();
+      const receipt = await tx.wait();
+      const claimId = extractClaimIdFromReceipt(contract, receipt);
 
-      setSuccessMessage("Claim submitted successfully.");
+      if (documentId && claimId) {
+        await attachDocumentToClaim(documentId, claimId);
+      }
+
+      setSuccessMessage(
+        claimId
+          ? `Claim submitted successfully. Claim ID: ${claimId}`
+          : "Claim submitted successfully."
+      );
     } catch (err) {
       console.error(err);
       setError(
@@ -275,7 +327,7 @@ export default function SubmitClaimPage() {
   }
 
   return (
-    <section className="page-container">
+    <section className="page-container page-submit-claim">
       <h2>Submit Claim</h2>
 
       <button type="button" onClick={() => refetchPolicies()}>

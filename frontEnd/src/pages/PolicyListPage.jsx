@@ -10,6 +10,7 @@ import {
   getWalletContract,
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
+import "../styles/pages/PolicyListPage.css";
 
 function extractPackages(data) {
   if (Array.isArray(data)) return data;
@@ -95,7 +96,7 @@ export default function PolicyListPage() {
   }
 
   return (
-    <section className="page-container">
+    <section className="page-container page-policy-list">
       <h2>Buy Policy</h2>
 
       <button type="button" onClick={() => refetch()} disabled={isFetching}>

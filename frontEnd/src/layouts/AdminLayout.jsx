@@ -1,38 +1,28 @@
-import { Link, Outlet } from "react-router-dom";
+import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
 
 export default function AdminLayout() {
-  const { isConnected, role, connectWallet, isConnecting } = useWallet();
+  const { isConnected, role, workspace } = useWallet();
 
   if (!isConnected) {
-    return (
-      <section className="page-container">
-        <h2>Admin area</h2>
-        <p>Connect admin wallet first.</p>
-        <button type="button" onClick={connectWallet} disabled={isConnecting}>
-          {isConnecting ? "Connecting..." : "Connect Wallet"}
-        </button>
-      </section>
-    );
+    return <Navigate to="/" replace />;
   }
 
   if (role !== "ADMIN") {
-    return (
-      <section className="page-container">
-        <h2>Access denied</h2>
-        <p>Your backend role is {role}. Admin role is required.</p>
-      </section>
-    );
+    return <Navigate to={workspace?.home || "/"} replace />;
   }
 
   return (
     <div>
-      <div className="subnav">
-        <Link to="/admin/dashboard">Dashboard</Link>
-        <Link to="/admin/policy-packages">Packages</Link>
-        <Link to="/admin/policy-packages/new">Create Package</Link>
-        <Link to="/admin/claims">Claims</Link>
-      </div>
+      <nav className="subnav" aria-label="Administration navigation">
+        <NavLink to="/admin/dashboard" end>Overview</NavLink>
+        <NavLink to="/admin/policy-packages" end>Packages</NavLink>
+        <NavLink to="/admin/policy-packages/new">Create Package</NavLink>
+        <NavLink to="/admin/healthcare-registry">Registry</NavLink>
+        <NavLink to="/admin/thesis-dashboard">Thesis Results</NavLink>
+        <NavLink to="/admin/claims">Claims</NavLink>
+        <NavLink to="/admin/notifications">Notifications</NavLink>
+      </nav>
 
       <Outlet />
     </div>

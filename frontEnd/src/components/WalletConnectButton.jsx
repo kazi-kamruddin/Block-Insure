@@ -8,7 +8,6 @@ function shortAddress(address) {
 export default function WalletConnectButton() {
   const {
     walletAddress,
-    role,
     isConnected,
     isConnecting,
     error,
@@ -19,8 +18,10 @@ export default function WalletConnectButton() {
   if (isConnected) {
     return (
       <div className="wallet-box">
-        <span>{shortAddress(walletAddress)}</span>
-        <span>Role: {role}</span>
+        <span className="wallet-status-dot" aria-hidden="true" />
+        <span className="wallet-address" title={walletAddress}>
+          {shortAddress(walletAddress)}
+        </span>
         <button type="button" onClick={logout}>
           Logout
         </button>

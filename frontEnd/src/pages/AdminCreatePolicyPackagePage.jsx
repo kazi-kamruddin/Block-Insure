@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import TransactionLink from "../components/TransactionLink";
 import { createPolicyPackage } from "../services/api";
+import "../styles/pages/AdminCreatePolicyPackagePage.css";
 
 const PACKAGE_PRESETS = [
   {
@@ -110,7 +111,7 @@ export default function AdminCreatePolicyPackagePage() {
   }
 
   return (
-    <section className="page-container">
+    <section className="page-container page-admin-create-policy-package">
       <h2>Create Policy Package</h2>
 
       <p>

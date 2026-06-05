@@ -1,32 +1,99 @@
+const path = require("path");
 const { ethers } = require("hardhat");
 
-const accountsToFund = [
-  {
-    name: "adminAccount",
-    address: "0xd388BB1572CDb7F7dB2bb485a1051749F9B1ff1E",
-  },
-  {
-    name: "userAccount",
-    address: "0x6575cBC8B95aBc6aB6628e7AeC176aF5769580F9",
-  },
-  {
-    name: "userTwoAccount",
-    address: "0x6C3fBFC259346E7CEDA4d0f3E792d4A81Ee25D05",
-  },
-  {
-    name: "auditorAccount",
-    address: "0x62C6343B7a3AAA23cED5BE620B4e0cFA3FEd3b7B",
-  },
-  {
-    name: "oracleAccount",
-    address: "0xf9461b649ef230a724153352D74211555C6bF168",
-  },
-];
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+require("dotenv").config({
+  path: path.join(__dirname, "..", "..", "backend", ".env"),
+  override: false,
+});
+
+function getAddressFromPrivateKey(privateKey) {
+  if (!privateKey) {
+    return "";
+  }
+
+  try {
+    return new ethers.Wallet(privateKey).address;
+  } catch {
+    return "";
+  }
+}
+
+function readAddressList(...keys) {
+  return keys.flatMap((key) => {
+    const value = process.env[key];
+
+    if (!value) {
+      return [];
+    }
+
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  });
+}
+
+function addAccount(accounts, seen, name, address) {
+  if (!address) {
+    return;
+  }
+
+  const normalizedAddress = ethers.getAddress(address);
+  const key = normalizedAddress.toLowerCase();
+
+  if (seen.has(key)) {
+    return;
+  }
+
+  seen.add(key);
+  accounts.push({
+    name,
+    address: normalizedAddress,
+  });
+}
+
+function getAccountsToFund() {
+  const accounts = [];
+  const seen = new Set();
+
+  addAccount(accounts, seen, "adminAccount", getAddressFromPrivateKey(process.env.ADMIN_PRIVATE_KEY));
+  addAccount(accounts, seen, "oracleAccount", getAddressFromPrivateKey(process.env.ORACLE_PRIVATE_KEY));
+  addAccount(accounts, seen, "oracleTwoAccount", getAddressFromPrivateKey(process.env.ORACLE_PRIVATE_KEY_2));
+  addAccount(
+    accounts,
+    seen,
+    "claimOfficerAccount",
+    process.env.CLAIM_OFFICER_WALLET_ADDRESS
+  );
+
+  readAddressList(
+    "AUDITOR_WALLET_ADDRESS",
+    "AUDITOR_2_WALLET_ADDRESS",
+    "AUDITOR_3_WALLET_ADDRESS",
+    "AUDITOR_4_WALLET_ADDRESS",
+    "AUDITOR_5_WALLET_ADDRESS",
+    "AUDITOR_WALLET_ADDRESSES"
+  ).forEach((address, index) => {
+    addAccount(accounts, seen, `auditor${index + 1}Account`, address);
+  });
+
+  addAccount(
+    accounts,
+    seen,
+    "defaultLocalUserAccount",
+    "0x6575cBC8B95aBc6aB6628e7AeC176aF5769580F9"
+  );
+
+  return accounts;
+}
 
 async function main() {
   const [richAccount] = await ethers.getSigners();
+  const accountsToFund = getAccountsToFund();
 
   console.log("Funding from:", richAccount.address);
+  console.log(`Accounts to fund: ${accountsToFund.length}`);
 
   for (const account of accountsToFund) {
     const tx = await richAccount.sendTransaction({

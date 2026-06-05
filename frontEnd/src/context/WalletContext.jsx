@@ -4,8 +4,24 @@ import {
   clearStoredSession,
   getWalletNonce,
   loginWithWallet,
+  logoutSession,
 } from "../services/api";
 import { WalletContext } from "./walletContextObject";
+
+const ROLE_WORKSPACES = {
+  USER: {
+    home: "/user/dashboard",
+    label: "Policyholder workspace",
+  },
+  ADMIN: {
+    home: "/admin/dashboard",
+    label: "Administration workspace",
+  },
+  AUDITOR: {
+    home: "/auditor/dashboard",
+    label: "Auditor workspace",
+  },
+};
 
 function normalizeAddress(address) {
   return address ? address.toLowerCase() : "";
@@ -46,6 +62,7 @@ export function WalletProvider({ children }) {
   const [error, setError] = useState("");
 
   const role = user?.role || "GUEST";
+  const workspace = ROLE_WORKSPACES[role] || null;
   const isConnected = Boolean(walletAddress && jwt);
 
   async function connectWallet() {
@@ -113,7 +130,15 @@ export function WalletProvider({ children }) {
     }
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      if (localStorage.getItem("blockinsure_jwt")) {
+        await logoutSession();
+      }
+    } catch (logoutError) {
+      console.warn("Backend logout failed:", logoutError.message);
+    }
+
     clearStoredSession();
     setWalletAddress("");
     setJwt("");
@@ -152,13 +177,14 @@ export function WalletProvider({ children }) {
       jwt,
       user,
       role,
+      workspace,
       isConnected,
       isConnecting,
       error,
       connectWallet,
       logout,
     }),
-    [walletAddress, jwt, user, role, isConnected, isConnecting, error]
+    [walletAddress, jwt, user, role, workspace, isConnected, isConnecting, error]
   );
 
   return (

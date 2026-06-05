@@ -24,7 +24,7 @@ export const CLAIM_STATUS = {
 
 function requireContractAddress() {
   if (!CONTRACT_ADDRESS) {
-    throw new Error("Missing VITE_CONTRACT_ADDRESS in frontend/.env");
+    throw new Error("Missing VITE_CONTRACT_ADDRESS in frontEnd/.env");
   }
 
   return CONTRACT_ADDRESS;

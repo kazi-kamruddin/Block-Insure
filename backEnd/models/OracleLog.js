@@ -45,6 +45,11 @@ const oracleLogSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    responseTimeMs: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
   },
   { timestamps: true }
 );

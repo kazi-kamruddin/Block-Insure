@@ -1,0 +1,173 @@
+.page-admin-claim-detail .card {
+  max-width: 900px;
+}
+
+.page-admin-claim-detail .card:first-of-type {
+  background: linear-gradient(
+    135deg,
+    rgba(45, 212, 191, 0.08),
+    rgba(21, 31, 51, 0.98)
+  );
+}
+
+.page-admin-claim-detail .form-grid {
+  max-width: 720px;
+}
+
+.page-admin-claim-detail .appeal-review-card {
+  border-left: 4px solid var(--warning);
+}
+
+.page-admin-claim-detail .voting-summary-card {
+  border-left: 4px solid var(--brand);
+}
+
+.page-admin-claim-detail .oracle-quorum-card {
+  border-left: 4px solid var(--accent);
+}
+
+.oracle-confirmation-dots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.oracle-confirmation-dots span {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+}
+
+.oracle-confirmation-dots span.is-filled {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.page-admin-claim-detail .settlement-breakdown-card {
+  border-left: 4px solid var(--success);
+}
+
+.page-admin-claim-detail .settlement-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.page-admin-claim-detail .settlement-breakdown-grid > div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.page-admin-claim-detail .settlement-breakdown-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.page-admin-claim-detail .settlement-breakdown-grid strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.page-admin-claim-detail .voting-metric-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.page-admin-claim-detail .voting-metric-row > div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.page-admin-claim-detail .voting-metric-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.page-admin-claim-detail .voting-metric-row strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.page-admin-claim-detail .vote-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.page-admin-claim-detail .vote-breakdown-item {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.page-admin-claim-detail .vote-breakdown-item span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.page-admin-claim-detail .voter-table {
+  width: 100%;
+  margin: 14px 0;
+  border-collapse: collapse;
+}
+
+.page-admin-claim-detail .voter-table th,
+.page-admin-claim-detail .voter-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.page-admin-claim-detail .voter-table th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.page-admin-claim-detail .appeal-pill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.page-admin-claim-detail .appeal-pending,
+.page-admin-claim-detail .appeal-under_review {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--warning);
+}
+
+.page-admin-claim-detail .appeal-approved {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--success);
+}
+
+.page-admin-claim-detail .appeal-rejected {
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--danger);
+}

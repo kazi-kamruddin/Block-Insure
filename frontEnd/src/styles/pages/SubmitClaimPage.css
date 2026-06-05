@@ -1,0 +1,17 @@
+.page-submit-claim {
+  display: grid;
+  gap: 14px;
+}
+
+.page-submit-claim .form-grid {
+  max-width: 760px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.page-submit-claim .card {
+  max-width: 760px;
+}

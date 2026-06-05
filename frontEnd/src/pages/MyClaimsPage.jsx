@@ -6,6 +6,7 @@ import IpfsLink from "../components/IpfsLink";
 import { getMyClaims } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import { getClaimStatusName } from "../utils/claimStatus";
+import "../styles/pages/MyClaimsPage.css";
 
 function extractClaims(data) {
   if (Array.isArray(data)) return data;
@@ -32,7 +33,7 @@ export default function MyClaimsPage() {
   const claims = extractClaims(data);
 
   return (
-    <section className="page-container">
+    <section className="page-container page-my-claims">
       <h2>My Claims</h2>
 
       <button

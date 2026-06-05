@@ -1,0 +1,356 @@
+.page-healthcare-registry {
+  display: grid;
+  gap: 18px;
+}
+
+.page-healthcare-registry > p {
+  max-width: 760px;
+}
+
+.registry-hero {
+  margin: 0;
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(37, 99, 235, 0.08)),
+    var(--surface);
+}
+
+.registry-hero h3 {
+  margin: 4px 0 8px;
+  font-size: 24px;
+}
+
+.registry-eyebrow {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.registry-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.registry-metrics .card {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.registry-metrics span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.registry-metrics strong {
+  color: var(--brand-strong);
+  font-size: 30px;
+}
+
+.registry-metrics small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.registry-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.registry-distribution-card {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.registry-distribution-card h3 {
+  margin: 0;
+}
+
+.registry-distribution-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.registry-distribution-row {
+  display: grid;
+  grid-template-columns: minmax(92px, 1fr) minmax(120px, 2fr) 44px;
+  align-items: center;
+  gap: 8px;
+}
+
+.registry-distribution-row span,
+.registry-distribution-row strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.registry-distribution-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registry-distribution-row > div {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #26344a;
+}
+
+.registry-distribution-row b {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+  background: var(--brand);
+}
+
+.registry-chain-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(120px, auto) minmax(180px, auto) minmax(210px, auto);
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--success);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.registry-chain-card > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.registry-chain-card span:not(.registry-chain-status) {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.registry-chain-card strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.registry-chain-main {
+  align-content: start;
+}
+
+.registry-chain-status {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.registry-chain-status.is-committed {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--success);
+}
+
+.registry-chain-status.is-empty {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--warning);
+}
+
+.registry-chain-actions {
+  justify-items: end;
+}
+
+.registry-chain-actions button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.registry-chain-message {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.registry-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  align-items: end;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.registry-filter-bar label {
+  display: grid;
+  gap: 7px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.registry-filter-bar input,
+.registry-filter-bar select {
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.registry-filter-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.registry-merkle-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) repeat(3, minmax(110px, auto));
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.registry-merkle-card div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.registry-merkle-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.registry-merkle-card strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.registry-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.registry-table {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: collapse;
+}
+
+.registry-table th,
+.registry-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.registry-table th {
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.registry-table td {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.registry-table td span,
+.registry-table td small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.registry-hash {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registry-pill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.registry-pill.status-valid,
+.registry-pill.fraud-legitimate {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--success);
+}
+
+.registry-pill.status-invalid,
+.registry-pill.status-used,
+.registry-pill.status-cancelled,
+.registry-pill.fraud-used_invoice,
+.registry-pill.fraud-cancelled_record,
+.registry-pill.fraud-blacklisted_hospital,
+.registry-pill.fraud-date_mismatch,
+.registry-pill.fraud-suspicious_pattern {
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--danger);
+}
+
+.registry-pill.fraud-inflated_amount {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--warning);
+}
+
+@media (max-width: 760px) {
+  .registry-filter-actions {
+    grid-column: 1 / -1;
+  }
+
+  .registry-merkle-card {
+    grid-template-columns: 1fr;
+  }
+
+  .registry-chain-card {
+    grid-template-columns: 1fr;
+  }
+
+  .registry-chain-actions {
+    justify-items: start;
+  }
+}

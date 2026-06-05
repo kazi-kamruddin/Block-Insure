@@ -33,6 +33,14 @@ const formatPolicy = (policy) => {
   };
 };
 
+const canReadPolicy = (req, policy) => {
+  if (req.user.role === "ADMIN" || req.user.role === "AUDITOR") {
+    return true;
+  }
+
+  return policy.holderWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
+};
+
 /* -------------------------- Policy Packages ---------------------------- */
 
 const getActivePolicyPackages = async (req, res, next) => {
@@ -88,6 +96,13 @@ const getPolicyById = async (req, res, next) => {
     const contract = getReadOnlyContract();
 
     const policy = await contract.getPolicy(req.params.policyId);
+
+    if (!canReadPolicy(req, policy)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: policy does not belong to this wallet",
+      });
+    }
 
     res.status(200).json({
       success: true,

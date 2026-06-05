@@ -14,6 +14,10 @@ import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AuditorDashboardPage from "./pages/AuditorDashboardPage";
 import AuditorClaimLookupPage from "./pages/AuditorClaimLookupPage";
 import AuditorClaimHistoryPage from "./pages/AuditorClaimHistoryPage";
+import AuditorVoteQueuePage from "./pages/AuditorVoteQueuePage";
+import AuditorVotingPage from "./pages/AuditorVotingPage";
+import AuditorReputationPage from "./pages/AuditorReputationPage";
+import AuditorDocumentVerificationPage from "./pages/AuditorDocumentVerificationPage";
 import AdminPolicyPackagesPage from "./pages/AdminPolicyPackagesPage";
 import AdminCreatePolicyPackagePage from "./pages/AdminCreatePolicyPackagePage";
 import PolicyListPage from "./pages/PolicyListPage";
@@ -23,6 +27,9 @@ import MyClaimsPage from "./pages/MyClaimsPage";
 import ClaimDetailPage from "./pages/ClaimDetailPage";
 import AdminClaimListPage from "./pages/AdminClaimListPage";
 import AdminClaimDetailPage from "./pages/AdminClaimDetailPage";
+import HealthcareRegistryPage from "./pages/HealthcareRegistryPage";
+import ThesisResultsDashboardPage from "./pages/ThesisResultsDashboardPage";
+import NotificationsPage from "./pages/NotificationsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 import "./App.css";
@@ -47,6 +54,7 @@ export default function App() {
                 <Route path="claims" element={<MyClaimsPage />} />
                 <Route path="claims/new" element={<SubmitClaimPage />} />
                 <Route path="claims/:id" element={<ClaimDetailPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
               </Route>
 
               <Route path="admin" element={<AdminLayout />}>
@@ -57,15 +65,23 @@ export default function App() {
                   path="policy-packages/new"
                   element={<AdminCreatePolicyPackagePage />}
                 />
+                <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
+                <Route path="thesis-dashboard" element={<ThesisResultsDashboardPage />} />
                 <Route path="claims" element={<AdminClaimListPage />} />
                 <Route path="claims/:id" element={<AdminClaimDetailPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
               </Route>
 
               <Route path="auditor" element={<AuditorLayout />}>
                 <Route index element={<Navigate to="/auditor/dashboard" replace />} />
                 <Route path="dashboard" element={<AuditorDashboardPage />} />
+                <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
                 <Route path="claims" element={<AuditorClaimLookupPage />} />
                 <Route path="claims/:id/history" element={<AuditorClaimHistoryPage />} />
+                <Route path="votes" element={<AuditorVoteQueuePage />} />
+                <Route path="vote/:claimId" element={<AuditorVotingPage />} />
+                <Route path="reputation" element={<AuditorReputationPage />} />
+                <Route path="verify-document" element={<AuditorDocumentVerificationPage />} />
               </Route>
 
               <Route path="*" element={<NotFoundPage />} />

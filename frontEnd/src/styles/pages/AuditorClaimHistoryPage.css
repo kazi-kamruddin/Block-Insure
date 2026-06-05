@@ -1,0 +1,238 @@
+.page-auditor-claim-history .timeline {
+  max-width: 940px;
+  margin-top: 18px;
+}
+
+.history-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  max-width: 940px;
+  margin-top: 18px;
+}
+
+.history-summary-grid > div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.history-summary-grid span,
+.event-role {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.history-summary-grid strong {
+  color: var(--text);
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.page-auditor-claim-history .timeline-item h3 {
+  margin-top: 0;
+  color: var(--brand-strong);
+}
+
+.page-auditor-claim-history .pre-box {
+  margin-bottom: 0;
+}
+
+.compact-timeline {
+  position: relative;
+  display: grid;
+  gap: 10px;
+}
+
+.compact-timeline::before {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 17px;
+  width: 2px;
+  background: var(--line);
+  content: "";
+}
+
+.compact-timeline-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.compact-event-marker {
+  z-index: 1;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.compact-event-body {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.compact-event-head,
+.event-meta-row,
+.oracle-request-head,
+.oracle-log-entry summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.compact-event-head h3,
+.oracle-request-head h4 {
+  margin: 4px 0 0;
+}
+
+.compact-event-body p {
+  margin: 8px 0;
+  color: var(--text);
+}
+
+.event-block {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.event-meta-row {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.raw-details {
+  margin-top: 10px;
+}
+
+.raw-details summary,
+.oracle-log-entry summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.raw-details .pre-box {
+  margin-top: 10px;
+}
+
+.tone-user .compact-event-body,
+.tone-auditor .compact-event-body {
+  border-left-color: var(--brand);
+}
+
+.tone-admin .compact-event-body,
+.tone-settlement .compact-event-body {
+  border-left-color: var(--success);
+}
+
+.tone-oracle .compact-event-body {
+  border-left-color: var(--accent);
+}
+
+.tone-warning .compact-event-body {
+  border-left-color: var(--warning);
+}
+
+.tone-danger .compact-event-body {
+  border-left-color: var(--danger);
+}
+
+.oracle-request-group {
+  max-width: 940px;
+  margin-top: 12px;
+}
+
+.oracle-request-head {
+  margin-bottom: 12px;
+}
+
+.oracle-request-head strong {
+  color: var(--brand-strong);
+}
+
+.oracle-log-list {
+  display: grid;
+  gap: 10px;
+}
+
+.oracle-log-entry {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.oracle-log-entry summary {
+  list-style: none;
+}
+
+.oracle-log-entry summary::-webkit-details-marker {
+  display: none;
+}
+
+.oracle-log-entry summary strong {
+  color: var(--brand-strong);
+}
+
+.oracle-log-entry summary em {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.oracle-log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 12px 0;
+}
+
+.oracle-log-meta p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .compact-event-head,
+  .oracle-request-head,
+  .oracle-log-entry summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

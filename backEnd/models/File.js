@@ -41,8 +41,30 @@ const fileSchema = new mongoose.Schema(
       trim: true,
       default: "CLAIM_DOCUMENT",
     },
+    previousEvidenceHash: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    evidenceChainHash: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
+    evidenceChainIndex: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
   },
   { timestamps: true }
 );
+
+fileSchema.index({
+  claimId: 1,
+  evidenceChainIndex: 1,
+  createdAt: 1,
+});
 
 module.exports = mongoose.model("File", fileSchema);

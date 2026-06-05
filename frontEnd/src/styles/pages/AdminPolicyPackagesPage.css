@@ -1,0 +1,15 @@
+.page-admin-policy-packages .card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.page-admin-policy-packages .card {
+  margin: 0;
+}
+
+.page-admin-policy-packages .form-grid {
+  max-width: none;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}

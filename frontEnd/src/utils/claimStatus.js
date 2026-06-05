@@ -11,9 +11,9 @@ export const CLAIM_STATUS_EXPLANATIONS = {
   ORACLE_VERIFIED:
     "Oracle verified the hospital record. Admin can approve the claim.",
   ORACLE_FAILED:
-    "Oracle could not verify the hospital record. Admin can send it to manual review.",
+    "Oracle could not verify the hospital record. Auditors can vote, or admin can send it to manual review.",
   MANUAL_REVIEW:
-    "Claim is under manual admin review and can be approved or rejected.",
+    "Claim is under manual review and is open for auditor voting before final admin action.",
   APPROVED: "Claim was approved and is ready for settlement.",
   REJECTED: "Claim was rejected and cannot be settled.",
   SETTLED: "Claim was settled and payout was transferred from the contract reserve.",

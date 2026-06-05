@@ -1,0 +1,12 @@
+.page-my-claims .card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+}
+
+.page-my-claims .card {
+  margin: 0;
+}
+
+.page-my-claims .card h3 {
+  color: var(--brand-strong);
+}

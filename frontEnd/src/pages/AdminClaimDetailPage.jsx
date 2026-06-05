@@ -3,14 +3,22 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
+import EvidenceChainPanel from "../components/EvidenceChainPanel";
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
+import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import TransactionLink from "../components/TransactionLink";
 import {
   approveClaim,
+  closeClaim,
+  finalizeClaimVoting,
+  getAppealByClaim,
   getClaimById,
+  getClaimVoteSummary,
   getOracleResults,
   rejectClaim,
+  resolveOracleTimeout,
+  reviewAppeal,
   requestOracleVerification,
   sendClaimToManualReview,
   settleClaim,
@@ -20,6 +28,7 @@ import {
   getReadOnlyContract,
 } from "../services/contractService";
 import { getClaimStatusName } from "../utils/claimStatus";
+import "../styles/pages/AdminClaimDetailPage.css";
 
 function extractClaim(data) {
   return data?.claim || data?.data?.claim || data?.data || data;
@@ -33,6 +42,10 @@ function extractOracleLogs(data) {
   return [];
 }
 
+function extractEvidenceChain(data) {
+  return data?.evidenceChain || data?.data?.evidenceChain || null;
+}
+
 function formatValue(value) {
   if (value === undefined || value === null || value === "") return "-";
   if (typeof value === "bigint") return value.toString();
@@ -44,18 +57,81 @@ function getTransactionHash(result) {
   return (
     result?.txHash ||
     result?.transactionHash ||
+    result?.transactionHashes?.[0] ||
     result?.data?.txHash ||
     result?.data?.transactionHash ||
+    result?.data?.transactionHashes?.[0] ||
     result?.claim?.txHash ||
     result?.oracleRequest?.txHash ||
     ""
   );
 }
 
+function extractVoteSummary(data) {
+  return data?.voteSummary || data?.data?.voteSummary || null;
+}
+
+function formatPercent(value) {
+  const numericValue = Number(value || 0);
+  return `${Math.round(numericValue * 100)}%`;
+}
+
+function formatBpsPercent(value) {
+  const numericValue = Number(value || 0) / 100;
+  return `${numericValue.toFixed(2).replace(/\.00$/, "")}%`;
+}
+
 async function getContractReserveBalance() {
   const contract = getReadOnlyContract();
   const balance = await contract.getContractBalance();
   return formatEth(balance);
+}
+
+async function getSettlementBreakdown(claimId) {
+  const contract = getReadOnlyContract();
+  const [settlement, deductibleRateBps, deductibleCapWei, insurerShareBps] =
+    await Promise.all([
+      contract.calculateSettlement(claimId),
+      contract.deductibleRateBps(),
+      contract.deductibleCapWei(),
+      contract.insurerShareBps(),
+    ]);
+
+  return {
+    claimAmountWei: settlement.claimAmount.toString(),
+    claimAmountEth: formatEth(settlement.claimAmount),
+    deductibleWei: settlement.deductible.toString(),
+    deductibleEth: formatEth(settlement.deductible),
+    afterDeductibleWei: settlement.afterDeductible.toString(),
+    afterDeductibleEth: formatEth(settlement.afterDeductible),
+    insurerPaysWei: settlement.insurerPays.toString(),
+    insurerPaysEth: formatEth(settlement.insurerPays),
+    claimantResponsibilityWei: settlement.claimantResponsibility.toString(),
+    claimantResponsibilityEth: formatEth(settlement.claimantResponsibility),
+    params: {
+      deductibleRateBps: deductibleRateBps.toString(),
+      deductibleRatePercent: formatBpsPercent(deductibleRateBps),
+      deductibleCapWei: deductibleCapWei.toString(),
+      deductibleCapEth: formatEth(deductibleCapWei),
+      insurerShareBps: insurerShareBps.toString(),
+      insurerSharePercent: formatBpsPercent(insurerShareBps),
+    },
+  };
+}
+
+async function getOracleQuorumStatus(claimId) {
+  const contract = getReadOnlyContract();
+  const oracleRequest = await contract.getOracleRequestByClaimId(claimId);
+  const status = await contract.getOracleConfirmationStatus(
+    oracleRequest.requestId
+  );
+
+  return {
+    requestId: oracleRequest.requestId.toString(),
+    confirmations: Number(status.confirmations ?? status[0] ?? 0),
+    required: Number(status.required ?? status[1] ?? 0),
+    finalized: Boolean(status.finalized ?? status[2]),
+  };
 }
 
 export default function AdminClaimDetailPage() {
@@ -66,6 +142,7 @@ export default function AdminClaimDetailPage() {
   const [actionTxHash, setActionTxHash] = useState("");
   const [isActing, setIsActing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [appealAdminNote, setAppealAdminNote] = useState("");
 
   const {
     data: claimData,
@@ -76,6 +153,8 @@ export default function AdminClaimDetailPage() {
     queryKey: ["adminClaim", id],
     queryFn: () => getClaimById(id),
     enabled: Boolean(id),
+    refetchInterval: 1200,
+    refetchIntervalInBackground: true,
   });
 
   const {
@@ -86,6 +165,29 @@ export default function AdminClaimDetailPage() {
     queryKey: ["adminOracleResults", id],
     queryFn: () => getOracleResults(id),
     enabled: Boolean(id),
+    refetchInterval: 1200,
+    refetchIntervalInBackground: true,
+  });
+
+  const {
+    data: appealData,
+    isLoading: appealLoading,
+    refetch: refetchAppeal,
+  } = useQuery({
+    queryKey: ["adminClaimAppeal", id],
+    queryFn: async () => {
+      try {
+        return await getAppealByClaim(id);
+      } catch (err) {
+        if (err.response?.status === 404) {
+          return null;
+        }
+
+        throw err;
+      }
+    },
+    enabled: Boolean(id),
+    retry: false,
   });
 
   const {
@@ -97,9 +199,48 @@ export default function AdminClaimDetailPage() {
     queryFn: getContractReserveBalance,
   });
 
+  const {
+    data: voteData,
+    isLoading: voteLoading,
+    refetch: refetchVotes,
+  } = useQuery({
+    queryKey: ["adminClaimVoteSummary", id],
+    queryFn: () => getClaimVoteSummary(id),
+    enabled: Boolean(id),
+  });
+
+  const {
+    data: settlementBreakdown,
+    isLoading: settlementLoading,
+    refetch: refetchSettlementBreakdown,
+  } = useQuery({
+    queryKey: ["adminClaimSettlementBreakdown", id],
+    queryFn: () => getSettlementBreakdown(id),
+    enabled: Boolean(id),
+  });
+
   const claim = extractClaim(claimData);
+  const evidenceChain = extractEvidenceChain(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
   const statusName = getClaimStatusName(claim);
+
+  const {
+    data: oracleQuorumStatus,
+    isLoading: quorumLoading,
+    refetch: refetchOracleQuorumStatus,
+  } = useQuery({
+    queryKey: ["adminClaimOracleQuorum", id],
+    queryFn: () => getOracleQuorumStatus(id),
+    enabled: Boolean(id) && statusName === "ORACLE_PENDING",
+    retry: false,
+    refetchInterval: statusName === "ORACLE_PENDING" ? 900 : false,
+    refetchIntervalInBackground: true,
+  });
+
+  const appeal = appealData?.appeal || null;
+  const voteSummary = extractVoteSummary(voteData);
+  const appealIsFinal =
+    appeal?.status === "APPROVED" || appeal?.status === "REJECTED";
 
   const canRequestOracle = statusName === "DUPLICATE_CHECKED";
   const canSendManualReview =
@@ -112,11 +253,25 @@ export default function AdminClaimDetailPage() {
     statusName !== "REJECTED" &&
     statusName !== "UNKNOWN";
   const canSettle = statusName === "APPROVED";
+  const canClose = statusName === "SETTLED" || statusName === "REJECTED";
+  const canShowVoting =
+    statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
+  const isAwaitingOracleQuorum =
+    statusName === "ORACLE_PENDING" && !oracleQuorumStatus?.finalized;
+  const canShowOracleResultPanel =
+    statusName !== "ORACLE_PENDING" || oracleQuorumStatus?.finalized;
 
   async function refreshAll() {
     await refetch();
     await refetchOracle();
     await refetchReserve();
+    await refetchAppeal();
+    await refetchVotes();
+    await refetchSettlementBreakdown();
+
+    if (statusName === "ORACLE_PENDING") {
+      await refetchOracleQuorumStatus();
+    }
   }
 
   async function runAdminAction(actionFn, successText) {
@@ -178,7 +333,9 @@ export default function AdminClaimDetailPage() {
 
   function handleSettle() {
     const confirmed = window.confirm(
-      "Settle this claim now? This will transfer ETH from the contract reserve to the claimant."
+      `Settle this claim now? This will transfer ${
+        settlementBreakdown?.insurerPaysEth || "the calculated payout"
+      } ETH from the contract reserve to the claimant.`
     );
 
     if (!confirmed) return;
@@ -186,8 +343,45 @@ export default function AdminClaimDetailPage() {
     runAdminAction(() => settleClaim(id), "Claim settled successfully.");
   }
 
+  function handleResolveOracleTimeout() {
+    runAdminAction(
+      () => resolveOracleTimeout(id),
+      "Timed-out oracle request resolved successfully."
+    );
+  }
+
+  function handleClose() {
+    const confirmed = window.confirm(
+      "Close this claim lifecycle? Closed claims cannot return to an active workflow."
+    );
+
+    if (!confirmed) return;
+
+    runAdminAction(() => closeClaim(id), "Claim closed successfully.");
+  }
+
+  function handleReviewAppeal(status) {
+    if (!appeal?.id) return;
+
+    runAdminAction(
+      () =>
+        reviewAppeal(appeal.id, {
+          status,
+          adminNote: appealAdminNote.trim(),
+        }),
+      `Appeal marked ${status.toLowerCase().replace("_", " ")} successfully.`
+    );
+  }
+
+  function handleFinalizeVoting() {
+    runAdminAction(
+      () => finalizeClaimVoting(id),
+      "Voting finalized and auditor reputations updated successfully."
+    );
+  }
+
   return (
-    <section className="page-container">
+    <section className="page-container page-admin-claim-detail">
       <h2>Admin Claim Detail</h2>
 
       <p>
@@ -241,6 +435,47 @@ export default function AdminClaimDetailPage() {
           <p>
             <strong>Document CID:</strong> <IpfsLink cid={claim.documentCID} />
           </p>
+          <EvidenceChainPanel evidenceChain={evidenceChain} />
+        </div>
+      ) : null}
+
+      {canSettle ? (
+        <div className="card settlement-breakdown-card">
+          <h3>On-Chain Settlement Breakdown</h3>
+
+          {settlementLoading ? <p>Loading settlement formula...</p> : null}
+
+          {settlementBreakdown ? (
+            <>
+              <div className="settlement-breakdown-grid">
+                <div>
+                  <span>Claim Amount</span>
+                  <strong>{settlementBreakdown.claimAmountEth} ETH</strong>
+                </div>
+                <div>
+                  <span>Deductible</span>
+                  <strong>{settlementBreakdown.deductibleEth} ETH</strong>
+                </div>
+                <div>
+                  <span>Insurer Pays</span>
+                  <strong>{settlementBreakdown.insurerPaysEth} ETH</strong>
+                </div>
+                <div>
+                  <span>Claimant Responsibility</span>
+                  <strong>
+                    {settlementBreakdown.claimantResponsibilityEth} ETH
+                  </strong>
+                </div>
+              </div>
+
+              <p className="muted-text">
+                Formula: {settlementBreakdown.params.deductibleRatePercent} deductible
+                capped at {settlementBreakdown.params.deductibleCapEth} ETH,
+                then insurer pays {settlementBreakdown.params.insurerSharePercent}
+                {" "}of the remaining amount.
+              </p>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -270,6 +505,14 @@ export default function AdminClaimDetailPage() {
 
           <button
             type="button"
+            onClick={handleResolveOracleTimeout}
+            disabled={statusName !== "ORACLE_PENDING" || isActing}
+          >
+            Resolve Oracle Timeout
+          </button>
+
+          <button
+            type="button"
             onClick={handleApprove}
             disabled={!canApprove || isActing}
           >
@@ -282,6 +525,14 @@ export default function AdminClaimDetailPage() {
             disabled={!canSettle || isActing}
           >
             Settle Claim
+          </button>
+
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={!canClose || isActing}
+          >
+            Close Claim
           </button>
         </div>
 
@@ -306,15 +557,210 @@ export default function AdminClaimDetailPage() {
         </div>
       </div>
 
+      {statusName === "ORACLE_PENDING" ? (
+        <div className="card oracle-quorum-card">
+          <h3>Oracle Quorum</h3>
+
+          {quorumLoading ? <p>Loading oracle confirmations...</p> : null}
+
+          {oracleQuorumStatus ? (
+            <>
+              <p>
+                Oracle Confirmations:{" "}
+                <strong>
+                  {oracleQuorumStatus.confirmations} / {oracleQuorumStatus.required} required
+                </strong>
+              </p>
+
+              <div
+                className="oracle-confirmation-dots"
+                aria-label={`${oracleQuorumStatus.confirmations} of ${oracleQuorumStatus.required} oracle confirmations`}
+              >
+                {Array.from({ length: oracleQuorumStatus.required || 0 }).map((_, index) => (
+                  <span
+                    className={
+                      index < oracleQuorumStatus.confirmations ? "is-filled" : ""
+                    }
+                    key={`oracle-confirmation-${index}`}
+                  />
+                ))}
+              </div>
+
+              <p className={oracleQuorumStatus.finalized ? "success-text" : "muted-text"}>
+                {oracleQuorumStatus.finalized
+                  ? "Oracle quorum reached."
+                  : "Awaiting additional oracle confirmation."}
+              </p>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {canShowVoting ? (
+        <div className="card voting-summary-card">
+          <h3>Voting Summary</h3>
+
+          {voteLoading ? <p>Loading voting summary...</p> : null}
+
+          {voteSummary ? (
+            <>
+              <div className="voting-metric-row">
+                <div>
+                  <span>Total voters</span>
+                  <strong>{voteSummary.totalVoters || 0}</strong>
+                </div>
+                <div>
+                  <span>Weighted consensus</span>
+                  <strong>{voteSummary.consensusDisplayLabel || "No Consensus"}</strong>
+                </div>
+                <div>
+                  <span>Consensus strength</span>
+                  <strong>{formatPercent(voteSummary.consensusStrength)}</strong>
+                </div>
+              </div>
+
+              <div className="vote-breakdown-grid">
+                {Object.values(voteSummary.breakdown || {}).map((entry) => (
+                  <div className="vote-breakdown-item" key={entry.label}>
+                    <strong>{entry.displayLabel}</strong>
+                    <span>{entry.count} votes</span>
+                    <span>Weight {entry.weightedSum}</span>
+                  </div>
+                ))}
+              </div>
+
+              {voteSummary.voters?.length > 0 ? (
+                <table className="voter-table">
+                  <thead>
+                    <tr>
+                      <th>Auditor</th>
+                      <th>Vote</th>
+                      <th>Reputation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {voteSummary.voters.map((voter) => (
+                      <tr key={voter.auditorAddress}>
+                        <td>{voter.shortenedAddress}</td>
+                        <td>{voter.voteDisplayLabel}</td>
+                        <td>{voter.reputation}/100</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>No auditor votes have been cast yet.</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleFinalizeVoting}
+                disabled={
+                  isActing ||
+                  !voteSummary.totalVoters ||
+                  voteSummary.isTie ||
+                  !voteSummary.consensusCode
+                }
+              >
+                Finalize Voting & Update Reputations
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="card appeal-review-card">
+        <h3>Appeal</h3>
+
+        {appealLoading ? <p>Loading appeal...</p> : null}
+
+        {!appealLoading && !appeal ? (
+          <p>No appeal has been submitted for this claim.</p>
+        ) : null}
+
+        {appeal ? (
+          <>
+            <p>
+              Status:{" "}
+              <span className={`appeal-pill appeal-${appeal.status?.toLowerCase()}`}>
+                {appeal.status}
+              </span>
+            </p>
+            <p>Submitted: {formatValue(appeal.submittedAt)}</p>
+            <p>Claimant: {formatValue(appeal.claimantWallet)}</p>
+            <p>Reason: {formatValue(appeal.appealReason)}</p>
+            <EvidenceField label="Appeal reason hash" value={appeal.appealReasonHash} />
+            {appeal.additionalDocumentHash ? (
+              <EvidenceField
+                label="Additional document hash"
+                value={appeal.additionalDocumentHash}
+              />
+            ) : null}
+            {appeal.additionalDocumentCID ? (
+              <p>
+                Additional document: <IpfsLink cid={appeal.additionalDocumentCID} />
+              </p>
+            ) : null}
+            {appeal.transactionHash ? (
+              <p>
+                Appeal tx: <TransactionLink txHash={appeal.transactionHash} />
+              </p>
+            ) : null}
+
+            <div className="form-grid">
+              <label>
+                Admin note
+                <input
+                  type="text"
+                  value={appealAdminNote}
+                  onChange={(event) => setAppealAdminNote(event.target.value)}
+                  placeholder={appeal.adminNote || "Optional appeal review note"}
+                />
+              </label>
+            </div>
+
+            <div className="action-row">
+              <button
+                type="button"
+                onClick={() => handleReviewAppeal("UNDER_REVIEW")}
+                disabled={isActing || appealIsFinal || appeal.status === "UNDER_REVIEW"}
+              >
+                Mark Under Review
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReviewAppeal("APPROVED")}
+                disabled={isActing || appealIsFinal}
+              >
+                Approve Appeal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReviewAppeal("REJECTED")}
+                disabled={isActing || appealIsFinal}
+              >
+                Reject Appeal
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
+
       <h3>Oracle Results</h3>
 
       {oracleLoading ? <p>Loading oracle logs...</p> : null}
 
-      {!oracleLoading && oracleLogs.length === 0 ? (
+      {isAwaitingOracleQuorum ? (
+        <p className="muted-text">
+          Awaiting additional oracle confirmation before the final oracle result is shown.
+        </p>
+      ) : null}
+
+      {!oracleLoading && canShowOracleResultPanel && oracleLogs.length === 0 ? (
         <p>No oracle result found yet.</p>
       ) : null}
 
-      {oracleLogs.map((log) => (
+      {canShowOracleResultPanel ? oracleLogs.map((log) => (
         <div className="card" key={log._id || log.requestId || log.resultHash}>
           <p>Request ID: {formatValue(log.requestId)}</p>
           <p>Verified: {formatValue(log.verified)}</p>
@@ -323,8 +769,9 @@ export default function AdminClaimDetailPage() {
           <p>
             Tx hash: <TransactionLink txHash={log.submittedTxHash || log.txHash} />
           </p>
+          <OracleComparisonPanel log={log} />
         </div>
-      ))}
+      )) : null}
     </section>
   );
 }

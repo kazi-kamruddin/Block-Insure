@@ -1,11 +1,12 @@
 {
   "name": "contracts",
   "version": "1.0.0",
-  "description": "",
+  "description": "Block-Insure smart contracts and Hardhat verification suite",
   "main": "index.js",
   "scripts": {
     "test": "hardhat test",
-    "compile": "hardhat compile"
+    "compile": "hardhat compile",
+    "gas:compare": "npx hardhat run scripts/gasComparison.js --network localhost"
   },
   "keywords": [],
   "author": "",

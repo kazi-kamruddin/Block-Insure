@@ -12,12 +12,19 @@ const CLAIM_EVENT_NAMES = new Set([
   "DocumentAdded",
   "ClaimFlagged",
   "OracleRequested",
+  "OracleConfirmationReceived",
   "OracleResultSubmitted",
+  "OracleTimedOut",
   "ClaimApproved",
   "ClaimRejected",
+  "ClaimAppealed",
+  "ClaimReopenedAfterAppeal",
+  "ClaimAppealFinalized",
   "ClaimSentToManualReview",
+  "AuditorVoteCast",
+  "SettlementCalculated",
   "ClaimSettled",
-  "ClaimSettledRecordOnly",
+  "ClaimClosed",
 ]);
 
 /* ----------------------------- Utilities ------------------------------- */

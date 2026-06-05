@@ -36,8 +36,12 @@ const getReadOnlyContract = () => {
 const getAdminWallet = () => {
   const provider = getProvider();
   const privateKey = getRequiredEnv("ADMIN_PRIVATE_KEY");
+  const wallet = new ethers.Wallet(privateKey, provider);
+  const signer = new ethers.NonceManager(wallet);
 
-  return new ethers.Wallet(privateKey, provider);
+  signer.address = wallet.address;
+
+  return signer;
 };
 
 const getAdminContract = () => {

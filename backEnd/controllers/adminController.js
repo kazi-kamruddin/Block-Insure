@@ -3,6 +3,9 @@ const {
   getAdminContract,
   getReadOnlyContract,
 } = require("../services/contractService");
+const { buildReserveIntelligence } = require("../services/settlementIntelligenceService");
+const { exportMerkleRoot } = require("../services/merkleRegistryService");
+const { notifyClaimStatusChange } = require("../services/notificationService");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -65,6 +68,21 @@ const formatClaim = (claim) => {
   };
 };
 
+const formatPolicyPackage = (policyPackage) => {
+  return {
+    packageId: policyPackage.packageId.toString(),
+    name: policyPackage.name,
+    policyType: policyPackage.policyType,
+    premiumAmountWei: policyPackage.premiumAmount.toString(),
+    premiumAmountEth: ethers.formatEther(policyPackage.premiumAmount),
+    coverageAmountWei: policyPackage.coverageAmount.toString(),
+    coverageAmountEth: ethers.formatEther(policyPackage.coverageAmount),
+    durationDays: policyPackage.durationDays.toString(),
+    requiredDocumentType: policyPackage.requiredDocumentType,
+    isActive: policyPackage.isActive,
+  };
+};
+
 const formatContractBalance = async (contract) => {
   const balance = await contract.getContractBalance();
 
@@ -74,7 +92,46 @@ const formatContractBalance = async (contract) => {
   };
 };
 
+const formatRegistrySnapshot = (snapshot) => {
+  const root = snapshot.root || snapshot[0];
+  const timestamp = snapshot.timestamp || snapshot[1];
+  const blockNumber = snapshot.blockNumber || snapshot[2];
+  const timestampValue = Number(timestamp);
+
+  return {
+    root,
+    timestamp: {
+      unix: timestamp.toString(),
+      iso: timestampValue ? new Date(timestampValue * 1000).toISOString() : null,
+    },
+    blockNumber: blockNumber.toString(),
+    committed: root !== ethers.ZeroHash && timestampValue > 0,
+  };
+};
+
 /* -------------------------- Policy Package Admin ------------------------ */
+
+const getAllPolicyPackages = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const packageIds = await contract.getAllPackageIds();
+
+    const packages = await Promise.all(
+      packageIds.map(async (packageId) => {
+        const policyPackage = await contract.getPolicyPackage(packageId);
+        return formatPolicyPackage(policyPackage);
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: packages.length,
+      packages,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 const createPolicyPackage = async (req, res, next) => {
   try {
@@ -149,7 +206,161 @@ const createPolicyPackage = async (req, res, next) => {
   }
 };
 
+const updatePolicyPackage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      policyType,
+      premiumAmountEth,
+      coverageAmountEth,
+      durationDays,
+      requiredDocumentType,
+    } = req.body;
+
+    if (
+      !id ||
+      !name ||
+      !policyType ||
+      !premiumAmountEth ||
+      !coverageAmountEth ||
+      !durationDays ||
+      !requiredDocumentType
+    ) {
+      throw createError("All policy package fields are required", 400);
+    }
+
+    const premiumAmountWei = ethers.parseEther(premiumAmountEth.toString());
+    const coverageAmountWei = ethers.parseEther(coverageAmountEth.toString());
+    const contract = getAdminContract();
+
+    const tx = await contract.updatePolicyPackage(
+      id,
+      name,
+      policyType,
+      premiumAmountWei,
+      coverageAmountWei,
+      Number(durationDays),
+      requiredDocumentType
+    );
+
+    await tx.wait();
+
+    const updatedPackage = await contract.getPolicyPackage(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Policy package updated successfully",
+      transactionHash: tx.hash,
+      package: formatPolicyPackage(updatedPackage),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deactivatePolicyPackage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Package id is required", 400);
+    }
+
+    const contract = getAdminContract();
+    const tx = await contract.deactivatePolicyPackage(id);
+
+    await tx.wait();
+
+    const updatedPackage = await contract.getPolicyPackage(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Policy package deactivated successfully",
+      transactionHash: tx.hash,
+      package: formatPolicyPackage(updatedPackage),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const reactivatePolicyPackage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Package id is required", 400);
+    }
+
+    const contract = getAdminContract();
+    const tx = await contract.reactivatePolicyPackage(id);
+
+    await tx.wait();
+
+    const updatedPackage = await contract.getPolicyPackage(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Policy package reactivated successfully",
+      transactionHash: tx.hash,
+      package: formatPolicyPackage(updatedPackage),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /* ----------------------------- Claim Admin ------------------------------ */
+
+const getReserveIntelligence = async (req, res, next) => {
+  try {
+    const reserveIntelligence = await buildReserveIntelligence();
+
+    res.status(200).json({
+      success: true,
+      reserveIntelligence,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getRegistryMerkleRoot = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const snapshot = await contract.getRegistrySnapshot();
+
+    res.status(200).json({
+      success: true,
+      registrySnapshot: formatRegistrySnapshot(snapshot),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const pushRegistryMerkleRoot = async (req, res, next) => {
+  try {
+    const root = await exportMerkleRoot();
+    const contract = getAdminContract();
+
+    const tx = await contract.updateRegistryMerkleRoot(root);
+    const receipt = await tx.wait();
+    const snapshot = await contract.getRegistrySnapshot();
+
+    res.status(200).json({
+      success: true,
+      message: "Registry Merkle root pushed on-chain successfully",
+      root,
+      transactionHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      registrySnapshot: formatRegistrySnapshot(snapshot),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 const getAdminClaims = async (req, res, next) => {
   try {
@@ -208,6 +419,14 @@ const requestOracleForClaim = async (req, res, next) => {
 
     const updatedClaim = await contract.getClaim(id);
 
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "ORACLE_PENDING",
+      transactionHash: tx.hash,
+      source: "admin-request-oracle",
+      message: `Oracle verification started for claim #${id}.`,
+    });
+
     res.status(200).json({
       success: true,
       message: "Oracle verification requested successfully",
@@ -253,6 +472,14 @@ const approveClaim = async (req, res, next) => {
 
     const updatedClaim = await contract.getClaim(id);
 
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "APPROVED",
+      transactionHash: tx.hash,
+      source: "admin-approve",
+      message: `Claim #${id} was approved and is ready for settlement.`,
+    });
+
     res.status(200).json({
       success: true,
       message: "Claim approved successfully",
@@ -281,10 +508,28 @@ const settleClaim = async (req, res, next) => {
     const receipt = await tx.wait();
 
     let settlementEvent = null;
+    let settlementCalculation = null;
 
     for (const log of receipt.logs) {
       try {
         const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "SettlementCalculated") {
+          settlementCalculation = {
+            claimId: parsedLog.args.claimId.toString(),
+            claimAmountWei: parsedLog.args.claimAmount.toString(),
+            claimAmountEth: ethers.formatEther(parsedLog.args.claimAmount),
+            deductibleWei: parsedLog.args.deductible.toString(),
+            deductibleEth: ethers.formatEther(parsedLog.args.deductible),
+            insurerPaysWei: parsedLog.args.insurerPays.toString(),
+            insurerPaysEth: ethers.formatEther(parsedLog.args.insurerPays),
+            claimantResponsibilityWei:
+              parsedLog.args.claimantResponsibility.toString(),
+            claimantResponsibilityEth: ethers.formatEther(
+              parsedLog.args.claimantResponsibility
+            ),
+          };
+        }
 
         if (parsedLog && parsedLog.name === "ClaimSettled") {
           settlementEvent = {
@@ -308,15 +553,126 @@ const settleClaim = async (req, res, next) => {
     const updatedClaim = await contract.getClaim(id);
     const balanceAfter = await formatContractBalance(contract);
 
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "SETTLED",
+      transactionHash: tx.hash,
+      source: "admin-settle",
+      message: `Claim #${id} was settled successfully.`,
+    });
+
     res.status(200).json({
       success: true,
       message: "Claim settled successfully",
       transactionHash: tx.hash,
       settlementEvent,
+      settlementCalculation,
       contractBalance: {
         before: balanceBefore,
         after: balanceAfter,
       },
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const resolveTimedOutOracle = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+    const tx = await contract.resolveTimedOutOracle(id);
+    const receipt = await tx.wait();
+    let timeoutEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "OracleTimedOut") {
+          timeoutEvent = {
+            requestId: parsedLog.args.requestId.toString(),
+            claimId: parsedLog.args.claimId.toString(),
+            resolvedAtBlock: parsedLog.args.resolvedAtBlock.toString(),
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    const updatedClaim = await contract.getClaim(id);
+
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "ORACLE_FAILED",
+      transactionHash: tx.hash,
+      source: "oracle-timeout",
+      message: `Oracle verification timed out for claim #${id}; the claim is ready for manual review.`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Timed-out oracle request resolved successfully",
+      transactionHash: tx.hash,
+      timeoutEvent,
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const closeClaim = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+    const tx = await contract.closeClaim(id);
+    const receipt = await tx.wait();
+    let closureEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "ClaimClosed") {
+          closureEvent = {
+            claimId: parsedLog.args.claimId.toString(),
+            closedBy: parsedLog.args.closedBy,
+            timestamp: parsedLog.args.timestamp.toString(),
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    const updatedClaim = await contract.getClaim(id);
+
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "CLOSED",
+      transactionHash: tx.hash,
+      source: "admin-close",
+      message: `Claim #${id} lifecycle was closed.`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Claim closed successfully",
+      transactionHash: tx.hash,
+      closureEvent,
       claim: formatClaim(updatedClaim),
     });
   } catch (error) {
@@ -359,6 +715,14 @@ const rejectClaim = async (req, res, next) => {
     }
 
     const updatedClaim = await contract.getClaim(id);
+
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "REJECTED",
+      transactionHash: tx.hash,
+      source: "admin-reject",
+      message: `Claim #${id} was rejected. You may submit one appeal.`,
+    });
 
     res.status(200).json({
       success: true,
@@ -409,6 +773,14 @@ const sendClaimToManualReview = async (req, res, next) => {
 
     const updatedClaim = await contract.getClaim(id);
 
+    await notifyClaimStatusChange({
+      claim: updatedClaim,
+      status: "MANUAL_REVIEW",
+      transactionHash: tx.hash,
+      source: "admin-manual-review",
+      message: `Claim #${id} was sent to manual review.`,
+    });
+
     res.status(200).json({
       success: true,
       message: "Claim sent to manual review successfully",
@@ -422,11 +794,20 @@ const sendClaimToManualReview = async (req, res, next) => {
 };
 
 module.exports = {
+  getAllPolicyPackages,
   createPolicyPackage,
+  updatePolicyPackage,
+  deactivatePolicyPackage,
+  reactivatePolicyPackage,
+  getReserveIntelligence,
+  getRegistryMerkleRoot,
+  pushRegistryMerkleRoot,
   getAdminClaims,
   requestOracleForClaim,
+  resolveTimedOutOracle,
   approveClaim,
   rejectClaim,
   settleClaim,
+  closeClaim,
   sendClaimToManualReview,
 };

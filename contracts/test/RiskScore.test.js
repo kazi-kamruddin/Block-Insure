@@ -127,6 +127,7 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
     const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
 
     await insuranceManager.grantProjectRole(ORACLE_ROLE, admin.address);
+    await insuranceManager.updateQuorumThreshold(1);
 
     await submitClaim({ insuranceManager, user, policy });
 
