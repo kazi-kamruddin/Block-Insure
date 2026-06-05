@@ -17,7 +17,8 @@ export default function AuditorLayout() {
       <nav className="subnav" aria-label="Auditor navigation">
         <NavLink to="/auditor/dashboard" end>Overview</NavLink>
         <NavLink to="/auditor/healthcare-registry">Registry</NavLink>
-        <NavLink to="/auditor/claims">Claim Audit</NavLink>
+        <NavLink to="/auditor/claims">Audit Timelines</NavLink>
+        <NavLink to="/auditor/votes">Voting Queue</NavLink>
         <NavLink to="/auditor/verify-document">Verify Document</NavLink>
         <NavLink to="/auditor/reputation">Reputation</NavLink>
       </nav>

@@ -104,6 +104,35 @@ const getMyClaims = async (req, res, next) => {
   }
 };
 
+const getReadableClaims = async (req, res, next) => {
+  try {
+    if (req.user.role !== "ADMIN" && req.user.role !== "AUDITOR") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: admin or auditor role is required",
+      });
+    }
+
+    const contract = getReadOnlyContract();
+    const nextClaimId = await contract.claimCounter();
+    const totalCreatedClaims = Number(nextClaimId) - 1;
+    const claims = [];
+
+    for (let claimId = 1; claimId <= totalCreatedClaims; claimId += 1) {
+      const claim = await contract.getClaim(claimId);
+      claims.push(formatClaim(claim));
+    }
+
+    res.status(200).json({
+      success: true,
+      count: claims.length,
+      claims,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getClaimById = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
@@ -215,6 +244,7 @@ const authorizeClaimSubmission = async (req, res, next) => {
 
 module.exports = {
   authorizeClaimSubmission,
+  getReadableClaims,
   getMyClaims,
   getClaimById,
   getClaimDocumentHash,

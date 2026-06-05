@@ -122,32 +122,39 @@ const hospitals = [
   },
 ];
 
+const generatedFraudScenarioCycle = [
+  "LEGITIMATE",
+  "INFLATED_AMOUNT",
+  "USED_INVOICE",
+  "LEGITIMATE",
+  "CANCELLED_RECORD",
+  "LEGITIMATE",
+  "SUSPICIOUS_PATTERN",
+  "LEGITIMATE",
+  "USED_INVOICE",
+  "INFLATED_AMOUNT",
+  "LEGITIMATE",
+  "CANCELLED_RECORD",
+  "LEGITIMATE",
+  "DATE_MISMATCH",
+  "LEGITIMATE",
+  "USED_INVOICE",
+  "INFLATED_AMOUNT",
+  "LEGITIMATE",
+  "CANCELLED_RECORD",
+  "LEGITIMATE",
+  "SUSPICIOUS_PATTERN",
+  "USED_INVOICE",
+  "LEGITIMATE",
+  "CANCELLED_RECORD",
+];
+
 const getFraudScenario = (index, hospital) => {
   if (hospital.licenseStatus === "BLACKLISTED") {
     return "BLACKLISTED_HOSPITAL";
   }
 
-  if (index % 17 === 0) {
-    return "DATE_MISMATCH";
-  }
-
-  if (index % 13 === 0) {
-    return "INFLATED_AMOUNT";
-  }
-
-  if (index % 11 === 0) {
-    return "CANCELLED_RECORD";
-  }
-
-  if (index % 7 === 0) {
-    return "USED_INVOICE";
-  }
-
-  if (hospital.licenseStatus === "SUSPENDED" && index % 2 === 0) {
-    return "SUSPICIOUS_PATTERN";
-  }
-
-  return "LEGITIMATE";
+  return generatedFraudScenarioCycle[(index - 6) % generatedFraudScenarioCycle.length];
 };
 
 const deriveStatuses = (fraudLabel) => {
@@ -252,7 +259,7 @@ const buildRecord = ({
     },
     previousClaimCount:
       fraudLabel === "USED_INVOICE" || fraudLabel === "SUSPICIOUS_PATTERN" ? 2 : 0,
-    syntheticSource: "phase-1-seed-v1",
+    syntheticSource: "phase-1-seed-v2",
   };
 };
 
@@ -286,7 +293,7 @@ const buildSyntheticRecords = () => {
 
   const treatmentTypes = Object.keys(treatmentProfiles);
 
-  for (let index = 6; index <= 72; index += 1) {
+  for (let index = 6; index <= 120; index += 1) {
     const hospital = hospitals[(index - 1) % hospitals.length];
     const treatmentType = treatmentTypes[index % treatmentTypes.length];
     const invoiceNumber = `INV-${hospital.hospitalId}-${String(index).padStart(3, "0")}`;

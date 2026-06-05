@@ -1,6 +1,7 @@
 const express = require("express");
 const {
   authorizeClaimSubmission,
+  getReadableClaims,
   getMyClaims,
   getClaimById,
   getClaimDocumentHash,
@@ -17,6 +18,7 @@ router.post(
   authorizeClaimSubmission
 );
 router.get("/my", authMiddleware, getMyClaims);
+router.get("/all", authMiddleware, getReadableClaims);
 router.get("/:claimId/document-hash", authMiddleware, getClaimDocumentHash);
 router.get("/:claimId", authMiddleware, getClaimById);
 

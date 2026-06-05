@@ -384,7 +384,7 @@ export default function AuditorClaimHistoryPage() {
       <h2>Auditor Claim History</h2>
 
       <p>
-        <Link to="/auditor/claims">Back to claim lookup</Link>
+        <Link to="/auditor/claims">Back to audit timelines</Link>
       </p>
 
       <button

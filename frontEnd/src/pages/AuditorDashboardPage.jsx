@@ -24,7 +24,7 @@ export default function AuditorDashboardPage() {
             Inspect blockchain events for submitted claims, oracle requests,
             oracle results, manual review, approval, rejection, and settlement.
           </p>
-          <Link to="/auditor/claims">Open Claim Lookup</Link>
+          <Link to="/auditor/claims">Open Audit Timelines</Link>
         </div>
 
         <div className="card">
@@ -44,7 +44,7 @@ export default function AuditorDashboardPage() {
             Review disputed claims, cast an auditor vote, and inspect reputation
             scores that weight governance consensus.
           </p>
-          <Link to="/auditor/reputation">View Reputation</Link>
+          <Link to="/auditor/votes">Open Voting Queue</Link>
         </div>
       </div>
 

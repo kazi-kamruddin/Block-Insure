@@ -746,37 +746,77 @@ async function main() {
     console.log("Registry Merkle root pushed on-chain:", merkleRoot);
 
     const oracleWallets = [oracleWallet, oracle2Wallet];
-    const settledRecord = records.find(
-      (record) =>
-        record.fraudLabel === "LEGITIMATE" &&
-        record.invoiceNumber !== "INV-HOSP-001-001"
-    );
-    const failedRecord = records.find((record) => record.fraudLabel === "USED_INVOICE");
-    const openVoteRecord =
-      records.find(
-        (record) =>
-          record.fraudLabel === "USED_INVOICE" &&
-          record.invoiceNumber !== failedRecord.invoiceNumber
-      ) ||
-      records.find(
-        (record) =>
-          record.fraudLabel !== "LEGITIMATE" &&
-          record.invoiceNumber !== failedRecord.invoiceNumber
+    const selectedInvoiceNumbers = new Set();
+    const takeRecord = (label, predicate) => {
+      const record = records.find(
+        (candidate) =>
+          !selectedInvoiceNumbers.has(candidate.invoiceNumber) && predicate(candidate)
       );
-    const appealedRecord = records.find(
-      (record) =>
-        record.fraudLabel === "LEGITIMATE" &&
-        record.invoiceNumber !== settledRecord.invoiceNumber
-    );
 
-    console.log("Creating settled claim scenario...");
+      if (!record) {
+        throw new Error(`No synthetic registry record found for ${label}`);
+      }
+
+      selectedInvoiceNumbers.add(record.invoiceNumber);
+      return record;
+    };
+
+    const cleanRecord = (record) =>
+      record.fraudLabel === "LEGITIMATE" &&
+      record.invoiceNumber !== "INV-HOSP-001-001";
+    const riskyRecord = (record) =>
+      record.fraudLabel === "USED_INVOICE" ||
+      record.fraudLabel === "CANCELLED_RECORD" ||
+      record.fraudLabel === "BLACKLISTED_HOSPITAL" ||
+      record.fraudLabel === "DATE_MISMATCH" ||
+      record.fraudLabel === "SUSPICIOUS_PATTERN";
+
+    const closedRecord = takeRecord("closed claim", cleanRecord);
+    const settledOnlyRecord = takeRecord("settled claim", cleanRecord);
+    const approvedRecord = takeRecord("approved claim", cleanRecord);
+    const verifiedRecord = takeRecord("oracle-verified claim", cleanRecord);
+    const rejectedRecord = takeRecord("rejected claim", cleanRecord);
+    const duplicateCheckedRecord = takeRecord("duplicate-checked claim", cleanRecord);
+    const pendingRecord = takeRecord("oracle-pending claim", cleanRecord);
+    const failedRecord = takeRecord(
+      "oracle-failed claim",
+      (record) => record.fraudLabel === "USED_INVOICE"
+    );
+    const manualFailedRecord = takeRecord("manual-review oracle failure", riskyRecord);
+    const openVoteRecord = takeRecord("interactive voting claim", riskyRecord);
+    const appealRecord = takeRecord("appeal/reopen claim", riskyRecord);
+
+    const claimIds = [];
+
+    console.log("Creating claim #1 closed scenario...");
+    const closedClaimId = await createClaimScenario({
+      userContract,
+      userWallet,
+      record: closedRecord,
+      packageId,
+      label: "closed-claim",
+    });
+    claimIds.push(closedClaimId);
+    await runOracleQuorum({
+      adminContract,
+      provider,
+      contractAddress,
+      claimId: closedClaimId,
+      oracleWallets,
+    });
+    await waitFor(adminContract.approveClaim(closedClaimId));
+    await waitFor(adminContract.settleClaim(closedClaimId));
+    await waitFor(adminContract.closeClaim(closedClaimId));
+
+    console.log("Creating claim #2 settled scenario...");
     const settledClaimId = await createClaimScenario({
       userContract,
       userWallet,
-      record: settledRecord,
+      record: settledOnlyRecord,
       packageId,
       label: "settled-claim",
     });
+    claimIds.push(settledClaimId);
     await runOracleQuorum({
       adminContract,
       provider,
@@ -786,9 +826,43 @@ async function main() {
     });
     await waitFor(adminContract.approveClaim(settledClaimId));
     await waitFor(adminContract.settleClaim(settledClaimId));
-    await waitFor(adminContract.closeClaim(settledClaimId));
 
-    console.log("Creating oracle-failed/manual-review scenario...");
+    console.log("Creating claim #3 approved scenario...");
+    const approvedClaimId = await createClaimScenario({
+      userContract,
+      userWallet,
+      record: approvedRecord,
+      packageId,
+      label: "approved-claim",
+    });
+    claimIds.push(approvedClaimId);
+    await runOracleQuorum({
+      adminContract,
+      provider,
+      contractAddress,
+      claimId: approvedClaimId,
+      oracleWallets,
+    });
+    await waitFor(adminContract.approveClaim(approvedClaimId));
+
+    console.log("Creating claim #4 oracle-verified scenario...");
+    const verifiedClaimId = await createClaimScenario({
+      userContract,
+      userWallet,
+      record: verifiedRecord,
+      packageId,
+      label: "verified-claim",
+    });
+    claimIds.push(verifiedClaimId);
+    await runOracleQuorum({
+      adminContract,
+      provider,
+      contractAddress,
+      claimId: verifiedClaimId,
+      oracleWallets,
+    });
+
+    console.log("Creating claim #5 oracle-failed scenario...");
     const failedClaimId = await createClaimScenario({
       userContract,
       userWallet,
@@ -796,6 +870,7 @@ async function main() {
       packageId,
       label: "failed-claim",
     });
+    claimIds.push(failedClaimId);
     await runOracleQuorum({
       adminContract,
       provider,
@@ -803,38 +878,36 @@ async function main() {
       claimId: failedClaimId,
       oracleWallets,
     });
-    await waitFor(adminContract.sendToManualReview(failedClaimId));
 
-    if (canAutoVote) {
-      await waitFor(auditorContract.castVote(failedClaimId, 2));
-      await waitFor(auditor2Contract.castVote(failedClaimId, 2));
-      await finalizeDemoVoting({
-        adminContract,
-        claimId: failedClaimId,
-        finalizedBy: adminWallet.address,
-      });
-      await waitFor(
-        adminContract.rejectClaim(
-          failedClaimId,
-          normalizeBytes32("", "demo-rejected-after-auditor-consensus")
-        )
-      );
-    } else {
-      console.log(
-        `Claim #${failedClaimId} left open in MANUAL_REVIEW for MetaMask auditor voting.`
-      );
-    }
+    console.log("Creating claim #6 manual-review oracle failure scenario...");
+    const manualFailedClaimId = await createClaimScenario({
+      userContract,
+      userWallet,
+      record: manualFailedRecord,
+      packageId,
+      label: "manual-review-failed-claim",
+    });
+    claimIds.push(manualFailedClaimId);
+    await runOracleQuorum({
+      adminContract,
+      provider,
+      contractAddress,
+      claimId: manualFailedClaimId,
+      oracleWallets,
+    });
+    await waitFor(adminContract.sendToManualReview(manualFailedClaimId));
 
-    console.log("Creating open manual-review duplicate scenario...");
+    console.log("Creating claim #7 manual-review duplicate scenario...");
     const duplicatePolicyId = await purchasePolicy(userContract, packageId);
     const duplicateClaim = await submitClaimFromRecord({
       contract: userContract,
       policyId: duplicatePolicyId,
-      record: settledRecord,
-      invoiceHash: settledRecord.invoiceHash,
+      record: closedRecord,
+      invoiceHash: closedRecord.invoiceHash,
       documentSeed: "duplicate-claim",
       cidSeed: "duplicate-claim",
     });
+    claimIds.push(duplicateClaim.claimId);
     await createEvidenceDocument({
       claimId: duplicateClaim.claimId,
       wallet: userWallet,
@@ -857,37 +930,64 @@ async function main() {
       );
     }
 
-    console.log("Creating open manual-review claim for interactive voting...");
-    const openVoteClaimId = await createClaimScenario({
+    console.log("Creating claim #8 fraud-flagged duplicate scenario...");
+    const fraudFlaggedPolicyId = await purchasePolicy(userContract, packageId);
+    const fraudFlaggedClaim = await submitClaimFromRecord({
+      contract: userContract,
+      policyId: fraudFlaggedPolicyId,
+      record: settledOnlyRecord,
+      invoiceHash: settledOnlyRecord.invoiceHash,
+      documentSeed: "fraud-flagged-duplicate-claim",
+      cidSeed: "fraud-flagged-duplicate-claim",
+    });
+    claimIds.push(fraudFlaggedClaim.claimId);
+
+    console.log("Creating claim #9 rejected scenario...");
+    const rejectedClaimId = await createClaimScenario({
       userContract,
       userWallet,
-      record: openVoteRecord,
+      record: rejectedRecord,
       packageId,
-      label: "open-vote-claim",
+      label: "rejected-claim",
     });
-    await createEvidenceDocument({
-      claimId: openVoteClaimId,
-      wallet: userWallet,
-      label: "open-vote-claim-extra-evidence",
-      documentType: "SUPPORTING_DOCUMENT",
-    });
-    await runOracleQuorum({
-      adminContract,
-      provider,
-      contractAddress,
-      claimId: openVoteClaimId,
-      oracleWallets,
-    });
-    await waitFor(adminContract.sendToManualReview(openVoteClaimId));
+    claimIds.push(rejectedClaimId);
+    await waitFor(
+      adminContract.rejectClaim(
+        rejectedClaimId,
+        normalizeBytes32("", "demo-direct-rejection")
+      )
+    );
 
-    console.log("Creating appeal/reopen scenario...");
+    console.log("Creating claim #10 duplicate-checked scenario...");
+    const duplicateCheckedClaimId = await createClaimScenario({
+      userContract,
+      userWallet,
+      record: duplicateCheckedRecord,
+      packageId,
+      label: "duplicate-checked-claim",
+    });
+    claimIds.push(duplicateCheckedClaimId);
+
+    console.log("Creating claim #11 oracle-pending scenario...");
+    const pendingClaimId = await createClaimScenario({
+      userContract,
+      userWallet,
+      record: pendingRecord,
+      packageId,
+      label: "pending-claim",
+    });
+    claimIds.push(pendingClaimId);
+    await requestOracle(adminContract, pendingClaimId);
+
+    console.log("Creating claim #12 appeal/reopen scenario...");
     const appealedClaimId = await createClaimScenario({
       userContract,
       userWallet,
-      record: appealedRecord,
+      record: appealRecord,
       packageId,
       label: "appealed-claim",
     });
+    claimIds.push(appealedClaimId);
     await waitFor(
       adminContract.rejectClaim(
         appealedClaimId,
@@ -909,13 +1009,9 @@ async function main() {
       oracleWallets,
     });
 
-    const claimIds = [
-      settledClaimId,
-      failedClaimId,
-      duplicateClaim.claimId,
-      openVoteClaimId,
-      appealedClaimId,
-    ];
+    console.log(
+      `Claim #${manualFailedClaimId} left open in MANUAL_REVIEW for MetaMask auditor voting.`
+    );
     console.log("");
     console.log("Demo scenario populated successfully.");
     console.log("Demo user wallet:", userWallet.address);
@@ -932,9 +1028,9 @@ async function main() {
 
     console.log("");
     console.log("Useful pages:");
-    console.log(`- /auditor/claims/${settledClaimId}/history`);
+    console.log(`- /auditor/claims/${closedClaimId}/history`);
     console.log(`- /auditor/claims/${failedClaimId}/history`);
-    console.log(`- /auditor/vote/${openVoteClaimId}`);
+    console.log(`- /auditor/vote/${manualFailedClaimId}`);
     console.log("- /admin/healthcare-registry");
     console.log("- /admin/thesis-dashboard");
   } finally {

@@ -13,6 +13,7 @@ const {
 } = require("./analyzeAuditorReputation");
 const { getPercentile, summarizeDurations } = require("./loadTestClaims");
 const { runEvaluation } = require("./evaluateRiskModel");
+const { buildSyntheticRecords } = require("./seedMockData");
 
 const approximatelyEqual = (actual, expected, tolerance = 0.000001) => {
   assert.ok(
@@ -88,8 +89,15 @@ const run = async () => {
     useSynthetic: true,
     writeOutputs: false,
   });
-  assert.strictEqual(evaluation.summary.split.trainingRecords, 57);
-  assert.strictEqual(evaluation.summary.dataset.totalRecords, 15);
+  const syntheticRecordCount = buildSyntheticRecords().length;
+  const expectedTrainingRecords = Math.floor(syntheticRecordCount * 0.8);
+  const expectedHeldOutRecords = syntheticRecordCount - expectedTrainingRecords;
+
+  assert.strictEqual(
+    evaluation.summary.split.trainingRecords,
+    expectedTrainingRecords
+  );
+  assert.strictEqual(evaluation.summary.dataset.totalRecords, expectedHeldOutRecords);
   assert.ok(evaluation.summary.metrics.auc >= 0 && evaluation.summary.metrics.auc <= 1);
   assert.ok(
     evaluation.summary.metrics.averagePrecision >= 0 &&

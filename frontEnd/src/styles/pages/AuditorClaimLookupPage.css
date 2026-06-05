@@ -1,12 +1,86 @@
-.page-auditor-claim-lookup .form-grid {
-  max-width: 480px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+.page-auditor-claim-lookup .page-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
 }
 
-.page-auditor-claim-lookup > p {
-  max-width: 620px;
+.page-auditor-claim-lookup .page-heading-row p {
+  max-width: 760px;
+  margin-bottom: 0;
+}
+
+.auditor-claim-list {
+  display: grid;
+  gap: 14px;
+}
+
+.auditor-claim-card {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.2fr) minmax(300px, 1.6fr) auto;
+  align-items: center;
+  gap: 18px;
+}
+
+.auditor-claim-card h3 {
+  margin: 4px 0 8px;
+}
+
+.auditor-claim-card p {
+  margin-bottom: 0;
+}
+
+.claim-card-eyebrow {
+  color: var(--accent);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auditor-claim-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+
+.auditor-claim-meta span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.auditor-claim-card > a,
+.auditor-empty-state a {
+  align-self: center;
+  white-space: nowrap;
+}
+
+.auditor-claim-card .action-row {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.auditor-empty-state {
+  max-width: 760px;
+}
+
+@media (max-width: 900px) {
+  .page-auditor-claim-lookup .page-heading-row,
+  .auditor-claim-card {
+    grid-template-columns: 1fr;
+  }
+
+  .page-auditor-claim-lookup .page-heading-row {
+    display: grid;
+  }
+
+  .auditor-claim-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .auditor-claim-card .action-row {
+    justify-content: flex-start;
+  }
 }

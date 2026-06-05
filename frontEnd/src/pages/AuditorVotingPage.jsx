@@ -11,6 +11,7 @@ import {
   getClaimVoteSummary,
   getOracleResults,
 } from "../services/api";
+import { useWallet } from "../context/useWallet";
 import { getWalletContract } from "../services/contractService";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/AuditorVotingPage.css";
@@ -74,8 +75,18 @@ function getVotingHint({ isReviewable, statusName, voteSummary, isVoting }) {
   return "This claim is open for auditor voting.";
 }
 
+async function getActiveWalletAddress(fallbackWallet) {
+  try {
+    const accounts = await window.ethereum?.request({ method: "eth_accounts" });
+    return (accounts?.[0] || fallbackWallet || "").toLowerCase();
+  } catch {
+    return (fallbackWallet || "").toLowerCase();
+  }
+}
+
 export default function AuditorVotingPage() {
   const { claimId } = useParams();
+  const { walletAddress } = useWallet();
   const [voteError, setVoteError] = useState("");
   const [voteMessage, setVoteMessage] = useState("");
   const [voteTxHash, setVoteTxHash] = useState("");
@@ -107,8 +118,11 @@ export default function AuditorVotingPage() {
     isLoading: voteLoading,
     refetch: refetchVotes,
   } = useQuery({
-    queryKey: ["auditorVoteSummary", claimId],
-    queryFn: () => getClaimVoteSummary(claimId),
+    queryKey: ["auditorVoteSummary", claimId, walletAddress],
+    queryFn: async () => {
+      const activeWalletAddress = await getActiveWalletAddress(walletAddress);
+      return getClaimVoteSummary(claimId, activeWalletAddress);
+    },
     enabled: Boolean(claimId),
   });
 
@@ -164,7 +178,7 @@ export default function AuditorVotingPage() {
       <h2>Auditor Vote</h2>
 
       <p>
-        <Link to="/auditor/claims">Back to claim lookup</Link>
+        <Link to="/auditor/votes">Back to voting queue</Link>
       </p>
 
       <button type="button" onClick={refreshAll}>

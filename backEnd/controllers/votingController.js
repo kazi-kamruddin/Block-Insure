@@ -2,6 +2,7 @@ const {
   getAdminContract,
   getReadOnlyContract,
 } = require("../services/contractService");
+const { ethers } = require("ethers");
 const {
   calculateReputationUpdate,
   calculateWeightedConsensus,
@@ -55,6 +56,7 @@ const formatVoteSummary = (claimId, rawVotes, currentWalletAddress = "") => {
 const getClaimVoteSummary = async (req, res, next) => {
   try {
     const { claimId } = req.params;
+    const voterAddress = String(req.query.voterAddress || "").trim();
 
     if (!claimId) {
       throw createError("claimId is required", 400);
@@ -62,10 +64,13 @@ const getClaimVoteSummary = async (req, res, next) => {
 
     const contract = getReadOnlyContract();
     const rawVotes = await contract.getClaimVotes(claimId);
+    const currentWalletAddress = ethers.isAddress(voterAddress)
+      ? voterAddress
+      : req.user.walletAddress;
     const voteSummary = formatVoteSummary(
       claimId,
       rawVotes,
-      req.user.walletAddress
+      currentWalletAddress
     );
 
     res.status(200).json({
@@ -116,6 +121,7 @@ const finalizeVoting = async (req, res, next) => {
 
     const reputationChanges = [];
     const transactionHashes = [];
+    let nextNonce = await contract.runner.getNonce("pending");
 
     for (const voter of voteSummary.voters) {
       const reputationChange = calculateReputationUpdate(
@@ -126,8 +132,10 @@ const finalizeVoting = async (req, res, next) => {
 
       const tx = await contract.updateAuditorReputation(
         reputationChange.auditorAddress,
-        reputationChange.newReputation
+        reputationChange.newReputation,
+        { nonce: nextNonce }
       );
+      nextNonce += 1;
       const receipt = await tx.wait();
 
       reputationChanges.push({

@@ -1,54 +1,100 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+
+import ClaimStatusBadge from "../components/ClaimStatusBadge";
+import { getAllReadableClaims } from "../services/api";
+import { getClaimStatusName, getStatusExplanation } from "../utils/claimStatus";
 import "../styles/pages/AuditorClaimLookupPage.css";
 
+function extractClaims(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.claims)) return data.claims;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+function shortenAddress(address) {
+  if (!address) return "-";
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function formatDate(timestamp) {
+  if (!timestamp?.iso) return "-";
+  return new Date(timestamp.iso).toLocaleString();
+}
+
 export default function AuditorClaimLookupPage() {
-  const [claimId, setClaimId] = useState("");
-  const navigate = useNavigate();
+  const {
+    data,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["auditorAllClaims"],
+    queryFn: getAllReadableClaims,
+  });
 
-  function handleSubmit(event) {
-    event.preventDefault();
-
-    if (!claimId.trim()) return;
-
-    navigate(`/auditor/claims/${claimId.trim()}/history`);
-  }
-
-  function handleOpenVoting() {
-    if (!claimId.trim()) return;
-
-    navigate(`/auditor/vote/${claimId.trim()}`);
-  }
+  const claims = extractClaims(data);
 
   return (
     <section className="page-container page-auditor-claim-lookup">
-      <h2>Auditor Claim Lookup</h2>
-
-      <p>
-        Enter a claim ID to inspect its blockchain audit timeline. Example:
-        after a fresh local test, use claim ID <strong>1</strong>.
-      </p>
-
-      <form className="form-grid" onSubmit={handleSubmit}>
-        <label>
-          Claim ID
-          <input
-            type="number"
-            min="1"
-            value={claimId}
-            onChange={(event) => setClaimId(event.target.value)}
-            placeholder="1"
-            required
-          />
-        </label>
-
-        <div className="action-row">
-          <button type="submit">Open Audit Timeline</button>
-          <button type="button" onClick={handleOpenVoting}>
-            Open Voting Review
-          </button>
+      <div className="page-heading-row">
+        <div>
+          <h2>Claim Audit Timelines</h2>
+          <p>
+            Every submitted claim has an audit trail. Choose any claim below to
+            inspect its blockchain events, oracle evidence, documents, votes,
+            appeals, settlement, and closure history.
+          </p>
         </div>
-      </form>
+        <button type="button" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? "Refreshing..." : "Refresh Claims"}
+        </button>
+      </div>
+
+      {error ? (
+        <p className="error-text">
+          {error.response?.data?.message ||
+            error.message ||
+            "Could not load claims"}
+        </p>
+      ) : null}
+
+      {isLoading ? <p>Loading claims...</p> : null}
+      {!isLoading && claims.length === 0 ? <p>No claims found.</p> : null}
+
+      {claims.length > 0 ? (
+        <div className="auditor-claim-list">
+          {claims.map((claim) => {
+            const statusName = getClaimStatusName(claim);
+
+            return (
+              <article className="card auditor-claim-card" key={claim.claimId}>
+                <div>
+                  <span className="claim-card-eyebrow">Claim #{claim.claimId}</span>
+                  <h3>{claim.claimType || "Healthcare claim"}</h3>
+                  <p>{getStatusExplanation(statusName)}</p>
+                </div>
+
+                <div className="auditor-claim-meta">
+                  <span>
+                    Status <ClaimStatusBadge status={statusName} />
+                  </span>
+                  <span>Amount {claim.claimAmountEth || claim.claimAmount} ETH</span>
+                  <span>Hospital {claim.hospitalId || "-"}</span>
+                  <span>Claimant {shortenAddress(claim.claimantWallet)}</span>
+                  <span>Submitted {formatDate(claim.submittedAt)}</span>
+                </div>
+
+                <Link to={`/auditor/claims/${claim.claimId}/history`}>
+                  View Audit Timeline
+                </Link>
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
     </section>
   );
 }

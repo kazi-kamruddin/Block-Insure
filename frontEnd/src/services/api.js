@@ -108,6 +108,11 @@ export async function getMyClaims() {
   return response.data;
 }
 
+export async function getAllReadableClaims() {
+  const response = await api.get("/api/claims/all");
+  return response.data;
+}
+
 export async function getClaimById(claimId) {
   const response = await api.get(`/api/claims/${claimId}`);
   return response.data;
@@ -153,8 +158,10 @@ export async function reviewAppeal(appealId, payload) {
   return response.data;
 }
 
-export async function getClaimVoteSummary(claimId) {
-  const response = await api.get(`/api/votes/claim/${claimId}`);
+export async function getClaimVoteSummary(claimId, voterAddress = "") {
+  const response = await api.get(`/api/votes/claim/${claimId}`, {
+    params: voterAddress ? { voterAddress } : undefined,
+  });
   return response.data;
 }
 
