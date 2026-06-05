@@ -21,6 +21,10 @@ const {
 } = require("../services/merkleRegistryService");
 const { buildRiskAssessment } = require("../services/riskScoringService");
 const { buildVerificationComparison } = require("../controllers/mockHospitalController");
+const {
+  calculateReputationUpdate,
+  calculateWeightedConsensus,
+} = require("../services/votingService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -33,10 +37,6 @@ const DEFAULT_LOCAL_KEYS = {
     "0x59c6995e998f97a5a0044966f094538ea59f3b31f82b83fe5c7f3099b6a6c0e8",
   auditor:
     "0x7c8521182947f39d4aef26d88960bdfecb9e09ee03e89d6eac8c4c1245773b8a",
-  auditor2:
-    "0x47e179ec197488bf5690dc5d2c3c13573a489ed1544ca59571c8d5f5169d5a0",
-  oracle2:
-    "0x8b3a350cf5c34c9194ca3a545d9d16a135e472d8e2f8f8a68b453c7b5f6d7e76",
 };
 
 const CLAIM_STATUS = [
@@ -74,7 +74,11 @@ function getOptionalPrivateKey(envName, fallbackName) {
     return "";
   }
 
-  return DEFAULT_LOCAL_KEYS[fallbackName] || "";
+  if (fallbackName === "auditor" || fallbackName === "auditor2") {
+    return "";
+  }
+
+  return DEFAULT_LOCAL_KEYS[fallbackName] || ethers.Wallet.createRandom().privateKey;
 }
 
 function getWallet(privateKey, provider, label) {
@@ -82,7 +86,23 @@ function getWallet(privateKey, provider, label) {
     throw new Error(`${label} private key is not configured`);
   }
 
-  return new ethers.Wallet(privateKey, provider);
+  try {
+    return new ethers.Wallet(privateKey, provider);
+  } catch (error) {
+    throw new Error(
+      `${label} private key is invalid: ${error.shortMessage || error.message}`
+    );
+  }
+}
+
+function withNonceManager(wallet) {
+  const signer = new ethers.NonceManager(wallet);
+
+  // Keep the script's existing wallet.address usage working while routing all
+  // transactions through one signer that increments nonces locally.
+  signer.address = wallet.address;
+
+  return signer;
 }
 
 function normalizeBytes32(value, fallbackText) {
@@ -143,6 +163,37 @@ async function grantRoleIfMissing(contract, roleHash, walletAddress, label) {
 
   console.log(`Granting ${label} to ${address}`);
   await waitFor(contract.grantProjectRole(roleHash, address));
+}
+
+async function assertContractDeployed(provider, contractAddress) {
+  const code = await provider.getCode(contractAddress);
+
+  if (!code || code === "0x") {
+    throw new Error(
+      [
+        `No contract bytecode found at ${contractAddress}.`,
+        "This usually means the Hardhat node was restarted after deployment,",
+        "or backend/.env VITE_CONTRACT_ADDRESS was not updated with the latest deployed address.",
+      ].join(" ")
+    );
+  }
+}
+
+async function fundWalletIfNeeded({ adminWallet, provider, wallet, label }) {
+  const balance = await provider.getBalance(wallet.address);
+
+  if (balance >= ethers.parseEther("1")) {
+    return;
+  }
+
+  console.log(`Funding ${label} ${wallet.address} with 5 ETH...`);
+
+  const tx = await adminWallet.sendTransaction({
+    to: wallet.address,
+    value: ethers.parseEther("5"),
+  });
+
+  await tx.wait();
 }
 
 async function resetDemoCollections() {
@@ -458,6 +509,70 @@ async function runOracleQuorum({
   return requestId;
 }
 
+function formatVoteSummary(rawVotes) {
+  const voters = Array.from(rawVotes.voters || rawVotes[0] || []);
+  const votes = Array.from(rawVotes.votes || rawVotes[1] || []);
+  const reputations = Array.from(rawVotes.reputations || rawVotes[2] || []);
+
+  return calculateWeightedConsensus(voters, votes, reputations);
+}
+
+async function finalizeDemoVoting({ adminContract, claimId, finalizedBy }) {
+  const rawVotes = await adminContract.getClaimVotes(claimId);
+  const voteSummary = formatVoteSummary(rawVotes);
+
+  if (!voteSummary.consensusCode || voteSummary.isTie) {
+    throw new Error(`Claim #${claimId} has no clear demo voting consensus`);
+  }
+
+  const transactionHashes = [];
+
+  for (const voter of voteSummary.voters) {
+    const reputationChange = calculateReputationUpdate(
+      voter.auditorAddress,
+      claimId,
+      voteSummary
+    );
+    const tx = await adminContract.updateAuditorReputation(
+      reputationChange.auditorAddress,
+      reputationChange.newReputation
+    );
+    const receipt = await tx.wait();
+
+    transactionHashes.push({
+      transactionHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+    });
+  }
+
+  await VotingFinalization.findOneAndUpdate(
+    { claimId: claimId.toString() },
+    {
+      claimId: claimId.toString(),
+      consensus: voteSummary.consensus,
+      consensusCode: voteSummary.consensusCode,
+      consensusStrength: voteSummary.consensusStrength,
+      totalVoters: voteSummary.totalVoters,
+      voters: voteSummary.voters.map((voter) => ({
+        auditorAddress: voter.auditorAddress,
+        vote: voter.vote,
+        voteLabel: voter.voteLabel,
+        reputationAtFinalization: voter.reputation,
+        votedWithConsensus: voter.vote === voteSummary.consensusCode,
+      })),
+      reputationTransactionHashes: transactionHashes.map(
+        (entry) => entry.transactionHash
+      ),
+      finalizedBy,
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  console.log(
+    `Finalized demo voting for claim #${claimId}: ${voteSummary.consensus}`
+  );
+}
+
 async function createClaimScenario({ userContract, userWallet, record, packageId, label }) {
   const policyId = await purchasePolicy(userContract, packageId);
   const claim = await submitClaimFromRecord({
@@ -496,23 +611,34 @@ async function main() {
   const userPrivateKey = getOptionalPrivateKey("DEMO_USER_PRIVATE_KEY", "user");
   const auditorPrivateKey =
     process.env.AUDITOR_PRIVATE_KEY ||
-    getOptionalPrivateKey("DEMO_AUDITOR_PRIVATE_KEY", "auditor");
-  const auditor2PrivateKey = getOptionalPrivateKey(
-    "DEMO_AUDITOR_PRIVATE_KEY_2",
-    "auditor2"
-  );
+    process.env.DEMO_AUDITOR_PRIVATE_KEY ||
+    "";
+  const auditor2PrivateKey = process.env.DEMO_AUDITOR_PRIVATE_KEY_2 || "";
   const packageId = getArgValue("--package", process.env.DEMO_PACKAGE_ID || "1");
 
   await mongoose.connect(mongodbUri);
 
   try {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const adminWallet = getWallet(adminPrivateKey, provider, "Admin");
-    const userWallet = getWallet(userPrivateKey, provider, "Demo user");
-    const oracleWallet = getWallet(oraclePrivateKey, provider, "Oracle 1");
-    const oracle2Wallet = getWallet(oracle2PrivateKey, provider, "Oracle 2");
-    const auditorWallet = getWallet(auditorPrivateKey, provider, "Auditor 1");
-    const auditor2Wallet = getWallet(auditor2PrivateKey, provider, "Auditor 2");
+    const adminWallet = withNonceManager(
+      getWallet(adminPrivateKey, provider, "Admin")
+    );
+    const userWallet = withNonceManager(
+      getWallet(userPrivateKey, provider, "Demo user")
+    );
+    const oracleWallet = withNonceManager(
+      getWallet(oraclePrivateKey, provider, "Oracle 1")
+    );
+    const oracle2Wallet = withNonceManager(
+      getWallet(oracle2PrivateKey, provider, "Oracle 2")
+    );
+    const auditorWallet = auditorPrivateKey
+      ? withNonceManager(getWallet(auditorPrivateKey, provider, "Auditor 1"))
+      : null;
+    const auditor2Wallet = auditor2PrivateKey
+      ? withNonceManager(getWallet(auditor2PrivateKey, provider, "Auditor 2"))
+      : null;
+    const canAutoVote = Boolean(auditorWallet && auditor2Wallet);
     const adminContract = new ethers.Contract(
       contractAddress,
       InsuranceManagerArtifact.abi,
@@ -523,16 +649,58 @@ async function main() {
       InsuranceManagerArtifact.abi,
       userWallet
     );
-    const auditorContract = new ethers.Contract(
-      contractAddress,
-      InsuranceManagerArtifact.abi,
-      auditorWallet
-    );
-    const auditor2Contract = new ethers.Contract(
-      contractAddress,
-      InsuranceManagerArtifact.abi,
-      auditor2Wallet
-    );
+    const auditorContract = auditorWallet
+      ? new ethers.Contract(
+          contractAddress,
+          InsuranceManagerArtifact.abi,
+          auditorWallet
+        )
+      : null;
+    const auditor2Contract = auditor2Wallet
+      ? new ethers.Contract(
+          contractAddress,
+          InsuranceManagerArtifact.abi,
+          auditor2Wallet
+        )
+      : null;
+
+    await assertContractDeployed(provider, contractAddress);
+
+    await fundWalletIfNeeded({
+      adminWallet,
+      provider,
+      wallet: userWallet,
+      label: "demo user",
+    });
+    await fundWalletIfNeeded({
+      adminWallet,
+      provider,
+      wallet: oracleWallet,
+      label: "oracle 1",
+    });
+    await fundWalletIfNeeded({
+      adminWallet,
+      provider,
+      wallet: oracle2Wallet,
+      label: "oracle 2",
+    });
+    if (auditorWallet) {
+      await fundWalletIfNeeded({
+        adminWallet,
+        provider,
+        wallet: auditorWallet,
+        label: "auditor 1",
+      });
+    }
+
+    if (auditor2Wallet) {
+      await fundWalletIfNeeded({
+        adminWallet,
+        provider,
+        wallet: auditor2Wallet,
+        label: "auditor 2",
+      });
+    }
 
     if (!hasFlag("--keep-demo-db")) {
       await resetDemoCollections();
@@ -550,11 +718,21 @@ async function main() {
 
     await grantRoleIfMissing(adminContract, oracleRole, oracleWallet.address, "ORACLE_ROLE");
     await grantRoleIfMissing(adminContract, oracleRole, oracle2Wallet.address, "ORACLE_ROLE");
-    await grantRoleIfMissing(adminContract, auditorRole, auditorWallet.address, "AUDITOR_ROLE");
-    await grantRoleIfMissing(adminContract, auditorRole, auditor2Wallet.address, "AUDITOR_ROLE");
+    if (auditorWallet) {
+      await grantRoleIfMissing(adminContract, auditorRole, auditorWallet.address, "AUDITOR_ROLE");
+    }
 
-    await waitFor(adminContract.updateAuditorReputation(auditorWallet.address, 80));
-    await waitFor(adminContract.updateAuditorReputation(auditor2Wallet.address, 55));
+    if (auditor2Wallet) {
+      await grantRoleIfMissing(adminContract, auditorRole, auditor2Wallet.address, "AUDITOR_ROLE");
+    }
+
+    if (auditorWallet) {
+      await waitFor(adminContract.updateAuditorReputation(auditorWallet.address, 80));
+    }
+
+    if (auditor2Wallet) {
+      await waitFor(adminContract.updateAuditorReputation(auditor2Wallet.address, 55));
+    }
 
     const contractBalance = await provider.getBalance(contractAddress);
 
@@ -574,6 +752,17 @@ async function main() {
         record.invoiceNumber !== "INV-HOSP-001-001"
     );
     const failedRecord = records.find((record) => record.fraudLabel === "USED_INVOICE");
+    const openVoteRecord =
+      records.find(
+        (record) =>
+          record.fraudLabel === "USED_INVOICE" &&
+          record.invoiceNumber !== failedRecord.invoiceNumber
+      ) ||
+      records.find(
+        (record) =>
+          record.fraudLabel !== "LEGITIMATE" &&
+          record.invoiceNumber !== failedRecord.invoiceNumber
+      );
     const appealedRecord = records.find(
       (record) =>
         record.fraudLabel === "LEGITIMATE" &&
@@ -615,14 +804,26 @@ async function main() {
       oracleWallets,
     });
     await waitFor(adminContract.sendToManualReview(failedClaimId));
-    await waitFor(auditorContract.castVote(failedClaimId, 2));
-    await waitFor(auditor2Contract.castVote(failedClaimId, 2));
-    await waitFor(
-      adminContract.rejectClaim(
-        failedClaimId,
-        normalizeBytes32("", "demo-rejected-after-auditor-consensus")
-      )
-    );
+
+    if (canAutoVote) {
+      await waitFor(auditorContract.castVote(failedClaimId, 2));
+      await waitFor(auditor2Contract.castVote(failedClaimId, 2));
+      await finalizeDemoVoting({
+        adminContract,
+        claimId: failedClaimId,
+        finalizedBy: adminWallet.address,
+      });
+      await waitFor(
+        adminContract.rejectClaim(
+          failedClaimId,
+          normalizeBytes32("", "demo-rejected-after-auditor-consensus")
+        )
+      );
+    } else {
+      console.log(
+        `Claim #${failedClaimId} left open in MANUAL_REVIEW for MetaMask auditor voting.`
+      );
+    }
 
     console.log("Creating open manual-review duplicate scenario...");
     const duplicatePolicyId = await purchasePolicy(userContract, packageId);
@@ -641,6 +842,43 @@ async function main() {
       documentType: "SUPPORTING_DOCUMENT",
     });
     await waitFor(adminContract.sendToManualReview(duplicateClaim.claimId));
+
+    if (canAutoVote) {
+      await waitFor(auditorContract.castVote(duplicateClaim.claimId, 1));
+      await waitFor(auditor2Contract.castVote(duplicateClaim.claimId, 2));
+      await finalizeDemoVoting({
+        adminContract,
+        claimId: duplicateClaim.claimId,
+        finalizedBy: adminWallet.address,
+      });
+    } else {
+      console.log(
+        `Claim #${duplicateClaim.claimId} left open in MANUAL_REVIEW for MetaMask auditor voting.`
+      );
+    }
+
+    console.log("Creating open manual-review claim for interactive voting...");
+    const openVoteClaimId = await createClaimScenario({
+      userContract,
+      userWallet,
+      record: openVoteRecord,
+      packageId,
+      label: "open-vote-claim",
+    });
+    await createEvidenceDocument({
+      claimId: openVoteClaimId,
+      wallet: userWallet,
+      label: "open-vote-claim-extra-evidence",
+      documentType: "SUPPORTING_DOCUMENT",
+    });
+    await runOracleQuorum({
+      adminContract,
+      provider,
+      contractAddress,
+      claimId: openVoteClaimId,
+      oracleWallets,
+    });
+    await waitFor(adminContract.sendToManualReview(openVoteClaimId));
 
     console.log("Creating appeal/reopen scenario...");
     const appealedClaimId = await createClaimScenario({
@@ -675,12 +913,17 @@ async function main() {
       settledClaimId,
       failedClaimId,
       duplicateClaim.claimId,
+      openVoteClaimId,
       appealedClaimId,
     ];
     console.log("");
     console.log("Demo scenario populated successfully.");
     console.log("Demo user wallet:", userWallet.address);
-    console.log("Auditor wallets:", auditorWallet.address, auditor2Wallet.address);
+    console.log(
+      canAutoVote
+        ? `Auto-vote auditor wallets: ${auditorWallet.address}, ${auditor2Wallet.address}`
+        : "Auto-voting skipped. Use your MetaMask auditor accounts to cast votes."
+    );
 
     for (const claimId of claimIds) {
       const claim = await adminContract.getClaim(claimId);
@@ -691,7 +934,7 @@ async function main() {
     console.log("Useful pages:");
     console.log(`- /auditor/claims/${settledClaimId}/history`);
     console.log(`- /auditor/claims/${failedClaimId}/history`);
-    console.log(`- /auditor/vote/${duplicateClaim.claimId}`);
+    console.log(`- /auditor/vote/${openVoteClaimId}`);
     console.log("- /admin/healthcare-registry");
     console.log("- /admin/thesis-dashboard");
   } finally {
