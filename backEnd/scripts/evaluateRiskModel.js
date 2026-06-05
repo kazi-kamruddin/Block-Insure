@@ -33,6 +33,12 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 };
 
+const addDays = (value, days) => {
+  const date = new Date(value);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date;
+};
+
 const round = (value, decimals = 4) => {
   if (!Number.isFinite(value)) return null;
   return Number(value.toFixed(decimals));
@@ -86,6 +92,108 @@ const applyThreshold = (rows, threshold) => {
   }));
 };
 
+const buildBaseQuery = (record) => ({
+  hospitalId: record.hospitalId,
+  invoiceHash: record.invoiceHash,
+  claimAmountEth: record.billAmount,
+  claimType: record.treatmentType,
+  incidentDate: formatDate(record.admissionDate),
+});
+
+const scaleAmount = (value, multiplier) => {
+  return (Number(value) * multiplier).toFixed(2);
+};
+
+const sanitizeAsSubtleFraud = (record) => ({
+  ...record,
+  fraudLabel: "LEGITIMATE",
+  recordStatus: "VALID",
+  invoiceStatus: "VALID",
+  licenseStatus: "ACTIVE",
+  billAmount: record.expectedBillMax || record.billAmount,
+  previousClaimCount: 0,
+  fraudSignals: {
+    usedInvoice: false,
+    cancelledRecord: false,
+    inflatedAmount: false,
+    blacklistedHospital: false,
+    dateMismatch: false,
+  },
+});
+
+const buildEvaluationScenarios = (records, { includeHardCases = true } = {}) => {
+  const scenarios = [];
+
+  records.forEach((record, index) => {
+    const actualFraud = isFraudRecord(record);
+    const baseQuery = buildBaseQuery(record);
+    const scenarioBase = {
+      scenarioId: `${record.invoiceNumber || record.invoiceHash}-${index}`,
+      hospitalId: record.hospitalId,
+      invoiceNumber: record.invoiceNumber,
+      treatmentType: record.treatmentType,
+      registryRecord: record,
+    };
+
+    scenarios.push({
+      ...scenarioBase,
+      scenarioType: actualFraud ? "obvious_fraud_registry_marker" : "clean_legitimate_match",
+      fraudLabel: record.fraudLabel,
+      actualFraud,
+      query: baseQuery,
+    });
+
+    if (!includeHardCases) {
+      return;
+    }
+
+    if (!actualFraud && index % 3 === 0) {
+      scenarios.push({
+        ...scenarioBase,
+        scenarioId: `${scenarioBase.scenarioId}-noisy-amount`,
+        scenarioType: "noisy_legitimate_amount_rounding",
+        fraudLabel: "LEGITIMATE",
+        actualFraud: false,
+        query: {
+          ...baseQuery,
+          claimAmountEth: scaleAmount(record.billAmount, 1.08),
+        },
+      });
+    }
+
+    if (!actualFraud && index % 5 === 0) {
+      scenarios.push({
+        ...scenarioBase,
+        scenarioId: `${scenarioBase.scenarioId}-date-warning`,
+        scenarioType: "borderline_legitimate_date_noise",
+        fraudLabel: "LEGITIMATE",
+        actualFraud: false,
+        query: {
+          ...baseQuery,
+          incidentDate: formatDate(addDays(record.admissionDate, 9)),
+        },
+      });
+    }
+
+    if (actualFraud && index % 4 === 0) {
+      scenarios.push({
+        ...scenarioBase,
+        scenarioId: `${scenarioBase.scenarioId}-subtle-fraud`,
+        scenarioType: "subtle_fraud_no_registry_marker",
+        fraudLabel: "SUBTLE_SYNTHETIC_FRAUD",
+        actualFraud: true,
+        registryRecord: sanitizeAsSubtleFraud(record),
+        query: {
+          ...baseQuery,
+          claimAmountEth: record.expectedBillMax || record.billAmount,
+        },
+      });
+    }
+  });
+
+  return scenarios;
+};
+
 const calculateMetrics = ({
   rows,
   split,
@@ -109,6 +217,7 @@ const calculateMetrics = ({
     HIGH: 0,
   };
   const labelBreakdown = {};
+  const scenarioTypeBreakdown = {};
   let riskScoreTotal = 0;
 
   rows.forEach((row) => {
@@ -122,6 +231,20 @@ const calculateMetrics = ({
     labelBreakdown[row.fraudLabel].total += 1;
     labelBreakdown[row.fraudLabel].predictedFraud += row.predictedFraud ? 1 : 0;
     labelBreakdown[row.fraudLabel].avgRiskScoreTotal += row.riskScore;
+
+    if (!scenarioTypeBreakdown[row.scenarioType]) {
+      scenarioTypeBreakdown[row.scenarioType] = {
+        total: 0,
+        fraud: 0,
+        predictedFraud: 0,
+      };
+    }
+
+    scenarioTypeBreakdown[row.scenarioType].total += 1;
+    scenarioTypeBreakdown[row.scenarioType].fraud += row.actualFraud ? 1 : 0;
+    scenarioTypeBreakdown[row.scenarioType].predictedFraud += row.predictedFraud
+      ? 1
+      : 0;
   });
 
   return {
@@ -136,9 +259,11 @@ const calculateMetrics = ({
     statisticalMethodology: {
       variance: "Sample variance with Bessel's correction (N-1)",
       thresholdSelection:
-        "Selected on the 80% training split by maximum F1, then applied once to the held-out 20%",
+        "Selected on deterministic training claim scenarios by maximum F1, then applied once to held-out claim scenarios",
       evaluationScope:
-        "Primary metrics, ROC, AUC, precision-recall curve, AP, and baselines use the held-out 20% only",
+        "Primary metrics, ROC, AUC, precision-recall curve, AP, and baselines use held-out claim scenarios only",
+      hardCaseDesign:
+        "The scenario set includes exact registry matches, noisy legitimate claims, and subtle synthetic fraud cases with weak registry markers.",
     },
     decisionRule: {
       predictedFraud: `posterior fraud risk score >= ${selectedThreshold}`,
@@ -178,17 +303,13 @@ const calculateMetrics = ({
         },
       ])
     ),
+    scenarioTypeBreakdown,
   };
 };
 
-const evaluateRecord = async (record, trainingRecords, modelParams) => {
-  const query = {
-    hospitalId: record.hospitalId,
-    invoiceHash: record.invoiceHash,
-    claimAmountEth: record.billAmount,
-    claimType: record.treatmentType,
-    incidentDate: formatDate(record.admissionDate),
-  };
+const evaluateScenario = async (scenario, trainingRecords, modelParams) => {
+  const record = scenario.registryRecord;
+  const query = scenario.query;
   const comparison = buildVerificationComparison({
     record,
     hospitalId: query.hospitalId,
@@ -206,12 +327,15 @@ const evaluateRecord = async (record, trainingRecords, modelParams) => {
   });
 
   return {
+    scenarioId: scenario.scenarioId,
+    scenarioType: scenario.scenarioType,
     hospitalId: record.hospitalId,
     invoiceNumber: record.invoiceNumber,
     treatmentType: record.treatmentType,
-    fraudLabel: record.fraudLabel,
-    actualFraud: isFraudRecord(record),
-    claimAmountEth: Number(record.billAmount),
+    fraudLabel: scenario.fraudLabel,
+    actualFraud: scenario.actualFraud,
+    claimAmountEth: Number(query.claimAmountEth),
+    registryBillAmountEth: Number(record.billAmount),
     riskScore: riskAssessment.riskScore,
     posteriorFraudPercent: riskAssessment.posteriorFraudPercent,
     riskBucket: getRiskBucket(riskAssessment.riskScore),
@@ -228,14 +352,39 @@ const evaluateRecord = async (record, trainingRecords, modelParams) => {
   };
 };
 
-const scoreRecords = async (records, trainingRecords, modelParams) => {
+const evaluateRecord = async (record, trainingRecords, modelParams) => {
+  return evaluateScenario(
+    {
+      scenarioId: record.invoiceNumber || record.invoiceHash,
+      scenarioType: isFraudRecord(record)
+        ? "obvious_fraud_registry_marker"
+        : "clean_legitimate_match",
+      fraudLabel: record.fraudLabel,
+      actualFraud: isFraudRecord(record),
+      registryRecord: record,
+      query: buildBaseQuery(record),
+    },
+    trainingRecords,
+    modelParams
+  );
+};
+
+const scoreScenarios = async (scenarios, trainingRecords, modelParams) => {
   const rows = [];
 
-  for (const record of records) {
-    rows.push(await evaluateRecord(record, trainingRecords, modelParams));
+  for (const scenario of scenarios) {
+    rows.push(await evaluateScenario(scenario, trainingRecords, modelParams));
   }
 
   return rows;
+};
+
+const scoreRecords = async (records, trainingRecords, modelParams) => {
+  return scoreScenarios(
+    buildEvaluationScenarios(records, { includeHardCases: false }),
+    trainingRecords,
+    modelParams
+  );
 };
 
 const getEvaluationRecords = async ({ useSynthetic }) => {
@@ -317,18 +466,24 @@ const runEvaluation = async ({ useSynthetic = false, writeOutputs = true } = {})
 
     const trainingRecords = source.records.filter((_, index) => index % 5 !== 0);
     const testRecords = source.records.filter((_, index) => index % 5 === 0);
+    const trainingScenarios = buildEvaluationScenarios(trainingRecords);
+    const testScenarios = buildEvaluationScenarios(testRecords);
     const modelParams = trainModelParams(trainingRecords, {
       source: "Deterministic 80% evaluation training split",
     });
-    const trainingRows = await scoreRecords(
-      trainingRecords,
+    const trainingRows = await scoreScenarios(
+      trainingScenarios,
       trainingRecords,
       modelParams
     );
     const trainingSensitivity = calculateThresholdSensitivity(trainingRows);
     const thresholdSelection = selectBestThreshold(trainingSensitivity);
     const selectedThreshold = thresholdSelection.threshold;
-    const rawHeldOutRows = await scoreRecords(testRecords, trainingRecords, modelParams);
+    const rawHeldOutRows = await scoreScenarios(
+      testScenarios,
+      trainingRecords,
+      modelParams
+    );
     const heldOutRows = applyThreshold(rawHeldOutRows, selectedThreshold);
     const curves = calculateCurves(heldOutRows);
     const heldOutSensitivity = calculateThresholdSensitivity(heldOutRows);
@@ -345,9 +500,12 @@ const runEvaluation = async ({ useSynthetic = false, writeOutputs = true } = {})
         source: source.source,
         trainingRecords: trainingRecords.length,
         testRecords: testRecords.length,
+        trainingScenarios: trainingScenarios.length,
+        testScenarios: testScenarios.length,
         trainingPercent: round(trainingRecords.length / source.records.length),
         testPercent: round(testRecords.length / source.records.length),
-        evaluationScope: "Metrics are calculated on the held-out test set only",
+        evaluationScope:
+          "Metrics are calculated on deterministic held-out claim scenarios, including noisy legitimate and subtle fraud cases",
         modelVersion: modelParams.modelVersion,
       },
       selectedThreshold,
@@ -408,9 +566,12 @@ if (require.main === module) {
 
 module.exports = {
   applyThreshold,
+  buildEvaluationScenarios,
   calculateMetrics,
   evaluateRecord,
+  evaluateScenario,
   runEvaluation,
   scoreRecords,
+  scoreScenarios,
   writeCsv,
 };

@@ -1,5 +1,6 @@
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
+const AdminActionLog = require("../models/AdminActionLog");
 const {
   getProvider,
   getContractAddress,
@@ -148,6 +149,34 @@ const getClaimAuditTimeline = async (req, res, next) => {
   }
 };
 
+const getAdminActionLogs = async (req, res, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit || 100), 500);
+    const action = req.query.action || undefined;
+    const targetType = req.query.targetType || undefined;
+    const targetId = req.query.targetId || undefined;
+    const filter = {};
+
+    if (action) filter.action = action;
+    if (targetType) filter.targetType = targetType;
+    if (targetId) filter.targetId = targetId.toString();
+
+    const logs = await AdminActionLog.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      count: logs.length,
+      logs,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
+  getAdminActionLogs,
   getClaimAuditTimeline,
 };

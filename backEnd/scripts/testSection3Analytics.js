@@ -91,18 +91,30 @@ const run = async () => {
   });
   const syntheticRecordCount = buildSyntheticRecords().length;
   const expectedTrainingRecords = Math.floor(syntheticRecordCount * 0.8);
-  const expectedHeldOutRecords = syntheticRecordCount - expectedTrainingRecords;
 
   assert.strictEqual(
     evaluation.summary.split.trainingRecords,
     expectedTrainingRecords
   );
-  assert.strictEqual(evaluation.summary.dataset.totalRecords, expectedHeldOutRecords);
+  assert.strictEqual(
+    evaluation.summary.dataset.totalRecords,
+    evaluation.summary.split.testScenarios
+  );
+  assert.ok(
+    evaluation.summary.split.trainingScenarios >
+      evaluation.summary.split.trainingRecords
+  );
+  assert.ok(
+    evaluation.summary.scenarioTypeBreakdown.subtle_fraud_no_registry_marker
+      .total > 0
+  );
   assert.ok(evaluation.summary.metrics.auc >= 0 && evaluation.summary.metrics.auc <= 1);
+  assert.ok(evaluation.summary.metrics.f1Score < 1);
   assert.ok(
     evaluation.summary.metrics.averagePrecision >= 0 &&
       evaluation.summary.metrics.averagePrecision <= 1
   );
+  assert.ok(evaluation.summary.metrics.averagePrecision < 1);
   assert.strictEqual(evaluation.summary.baselines.length, 2);
   assert.strictEqual(evaluation.summary.thresholdAnalysis.heldOutSensitivity.length, 21);
   assert.strictEqual(

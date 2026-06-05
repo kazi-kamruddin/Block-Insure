@@ -8,6 +8,7 @@ const {
 const { buildReserveIntelligence } = require("../services/settlementIntelligenceService");
 const { exportMerkleRoot } = require("../services/merkleRegistryService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
+const { logAdminAction } = require("../services/adminActionLogService");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -187,6 +188,22 @@ const createPolicyPackage = async (req, res, next) => {
       }
     }
 
+    await logAdminAction({
+      req,
+      action: "CREATE_POLICY_PACKAGE",
+      targetType: "POLICY_PACKAGE",
+      targetId: packageId,
+      tx,
+      receipt,
+      metadata: {
+        name,
+        policyType,
+        premiumAmountWei: premiumAmountWei.toString(),
+        coverageAmountWei: coverageAmountWei.toString(),
+        durationDays: Number(durationDays),
+      },
+    });
+
     res.status(201).json({
       success: true,
       message: "Policy package created successfully",
@@ -246,9 +263,25 @@ const updatePolicyPackage = async (req, res, next) => {
       requiredDocumentType
     );
 
-    await tx.wait();
+    const receipt = await tx.wait();
 
     const updatedPackage = await contract.getPolicyPackage(id);
+
+    await logAdminAction({
+      req,
+      action: "UPDATE_POLICY_PACKAGE",
+      targetType: "POLICY_PACKAGE",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: {
+        name,
+        policyType,
+        premiumAmountWei: premiumAmountWei.toString(),
+        coverageAmountWei: coverageAmountWei.toString(),
+        durationDays: Number(durationDays),
+      },
+    });
 
     res.status(200).json({
       success: true,
@@ -272,9 +305,18 @@ const deactivatePolicyPackage = async (req, res, next) => {
     const contract = getAdminContract();
     const tx = await contract.deactivatePolicyPackage(id);
 
-    await tx.wait();
+    const receipt = await tx.wait();
 
     const updatedPackage = await contract.getPolicyPackage(id);
+
+    await logAdminAction({
+      req,
+      action: "DEACTIVATE_POLICY_PACKAGE",
+      targetType: "POLICY_PACKAGE",
+      targetId: id,
+      tx,
+      receipt,
+    });
 
     res.status(200).json({
       success: true,
@@ -298,9 +340,18 @@ const reactivatePolicyPackage = async (req, res, next) => {
     const contract = getAdminContract();
     const tx = await contract.reactivatePolicyPackage(id);
 
-    await tx.wait();
+    const receipt = await tx.wait();
 
     const updatedPackage = await contract.getPolicyPackage(id);
+
+    await logAdminAction({
+      req,
+      action: "REACTIVATE_POLICY_PACKAGE",
+      targetType: "POLICY_PACKAGE",
+      targetId: id,
+      tx,
+      receipt,
+    });
 
     res.status(200).json({
       success: true,
@@ -350,6 +401,16 @@ const pushRegistryMerkleRoot = async (req, res, next) => {
     const tx = await contract.updateRegistryMerkleRoot(root);
     const receipt = await tx.wait();
     const snapshot = await getRegistrySnapshot(contract);
+
+    await logAdminAction({
+      req,
+      action: "PUSH_REGISTRY_MERKLE_ROOT",
+      targetType: "REGISTRY",
+      targetId: root,
+      tx,
+      receipt,
+      metadata: { root },
+    });
 
     res.status(200).json({
       success: true,
@@ -429,6 +490,16 @@ const requestOracleForClaim = async (req, res, next) => {
       message: `Oracle verification started for claim #${id}.`,
     });
 
+    await logAdminAction({
+      req,
+      action: "REQUEST_ORACLE_VERIFICATION",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: { oracleRequest },
+    });
+
     res.status(200).json({
       success: true,
       message: "Oracle verification requested successfully",
@@ -480,6 +551,16 @@ const approveClaim = async (req, res, next) => {
       transactionHash: tx.hash,
       source: "admin-approve",
       message: `Claim #${id} was approved and is ready for settlement.`,
+    });
+
+    await logAdminAction({
+      req,
+      action: "APPROVE_CLAIM",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: { approvalEvent },
     });
 
     res.status(200).json({
@@ -563,6 +644,21 @@ const settleClaim = async (req, res, next) => {
       message: `Claim #${id} was settled successfully.`,
     });
 
+    await logAdminAction({
+      req,
+      action: "SETTLE_CLAIM",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: {
+        settlementEvent,
+        settlementCalculation,
+        balanceBefore,
+        balanceAfter,
+      },
+    });
+
     res.status(200).json({
       success: true,
       message: "Claim settled successfully",
@@ -619,6 +715,16 @@ const resolveTimedOutOracle = async (req, res, next) => {
       message: `Oracle verification timed out for claim #${id}; the claim is ready for manual review.`,
     });
 
+    await logAdminAction({
+      req,
+      action: "RESOLVE_ORACLE_TIMEOUT",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: { timeoutEvent },
+    });
+
     res.status(200).json({
       success: true,
       message: "Timed-out oracle request resolved successfully",
@@ -668,6 +774,16 @@ const closeClaim = async (req, res, next) => {
       transactionHash: tx.hash,
       source: "admin-close",
       message: `Claim #${id} lifecycle was closed.`,
+    });
+
+    await logAdminAction({
+      req,
+      action: "CLOSE_CLAIM",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: { closureEvent },
     });
 
     res.status(200).json({
@@ -726,6 +842,16 @@ const rejectClaim = async (req, res, next) => {
       message: `Claim #${id} was rejected. You may submit one appeal.`,
     });
 
+    await logAdminAction({
+      req,
+      action: "REJECT_CLAIM",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: { rejectionEvent, reasonHash },
+    });
+
     res.status(200).json({
       success: true,
       message: "Claim rejected successfully",
@@ -781,6 +907,16 @@ const sendClaimToManualReview = async (req, res, next) => {
       transactionHash: tx.hash,
       source: "admin-manual-review",
       message: `Claim #${id} was sent to manual review.`,
+    });
+
+    await logAdminAction({
+      req,
+      action: "SEND_CLAIM_TO_MANUAL_REVIEW",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: { manualReviewEvent },
     });
 
     res.status(200).json({

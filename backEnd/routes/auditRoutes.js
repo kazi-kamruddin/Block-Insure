@@ -1,5 +1,8 @@
 const express = require("express");
-const { getClaimAuditTimeline } = require("../controllers/auditController");
+const {
+  getAdminActionLogs,
+  getClaimAuditTimeline,
+} = require("../controllers/auditController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
 
@@ -10,6 +13,13 @@ router.get(
   authMiddleware,
   requireRole("AUDITOR", "ADMIN"),
   getClaimAuditTimeline
+);
+
+router.get(
+  "/admin-actions",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getAdminActionLogs
 );
 
 module.exports = router;

@@ -7,6 +7,9 @@ const User = require("../models/User");
 const normalizeWalletAddress = (walletAddress) => {
   return getAddress(walletAddress).toLowerCase();
 };
+const JWT_ISSUER = process.env.JWT_ISSUER || "block-insure-api";
+const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "block-insure-client";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 const createError = (message, statusCode) => {
   const error = new Error(message);
@@ -82,7 +85,11 @@ const walletLogin = async (req, res, next) => {
         role: user.role,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      {
+        audience: JWT_AUDIENCE,
+        expiresIn: JWT_EXPIRES_IN,
+        issuer: JWT_ISSUER,
+      }
     );
 
     res.status(200).json({
