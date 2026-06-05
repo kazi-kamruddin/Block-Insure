@@ -35,6 +35,36 @@ function formatPercent(part, total) {
   return `${Math.round((part / total) * 100)}%`;
 }
 
+function getSummaryRows(items = [], labelKey, valueKey = "count") {
+  return items
+    .map((item) => ({
+      label: item[labelKey] || item._id || "Unknown",
+      value: Number(item[valueKey] || 0),
+    }))
+    .filter((item) => item.value > 0);
+}
+
+function DistributionBars({ title, rows, total }) {
+  if (!rows.length) return null;
+
+  return (
+    <div className="registry-distribution-card card">
+      <h3>{title}</h3>
+      <div className="registry-distribution-bars">
+        {rows.map((row) => (
+          <div className="registry-distribution-row" key={row.label}>
+            <span>{row.label}</span>
+            <div>
+              <b style={{ width: `${total ? (row.value / total) * 100 : 0}%` }} />
+            </div>
+            <strong>{row.value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function cleanFilters(filters) {
   return Object.fromEntries(
     Object.entries(filters).filter(([, value]) => value !== "")
@@ -108,6 +138,17 @@ export default function HealthcareRegistryPage() {
   const merkleRoot = merkleData?.merkleRoot;
   const registrySnapshot = onChainMerkleData?.registrySnapshot;
   const total = summary.total || 0;
+  const compositionRows = [
+    { label: "Legitimate", value: summary.legitimate || 0 },
+    { label: "Fraud labeled", value: summary.fraudulent || 0 },
+  ].filter((row) => row.value > 0);
+  const statusRows = Object.entries(summary.statusCounts || {}).map(
+    ([label, value]) => ({
+      label: label.toUpperCase(),
+      value,
+    })
+  );
+  const fraudRows = getSummaryRows(summary.fraudBreakdown, "fraudLabel");
 
   function updateFilter(field, value) {
     setDraftFilters((current) => ({
@@ -219,6 +260,24 @@ export default function HealthcareRegistryPage() {
           <span>Blacklisted Licenses</span>
           <strong>{isLoading ? "..." : summary.licenseCounts?.blacklisted || 0}</strong>
         </div>
+      </div>
+
+      <div className="registry-insight-grid">
+        <DistributionBars
+          title="Dataset composition"
+          rows={compositionRows}
+          total={total}
+        />
+        <DistributionBars
+          title="Record status mix"
+          rows={statusRows}
+          total={total}
+        />
+        <DistributionBars
+          title="Fraud scenario labels"
+          rows={fraudRows}
+          total={total}
+        />
       </div>
 
       <form className="registry-filter-bar" onSubmit={handleSubmit}>

@@ -82,6 +82,14 @@
   align-items: start;
 }
 
+.throughput-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 430px) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+
 .confusion-matrix,
 .thesis-table {
   width: 100%;
@@ -152,19 +160,68 @@
   background: var(--surface-strong);
 }
 
-.gas-chart line {
+.throughput-chart {
+  width: 100%;
+  max-width: 430px;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.gas-chart line,
+.throughput-chart line {
   stroke: var(--line);
   stroke-width: 2;
 }
 
-.gas-chart rect {
+.gas-chart rect,
+.throughput-chart rect {
   rx: 4;
 }
 
-.gas-chart text {
+.gas-chart text,
+.throughput-chart text {
   fill: var(--muted);
   font-size: 12px;
   font-weight: 700;
+}
+
+.throughput-chart polyline {
+  fill: none;
+  stroke: var(--brand);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.throughput-chart circle {
+  fill: var(--brand-strong);
+}
+
+.throughput-latency-bar {
+  fill: rgba(96, 165, 250, 0.28);
+}
+
+.thesis-chart-note {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.thesis-chart-note strong {
+  color: var(--text);
+}
+
+.thesis-chart-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .gas-chart-individual {
@@ -233,6 +290,7 @@
   .thesis-section-head,
   .thesis-two-column,
   .gas-layout,
+  .throughput-layout,
   .registry-commitment-grid {
     grid-template-columns: 1fr;
   }

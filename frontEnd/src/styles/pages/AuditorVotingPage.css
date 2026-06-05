@@ -42,6 +42,29 @@
   font-weight: 700;
 }
 
+.vote-weight-bar {
+  display: block;
+  height: 6px;
+  min-width: 3px;
+  max-width: 100%;
+  border-radius: 999px;
+  background: var(--brand);
+}
+
+.voting-readiness {
+  border-left: 4px solid var(--warning);
+}
+
+.voting-readiness.is-open {
+  border-left-color: var(--success);
+}
+
+.voting-readiness p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .consensus-strip {
   margin-top: 14px;
   padding: 12px;

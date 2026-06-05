@@ -53,6 +53,27 @@ function getLatestOracleLog(logs) {
   return logs[0] || null;
 }
 
+function getBayesianFraudPercent(log) {
+  return (
+    log?.responseData?.hospitalVerification?.riskAssessment?.posteriorFraudPercent ??
+    log?.hospitalVerification?.riskAssessment?.posteriorFraudPercent ??
+    log?.responseData?.riskAssessment?.posteriorFraudPercent ??
+    log?.riskAssessment?.posteriorFraudPercent ??
+    null
+  );
+}
+
+function getVotingHint({ isReviewable, statusName, voteSummary, isVoting }) {
+  if (isVoting) return "Waiting for the vote transaction to confirm.";
+  if (!isReviewable) {
+    return `Current status ${statusName} is not open for auditor voting.`;
+  }
+  if (voteSummary?.hasCurrentUserVoted) {
+    return "Your wallet has already voted on this claim.";
+  }
+  return "This claim is open for auditor voting.";
+}
+
 export default function AuditorVotingPage() {
   const { claimId } = useParams();
   const [voteError, setVoteError] = useState("");
@@ -96,6 +117,7 @@ export default function AuditorVotingPage() {
   const oracleLogs = extractOracleLogs(oracleData);
   const latestOracleLog = getLatestOracleLog(oracleLogs);
   const voteSummary = extractVoteSummary(voteData);
+  const bayesianFraudPercent = getBayesianFraudPercent(latestOracleLog);
   const isReviewable =
     statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
   const canVote =
@@ -177,12 +199,23 @@ export default function AuditorVotingPage() {
             <p>
               Status: <ClaimStatusBadge status={statusName} />
             </p>
-            <p>Bayesian risk score: {formatValue(claim.riskScore)}</p>
+            <p>On-chain trust score: {formatValue(claim.riskScore)}/100</p>
+            <p>
+              Bayesian fraud probability:{" "}
+              {bayesianFraudPercent === null
+                ? "-"
+                : `${formatValue(bayesianFraudPercent)}%`}
+            </p>
           </div>
           <EvidenceField label="Invoice hash" value={claim.invoiceHash} />
           <EvidenceField label="Document hash" value={claim.documentHash} />
         </div>
       ) : null}
+
+      <div className={`card voting-readiness ${canVote ? "is-open" : ""}`}>
+        <h3>Voting Readiness</h3>
+        <p>{getVotingHint({ isReviewable, statusName, voteSummary, isVoting })}</p>
+      </div>
 
       <div className="card">
         <h3>Oracle Result Summary</h3>
@@ -218,6 +251,16 @@ export default function AuditorVotingPage() {
                   <strong>{entry.displayLabel}</strong>
                   <span>{entry.count} votes</span>
                   <span>Weight {entry.weightedSum}</span>
+                  <b
+                    className="vote-weight-bar"
+                    style={{
+                      width: `${
+                        voteSummary.totalWeight
+                          ? (entry.weightedSum / voteSummary.totalWeight) * 100
+                          : 0
+                      }%`,
+                    }}
+                  />
                 </div>
               ))}
             </div>

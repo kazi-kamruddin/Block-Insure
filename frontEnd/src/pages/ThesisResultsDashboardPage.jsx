@@ -130,6 +130,56 @@ function GasComparisonChart({ row }) {
   );
 }
 
+function ThroughputLatencyChart({ rows = [] }) {
+  if (!rows.length) return <p>No throughput chart data available.</p>;
+
+  const chartRows = rows.map((row) => ({
+    concurrency: Number(row.concurrency || 0),
+    throughput: Number(row.throughputClaimsPerSecond || 0),
+    latency: Number(row.endToEnd?.averageMs || 0),
+  }));
+  const maxThroughput = Math.max(...chartRows.map((row) => row.throughput), 1);
+  const maxLatency = Math.max(...chartRows.map((row) => row.latency), 1);
+  const step = chartRows.length > 1 ? 240 / (chartRows.length - 1) : 240;
+  const points = chartRows
+    .map((row, index) => {
+      const x = 40 + index * step;
+      const y = 150 - (row.throughput / maxThroughput) * 110;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <svg className="throughput-chart" viewBox="0 0 330 190" role="img">
+      <line x1="36" y1="150" x2="300" y2="150" />
+      <polyline points={points} />
+      {chartRows.map((row, index) => {
+        const x = 40 + index * step;
+        const barHeight = Math.max(6, (row.latency / maxLatency) * 92);
+        const pointY = 150 - (row.throughput / maxThroughput) * 110;
+
+        return (
+          <g key={row.concurrency}>
+            <rect
+              className="throughput-latency-bar"
+              x={x - 10}
+              y={150 - barHeight}
+              width="20"
+              height={barHeight}
+            />
+            <circle cx={x} cy={pointY} r="4" />
+            <text x={x} y="172" textAnchor="middle">
+              {row.concurrency}
+            </text>
+          </g>
+        );
+      })}
+      <text x="44" y="22">Claims/s line</text>
+      <text x="205" y="22">E2E latency bars</text>
+    </svg>
+  );
+}
+
 function DataNotice({ data, fallback }) {
   if (!data || data.success !== false) return null;
 
@@ -302,6 +352,18 @@ export default function ThesisResultsDashboardPage() {
                 <strong>{count}</strong>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="throughput-layout">
+          <ThroughputLatencyChart rows={throughputResults?.rows || []} />
+          <div className="thesis-chart-note">
+            <strong>Reading this chart</strong>
+            <p>
+              The line tracks successful claims per second. The bars track
+              average end-to-end latency, so rising bars with a flattening line
+              indicate local transaction saturation.
+            </p>
           </div>
         </div>
 
