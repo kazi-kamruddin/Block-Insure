@@ -27,6 +27,7 @@ import {
   getContractBalance,
   formatEth,
   getReadOnlyContract,
+  parseTransactionError,
 } from "../services/contractService";
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
@@ -145,6 +146,8 @@ export default function AdminClaimDetailPage() {
   const [isActing, setIsActing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [appealAdminNote, setAppealAdminNote] = useState("");
+  const [appealAuditorRecommendation, setAppealAuditorRecommendation] = useState("");
+  const [appealFinalRejectionReason, setAppealFinalRejectionReason] = useState("");
 
   const {
     data: claimData,
@@ -224,6 +227,7 @@ export default function AdminClaimDetailPage() {
   const claim = extractClaim(claimData);
   const evidenceChain = extractEvidenceChain(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
+  const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const statusName = getClaimStatusName(claim);
 
   const {
@@ -301,12 +305,7 @@ export default function AdminClaimDetailPage() {
       await refreshAll();
     } catch (err) {
       console.error(err);
-      setActionError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Admin action failed"
-      );
+      setActionError(parseTransactionError(err));
     } finally {
       setIsActing(false);
     }
@@ -379,6 +378,8 @@ export default function AdminClaimDetailPage() {
         reviewAppeal(appeal.id, {
           status,
           adminNote: appealAdminNote.trim(),
+          auditorRecommendation: appealAuditorRecommendation.trim(),
+          finalRejectionReason: appealFinalRejectionReason.trim(),
         }),
       `Appeal marked ${status.toLowerCase().replace("_", " ")} successfully.`
     );
@@ -705,8 +706,11 @@ export default function AdminClaimDetailPage() {
               </span>
             </p>
             <p>Submitted: {formatValue(appeal.submittedAt)}</p>
+            <p>Appeal deadline: {formatValue(appeal.appealDeadline)}</p>
+            <p>Category: {formatValue(appeal.reasonCategory)}</p>
             <p>Claimant: {formatValue(appeal.claimantWallet)}</p>
             <p>Reason: {formatValue(appeal.appealReason)}</p>
+            <p>Description: {formatValue(appeal.appealDescription)}</p>
             <EvidenceField label="Appeal reason hash" value={appeal.appealReasonHash} />
             {appeal.additionalDocumentHash ? (
               <EvidenceField
@@ -733,6 +737,24 @@ export default function AdminClaimDetailPage() {
                   value={appealAdminNote}
                   onChange={(event) => setAppealAdminNote(event.target.value)}
                   placeholder={appeal.adminNote || "Optional appeal review note"}
+                />
+              </label>
+              <label>
+                Auditor recommendation
+                <input
+                  type="text"
+                  value={appealAuditorRecommendation}
+                  onChange={(event) => setAppealAuditorRecommendation(event.target.value)}
+                  placeholder={appeal.auditorRecommendation || "Optional recommendation summary"}
+                />
+              </label>
+              <label>
+                Final rejection reason
+                <input
+                  type="text"
+                  value={appealFinalRejectionReason}
+                  onChange={(event) => setAppealFinalRejectionReason(event.target.value)}
+                  placeholder={appeal.finalRejectionReason || "Required when rejecting final appeal"}
                 />
               </label>
             </div>
@@ -762,6 +784,18 @@ export default function AdminClaimDetailPage() {
             </div>
           </>
         ) : null}
+
+        {appeal?.history?.length ? (
+          <div>
+            <h4>Appeal History</h4>
+            {appeal.history.map((entry, index) => (
+              <p key={`${entry.status}-${entry.timestamp || index}`}>
+                {formatValue(entry.timestamp)} - {formatValue(entry.status)} by{" "}
+                {formatValue(entry.actorRole)} {entry.note ? `- ${entry.note}` : ""}
+              </p>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <h3>Oracle Results</h3>
@@ -774,22 +808,12 @@ export default function AdminClaimDetailPage() {
         </p>
       ) : null}
 
-      {!oracleLoading && canShowOracleResultPanel && oracleLogs.length === 0 ? (
-        <p>No oracle result found yet.</p>
+      {canShowOracleResultPanel && !oracleLoading ? (
+        <OracleComparisonPanel
+          logs={oracleLogs}
+          quorumSummary={backendQuorumSummary || oracleQuorumStatus}
+        />
       ) : null}
-
-      {canShowOracleResultPanel ? oracleLogs.map((log) => (
-        <div className="card" key={log._id || log.requestId || log.resultHash}>
-          <p>Request ID: {formatValue(log.requestId)}</p>
-          <p>Verified: {formatValue(log.verified)}</p>
-          <p>Risk level: {formatValue(log.riskLevel)}</p>
-          <EvidenceField label="Result hash" value={log.resultHash} />
-          <p>
-            Tx hash: <TransactionLink txHash={log.submittedTxHash || log.txHash} />
-          </p>
-          <OracleComparisonPanel log={log} />
-        </div>
-      )) : null}
     </section>
   );
 }

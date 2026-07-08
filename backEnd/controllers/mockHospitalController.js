@@ -8,6 +8,7 @@ const {
   buildRegistryMerkleProof,
   buildRegistryMerkleRoot,
 } = require("../services/merkleRegistryService");
+const { getReadOnlyContract, getRegistrySnapshot } = require("../services/contractService");
 
 const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -507,6 +508,31 @@ const getHospitalRegistryMerkleRoot = async (req, res, next) => {
   }
 };
 
+const getHospitalOnChainRegistryMerkleRoot = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const snapshot = await getRegistrySnapshot(contract);
+    const root = snapshot.root || snapshot[0];
+    const timestamp = snapshot.timestamp || snapshot[1];
+    const blockNumber = snapshot.blockNumber || snapshot[2];
+
+    res.status(200).json({
+      success: true,
+      registrySnapshot: {
+        root,
+        committed: root !== ethers.ZeroHash && Number(timestamp) > 0,
+        timestamp: {
+          unix: timestamp.toString(),
+          iso: Number(timestamp) ? new Date(Number(timestamp) * 1000).toISOString() : null,
+        },
+        blockNumber: blockNumber.toString(),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getHospitalRegistryMerkleProof = async (req, res, next) => {
   try {
     const { invoiceHash } = req.query;
@@ -654,6 +680,7 @@ module.exports = {
   getHospitalRecordById,
   getHospitalRegistryMerkleProof,
   getHospitalRegistryMerkleRoot,
+  getHospitalOnChainRegistryMerkleRoot,
   getHospitalRegistrySummary,
   verifyHospitalRecord,
 };

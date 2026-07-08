@@ -40,6 +40,23 @@ const oracleLogSchema = new mongoose.Schema(
       enum: ["LOW", "MEDIUM", "HIGH", "FRAUD_FLAGGED", "ORACLE_FAILED"],
       default: "MEDIUM",
     },
+    remarks: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    oracleWallet: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+      index: true,
+    },
+    oracleInstanceId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     submittedTxHash: {
       type: String,
       trim: true,

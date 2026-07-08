@@ -208,6 +208,7 @@ const buildReserveIntelligence = async () => {
     deductibleRateBps,
     deductibleCapWei,
     insurerShareBps,
+    reserveWarningThresholdWei,
   ] = await Promise.all([
     getContractBalance(),
     getAllClaims(contract),
@@ -215,6 +216,7 @@ const buildReserveIntelligence = async () => {
     contract.deductibleRateBps(),
     contract.deductibleCapWei(),
     contract.insurerShareBps(),
+    contract.reserveWarningThresholdWei(),
   ]);
   const settlementParams = {
     deductibleRateBps,
@@ -241,7 +243,7 @@ const buildReserveIntelligence = async () => {
     zeroWei
   );
   const premiumCollectedWei = policies.reduce(
-    (total, policy) => total + policy.premiumPaid,
+    (total, policy) => total + (policy.totalPremiumPaid || policy.premiumPaid),
     zeroWei
   );
   const openExposureWei = claims
@@ -315,6 +317,8 @@ const buildReserveIntelligence = async () => {
     reserve: {
       wei: reserveWei.toString(),
       eth: toEth(reserveWei),
+      warningThresholdWei: reserveWarningThresholdWei.toString(),
+      warningThresholdEth: toEth(reserveWarningThresholdWei),
     },
     portfolio: {
       totalPolicies: policies.length,
@@ -330,10 +334,15 @@ const buildReserveIntelligence = async () => {
       openExposureEth: toEth(openExposureWei),
       approvedLiabilityWei: approvedLiabilityWei.toString(),
       approvedLiabilityEth: toEth(approvedLiabilityWei),
+      approvedPendingExposureWei: approvedLiabilityWei.toString(),
+      approvedPendingExposureEth: toEth(approvedLiabilityWei),
+      unsettledApprovedClaimCount: pendingSettlementClaims.length,
       reviewExposureWei: reviewExposureWei.toString(),
       reviewExposureEth: toEth(reviewExposureWei),
       settledWei: settledWei.toString(),
       settledEth: toEth(settledWei),
+      totalSettlementsPaidWei: settledWei.toString(),
+      totalSettlementsPaidEth: toEth(settledWei),
     },
     ratios: {
       reserveToOpenExposure: reserveToOpenExposureRatio,
@@ -350,6 +359,9 @@ const buildReserveIntelligence = async () => {
       openExposureFullyCovered: reserveWei >= openExposureWei,
       reserveAfterApprovedQueueWei: reserveAfterQueueWei.toString(),
       reserveAfterApprovedQueueEth: toEth(reserveAfterQueueWei),
+      reserveAfterPendingExposureWei: reserveAfterQueueWei.toString(),
+      reserveAfterPendingExposureEth: toEth(reserveAfterQueueWei),
+      belowWarningThreshold: reserveAfterQueueWei < reserveWarningThresholdWei,
       coverageUtilizationPercent:
         activeCoverageWei === zeroWei
           ? 0

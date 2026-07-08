@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getBrowserProvider } from "../services/contractService";
+import { getBrowserProvider, parseTransactionError } from "../services/contractService";
 import {
   clearStoredSession,
   getWalletNonce,
@@ -123,7 +123,7 @@ export function WalletProvider({ children }) {
       return returnedUser;
     } catch (err) {
       console.error(err);
-      setError(err.message || "Wallet connection failed");
+      setError(parseTransactionError(err));
       throw err;
     } finally {
       setIsConnecting(false);

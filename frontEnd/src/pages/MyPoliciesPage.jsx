@@ -3,7 +3,11 @@ import { useState } from "react";
 
 import { getMyPolicies } from "../services/api";
 import { useWallet } from "../context/useWallet";
-import { payPolicyPremium, reinstatePolicy } from "../services/contractService";
+import {
+  parseTransactionError,
+  payPolicyPremium,
+  reinstatePolicy,
+} from "../services/contractService";
 import "../styles/pages/MyPoliciesPage.css";
 
 function extractPolicies(data) {
@@ -59,13 +63,7 @@ export default function MyPoliciesPage() {
       );
       await refetch();
     } catch (error) {
-      setActionError(
-        error.reason ||
-          error.shortMessage ||
-          error.response?.data?.message ||
-          error.message ||
-          "Premium action failed"
-      );
+      setActionError(parseTransactionError(error));
     } finally {
       setActingPolicyId("");
     }

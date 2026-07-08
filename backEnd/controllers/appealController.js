@@ -41,6 +41,19 @@ const sha256Text = (value) =>
 
 const normalizeClaimId = (claimId) => String(claimId || "").trim();
 
+const buildAppealDeadline = async (contract, claimId) => {
+  try {
+    const resolvedAt = await contract.claimResolvedAt(claimId);
+    const closureWindow = await contract.claimClosureWindowSeconds();
+
+    if (!Number(resolvedAt)) return null;
+
+    return new Date((Number(resolvedAt) + Number(closureWindow)) * 1000);
+  } catch {
+    return null;
+  }
+};
+
 const formatAppeal = (appeal) => {
   if (!appeal) return null;
 
@@ -49,11 +62,17 @@ const formatAppeal = (appeal) => {
     claimId: appeal.claimId,
     claimantWallet: appeal.claimantWallet,
     appealReason: appeal.appealReason,
+    reasonCategory: appeal.reasonCategory,
+    appealDescription: appeal.appealDescription,
     appealReasonHash: appeal.appealReasonHash,
     additionalDocumentHash: appeal.additionalDocumentHash,
     additionalDocumentCID: appeal.additionalDocumentCID,
     status: appeal.status,
     adminNote: appeal.adminNote,
+    auditorRecommendation: appeal.auditorRecommendation,
+    finalRejectionReason: appeal.finalRejectionReason,
+    appealDeadline: appeal.appealDeadline,
+    history: appeal.history || [],
     transactionHash: appeal.transactionHash,
     submittedAt: appeal.submittedAt,
     reviewedAt: appeal.reviewedAt,
@@ -118,6 +137,7 @@ const submitAppeal = async (req, res, next) => {
 
     const appealReasonHash = sha256Text(appealReason);
     const providedHash = String(req.body.appealReasonHash || "").trim();
+    const appealDeadline = await buildAppealDeadline(contract, claimId);
 
     if (providedHash && providedHash.toLowerCase() !== appealReasonHash.toLowerCase()) {
       throw createError("appealReasonHash does not match appealReason", 400);
@@ -127,10 +147,22 @@ const submitAppeal = async (req, res, next) => {
       claimId,
       claimantWallet,
       appealReason,
+      reasonCategory: String(req.body.reasonCategory || "OTHER").trim().toUpperCase(),
+      appealDescription: req.body.appealDescription || appealReason,
       appealReasonHash,
       additionalDocumentHash: req.body.additionalDocumentHash || "",
       additionalDocumentCID: req.body.additionalDocumentCID || "",
       transactionHash: req.body.transactionHash || "",
+      appealDeadline,
+      history: [
+        {
+          status: "PENDING",
+          actorWallet: req.user.walletAddress,
+          actorRole: req.user.role,
+          note: "Appeal submitted by claimant",
+          timestamp: new Date(),
+        },
+      ],
     });
 
     await notifyAdmins({
@@ -179,7 +211,12 @@ const getAppealByClaim = async (req, res, next) => {
 
 const reviewAppeal = async (req, res, next) => {
   try {
-    const { status, adminNote = "" } = req.body;
+    const {
+      status,
+      adminNote = "",
+      auditorRecommendation = "",
+      finalRejectionReason = "",
+    } = req.body;
     const normalizedStatus = String(status || "").trim().toUpperCase();
 
     if (!APPEAL_STATUSES.has(normalizedStatus)) {
@@ -224,9 +261,25 @@ const reviewAppeal = async (req, res, next) => {
     const appeal = await Appeal.findByIdAndUpdate(
       req.params.id,
       {
-        status: normalizedStatus,
-        adminNote,
-        reviewedAt: new Date(),
+        $set: {
+          status: normalizedStatus,
+          adminNote,
+          auditorRecommendation,
+          finalRejectionReason:
+            normalizedStatus === "REJECTED"
+              ? finalRejectionReason || adminNote
+              : existingAppeal.finalRejectionReason,
+          reviewedAt: new Date(),
+        },
+        $push: {
+          history: {
+            status: normalizedStatus,
+            actorWallet: req.user.walletAddress,
+            actorRole: req.user.role,
+            note: adminNote,
+            timestamp: new Date(),
+          },
+        },
       },
       { new: true, runValidators: true }
     );

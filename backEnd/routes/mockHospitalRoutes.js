@@ -2,6 +2,7 @@ const express = require("express");
 const {
   getAllHospitalRecords,
   getHospitalRecordById,
+  getHospitalOnChainRegistryMerkleRoot,
   getHospitalRegistryMerkleProof,
   getHospitalRegistryMerkleRoot,
   getHospitalRegistrySummary,
@@ -29,6 +30,12 @@ router.get(
   authMiddleware,
   requireRole("ADMIN", "AUDITOR"),
   getHospitalRegistryMerkleRoot
+);
+router.get(
+  "/records/on-chain-merkle-root",
+  authMiddleware,
+  requireRole("ADMIN", "AUDITOR"),
+  getHospitalOnChainRegistryMerkleRoot
 );
 router.get(
   "/records/merkle-proof",

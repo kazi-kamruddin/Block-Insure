@@ -136,6 +136,64 @@ export function getPolicyStatusLabel(statusValue) {
   return POLICY_STATUS[numericStatus] || `UNKNOWN_${statusValue}`;
 }
 
+export function parseTransactionError(error) {
+  const rawMessage = String(
+    error?.shortMessage ||
+      error?.reason ||
+      error?.response?.data?.message ||
+      error?.message ||
+      "Transaction failed"
+  );
+  const lowerMessage = rawMessage.toLowerCase();
+  const code = error?.code || error?.info?.error?.code;
+
+  if (code === 4001 || lowerMessage.includes("user rejected")) {
+    return "MetaMask rejected the transaction.";
+  }
+
+  if (lowerMessage.includes("wrong metamask network") || lowerMessage.includes("chain id")) {
+    return rawMessage;
+  }
+
+  if (lowerMessage.includes("metamask is not installed") || lowerMessage.includes("missing provider")) {
+    return "Wallet is missing. Install or unlock MetaMask.";
+  }
+
+  if (lowerMessage.includes("access denied") || lowerMessage.includes("role")) {
+    return "Your backend or on-chain role is missing for this action.";
+  }
+
+  if (lowerMessage.includes("policy is not active")) {
+    return "This policy is inactive, expired, lapsed, or premium-overdue.";
+  }
+
+  if (lowerMessage.includes("premium") || lowerMessage.includes("lapsed")) {
+    return rawMessage.includes("Incorrect") ? "Incorrect premium amount." : rawMessage;
+  }
+
+  if (lowerMessage.includes("duplicate")) {
+    return "Duplicate claim evidence was detected.";
+  }
+
+  if (lowerMessage.includes("insufficient contract balance")) {
+    return "Insufficient reserve for settlement.";
+  }
+
+  if (lowerMessage.includes("already settled")) {
+    return "This claim is already settled.";
+  }
+
+  if (lowerMessage.includes("already closed")) {
+    return "This claim is already closed.";
+  }
+
+  if (lowerMessage.includes("oracle") && lowerMessage.includes("not")) {
+    return "Oracle result is not ready for this action.";
+  }
+
+  return rawMessage;
+}
+
 export async function payPolicyPremium(policyId, premiumWei) {
   const contract = await getWalletContract();
   return contract.payPremium(policyId, { value: premiumWei });

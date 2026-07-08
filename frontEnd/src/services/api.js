@@ -283,6 +283,11 @@ export async function getHealthcareRegistryMerkleRoot() {
   return response.data;
 }
 
+export async function getHealthcareOnChainRegistryMerkleRoot() {
+  const response = await api.get("/mock/hospital/records/on-chain-merkle-root");
+  return response.data;
+}
+
 export async function getOnChainRegistryMerkleRoot() {
   const response = await api.get("/api/admin/registry/merkle-root");
   return response.data;

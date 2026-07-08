@@ -15,7 +15,7 @@ import {
   submitAppeal,
   uploadClaimDocument,
 } from "../services/api";
-import { getWalletContract } from "../services/contractService";
+import { getWalletContract, parseTransactionError } from "../services/contractService";
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/ClaimDetailPage.css";
@@ -59,6 +59,8 @@ async function hashAppealReason(reason) {
 export default function ClaimDetailPage() {
   const { id } = useParams();
   const [appealReason, setAppealReason] = useState("");
+  const [appealReasonCategory, setAppealReasonCategory] = useState("DOCUMENT_ERROR");
+  const [appealDescription, setAppealDescription] = useState("");
   const [appealFile, setAppealFile] = useState(null);
   const [appealError, setAppealError] = useState("");
   const [appealMessage, setAppealMessage] = useState("");
@@ -110,6 +112,7 @@ export default function ClaimDetailPage() {
   const claim = extractClaim(claimData);
   const evidenceChain = extractEvidenceChain(claimData);
   const oracleLogs = extractOracleLogs(oracleData);
+  const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const statusName = getClaimStatusName(claim);
   const appeal = appealData?.appeal || null;
   const appealRule = getClaimActionRule({
@@ -160,6 +163,8 @@ export default function ClaimDetailPage() {
       await submitAppeal({
         claimId: id,
         appealReason: trimmedReason,
+        reasonCategory: appealReasonCategory,
+        appealDescription: appealDescription.trim() || trimmedReason,
         appealReasonHash,
         additionalDocumentHash,
         additionalDocumentCID,
@@ -167,19 +172,14 @@ export default function ClaimDetailPage() {
       });
 
       setAppealReason("");
+      setAppealDescription("");
       setAppealFile(null);
       setAppealMessage("Appeal submitted successfully.");
       await refetchAppeal();
       await refetch();
     } catch (err) {
       console.error(err);
-      setAppealError(
-        err.response?.data?.message ||
-          err.reason ||
-          err.shortMessage ||
-          err.message ||
-          "Appeal submission failed"
-      );
+      setAppealError(parseTransactionError(err));
     } finally {
       setIsSubmittingAppeal(false);
     }
@@ -249,7 +249,10 @@ export default function ClaimDetailPage() {
                 Status: <span className={`appeal-pill appeal-${appeal.status?.toLowerCase()}`}>{appeal.status}</span>
               </p>
               <p>Submitted: {formatDate(appeal.submittedAt)}</p>
+              <p>Appeal deadline: {formatDate(appeal.appealDeadline)}</p>
+              <p>Category: {formatValue(appeal.reasonCategory)}</p>
               <p>Reason: {formatValue(appeal.appealReason)}</p>
+              <p>Description: {formatValue(appeal.appealDescription)}</p>
               {appeal.additionalDocumentCID ? (
                 <p>
                   Additional document:{" "}
@@ -257,6 +260,12 @@ export default function ClaimDetailPage() {
                 </p>
               ) : null}
               {appeal.adminNote ? <p>Admin note: {appeal.adminNote}</p> : null}
+              {appeal.auditorRecommendation ? (
+                <p>Auditor recommendation: {appeal.auditorRecommendation}</p>
+              ) : null}
+              {appeal.finalRejectionReason ? (
+                <p>Final rejection reason: {appeal.finalRejectionReason}</p>
+              ) : null}
               {appeal.transactionHash ? (
                 <p>
                   Appeal tx: <TransactionLink txHash={appeal.transactionHash} />
@@ -268,12 +277,36 @@ export default function ClaimDetailPage() {
           {canAppeal ? (
             <form className="appeal-form" onSubmit={handleSubmitAppeal}>
               <label>
+                Appeal category
+                <select
+                  value={appealReasonCategory}
+                  onChange={(event) => setAppealReasonCategory(event.target.value)}
+                >
+                  <option value="DOCUMENT_ERROR">Document error</option>
+                  <option value="ORACLE_DISAGREEMENT">Oracle disagreement</option>
+                  <option value="SETTLEMENT_DISPUTE">Settlement dispute</option>
+                  <option value="ADMIN_REVIEW">Admin review requested</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
+
+              <label>
                 Appeal reason
                 <textarea
                   value={appealReason}
                   onChange={(event) => setAppealReason(event.target.value)}
                   rows={5}
                   placeholder="Explain why this rejected claim should be reviewed again."
+                />
+              </label>
+
+              <label>
+                Appeal description
+                <textarea
+                  value={appealDescription}
+                  onChange={(event) => setAppealDescription(event.target.value)}
+                  rows={4}
+                  placeholder="Add structured context for admin/auditor review."
                 />
               </label>
 
@@ -295,6 +328,18 @@ export default function ClaimDetailPage() {
             <p>{appealRule.reason || "Appeals are available after a claim is rejected."}</p>
           ) : null}
 
+          {appeal?.history?.length ? (
+            <div>
+              <h4>Appeal history</h4>
+              {appeal.history.map((entry, index) => (
+                <p key={`${entry.status}-${entry.timestamp || index}`}>
+                  {formatDate(entry.timestamp)} - {entry.status} by{" "}
+                  {formatValue(entry.actorRole)} {entry.note ? `- ${entry.note}` : ""}
+                </p>
+              ))}
+            </div>
+          ) : null}
+
           {appealError ? <p className="error-text">{appealError}</p> : null}
           {appealMessage ? <p className="success-text">{appealMessage}</p> : null}
           {appealTxHash ? (
@@ -309,22 +354,12 @@ export default function ClaimDetailPage() {
 
       {oracleLoading ? <p>Loading oracle logs...</p> : null}
 
-      {!oracleLoading && oracleLogs.length === 0 ? (
-        <p>No oracle result found yet.</p>
+      {!oracleLoading ? (
+        <OracleComparisonPanel
+          logs={oracleLogs}
+          quorumSummary={backendQuorumSummary}
+        />
       ) : null}
-
-      {oracleLogs.map((log) => (
-        <div className="card" key={log._id || log.requestId || log.resultHash}>
-          <p>Request ID: {formatValue(log.requestId)}</p>
-          <p>Verified: {formatValue(log.verified)}</p>
-          <p>Risk level: {formatValue(log.riskLevel)}</p>
-          <EvidenceField label="Result hash" value={log.resultHash} />
-          <p>
-            Tx hash: <TransactionLink txHash={log.submittedTxHash || log.txHash} />
-          </p>
-          <OracleComparisonPanel log={log} />
-        </div>
-      ))}
     </section>
   );
 }

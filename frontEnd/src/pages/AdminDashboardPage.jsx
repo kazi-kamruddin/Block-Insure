@@ -105,11 +105,13 @@ export default function AdminDashboardPage() {
         <div className="card">
           <h3>Approved Liability</h3>
           <p className="metric-value">
-            {formatEthValue(intelligence?.liabilities?.approvedLiabilityEth)} ETH
+            {formatEthValue(
+              intelligence?.liabilities?.approvedPendingExposureEth ||
+                intelligence?.liabilities?.approvedLiabilityEth
+            )} ETH
           </p>
           <p>
-            {formatRatio(intelligence?.ratios?.reserveToApprovedLiability)} approved
-            queue cover.
+            {intelligence?.liabilities?.unsettledApprovedClaimCount || 0} unsettled approved claims.
           </p>
         </div>
 
@@ -127,6 +129,24 @@ export default function AdminDashboardPage() {
             {formatEthValue(intelligence?.portfolio?.premiumCollectedEth)} ETH
           </p>
           <p>{intelligence?.portfolio?.activePolicies || 0} active policies.</p>
+        </div>
+
+        <div className="card">
+          <h3>Settlements Paid</h3>
+          <p className="metric-value">
+            {formatEthValue(intelligence?.liabilities?.totalSettlementsPaidEth)} ETH
+          </p>
+          <p>Authoritative paid settlement records from contract state.</p>
+        </div>
+
+        <div className="card">
+          <h3>Reserve After Exposure</h3>
+          <p className="metric-value">
+            {formatEthValue(intelligence?.solvency?.reserveAfterPendingExposureEth)} ETH
+          </p>
+          <p>
+            Warning threshold: {formatEthValue(intelligence?.reserve?.warningThresholdEth)} ETH.
+          </p>
         </div>
 
         <div className="card">

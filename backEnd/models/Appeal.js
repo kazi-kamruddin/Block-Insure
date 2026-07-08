@@ -21,6 +21,17 @@ const appealSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    reasonCategory: {
+      type: String,
+      trim: true,
+      default: "OTHER",
+      index: true,
+    },
+    appealDescription: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     appealReasonHash: {
       type: String,
       required: true,
@@ -46,6 +57,32 @@ const appealSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
+    },
+    auditorRecommendation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    finalRejectionReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    appealDeadline: {
+      type: Date,
+      default: null,
+    },
+    history: {
+      type: [
+        {
+          status: { type: String, trim: true },
+          actorWallet: { type: String, trim: true, lowercase: true, default: "" },
+          actorRole: { type: String, trim: true, default: "" },
+          note: { type: String, trim: true, default: "" },
+          timestamp: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
     },
     transactionHash: {
       type: String,

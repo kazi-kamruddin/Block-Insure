@@ -218,6 +218,16 @@ const buildRegistryMerkleProof = async ({ invoiceHash, registrySnapshot = "prima
     verified,
     proof,
     canonicalRecord: leaf.canonicalRecord,
+    safeRegistrySummary: {
+      hospitalId: leaf.hospitalId,
+      invoiceNumber: leaf.invoiceNumber,
+      invoiceHash: leaf.invoiceHash,
+      treatmentType: leaf.canonicalRecord.treatmentType,
+      recordStatus: leaf.canonicalRecord.recordStatus,
+      invoiceStatus: leaf.canonicalRecord.invoiceStatus,
+      licenseStatus: leaf.canonicalRecord.licenseStatus,
+      fraudLabel: leaf.canonicalRecord.fraudLabel,
+    },
     generatedAt: new Date().toISOString(),
   };
 };

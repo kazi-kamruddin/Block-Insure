@@ -27,6 +27,99 @@ const canReadClaimOracleLogs = async (req, claimId) => {
   return claim.claimantWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
 };
 
+const formatTimestamp = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+
+const extractMerkleProof = (log) => (
+  log.responseData?.hospitalVerification?.merkleProof ||
+  log.responseData?.merkleProof ||
+  {}
+);
+
+const formatOracleLog = (log) => {
+  const merkleProof = extractMerkleProof(log);
+  const response = log.responseData || {};
+
+  return {
+    _id: log._id,
+    requestId: log.requestId,
+    claimId: log.claimId,
+    oracleType: log.oracleType,
+    oracleWallet: log.oracleWallet || response.oracleWallet || "",
+    oracleInstanceId: log.oracleInstanceId || response.oracleInstanceId || "",
+    verified: log.verified,
+    result: log.verified ? "VERIFIED" : "FAILED",
+    registryRootMatched:
+      response.merkleRootMatchesChain ??
+      (merkleProof.rootHash && response.registryCommitment?.onChainRoot
+        ? String(merkleProof.rootHash).toLowerCase() ===
+          String(response.registryCommitment.onChainRoot).toLowerCase()
+        : null),
+    riskLevel: log.riskLevel,
+    remarks: log.remarks || response.remarks || response.message || "",
+    resultHash: log.resultHash,
+    submittedTxHash: log.submittedTxHash,
+    txHash: log.submittedTxHash,
+    responseTimeMs: log.responseTimeMs,
+    createdAt: log.createdAt,
+    timestamp: formatTimestamp(log.createdAt),
+    responseData: log.responseData,
+    queryData: log.queryData,
+  };
+};
+
+const buildQuorumSummary = async ({ contract, claimId, logs }) => {
+  const verifiedCount = logs.filter((log) => log.verified === true).length;
+  const failedCount = logs.filter((log) => log.verified === false).length;
+  const requiredQuorum = Number(await contract.oracleQuorumThreshold());
+  let oracleRequest = null;
+  let statusLabel = "NO_REQUEST";
+  let timedOut = false;
+
+  try {
+    oracleRequest = await contract.getOracleRequestByClaimId(claimId);
+    const claim = await contract.getClaim(claimId);
+    const currentBlock = await contract.runner.getBlockNumber();
+    const timeoutBlocks = await contract.oracleTimeoutBlocks();
+    const requestBlock = Number(oracleRequest.requestBlock);
+
+    statusLabel = CLAIM_STATUS[Number(claim.status)] || "UNKNOWN";
+    timedOut =
+      !oracleRequest.isFulfilled &&
+      currentBlock > requestBlock + Number(timeoutBlocks);
+  } catch {
+    // Claims may legitimately have no oracle request yet.
+  }
+
+  const finalOutcome = oracleRequest?.isFulfilled
+    ? oracleRequest.verifiedResult
+      ? "VERIFIED"
+      : "FAILED"
+    : timedOut
+      ? "TIMED_OUT"
+      : logs.length > 0
+        ? "PENDING_QUORUM"
+        : "PENDING";
+
+  return {
+    requestId: oracleRequest?.requestId?.toString?.() || null,
+    confirmationsReceived: logs.length,
+    requiredQuorum,
+    verifiedCount,
+    failedCount,
+    pendingCount: Math.max(requiredQuorum - logs.length, 0),
+    timedOut,
+    isFulfilled: Boolean(oracleRequest?.isFulfilled),
+    finalOutcome,
+    claimStatus: statusLabel,
+    requestBlock: oracleRequest?.requestBlock?.toString?.() || null,
+    requestedAt: oracleRequest?.requestedAt?.toString?.() || null,
+  };
+};
+
 const createOracleLog = async (req, res, next) => {
   try {
     const {
@@ -40,6 +133,9 @@ const createOracleLog = async (req, res, next) => {
       riskLevel = "MEDIUM",
       submittedTxHash = "",
       responseTimeMs = null,
+      oracleWallet = "",
+      oracleInstanceId = "",
+      remarks = "",
     } = req.body;
 
     if (!requestId || !claimId || !resultHash || verified === undefined) {
@@ -75,6 +171,9 @@ const createOracleLog = async (req, res, next) => {
       riskLevel,
       submittedTxHash,
       responseTimeMs: normalizedResponseTimeMs,
+      oracleWallet,
+      oracleInstanceId,
+      remarks,
     });
 
     const contract = getReadOnlyContract();
@@ -114,14 +213,22 @@ const getOracleLogsByClaim = async (req, res, next) => {
       });
     }
 
-    const logs = await OracleLog.find({
+    const rawLogs = await OracleLog.find({
       claimId: req.params.claimId.toString(),
-    }).sort({ createdAt: -1 });
+    }).sort({ createdAt: 1 }).lean();
+    const contract = getReadOnlyContract();
+    const logs = rawLogs.map(formatOracleLog);
+    const quorumSummary = await buildQuorumSummary({
+      contract,
+      claimId: req.params.claimId,
+      logs,
+    });
 
     res.status(200).json({
       success: true,
       count: logs.length,
       logs,
+      quorumSummary,
     });
   } catch (error) {
     next(error);

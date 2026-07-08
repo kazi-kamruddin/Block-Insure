@@ -17,6 +17,7 @@ import {
   getConnectedWalletAddress,
   getWalletContract,
   hashInvoiceNumber,
+  parseTransactionError,
   parseEth,
   toBytes32FromBackendSha256,
 } from "../services/contractService";
@@ -318,9 +319,7 @@ export default function SubmitClaimPage() {
       );
     } catch (err) {
       console.error(err);
-      setError(
-        err.shortMessage || err.reason || err.message || "Claim submission failed"
-      );
+      setError(parseTransactionError(err));
     } finally {
       setIsSubmitting(false);
     }

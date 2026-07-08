@@ -701,6 +701,31 @@ export default function ThesisResultsDashboardPage() {
             <strong>{formatEthValue(reserve?.liabilities?.openExposureEth)} ETH</strong>
           </div>
           <div>
+            <span>Approved Pending Exposure</span>
+            <strong>
+              {formatEthValue(
+                reserve?.liabilities?.approvedPendingExposureEth ||
+                  reserve?.liabilities?.approvedLiabilityEth
+              )} ETH
+            </strong>
+          </div>
+          <div>
+            <span>Unsettled Approved Claims</span>
+            <strong>{reserve?.liabilities?.unsettledApprovedClaimCount ?? 0}</strong>
+          </div>
+          <div>
+            <span>Settlements Paid</span>
+            <strong>{formatEthValue(reserve?.liabilities?.totalSettlementsPaidEth)} ETH</strong>
+          </div>
+          <div>
+            <span>Reserve After Pending Exposure</span>
+            <strong>{formatEthValue(reserve?.solvency?.reserveAfterPendingExposureEth)} ETH</strong>
+          </div>
+          <div>
+            <span>Warning Threshold</span>
+            <strong>{formatEthValue(reserve?.reserve?.warningThresholdEth)} ETH</strong>
+          </div>
+          <div>
             <span>Solvency Status</span>
             <strong>{reserve?.solvency?.status || "UNKNOWN"}</strong>
           </div>

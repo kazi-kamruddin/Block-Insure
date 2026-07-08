@@ -12,7 +12,7 @@ import {
   getOracleResults,
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
-import { getWalletContract } from "../services/contractService";
+import { getWalletContract, parseTransactionError } from "../services/contractService";
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/AuditorVotingPage.css";
@@ -130,6 +130,7 @@ export default function AuditorVotingPage() {
   const claim = extractClaim(claimData);
   const statusName = getClaimStatusName(claim);
   const oracleLogs = extractOracleLogs(oracleData);
+  const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const latestOracleLog = getLatestOracleLog(oracleLogs);
   const voteSummary = extractVoteSummary(voteData);
   const bayesianFraudPercent = getBayesianFraudPercent(latestOracleLog);
@@ -166,13 +167,7 @@ export default function AuditorVotingPage() {
       await refreshAll();
     } catch (error) {
       console.error(error);
-      setVoteError(
-        error.reason ||
-          error.shortMessage ||
-          error.response?.data?.message ||
-          error.message ||
-          "Vote transaction failed"
-      );
+      setVoteError(parseTransactionError(error));
     } finally {
       setIsVoting(false);
     }
@@ -242,22 +237,11 @@ export default function AuditorVotingPage() {
       <div className="card">
         <h3>Oracle Result Summary</h3>
         {oracleLoading ? <p>Loading oracle results...</p> : null}
-        {!oracleLoading && !latestOracleLog ? <p>No oracle result found.</p> : null}
-        {latestOracleLog ? (
-          <>
-            <div className="voting-detail-grid">
-              <p>Request ID: {formatValue(latestOracleLog.requestId)}</p>
-              <p>Verified: {formatValue(latestOracleLog.verified)}</p>
-              <p>Risk level: {formatValue(latestOracleLog.riskLevel)}</p>
-              <p>
-                Transaction:{" "}
-                <TransactionLink
-                  txHash={latestOracleLog.submittedTxHash || latestOracleLog.txHash}
-                />
-              </p>
-            </div>
-            <OracleComparisonPanel log={latestOracleLog} />
-          </>
+        {!oracleLoading ? (
+          <OracleComparisonPanel
+            logs={oracleLogs}
+            quorumSummary={backendQuorumSummary}
+          />
         ) : null}
       </div>
 

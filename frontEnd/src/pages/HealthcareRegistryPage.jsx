@@ -3,8 +3,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   getHealthcareRegistryMerkleRoot,
+  getHealthcareRegistryMerkleProof,
   getHealthcareRegistryRecords,
-  getOnChainRegistryMerkleRoot,
+  getHealthcareOnChainRegistryMerkleRoot,
   pushRegistryMerkleRoot,
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
@@ -85,6 +86,8 @@ export default function HealthcareRegistryPage() {
   const { role } = useWallet();
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
   const [activeFilters, setActiveFilters] = useState(DEFAULT_FILTERS);
+  const [proofInvoiceHash, setProofInvoiceHash] = useState("");
+  const [submittedProofInvoiceHash, setSubmittedProofInvoiceHash] = useState("");
 
   const queryParams = useMemo(
     () => ({
@@ -121,8 +124,19 @@ export default function HealthcareRegistryPage() {
     refetch: refetchOnChainMerkle,
   } = useQuery({
     queryKey: ["onChainRegistryMerkleRoot"],
-    queryFn: getOnChainRegistryMerkleRoot,
-    enabled: role === "ADMIN",
+    queryFn: getHealthcareOnChainRegistryMerkleRoot,
+    enabled: role === "ADMIN" || role === "AUDITOR",
+  });
+
+  const {
+    data: proofData,
+    isLoading: proofLoading,
+    error: proofError,
+  } = useQuery({
+    queryKey: ["healthcareMerkleProof", submittedProofInvoiceHash],
+    queryFn: () =>
+      getHealthcareRegistryMerkleProof(submittedProofInvoiceHash),
+    enabled: Boolean(submittedProofInvoiceHash),
   });
 
   const pushMerkleMutation = useMutation({
@@ -137,6 +151,12 @@ export default function HealthcareRegistryPage() {
   const summary = data?.summary || {};
   const merkleRoot = merkleData?.merkleRoot;
   const registrySnapshot = onChainMerkleData?.registrySnapshot;
+  const merkleProof = proofData?.merkleProof || null;
+  const localRoot = merkleRoot?.rootHash || "";
+  const onChainRoot = registrySnapshot?.root || "";
+  const rootsMatch =
+    Boolean(localRoot && onChainRoot) &&
+    localRoot.toLowerCase() === onChainRoot.toLowerCase();
   const total = summary.total || 0;
   const compositionRows = [
     { label: "Legitimate", value: summary.legitimate || 0 },
@@ -165,6 +185,11 @@ export default function HealthcareRegistryPage() {
   function handleReset() {
     setDraftFilters(DEFAULT_FILTERS);
     setActiveFilters(DEFAULT_FILTERS);
+  }
+
+  function handleProofSubmit(event) {
+    event.preventDefault();
+    setSubmittedProofInvoiceHash(proofInvoiceHash.trim());
   }
 
   return (
@@ -387,6 +412,86 @@ export default function HealthcareRegistryPage() {
           <span>Hash</span>
           <strong>{merkleRoot?.hashAlgorithm || "SHA-256"}</strong>
         </div>
+      </div>
+
+      <div className="registry-chain-card">
+        <div className="registry-chain-main">
+          <span className="registry-eyebrow">Merkle Proof Verification</span>
+          <strong>{rootsMatch ? "Roots Match" : "Root Check Pending/Mismatch"}</strong>
+          <span className={`registry-chain-status ${rootsMatch ? "is-committed" : "is-empty"}`}>
+            {rootsMatch ? "Local root matches on-chain root" : "Compare local and on-chain roots"}
+          </span>
+        </div>
+        <div>
+          <span>On-chain root</span>
+          <strong>{onChainRoot || "-"}</strong>
+        </div>
+        <div>
+          <span>Local root</span>
+          <strong>{localRoot || "-"}</strong>
+        </div>
+
+        <form className="registry-filter-bar" onSubmit={handleProofSubmit}>
+          <label>
+            Invoice hash
+            <input
+              type="text"
+              value={proofInvoiceHash}
+              onChange={(event) => setProofInvoiceHash(event.target.value)}
+              placeholder="0x..."
+            />
+          </label>
+          <button type="submit" disabled={proofLoading || !proofInvoiceHash.trim()}>
+            {proofLoading ? "Checking..." : "Verify Proof"}
+          </button>
+        </form>
+
+        {proofError ? (
+          <p className="error-text">
+            {proofError.response?.data?.message || proofError.message || "Proof lookup failed"}
+          </p>
+        ) : null}
+
+        {merkleProof ? (
+          <div className="registry-commitment-grid">
+            <div>
+              <span>Invoice identifier</span>
+              <strong>{merkleProof.invoiceNumber || merkleProof.invoiceHash || "-"}</strong>
+            </div>
+            <div>
+              <span>Leaf hash</span>
+              <strong>{merkleProof.leafHash || "-"}</strong>
+            </div>
+            <div>
+              <span>Proof verification</span>
+              <strong>{merkleProof.verified ? "Valid" : "Not verified"}</strong>
+            </div>
+            <div>
+              <span>Proof path</span>
+              <strong>{merkleProof.proofLength ?? merkleProof.proof?.length ?? 0} nodes</strong>
+            </div>
+            <div>
+              <span>Safe summary</span>
+              <strong>
+                {[
+                  merkleProof.safeRegistrySummary?.hospitalId,
+                  merkleProof.safeRegistrySummary?.treatmentType,
+                  merkleProof.safeRegistrySummary?.recordStatus,
+                ]
+                  .filter(Boolean)
+                  .join(" / ") || "-"}
+              </strong>
+            </div>
+            <div>
+              <span>Proof path hashes</span>
+              <strong>
+                {(merkleProof.proof || [])
+                  .map((step) => `${step.position}:${step.siblingHash}`)
+                  .join(" | ") || "-"}
+              </strong>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {error ? (
