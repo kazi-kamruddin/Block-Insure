@@ -9,6 +9,7 @@ const { buildReserveIntelligence } = require("../services/settlementIntelligence
 const { exportMerkleRoot } = require("../services/merkleRegistryService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
 const { logAdminAction } = require("../services/adminActionLogService");
+const AdminActionLog = require("../models/AdminActionLog");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -419,6 +420,49 @@ const pushRegistryMerkleRoot = async (req, res, next) => {
       transactionHash: tx.hash,
       blockNumber: receipt.blockNumber,
       registrySnapshot: formatRegistrySnapshot(snapshot),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const listAdminActionLogs = async (req, res, next) => {
+  try {
+    const {
+      action,
+      actorWallet,
+      targetType,
+      targetId,
+      limit = 100,
+      page = 1,
+    } = req.query;
+    const filter = {};
+
+    if (action) filter.action = action;
+    if (targetType) filter.targetType = targetType;
+    if (targetId) filter.targetId = targetId;
+    if (actorWallet) filter.actorWallet = actorWallet.toLowerCase();
+
+    const pageSize = Math.min(Math.max(Number(limit) || 100, 1), 250);
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const skip = (currentPage - 1) * pageSize;
+
+    const [logs, total] = await Promise.all([
+      AdminActionLog.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      AdminActionLog.countDocuments(filter),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      count: logs.length,
+      total,
+      page: currentPage,
+      limit: pageSize,
+      logs,
     });
   } catch (error) {
     next(error);
@@ -940,6 +984,7 @@ module.exports = {
   getReserveIntelligence,
   getRegistryMerkleRoot,
   pushRegistryMerkleRoot,
+  listAdminActionLogs,
   getAdminClaims,
   requestOracleForClaim,
   resolveTimedOutOracle,

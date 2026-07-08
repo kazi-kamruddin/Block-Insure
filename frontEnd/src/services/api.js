@@ -175,6 +175,11 @@ export async function getAdminClaims() {
   return response.data;
 }
 
+export async function getAdminActionLogs(params = {}) {
+  const response = await api.get("/api/admin/audit-logs", { params });
+  return response.data;
+}
+
 export async function getReserveIntelligence() {
   const response = await api.get("/api/admin/reserve-intelligence");
   return response.data;
@@ -182,6 +187,11 @@ export async function getReserveIntelligence() {
 
 export async function getEvaluationSummary() {
   const response = await api.get("/api/admin/evaluation/summary");
+  return response.data;
+}
+
+export async function getDefenseSummary() {
+  const response = await api.get("/api/admin/evaluation/defense-summary");
   return response.data;
 }
 

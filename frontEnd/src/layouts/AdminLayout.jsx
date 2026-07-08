@@ -20,6 +20,7 @@ export default function AdminLayout() {
         <NavLink to="/admin/policy-packages/new">Create Package</NavLink>
         <NavLink to="/admin/healthcare-registry">Registry</NavLink>
         <NavLink to="/admin/thesis-dashboard">Thesis Results</NavLink>
+        <NavLink to="/admin/audit-actions">Action Audit</NavLink>
         <NavLink to="/admin/claims">Claims</NavLink>
         <NavLink to="/admin/notifications">Notifications</NavLink>
       </nav>

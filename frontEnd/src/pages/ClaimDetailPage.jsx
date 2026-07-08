@@ -16,6 +16,7 @@ import {
   uploadClaimDocument,
 } from "../services/api";
 import { getWalletContract } from "../services/contractService";
+import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/ClaimDetailPage.css";
 
@@ -111,7 +112,12 @@ export default function ClaimDetailPage() {
   const oracleLogs = extractOracleLogs(oracleData);
   const statusName = getClaimStatusName(claim);
   const appeal = appealData?.appeal || null;
-  const canAppeal = statusName === "REJECTED" && !appeal;
+  const appealRule = getClaimActionRule({
+    action: CLAIM_ACTIONS.APPEAL,
+    statusName,
+    appealAlreadyUsed: Boolean(appeal),
+  });
+  const canAppeal = appealRule.allowed;
 
   async function handleSubmitAppeal(event) {
     event.preventDefault();
@@ -286,7 +292,7 @@ export default function ClaimDetailPage() {
           ) : null}
 
           {!appeal && statusName !== "REJECTED" ? (
-            <p>Appeals are available after a claim is rejected.</p>
+            <p>{appealRule.reason || "Appeals are available after a claim is rejected."}</p>
           ) : null}
 
           {appealError ? <p className="error-text">{appealError}</p> : null}

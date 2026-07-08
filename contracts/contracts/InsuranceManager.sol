@@ -37,6 +37,16 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         CLOSED
     }    
 
+    enum PolicyStatus {
+        PENDING_PAYMENT,
+        ACTIVE,
+        GRACE_PERIOD,
+        LAPSED,
+        CANCELLED,
+        EXPIRED,
+        RENEWED
+    }
+
     struct PolicyPackage {
         uint256 packageId;
         string name;
@@ -57,6 +67,14 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 coverageAmount;
         uint256 premiumPaid;
         bool isActive;
+        PolicyStatus status;
+        uint256 premiumAmount;
+        uint256 premiumInterval;
+        uint256 nextPremiumDueDate;
+        uint256 gracePeriodEnd;
+        uint256 lastPaidTimestamp;
+        uint256 totalPremiumPaid;
+        uint256 installmentsPaid;
     }
 
     struct Claim {
@@ -164,6 +182,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     uint256 public deductibleCapWei = 0.02 ether;
     uint256 public insurerShareBps = 8000;
     uint256 public reserveWarningThresholdWei = 0.1 ether;
+    uint256 private constant DEFAULT_PREMIUM_INTERVAL_SECONDS = 30 days;
+    uint256 private constant DEFAULT_GRACE_PERIOD_SECONDS = 7 days;
 
     // =============================================================
     // Events
@@ -199,6 +219,21 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     );
 
     event PolicyExpired(uint256 indexed policyId, uint256 timestamp);
+    event PolicyStatusChanged(
+        uint256 indexed policyId,
+        PolicyStatus previousStatus,
+        PolicyStatus newStatus,
+        uint256 timestamp
+    );
+    event PremiumPaid(
+        uint256 indexed policyId,
+        address indexed payer,
+        uint256 amount,
+        uint256 paidAt,
+        uint256 nextPremiumDueDate,
+        uint256 installmentsPaid,
+        uint256 totalPremiumPaid
+    );
 
     event ClaimSubmitted(
         uint256 indexed claimId,
@@ -611,6 +646,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 newPolicyId = policyCounter;
         uint256 startDate = block.timestamp;
         uint256 endDate = block.timestamp + (selectedPackage.durationDays * 1 days);
+        uint256 nextPremiumDueDate = _nextDueDate(startDate, endDate);
+        uint256 gracePeriodEnd = _gracePeriodEnd(nextPremiumDueDate, endDate);
 
         policies[newPolicyId] = Policy({
             policyId: newPolicyId,
@@ -620,7 +657,15 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             endDate: endDate,
             coverageAmount: selectedPackage.coverageAmount,
             premiumPaid: msg.value,
-            isActive: true
+            isActive: true,
+            status: PolicyStatus.ACTIVE,
+            premiumAmount: selectedPackage.premiumAmount,
+            premiumInterval: DEFAULT_PREMIUM_INTERVAL_SECONDS,
+            nextPremiumDueDate: nextPremiumDueDate,
+            gracePeriodEnd: gracePeriodEnd,
+            lastPaidTimestamp: block.timestamp,
+            totalPremiumPaid: msg.value,
+            installmentsPaid: 1
         });
 
         policiesByWallet[msg.sender].push(newPolicyId);
@@ -634,6 +679,16 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             endDate
         );
 
+        emit PremiumPaid(
+            newPolicyId,
+            msg.sender,
+            msg.value,
+            block.timestamp,
+            nextPremiumDueDate,
+            1,
+            msg.value
+        );
+
         return newPolicyId;
     }
 
@@ -642,16 +697,75 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         return policies[policyId];
     }
 
+    function getEffectivePolicyStatus(uint256 policyId) public view returns (PolicyStatus) {
+        require(_policyExists(policyId), "Policy does not exist");
+        return _effectivePolicyStatus(policies[policyId]);
+    }
+
     function getPoliciesByWallet(address wallet) external view returns (uint256[] memory) {
         return policiesByWallet[wallet];
     }
 
     function isPolicyActive(uint256 policyId) public view returns (bool) {
         require(_policyExists(policyId), "Policy does not exist");
+        return _effectivePolicyStatus(policies[policyId]) == PolicyStatus.ACTIVE;
+    }
 
-        Policy memory selectedPolicy = policies[policyId];
+    function refreshPolicyStatus(uint256 policyId) public returns (PolicyStatus) {
+        require(_policyExists(policyId), "Policy does not exist");
 
-        return selectedPolicy.isActive && block.timestamp <= selectedPolicy.endDate;
+        Policy storage selectedPolicy = policies[policyId];
+
+        _syncPolicyStatus(policyId, selectedPolicy);
+
+        return selectedPolicy.status;
+    }
+
+    function payPremium(uint256 policyId) external payable whenNotPaused {
+        require(_policyExists(policyId), "Policy does not exist");
+
+        Policy storage selectedPolicy = policies[policyId];
+
+        _syncPolicyStatus(policyId, selectedPolicy);
+
+        require(selectedPolicy.holderWallet == msg.sender, "Caller is not policy holder");
+        require(selectedPolicy.status == PolicyStatus.ACTIVE || selectedPolicy.status == PolicyStatus.GRACE_PERIOD, "Policy is not payable");
+        require(msg.value == selectedPolicy.premiumAmount, "Incorrect premium amount");
+
+        _recordPremiumPayment(policyId, selectedPolicy, msg.value);
+    }
+
+    function reinstatePolicy(uint256 policyId) external payable whenNotPaused {
+        require(_policyExists(policyId), "Policy does not exist");
+
+        Policy storage selectedPolicy = policies[policyId];
+
+        _syncPolicyStatus(policyId, selectedPolicy);
+
+        require(selectedPolicy.holderWallet == msg.sender, "Caller is not policy holder");
+        require(selectedPolicy.status == PolicyStatus.LAPSED, "Policy is not lapsed");
+        require(block.timestamp <= selectedPolicy.endDate, "Policy has expired");
+        require(msg.value == selectedPolicy.premiumAmount, "Incorrect premium amount");
+
+        _recordPremiumPayment(policyId, selectedPolicy, msg.value);
+
+    }
+
+    function cancelPolicy(uint256 policyId) external {
+        require(_policyExists(policyId), "Policy does not exist");
+
+        Policy storage selectedPolicy = policies[policyId];
+
+        require(
+            selectedPolicy.holderWallet == msg.sender || hasRole(ADMIN_ROLE, msg.sender),
+            "Caller cannot cancel policy"
+        );
+        require(selectedPolicy.status != PolicyStatus.CANCELLED, "Policy already cancelled");
+        require(selectedPolicy.status != PolicyStatus.EXPIRED, "Policy already expired");
+
+        _setPolicyStatus(policyId, selectedPolicy, PolicyStatus.CANCELLED);
+        selectedPolicy.isActive = false;
+
     }
 
     function deactivateExpiredPolicy(uint256 policyId) external {
@@ -659,10 +773,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         Policy storage selectedPolicy = policies[policyId];
 
-        require(selectedPolicy.isActive, "Policy already inactive");
-        require(block.timestamp > selectedPolicy.endDate, "Policy has not expired");
-
-        selectedPolicy.isActive = false;
+        _syncPolicyStatus(policyId, selectedPolicy);
+        require(selectedPolicy.status == PolicyStatus.EXPIRED, "Policy has not expired");
 
         emit PolicyExpired(policyId, block.timestamp);
     }
@@ -704,10 +816,11 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     ) external whenNotPaused returns (uint256) {
         require(_policyExists(policyId), "Policy does not exist");
 
-        Policy memory selectedPolicy = policies[policyId];
+        Policy storage selectedPolicy = policies[policyId];
 
         require(selectedPolicy.holderWallet == msg.sender, "Caller is not policy holder");
-        require(isPolicyActive(policyId), "Policy is not active");
+        _syncPolicyStatus(policyId, selectedPolicy);
+        require(selectedPolicy.status == PolicyStatus.ACTIVE, "Policy is not active");
         require(incidentDate >= selectedPolicy.startDate && incidentDate <= selectedPolicy.endDate, "Incident date outside policy period");
         require(incidentDate <= block.timestamp, "Incident date cannot be in the future");
         require(claimAmount > 0, "Claim amount must be greater than zero");
@@ -1452,6 +1565,99 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     function _oracleRequestExists(uint256 requestId) internal view returns (bool) {
         return oracleRequests[requestId].requestId != 0;
+    }
+
+    function _nextDueDate(uint256 fromTimestamp, uint256 endDate) internal pure returns (uint256) {
+        uint256 nextDueDate = fromTimestamp + DEFAULT_PREMIUM_INTERVAL_SECONDS;
+
+        if (nextDueDate > endDate) {
+            return endDate;
+        }
+
+        return nextDueDate;
+    }
+
+    function _gracePeriodEnd(uint256 nextPremiumDueDate, uint256 endDate) internal pure returns (uint256) {
+        uint256 graceEnd = nextPremiumDueDate + DEFAULT_GRACE_PERIOD_SECONDS;
+
+        if (graceEnd > endDate) {
+            return endDate;
+        }
+
+        return graceEnd;
+    }
+
+    function _effectivePolicyStatus(Policy memory selectedPolicy) internal view returns (PolicyStatus) {
+        if (selectedPolicy.status == PolicyStatus.CANCELLED) {
+            return PolicyStatus.CANCELLED;
+        }
+
+        if (block.timestamp > selectedPolicy.endDate) {
+            return PolicyStatus.EXPIRED;
+        }
+
+        if (block.timestamp > selectedPolicy.gracePeriodEnd) {
+            return PolicyStatus.LAPSED;
+        }
+
+        if (block.timestamp > selectedPolicy.nextPremiumDueDate) {
+            return PolicyStatus.GRACE_PERIOD;
+        }
+
+        return PolicyStatus.ACTIVE;
+    }
+
+    function _syncPolicyStatus(uint256 policyId, Policy storage selectedPolicy) internal {
+        PolicyStatus effectiveStatus = _effectivePolicyStatus(selectedPolicy);
+
+        _setPolicyStatus(policyId, selectedPolicy, effectiveStatus);
+    }
+
+    function _setPolicyStatus(
+        uint256 policyId,
+        Policy storage selectedPolicy,
+        PolicyStatus newStatus
+    ) internal {
+        PolicyStatus previousStatus = selectedPolicy.status;
+
+        selectedPolicy.status = newStatus;
+        selectedPolicy.isActive = newStatus == PolicyStatus.ACTIVE;
+
+        if (previousStatus != newStatus) {
+            emit PolicyStatusChanged(policyId, previousStatus, newStatus, block.timestamp);
+
+            if (newStatus == PolicyStatus.EXPIRED) {
+                emit PolicyExpired(policyId, block.timestamp);
+            }
+        }
+    }
+
+    function _recordPremiumPayment(
+        uint256 policyId,
+        Policy storage selectedPolicy,
+        uint256 amount
+    ) internal {
+        selectedPolicy.lastPaidTimestamp = block.timestamp;
+        selectedPolicy.totalPremiumPaid += amount;
+        selectedPolicy.premiumPaid = selectedPolicy.totalPremiumPaid;
+        selectedPolicy.installmentsPaid += 1;
+        selectedPolicy.nextPremiumDueDate = _nextDueDate(block.timestamp, selectedPolicy.endDate);
+        selectedPolicy.gracePeriodEnd = _gracePeriodEnd(
+            selectedPolicy.nextPremiumDueDate,
+            selectedPolicy.endDate
+        );
+
+        _setPolicyStatus(policyId, selectedPolicy, PolicyStatus.ACTIVE);
+
+        emit PremiumPaid(
+            policyId,
+            msg.sender,
+            amount,
+            block.timestamp,
+            selectedPolicy.nextPremiumDueDate,
+            selectedPolicy.installmentsPaid,
+            selectedPolicy.totalPremiumPaid
+        );
     }
 
 

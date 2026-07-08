@@ -28,6 +28,7 @@ import {
   formatEth,
   getReadOnlyContract,
 } from "../services/contractService";
+import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/AdminClaimDetailPage.css";
 
@@ -243,18 +244,27 @@ export default function AdminClaimDetailPage() {
   const appealIsFinal =
     appeal?.status === "APPROVED" || appeal?.status === "REJECTED";
 
-  const canRequestOracle = statusName === "DUPLICATE_CHECKED";
-  const canSendManualReview =
-    statusName === "ORACLE_FAILED" || statusName === "FRAUD_FLAGGED";
-  const canApprove =
-    statusName === "ORACLE_VERIFIED" || statusName === "MANUAL_REVIEW";
-  const canReject =
-    statusName !== "SETTLED" &&
-    statusName !== "CLOSED" &&
-    statusName !== "REJECTED" &&
-    statusName !== "UNKNOWN";
-  const canSettle = statusName === "APPROVED";
-  const canClose = statusName === "SETTLED" || statusName === "REJECTED";
+  const getAdminRule = (action, extra = {}) =>
+    getClaimActionRule({
+      action,
+      statusName,
+      role: "ADMIN",
+      alreadySettled: statusName === "SETTLED" && action !== CLAIM_ACTIONS.CLOSE,
+      ...extra,
+    });
+  const requestOracleRule = getAdminRule(CLAIM_ACTIONS.REQUEST_ORACLE);
+  const manualReviewRule =
+    statusName === "FRAUD_FLAGGED"
+      ? { allowed: true, reason: "" }
+      : getAdminRule(CLAIM_ACTIONS.MANUAL_REVIEW);
+  const approveRule = getAdminRule(CLAIM_ACTIONS.APPROVE);
+  const rejectRule = getAdminRule(CLAIM_ACTIONS.REJECT);
+  const settleRule = getAdminRule(CLAIM_ACTIONS.SETTLE);
+  const closeRule = getAdminRule(CLAIM_ACTIONS.CLOSE);
+  const resolveTimeoutRule = getAdminRule(CLAIM_ACTIONS.RESOLVE_ORACLE_TIMEOUT, {
+    oracleQuorumReached: true,
+  });
+  const canSettle = settleRule.allowed;
   const canShowVoting =
     statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
   const isAwaitingOracleQuorum =
@@ -491,7 +501,8 @@ export default function AdminClaimDetailPage() {
           <button
             type="button"
             onClick={handleRequestOracle}
-            disabled={!canRequestOracle || isActing}
+            disabled={!requestOracleRule.allowed || isActing}
+            title={requestOracleRule.reason}
           >
             Request Oracle Verification
           </button>
@@ -499,7 +510,8 @@ export default function AdminClaimDetailPage() {
           <button
             type="button"
             onClick={handleManualReview}
-            disabled={!canSendManualReview || isActing}
+            disabled={!manualReviewRule.allowed || isActing}
+            title={manualReviewRule.reason}
           >
             Send to Manual Review
           </button>
@@ -507,7 +519,8 @@ export default function AdminClaimDetailPage() {
           <button
             type="button"
             onClick={handleResolveOracleTimeout}
-            disabled={statusName !== "ORACLE_PENDING" || isActing}
+            disabled={!resolveTimeoutRule.allowed || isActing}
+            title={resolveTimeoutRule.reason}
           >
             Resolve Oracle Timeout
           </button>
@@ -515,7 +528,8 @@ export default function AdminClaimDetailPage() {
           <button
             type="button"
             onClick={handleApprove}
-            disabled={!canApprove || isActing}
+            disabled={!approveRule.allowed || isActing}
+            title={approveRule.reason}
           >
             Approve Claim
           </button>
@@ -523,7 +537,8 @@ export default function AdminClaimDetailPage() {
           <button
             type="button"
             onClick={handleSettle}
-            disabled={!canSettle || isActing}
+            disabled={!settleRule.allowed || isActing}
+            title={settleRule.reason}
           >
             Settle Claim
           </button>
@@ -531,7 +546,8 @@ export default function AdminClaimDetailPage() {
           <button
             type="button"
             onClick={handleClose}
-            disabled={!canClose || isActing}
+            disabled={!closeRule.allowed || isActing}
+            title={closeRule.reason}
           >
             Close Claim
           </button>
@@ -551,7 +567,8 @@ export default function AdminClaimDetailPage() {
           <button
             type="button"
             onClick={handleReject}
-            disabled={!canReject || isActing}
+            disabled={!rejectRule.allowed || isActing}
+            title={rejectRule.reason}
           >
             Reject Claim
           </button>

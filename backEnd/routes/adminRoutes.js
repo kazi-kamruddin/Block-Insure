@@ -8,6 +8,7 @@ const {
   getReserveIntelligence,
   getRegistryMerkleRoot,
   pushRegistryMerkleRoot,
+  listAdminActionLogs,
   getAdminClaims,
   requestOracleForClaim,
   resolveTimedOutOracle,
@@ -19,6 +20,7 @@ const {
 } = require("../controllers/adminController");
 const {
   getAuditorReputationAnalysis,
+  getDefenseSummary,
   getEvaluationSummary,
   getGasComparison,
   getOracleStats,
@@ -87,6 +89,13 @@ router.get(
 );
 
 router.get(
+  "/evaluation/defense-summary",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getDefenseSummary
+);
+
+router.get(
   "/evaluation/gas-comparison",
   authMiddleware,
   requireRole("ADMIN"),
@@ -133,6 +142,13 @@ router.post(
   authMiddleware,
   requireRole("ADMIN"),
   pushRegistryMerkleRoot
+);
+
+router.get(
+  "/audit-logs",
+  authMiddleware,
+  requireRole("ADMIN"),
+  listAdminActionLogs
 );
 
 router.get(

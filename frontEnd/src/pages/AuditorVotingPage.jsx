@@ -13,6 +13,7 @@ import {
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import { getWalletContract } from "../services/contractService";
+import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/AuditorVotingPage.css";
 
@@ -132,10 +133,14 @@ export default function AuditorVotingPage() {
   const latestOracleLog = getLatestOracleLog(oracleLogs);
   const voteSummary = extractVoteSummary(voteData);
   const bayesianFraudPercent = getBayesianFraudPercent(latestOracleLog);
-  const isReviewable =
-    statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
-  const canVote =
-    isReviewable && voteSummary && !voteSummary.hasCurrentUserVoted && !isVoting;
+  const voteRule = getClaimActionRule({
+    action: CLAIM_ACTIONS.AUDITOR_VOTE,
+    statusName,
+    role: "AUDITOR",
+    hasVoted: Boolean(voteSummary?.hasCurrentUserVoted),
+  });
+  const isReviewable = voteRule.allowed || voteRule.reason === "Already voted";
+  const canVote = voteRule.allowed && voteSummary && !isVoting;
 
   async function refreshAll() {
     await refetchClaim();
@@ -228,7 +233,10 @@ export default function AuditorVotingPage() {
 
       <div className={`card voting-readiness ${canVote ? "is-open" : ""}`}>
         <h3>Voting Readiness</h3>
-        <p>{getVotingHint({ isReviewable, statusName, voteSummary, isVoting })}</p>
+        <p>
+          {voteRule.reason ||
+            getVotingHint({ isReviewable, statusName, voteSummary, isVoting })}
+        </p>
       </div>
 
       <div className="card">
@@ -320,7 +328,7 @@ export default function AuditorVotingPage() {
 
         {!isReviewable ? (
           <p className="muted-text">
-            Current status {statusName} is not open for auditor voting.
+            {voteRule.reason || `Current status ${statusName} is not open for auditor voting.`}
           </p>
         ) : null}
       </div>

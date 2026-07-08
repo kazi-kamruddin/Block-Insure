@@ -18,7 +18,29 @@ const formatPolicyPackage = (policyPackage) => {
   };
 };
 
-const formatPolicy = (policy) => {
+const POLICY_STATUS = [
+  "PENDING_PAYMENT",
+  "ACTIVE",
+  "GRACE_PERIOD",
+  "LAPSED",
+  "CANCELLED",
+  "EXPIRED",
+  "RENEWED",
+];
+
+const formatPolicyStatus = (statusValue) => {
+  const code = Number(statusValue);
+
+  return {
+    code,
+    label: POLICY_STATUS[code] || "UNKNOWN",
+  };
+};
+
+const formatPolicy = (policy, effectiveStatus = policy.status) => {
+  const premiumAmount = policy.premiumAmount || 0n;
+  const totalPremiumPaid = policy.totalPremiumPaid || policy.premiumPaid || 0n;
+
   return {
     policyId: policy.policyId.toString(),
     packageId: policy.packageId.toString(),
@@ -29,7 +51,17 @@ const formatPolicy = (policy) => {
     coverageAmountEth: ethers.formatEther(policy.coverageAmount),
     premiumPaidWei: policy.premiumPaid.toString(),
     premiumPaidEth: ethers.formatEther(policy.premiumPaid),
-    isActive: policy.isActive,
+    isActive: formatPolicyStatus(effectiveStatus).label === "ACTIVE",
+    status: formatPolicyStatus(effectiveStatus),
+    premiumAmountWei: premiumAmount.toString(),
+    premiumAmountEth: ethers.formatEther(premiumAmount),
+    premiumInterval: policy.premiumInterval?.toString?.() || "0",
+    nextPremiumDueDate: policy.nextPremiumDueDate?.toString?.() || "0",
+    gracePeriodEnd: policy.gracePeriodEnd?.toString?.() || "0",
+    lastPaidTimestamp: policy.lastPaidTimestamp?.toString?.() || "0",
+    totalPremiumPaidWei: totalPremiumPaid.toString(),
+    totalPremiumPaidEth: ethers.formatEther(totalPremiumPaid),
+    installmentsPaid: policy.installmentsPaid?.toString?.() || "0",
   };
 };
 
@@ -76,8 +108,11 @@ const getMyPolicies = async (req, res, next) => {
 
     const policies = await Promise.all(
       policyIds.map(async (policyId) => {
-        const policy = await contract.getPolicy(policyId);
-        return formatPolicy(policy);
+        const [policy, effectiveStatus] = await Promise.all([
+          contract.getPolicy(policyId),
+          contract.getEffectivePolicyStatus(policyId),
+        ]);
+        return formatPolicy(policy, effectiveStatus);
       })
     );
 
@@ -95,7 +130,10 @@ const getPolicyById = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
 
-    const policy = await contract.getPolicy(req.params.policyId);
+    const [policy, effectiveStatus] = await Promise.all([
+      contract.getPolicy(req.params.policyId),
+      contract.getEffectivePolicyStatus(req.params.policyId),
+    ]);
 
     if (!canReadPolicy(req, policy)) {
       return res.status(403).json({
@@ -106,7 +144,7 @@ const getPolicyById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      policy: formatPolicy(policy),
+      policy: formatPolicy(policy, effectiveStatus),
     });
   } catch (error) {
     next(error);

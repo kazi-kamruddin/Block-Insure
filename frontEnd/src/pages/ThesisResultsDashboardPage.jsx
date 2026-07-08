@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   getAuditorReputationAnalysis,
+  getDefenseSummary,
   getEvaluationSummary,
   getGasComparison,
   getOnChainRegistryMerkleRoot,
@@ -43,6 +44,10 @@ function extractThroughputResults(data) {
 
 function extractAuditorAnalysis(data) {
   return data?.auditorAnalysis || data?.data?.auditorAnalysis || null;
+}
+
+function extractDefenseSummary(data) {
+  return data?.defenseSummary || data?.data?.defenseSummary || null;
 }
 
 function formatPercent(value, digits = 1) {
@@ -219,6 +224,10 @@ export default function ThesisResultsDashboardPage() {
     queryKey: ["auditorReputationAnalysis"],
     queryFn: getAuditorReputationAnalysis,
   });
+  const defenseSummaryQuery = useQuery({
+    queryKey: ["defenseSummary"],
+    queryFn: getDefenseSummary,
+  });
 
   const summary = extractSummary(summaryQuery.data);
   const gasRows = extractRows(gasQuery.data);
@@ -228,6 +237,7 @@ export default function ThesisResultsDashboardPage() {
   const registrySnapshot = extractRegistrySnapshot(registryQuery.data);
   const throughputResults = extractThroughputResults(throughputQuery.data);
   const auditorAnalysis = extractAuditorAnalysis(auditorAnalysisQuery.data);
+  const defenseSummary = extractDefenseSummary(defenseSummaryQuery.data);
   const chartGasRow = getGasRowForChart(gasRows);
   const maxRiskBucketCount = Math.max(
     ...riskBuckets.map((bucket) => bucket.count),
@@ -252,7 +262,9 @@ export default function ThesisResultsDashboardPage() {
     reserveQuery.isLoading ||
     registryQuery.isLoading ||
     throughputQuery.isLoading ||
-    auditorAnalysisQuery.isLoading;
+    auditorAnalysisQuery.isLoading ||
+    defenseSummaryQuery.isLoading;
+  const readiness = defenseSummary?.demoReadiness || {};
 
   function refreshAll() {
     summaryQuery.refetch();
@@ -263,6 +275,7 @@ export default function ThesisResultsDashboardPage() {
     registryQuery.refetch();
     throughputQuery.refetch();
     auditorAnalysisQuery.refetch();
+    defenseSummaryQuery.refetch();
   }
 
   return (
@@ -272,6 +285,120 @@ export default function ThesisResultsDashboardPage() {
       <button type="button" onClick={refreshAll} disabled={anyLoading}>
         {anyLoading ? "Refreshing..." : "Refresh Results"}
       </button>
+
+      <div className="thesis-section card">
+        <div className="thesis-section-head">
+          <h3>Defense Mode Summary</h3>
+          <span>{readiness.hasPurchasedPolicy ? "Demo data present" : "Needs setup"}</span>
+        </div>
+        {defenseSummaryQuery.error ? (
+          <p className="error-text">{defenseSummaryQuery.error.message}</p>
+        ) : null}
+
+        <div className="thesis-metric-grid">
+          <div>
+            <span>Policy Packages</span>
+            <strong>{defenseSummary?.policyPackages?.total ?? "N/A"}</strong>
+          </div>
+          <div>
+            <span>Purchased Policies</span>
+            <strong>{defenseSummary?.policies?.totalPurchased ?? "N/A"}</strong>
+          </div>
+          <div>
+            <span>Active Policies</span>
+            <strong>{defenseSummary?.policies?.statusCounts?.ACTIVE ?? "N/A"}</strong>
+          </div>
+          <div>
+            <span>Grace/Lapsed</span>
+            <strong>
+              {(defenseSummary?.policies?.statusCounts?.GRACE_PERIOD ?? 0) +
+                (defenseSummary?.policies?.statusCounts?.LAPSED ?? 0)}
+            </strong>
+          </div>
+          <div>
+            <span>Premiums Collected</span>
+            <strong>{defenseSummary?.policies?.totalPremiumsCollectedEth ?? "N/A"} ETH</strong>
+          </div>
+          <div>
+            <span>Overdue Policies</span>
+            <strong>{defenseSummary?.policies?.overduePolicyCount ?? "N/A"}</strong>
+          </div>
+          <div>
+            <span>Total Claims</span>
+            <strong>{defenseSummary?.claims?.total ?? "N/A"}</strong>
+          </div>
+          <div>
+            <span>Fraud Flagged</span>
+            <strong>{defenseSummary?.claims?.fraudFlaggedCount ?? "N/A"}</strong>
+          </div>
+          <div>
+            <span>Oracle Pending/Success/Failure</span>
+            <strong>
+              {defenseSummary
+                ? `${defenseSummary.oracle.pending}/${defenseSummary.oracle.success}/${defenseSummary.oracle.failure}`
+                : "N/A"}
+            </strong>
+          </div>
+          <div>
+            <span>Auditor Votes</span>
+            <strong>{defenseSummary?.auditors?.totalVoters ?? "N/A"}</strong>
+          </div>
+          <div>
+            <span>Settlement Total</span>
+            <strong>{defenseSummary?.settlements?.totalEth ?? "N/A"} ETH</strong>
+          </div>
+          <div>
+            <span>Reserve Balance</span>
+            <strong>{defenseSummary?.contract?.reserveEth ?? "N/A"} ETH</strong>
+          </div>
+          <div>
+            <span>Merkle Root</span>
+            <strong>{defenseSummary?.registry?.committed ? "Committed" : "N/A"}</strong>
+          </div>
+          <div>
+            <span>Model Summary</span>
+            <strong>{defenseSummary?.modelEvaluation ? "Available" : "N/A"}</strong>
+          </div>
+          <div>
+            <span>Demo Readiness</span>
+            <strong>{readiness.hasSettlement ? "Ready" : "Check warnings"}</strong>
+          </div>
+        </div>
+
+        <div className="thesis-table-wrap">
+          <table className="thesis-table">
+            <thead>
+              <tr>
+                <th>Claim State</th>
+                <th>Count</th>
+                <th>Policy State</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(defenseSummary?.claims?.stateDistribution || {}).map(
+                ([state, count], index) => {
+                  const policyEntry = Object.entries(
+                    defenseSummary?.policies?.statusCounts || {}
+                  )[index] || ["", ""];
+                  return (
+                    <tr key={state}>
+                      <td>{state}</td>
+                      <td>{count}</td>
+                      <td>{policyEntry[0]}</td>
+                      <td>{policyEntry[1]}</td>
+                    </tr>
+                  );
+                }
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {readiness.warnings?.length ? (
+          <p className="error-text">{readiness.warnings.slice(0, 3).join(" | ")}</p>
+        ) : null}
+      </div>
 
       <div className="thesis-section card">
         <div className="thesis-section-head">

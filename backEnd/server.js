@@ -124,6 +124,7 @@ app.use("/api/policies", require("./routes/policiesRoutes"));
 app.use("/api/claims", require("./routes/claimRoutes"));
 app.use("/api/appeals", require("./routes/appealRoutes"));
 app.use("/api/votes", require("./routes/votingRoutes"));
+app.use("/api/evaluation", require("./routes/evaluationRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/audit", require("./routes/auditRoutes"));
 app.use("/api/oracle", require("./routes/oracleRoutes"));

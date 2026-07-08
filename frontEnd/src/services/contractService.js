@@ -22,6 +22,16 @@ export const CLAIM_STATUS = {
   10: "CLOSED",
 };
 
+export const POLICY_STATUS = {
+  0: "PENDING_PAYMENT",
+  1: "ACTIVE",
+  2: "GRACE_PERIOD",
+  3: "LAPSED",
+  4: "CANCELLED",
+  5: "EXPIRED",
+  6: "RENEWED",
+};
+
 function requireContractAddress() {
   if (!CONTRACT_ADDRESS) {
     throw new Error("Missing VITE_CONTRACT_ADDRESS in frontEnd/.env");
@@ -119,6 +129,21 @@ export function toUnixSecondsFromDateInput(dateValue) {
 export function getStatusLabel(statusValue) {
   const numericStatus = Number(statusValue);
   return CLAIM_STATUS[numericStatus] || `UNKNOWN_${statusValue}`;
+}
+
+export function getPolicyStatusLabel(statusValue) {
+  const numericStatus = Number(statusValue);
+  return POLICY_STATUS[numericStatus] || `UNKNOWN_${statusValue}`;
+}
+
+export async function payPolicyPremium(policyId, premiumWei) {
+  const contract = await getWalletContract();
+  return contract.payPremium(policyId, { value: premiumWei });
+}
+
+export async function reinstatePolicy(policyId, premiumWei) {
+  const contract = await getWalletContract();
+  return contract.reinstatePolicy(policyId, { value: premiumWei });
 }
 
 export function getEtherscanTxUrl(txHash) {

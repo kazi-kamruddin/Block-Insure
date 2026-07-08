@@ -8,6 +8,7 @@ const {
   calculateWeightedConsensus,
 } = require("../services/votingService");
 const VotingFinalization = require("../models/VotingFinalization");
+const { logAdminAction } = require("../services/adminActionLogService");
 
 const createError = (message, statusCode) => {
   const error = new Error(message);
@@ -166,6 +167,23 @@ const finalizeVoting = async (req, res, next) => {
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    await logAdminAction({
+      req,
+      action: "FINALIZE_VOTING",
+      targetType: "CLAIM",
+      targetId: claimId,
+      tx: { hash: transactionHashes[transactionHashes.length - 1] || "" },
+      receipt: reputationChanges[reputationChanges.length - 1] || null,
+      metadata: {
+        consensus: voteSummary.consensus,
+        consensusCode: voteSummary.consensusCode,
+        consensusStrength: voteSummary.consensusStrength,
+        totalVoters: voteSummary.totalVoters,
+        transactionHashes,
+        reputationChanges,
+      },
+    });
 
     res.status(200).json({
       success: true,
