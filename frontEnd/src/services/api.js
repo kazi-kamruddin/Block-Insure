@@ -42,6 +42,14 @@ export async function getPolicyPackages() {
   return response.data;
 }
 
+export async function getRiskPremiumQuote(packageId, payload) {
+  const response = await api.post(
+    `/api/policy-packages/${packageId}/risk-premium-quote`,
+    payload
+  );
+  return response.data;
+}
+
 export async function createPolicyPackage(payload) {
   const response = await api.post("/api/admin/policy-packages", payload);
   return response.data;
@@ -180,6 +188,11 @@ export async function getAdminActionLogs(params = {}) {
   return response.data;
 }
 
+export async function getAdminRoleSyncHealth() {
+  const response = await api.get("/api/admin/role-sync-health");
+  return response.data;
+}
+
 export async function getReserveIntelligence() {
   const response = await api.get("/api/admin/reserve-intelligence");
   return response.data;
@@ -247,6 +260,13 @@ export async function settleClaim(claimId) {
   return response.data;
 }
 
+export async function approveHighValueSettlement(claimId) {
+  const response = await api.post(
+    `/api/admin/claims/${claimId}/approve-high-value-settlement`
+  );
+  return response.data;
+}
+
 export async function resolveOracleTimeout(claimId) {
   const response = await api.post(
     `/api/admin/claims/${claimId}/resolve-oracle-timeout`
@@ -261,6 +281,11 @@ export async function closeClaim(claimId) {
 
 export async function getOracleResults(claimId) {
   const response = await api.get(`/api/oracle/results/${claimId}`);
+  return response.data;
+}
+
+export async function getOracleHealth() {
+  const response = await api.get("/api/oracle/health");
   return response.data;
 }
 
@@ -309,6 +334,14 @@ export async function getHealthcareRegistryMerkleProof(invoiceHash) {
 
 export async function getClaimAuditTimeline(claimId) {
   const response = await api.get(`/api/audit/claims/${claimId}`);
+  return response.data;
+}
+
+export async function exportClaimAuditTimeline(claimId, format = "json") {
+  const response = await api.get(`/api/audit/claims/${claimId}/export`, {
+    params: { format },
+    responseType: format === "markdown" || format === "md" ? "text" : "json",
+  });
   return response.data;
 }
 

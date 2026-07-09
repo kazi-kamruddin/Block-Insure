@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -7,6 +7,7 @@ import CopyableText from "../components/CopyableText";
 import EvidenceChainPanel from "../components/EvidenceChainPanel";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import {
+  exportClaimAuditTimeline,
   getClaimAuditTimeline,
   getClaimById,
   getOracleResults,
@@ -328,6 +329,7 @@ function OracleLogSummary({ log }) {
 
 export default function AuditorClaimHistoryPage() {
   const { id } = useParams();
+  const [exportError, setExportError] = useState("");
 
   const {
     data,
@@ -379,6 +381,34 @@ export default function AuditorClaimHistoryPage() {
   }, [events]);
   const oracleGroups = useMemo(() => groupOracleLogs(oracleLogs), [oracleLogs]);
 
+  async function handleExport(format) {
+    setExportError("");
+
+    try {
+      const exported = await exportClaimAuditTimeline(id, format);
+      const extension = format === "markdown" ? "md" : "json";
+      const mimeType = format === "markdown" ? "text/markdown" : "application/json";
+      const content =
+        format === "markdown" ? exported : JSON.stringify(exported.export || exported, null, 2);
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = `claim-${id}-timeline.${extension}`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      setExportError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          err.message ||
+          "Could not export timeline"
+      );
+    }
+  }
+
   return (
     <section className="page-container page-auditor-claim-history">
       <h2>Auditor Claim History</h2>
@@ -400,6 +430,17 @@ export default function AuditorClaimHistoryPage() {
           ? "Refreshing..."
           : "Refresh Timeline"}
       </button>
+
+      <div className="action-row">
+        <button type="button" onClick={() => handleExport("json")}>
+          Export JSON
+        </button>
+        <button type="button" onClick={() => handleExport("markdown")}>
+          Export Markdown
+        </button>
+      </div>
+
+      {exportError ? <p className="error-text">{exportError}</p> : null}
 
       {isLoading ? <p>Loading audit timeline...</p> : null}
 

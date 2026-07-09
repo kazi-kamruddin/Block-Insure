@@ -1,4 +1,5 @@
 const OracleLog = require("../models/OracleLog");
+const OracleHealth = require("../models/OracleHealth");
 const { getReadOnlyContract } = require("../services/contractService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
 
@@ -69,6 +70,73 @@ const formatOracleLog = (log) => {
     responseData: log.responseData,
     queryData: log.queryData,
   };
+};
+
+const getOracleStatus = (lastHeartbeatAt) => {
+  if (!lastHeartbeatAt) return "OFFLINE";
+
+  const ageMs = Date.now() - new Date(lastHeartbeatAt).getTime();
+
+  if (ageMs <= 2 * 60 * 1000) return "ONLINE";
+  if (ageMs <= 10 * 60 * 1000) return "STALE";
+  return "OFFLINE";
+};
+
+const formatOracleHealth = (health) => ({
+  id: health._id,
+  oracleWallet: health.oracleWallet,
+  oracleInstanceId: health.oracleInstanceId,
+  label: health.label || health.oracleInstanceId || health.oracleWallet || "Oracle",
+  registrySnapshot: health.registrySnapshot,
+  registryRoot: health.registryRoot,
+  lastHeartbeatAt: health.lastHeartbeatAt,
+  lastProcessedRequestId: health.lastProcessedRequestId,
+  lastProcessedClaimId: health.lastProcessedClaimId,
+  lastTxHash: health.lastTxHash,
+  configIdentity: health.configIdentity,
+  status: getOracleStatus(health.lastHeartbeatAt),
+  updatedAt: health.updatedAt,
+});
+
+const upsertOracleHealth = async ({
+  oracleWallet = "",
+  oracleInstanceId = "",
+  label = "",
+  registrySnapshot = "",
+  registryRoot = "",
+  requestId = "",
+  claimId = "",
+  txHash = "",
+  configIdentity = "",
+}) => {
+  const normalizedWallet = String(oracleWallet || "").trim().toLowerCase();
+  const normalizedInstanceId = String(oracleInstanceId || "").trim();
+
+  if (!normalizedWallet && !normalizedInstanceId) {
+    return null;
+  }
+
+  return OracleHealth.findOneAndUpdate(
+    {
+      oracleWallet: normalizedWallet,
+      oracleInstanceId: normalizedInstanceId,
+    },
+    {
+      $set: {
+        oracleWallet: normalizedWallet,
+        oracleInstanceId: normalizedInstanceId,
+        label,
+        registrySnapshot,
+        registryRoot,
+        lastHeartbeatAt: new Date(),
+        lastProcessedRequestId: requestId ? requestId.toString() : "",
+        lastProcessedClaimId: claimId ? claimId.toString() : "",
+        lastTxHash: txHash || "",
+        configIdentity,
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 };
 
 const buildQuorumSummary = async ({ contract, claimId, logs }) => {
@@ -176,6 +244,23 @@ const createOracleLog = async (req, res, next) => {
       remarks,
     });
 
+    await upsertOracleHealth({
+      oracleWallet: oracleWallet || responseData.oracleWallet,
+      oracleInstanceId: oracleInstanceId || responseData.oracleInstanceId,
+      label: responseData.oracleLabel || responseData.label || "",
+      registrySnapshot:
+        responseData.registrySnapshot || responseData.registryCommitment?.snapshotId || "",
+      registryRoot:
+        responseData.registryRoot ||
+        responseData.registryCommitment?.onChainRoot ||
+        responseData.hospitalVerification?.merkleProof?.rootHash ||
+        "",
+      requestId,
+      claimId,
+      txHash: submittedTxHash,
+      configIdentity: responseData.configIdentity || "",
+    });
+
     const contract = getReadOnlyContract();
     const request = await contract.getOracleRequest(requestId);
 
@@ -235,7 +320,65 @@ const getOracleLogsByClaim = async (req, res, next) => {
   }
 };
 
+const recordOracleHeartbeat = async (req, res, next) => {
+  try {
+    const {
+      oracleWallet = "",
+      oracleInstanceId = "",
+      label = "",
+      registrySnapshot = "",
+      registryRoot = "",
+      lastProcessedRequestId = "",
+      lastProcessedClaimId = "",
+      lastTxHash = "",
+      configIdentity = "",
+    } = req.body;
+
+    const health = await upsertOracleHealth({
+      oracleWallet,
+      oracleInstanceId,
+      label,
+      registrySnapshot,
+      registryRoot,
+      requestId: lastProcessedRequestId,
+      claimId: lastProcessedClaimId,
+      txHash: lastTxHash,
+      configIdentity,
+    });
+
+    if (!health) {
+      return res.status(400).json({
+        success: false,
+        message: "oracleWallet or oracleInstanceId is required",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      oracle: formatOracleHealth(health),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getOracleHealth = async (req, res, next) => {
+  try {
+    const health = await OracleHealth.find({}).sort({ updatedAt: -1 }).lean();
+
+    res.status(200).json({
+      success: true,
+      count: health.length,
+      oracles: health.map(formatOracleHealth),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createOracleLog,
   getOracleLogsByClaim,
+  getOracleHealth,
+  recordOracleHeartbeat,
 };

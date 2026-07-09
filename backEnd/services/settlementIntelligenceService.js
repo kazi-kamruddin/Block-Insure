@@ -209,6 +209,7 @@ const buildReserveIntelligence = async () => {
     deductibleCapWei,
     insurerShareBps,
     reserveWarningThresholdWei,
+    highValueSettlementThresholdWei,
   ] = await Promise.all([
     getContractBalance(),
     getAllClaims(contract),
@@ -217,6 +218,7 @@ const buildReserveIntelligence = async () => {
     contract.deductibleCapWei(),
     contract.insurerShareBps(),
     contract.reserveWarningThresholdWei(),
+    contract.highValueSettlementThresholdWei().catch(() => 0n),
   ]);
   const settlementParams = {
     deductibleRateBps,
@@ -319,6 +321,8 @@ const buildReserveIntelligence = async () => {
       eth: toEth(reserveWei),
       warningThresholdWei: reserveWarningThresholdWei.toString(),
       warningThresholdEth: toEth(reserveWarningThresholdWei),
+      highValueSettlementThresholdWei: highValueSettlementThresholdWei.toString(),
+      highValueSettlementThresholdEth: toEth(highValueSettlementThresholdWei),
     },
     portfolio: {
       totalPolicies: policies.length,

@@ -10,6 +10,7 @@ import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import TransactionLink from "../components/TransactionLink";
 import {
   approveClaim,
+  approveHighValueSettlement,
   closeClaim,
   finalizeClaimVoting,
   getAppealByClaim,
@@ -91,13 +92,27 @@ async function getContractReserveBalance() {
 
 async function getSettlementBreakdown(claimId) {
   const contract = getReadOnlyContract();
-  const [settlement, deductibleRateBps, deductibleCapWei, insurerShareBps] =
+  const [
+    settlement,
+    deductibleRateBps,
+    deductibleCapWei,
+    insurerShareBps,
+    reserveWarningThresholdWei,
+    highValueSettlementThresholdWei,
+    highValueSettlementApproved,
+  ] =
     await Promise.all([
       contract.calculateSettlement(claimId),
       contract.deductibleRateBps(),
       contract.deductibleCapWei(),
       contract.insurerShareBps(),
+      contract.reserveWarningThresholdWei(),
+      contract.highValueSettlementThresholdWei(),
+      contract.highValueSettlementApproved(claimId),
     ]);
+  const reserveWei = await getContractBalance();
+  const reserveAfterWei =
+    reserveWei >= settlement.insurerPays ? reserveWei - settlement.insurerPays : 0n;
 
   return {
     claimAmountWei: settlement.claimAmount.toString(),
@@ -110,6 +125,20 @@ async function getSettlementBreakdown(claimId) {
     insurerPaysEth: formatEth(settlement.insurerPays),
     claimantResponsibilityWei: settlement.claimantResponsibility.toString(),
     claimantResponsibilityEth: formatEth(settlement.claimantResponsibility),
+    reserveGate: {
+      reserveWei: reserveWei.toString(),
+      reserveEth: formatEth(reserveWei),
+      reserveAfterWei: reserveAfterWei.toString(),
+      reserveAfterEth: formatEth(reserveAfterWei),
+      warningThresholdWei: reserveWarningThresholdWei.toString(),
+      warningThresholdEth: formatEth(reserveWarningThresholdWei),
+      belowWarningThreshold: reserveAfterWei < reserveWarningThresholdWei,
+      highValueThresholdWei: highValueSettlementThresholdWei.toString(),
+      highValueThresholdEth: formatEth(highValueSettlementThresholdWei),
+      highValueApprovalRequired:
+        settlement.insurerPays > highValueSettlementThresholdWei,
+      highValueSettlementApproved: Boolean(highValueSettlementApproved),
+    },
     params: {
       deductibleRateBps: deductibleRateBps.toString(),
       deductibleRatePercent: formatBpsPercent(deductibleRateBps),
@@ -353,6 +382,13 @@ export default function AdminClaimDetailPage() {
     runAdminAction(() => settleClaim(id), "Claim settled successfully.");
   }
 
+  function handleApproveHighValueSettlement() {
+    runAdminAction(
+      () => approveHighValueSettlement(id),
+      "High-value settlement approved successfully."
+    );
+  }
+
   function handleResolveOracleTimeout() {
     runAdminAction(
       () => resolveOracleTimeout(id),
@@ -486,6 +522,51 @@ export default function AdminClaimDetailPage() {
                 then insurer pays {settlementBreakdown.params.insurerSharePercent}
                 {" "}of the remaining amount.
               </p>
+
+              <div className="settlement-breakdown-grid">
+                <div>
+                  <span>Reserve After Settlement</span>
+                  <strong>{settlementBreakdown.reserveGate.reserveAfterEth} ETH</strong>
+                </div>
+                <div>
+                  <span>Safe Threshold</span>
+                  <strong>{settlementBreakdown.reserveGate.warningThresholdEth} ETH</strong>
+                </div>
+                <div>
+                  <span>Reserve Ratio Gate</span>
+                  <strong>
+                    {settlementBreakdown.reserveGate.belowWarningThreshold
+                      ? "Warning"
+                      : "Pass"}
+                  </strong>
+                </div>
+                <div>
+                  <span>High-Value Control</span>
+                  <strong>
+                    {settlementBreakdown.reserveGate.highValueApprovalRequired
+                      ? settlementBreakdown.reserveGate.highValueSettlementApproved
+                        ? "Approved"
+                        : "Approval Required"
+                      : "Not Required"}
+                  </strong>
+                </div>
+              </div>
+
+              {settlementBreakdown.reserveGate.highValueApprovalRequired &&
+              !settlementBreakdown.reserveGate.highValueSettlementApproved ? (
+                <p className="error-text">
+                  Direct settlement is blocked on-chain until high-value approval
+                  is recorded.
+                </p>
+              ) : null}
+
+              {settlementBreakdown.reserveGate.belowWarningThreshold ? (
+                <p className="error-text">
+                  Reserve warning: this payout would leave the reserve below the
+                  configured threshold. This is advisory unless the contract gate
+                  rejects the transaction for another reason.
+                </p>
+              ) : null}
             </>
           ) : null}
         </div>
@@ -537,9 +618,37 @@ export default function AdminClaimDetailPage() {
 
           <button
             type="button"
+            onClick={handleApproveHighValueSettlement}
+            disabled={
+              isActing ||
+              !settleRule.allowed ||
+              !settlementBreakdown?.reserveGate?.highValueApprovalRequired ||
+              settlementBreakdown?.reserveGate?.highValueSettlementApproved
+            }
+            title={
+              settlementBreakdown?.reserveGate?.highValueApprovalRequired
+                ? ""
+                : "Settlement is below high-value threshold"
+            }
+          >
+            Approve High-Value Settlement
+          </button>
+
+          <button
+            type="button"
             onClick={handleSettle}
-            disabled={!settleRule.allowed || isActing}
-            title={settleRule.reason}
+            disabled={
+              !settleRule.allowed ||
+              isActing ||
+              (settlementBreakdown?.reserveGate?.highValueApprovalRequired &&
+                !settlementBreakdown?.reserveGate?.highValueSettlementApproved)
+            }
+            title={
+              settlementBreakdown?.reserveGate?.highValueApprovalRequired &&
+              !settlementBreakdown?.reserveGate?.highValueSettlementApproved
+                ? "High-value approval required"
+                : settleRule.reason
+            }
           >
             Settle Claim
           </button>

@@ -163,6 +163,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => bool[]) public oracleConfirmationResults;
 
     mapping(uint256 => SettlementRecord) private settlementRecords;
+    mapping(uint256 => bool) public highValueSettlementApproved;
     mapping(uint256 => bool) public claimAppealed;
     mapping(uint256 => bool) public claimAppealFinalized;
 
@@ -182,6 +183,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     uint256 public deductibleCapWei = 0.02 ether;
     uint256 public insurerShareBps = 8000;
     uint256 public reserveWarningThresholdWei = 0.1 ether;
+    uint256 public highValueSettlementThresholdWei = 0.15 ether;
     uint256 private constant DEFAULT_PREMIUM_INTERVAL_SECONDS = 30 days;
     uint256 private constant DEFAULT_GRACE_PERIOD_SECONDS = 7 days;
 
@@ -365,6 +367,19 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     event ClaimClosureWindowUpdated(uint256 claimClosureWindowSeconds, uint256 timestamp);
     event ReserveWarningThresholdUpdated(uint256 thresholdWei, uint256 timestamp);
     event ReserveLowWarning(uint256 currentReserveWei, uint256 thresholdWei);
+    event HighValueSettlementApproved(
+        uint256 indexed claimId,
+        address indexed approvedBy,
+        uint256 insurerPays,
+        uint256 thresholdWei,
+        uint256 timestamp
+    );
+    event HighValueSettlementBlocked(
+        uint256 indexed claimId,
+        uint256 insurerPays,
+        uint256 thresholdWei,
+        uint256 timestamp
+    );
 
     event ContractFunded(
         address indexed fundedBy,
@@ -1232,6 +1247,28 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         emit ReserveWarningThresholdUpdated(newThresholdWei, block.timestamp);
     }
 
+    function approveHighValueSettlement(uint256 claimId) external onlyRole(ADMIN_ROLE) {
+        require(_claimExists(claimId), "Claim does not exist");
+        require(claims[claimId].status == ClaimStatus.APPROVED, "Claim is not approved");
+        require(settlementRecords[claimId].settledAt == 0, "Claim already settled");
+
+        (, , , uint256 insurerPays, ) = calculateSettlement(claimId);
+        require(
+            insurerPays > highValueSettlementThresholdWei,
+            "Settlement is below high-value threshold"
+        );
+
+        highValueSettlementApproved[claimId] = true;
+
+        emit HighValueSettlementApproved(
+            claimId,
+            msg.sender,
+            insurerPays,
+            highValueSettlementThresholdWei,
+            block.timestamp
+        );
+    }
+
     function getOracleRequest(uint256 requestId) external view returns (OracleRequest memory) {
         require(_oracleRequestExists(requestId), "Oracle request does not exist");
         return oracleRequests[requestId];
@@ -1471,6 +1508,22 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         ) = calculateSettlement(claimId);
 
         require(address(this).balance >= insurerPays, "Insufficient contract balance");
+
+        if (insurerPays > highValueSettlementThresholdWei) {
+            if (!highValueSettlementApproved[claimId]) {
+                emit HighValueSettlementBlocked(
+                    claimId,
+                    insurerPays,
+                    highValueSettlementThresholdWei,
+                    block.timestamp
+                );
+            }
+
+            require(
+                highValueSettlementApproved[claimId],
+                "High-value settlement requires approval"
+            );
+        }
 
         address recipient = claims[claimId].claimantWallet;
 

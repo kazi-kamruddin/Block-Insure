@@ -13,6 +13,8 @@ const { getReadOnlyContract, getRegistrySnapshot } = require("../services/contra
 const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const BILL_RANGE_TOLERANCE_RATE = 0.15;
+const BOUNDARY_NOTE =
+  "Synthetic external registry for thesis/demo verification. Production deployments should replace this mock with a hospital API or signed data feed while keeping hashes/Merkle roots on-chain.";
 
 const toBoolean = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -445,6 +447,7 @@ const getAllHospitalRecords = async (req, res, next) => {
       page,
       limit,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       summary,
       records,
     });
@@ -469,6 +472,7 @@ const getHospitalRecordById = async (req, res, next) => {
     res.status(200).json({
       success: true,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       record,
     });
   } catch (error) {
@@ -486,6 +490,7 @@ const getHospitalRegistrySummary = async (req, res, next) => {
     res.status(200).json({
       success: true,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       summary,
     });
   } catch (error) {
@@ -501,6 +506,7 @@ const getHospitalRegistryMerkleRoot = async (req, res, next) => {
     res.status(200).json({
       success: true,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       merkleRoot,
     });
   } catch (error) {
@@ -527,6 +533,7 @@ const getHospitalOnChainRegistryMerkleRoot = async (req, res, next) => {
         },
         blockNumber: blockNumber.toString(),
       },
+      boundaryNote: BOUNDARY_NOTE,
     });
   } catch (error) {
     next(error);
@@ -553,6 +560,7 @@ const getHospitalRegistryMerkleProof = async (req, res, next) => {
     res.status(200).json({
       success: true,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       merkleProof,
     });
   } catch (error) {
@@ -628,6 +636,7 @@ const verifyHospitalRecord = async (req, res, next) => {
         merkleProof,
         query: verificationQuery,
         registrySnapshot,
+        boundaryNote: BOUNDARY_NOTE,
       });
     }
 
@@ -667,6 +676,7 @@ const verifyHospitalRecord = async (req, res, next) => {
       merkleProof,
       query: verificationQuery,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       record,
     });
   } catch (error) {

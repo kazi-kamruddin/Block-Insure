@@ -326,6 +326,71 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     expect(settlement.amount).to.equal(expectedSettlement.insurerPays);
   });
 
+  it("High-value settlement cannot bypass extra approval", async function () {
+    const fixture = await deployFixture();
+    const { insuranceManager, CLAIM_AMOUNT } = fixture;
+    const highValueClaimAmount = CLAIM_AMOUNT * 2n;
+    const claimId = await submitCleanClaim({
+      ...fixture,
+      claimAmount: highValueClaimAmount,
+      suffix: "high-value-blocked",
+    });
+
+    await insuranceManager.requestOracleVerification(claimId);
+    const oracleRequest = await insuranceManager.getOracleRequestByClaimId(claimId);
+    await insuranceManager.connect(fixture.oracle).submitOracleResult(
+      oracleRequest.requestId,
+      true,
+      hashText("high-value-blocked-oracle"),
+      "LOW",
+      "High-value claim verified"
+    );
+    await insuranceManager.approveClaim(claimId);
+    await insuranceManager.fundContract({ value: highValueClaimAmount });
+
+    await expect(insuranceManager.settleClaim(claimId)).to.be.reverted;
+  });
+
+  it("Admin can approve and settle a high-value claim", async function () {
+    const fixture = await deployFixture();
+    const { insuranceManager, user, CLAIM_AMOUNT } = fixture;
+    const highValueClaimAmount = CLAIM_AMOUNT * 2n;
+    const claimId = await submitCleanClaim({
+      ...fixture,
+      claimAmount: highValueClaimAmount,
+      suffix: "high-value-approved",
+    });
+    const expectedSettlement = getExpectedDefaultSettlement(highValueClaimAmount);
+
+    await insuranceManager.requestOracleVerification(claimId);
+    const oracleRequest = await insuranceManager.getOracleRequestByClaimId(claimId);
+    await insuranceManager.connect(fixture.oracle).submitOracleResult(
+      oracleRequest.requestId,
+      true,
+      hashText("high-value-approved-oracle"),
+      "LOW",
+      "High-value claim verified"
+    );
+    await insuranceManager.approveClaim(claimId);
+    await insuranceManager.fundContract({ value: highValueClaimAmount });
+
+    await expect(insuranceManager.approveHighValueSettlement(claimId))
+      .to.emit(insuranceManager, "HighValueSettlementApproved")
+      .withArgs(
+        claimId,
+        fixture.admin.address,
+        expectedSettlement.insurerPays,
+        await insuranceManager.highValueSettlementThresholdWei(),
+        anyValue
+      );
+
+    await expect(() => insuranceManager.settleClaim(claimId))
+      .to.changeEtherBalances(
+        [insuranceManager, user],
+        [-expectedSettlement.insurerPays, expectedSettlement.insurerPays]
+      );
+  });
+
   it("Calculates default on-chain deductible and co-insurance settlement", async function () {
     const fixture = await deployFixture();
     const { insuranceManager, CLAIM_AMOUNT } = fixture;

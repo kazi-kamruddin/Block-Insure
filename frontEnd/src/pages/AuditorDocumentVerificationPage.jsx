@@ -95,6 +95,10 @@ export default function AuditorDocumentVerificationPage() {
   return (
     <section className="page-container page-auditor-document-verification">
       <h2>Document Integrity Verification</h2>
+      <p>
+        Local-only hash verification. The selected file is hashed in the browser
+        and is not uploaded or stored during this check.
+      </p>
 
       <form className="document-verification-grid" onSubmit={handleVerify}>
         <label

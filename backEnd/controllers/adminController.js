@@ -10,6 +10,7 @@ const { exportMerkleRoot } = require("../services/merkleRegistryService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
 const { logAdminAction } = require("../services/adminActionLogService");
 const AdminActionLog = require("../models/AdminActionLog");
+const User = require("../models/User");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -111,6 +112,39 @@ const formatRegistrySnapshot = (snapshot) => {
     blockNumber: blockNumber.toString(),
     committed: root !== ethers.ZeroHash && timestampValue > 0,
   };
+};
+
+const normalizeWallet = (wallet) => String(wallet || "").trim().toLowerCase();
+
+const ROLE_KEYS = {
+  ADMIN: "ADMIN_ROLE",
+  AUDITOR: "AUDITOR_ROLE",
+  ORACLE: "ORACLE_ROLE",
+};
+
+const getRoleBytes = async (contract, roleKey) => contract[ROLE_KEYS[roleKey]]();
+
+const getConfiguredRoleWallets = () => {
+  const wallets = [];
+  const pushPrivateKeyWallet = (privateKey, role, label) => {
+    try {
+      if (privateKey) {
+        wallets.push({
+          walletAddress: normalizeWallet(new ethers.Wallet(privateKey).address),
+          role,
+          label,
+        });
+      }
+    } catch (_) {
+      // Invalid env values are reported elsewhere by the demo verifier.
+    }
+  };
+
+  pushPrivateKeyWallet(process.env.ADMIN_PRIVATE_KEY, "ADMIN", "ADMIN_PRIVATE_KEY");
+  pushPrivateKeyWallet(process.env.ORACLE_PRIVATE_KEY, "ORACLE", "ORACLE_PRIVATE_KEY");
+  pushPrivateKeyWallet(process.env.ORACLE_PRIVATE_KEY_2, "ORACLE", "ORACLE_PRIVATE_KEY_2");
+
+  return wallets;
 };
 
 /* -------------------------- Policy Package Admin ------------------------ */
@@ -469,6 +503,116 @@ const listAdminActionLogs = async (req, res, next) => {
   }
 };
 
+const getRoleSyncHealth = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const users = await User.find({
+      role: { $in: ["ADMIN", "AUDITOR", "ORACLE"] },
+    })
+      .select("walletAddress role name email")
+      .lean();
+    const roleBytes = {
+      ADMIN: await getRoleBytes(contract, "ADMIN"),
+      AUDITOR: await getRoleBytes(contract, "AUDITOR"),
+      ORACLE: await getRoleBytes(contract, "ORACLE"),
+    };
+
+    const checks = await Promise.all(
+      users.map(async (user) => {
+        const backendRole = user.role;
+        const wallet = normalizeWallet(user.walletAddress);
+        const [hasExpectedRole, hasAdminRole, hasAuditorRole, hasOracleRole] =
+          await Promise.all([
+            contract.hasRole(roleBytes[backendRole], wallet),
+            contract.hasRole(roleBytes.ADMIN, wallet),
+            contract.hasRole(roleBytes.AUDITOR, wallet),
+            contract.hasRole(roleBytes.ORACLE, wallet),
+          ]);
+        const onChainRoles = [
+          hasAdminRole ? "ADMIN" : null,
+          hasAuditorRole ? "AUDITOR" : null,
+          hasOracleRole ? "ORACLE" : null,
+        ].filter(Boolean);
+
+        return {
+          walletAddress: wallet,
+          name: user.name || "",
+          email: user.email || "",
+          backendRole,
+          onChainRoles,
+          hasExpectedOnChainRole: Boolean(hasExpectedRole),
+          healthy:
+            Boolean(hasExpectedRole) &&
+            onChainRoles.length === 1 &&
+            onChainRoles[0] === backendRole,
+          issues: [
+            !hasExpectedRole
+              ? `Backend ${backendRole} is missing ${ROLE_KEYS[backendRole]} on-chain`
+              : null,
+            onChainRoles.length > 0 && !onChainRoles.includes(backendRole)
+              ? `Wallet has on-chain ${onChainRoles.join(", ")} but backend role is ${backendRole}`
+              : null,
+          ].filter(Boolean),
+        };
+      })
+    );
+
+    let trackedAuditors = [];
+
+    try {
+      trackedAuditors = (await contract.getAuditors()).map(normalizeWallet);
+    } catch (_) {
+      trackedAuditors = [];
+    }
+
+    const backendRoleByWallet = new Map(
+      users.map((user) => [normalizeWallet(user.walletAddress), user.role])
+    );
+    const orphanedAuditors = trackedAuditors
+      .filter((wallet) => backendRoleByWallet.get(wallet) !== "AUDITOR")
+      .map((wallet) => ({
+        walletAddress: wallet,
+        backendRole: backendRoleByWallet.get(wallet) || "MISSING",
+        onChainRoles: ["AUDITOR"],
+        healthy: false,
+        issues: ["On-chain AUDITOR_ROLE tracked but backend role is missing or different"],
+      }));
+    const configuredRoleRows = await Promise.all(
+      getConfiguredRoleWallets()
+        .filter(
+          (entry) =>
+            entry.walletAddress && backendRoleByWallet.get(entry.walletAddress) !== entry.role
+        )
+        .map(async (entry) => ({
+          walletAddress: entry.walletAddress,
+          backendRole: backendRoleByWallet.get(entry.walletAddress) || "MISSING",
+          onChainRoles: (await contract.hasRole(roleBytes[entry.role], entry.walletAddress))
+            ? [entry.role]
+            : [],
+          healthy: false,
+          issues: [
+            `${entry.label} maps to ${entry.role}, but backend role is ${backendRoleByWallet.get(entry.walletAddress) || "missing"}`,
+          ],
+        }))
+    );
+    const rows = [...checks, ...orphanedAuditors, ...configuredRoleRows];
+    const mismatches = rows.filter((row) => !row.healthy);
+
+    res.status(200).json({
+      success: true,
+      generatedAt: new Date().toISOString(),
+      summary: {
+        checkedWallets: rows.length,
+        mismatches: mismatches.length,
+        healthy: mismatches.length === 0,
+      },
+      rows,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAdminClaims = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
@@ -713,6 +857,63 @@ const settleClaim = async (req, res, next) => {
         before: balanceBefore,
         after: balanceAfter,
       },
+      claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const approveHighValueSettlement = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      throw createError("Claim id is required", 400);
+    }
+
+    const contract = getAdminContract();
+    const tx = await contract.approveHighValueSettlement(id);
+    const receipt = await tx.wait();
+    let approvalEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog && parsedLog.name === "HighValueSettlementApproved") {
+          approvalEvent = {
+            claimId: parsedLog.args.claimId.toString(),
+            approvedBy: parsedLog.args.approvedBy,
+            insurerPaysWei: parsedLog.args.insurerPays.toString(),
+            insurerPaysEth: ethers.formatEther(parsedLog.args.insurerPays),
+            thresholdWei: parsedLog.args.thresholdWei.toString(),
+            thresholdEth: ethers.formatEther(parsedLog.args.thresholdWei),
+            timestamp: parsedLog.args.timestamp.toString(),
+          };
+        }
+      } catch (_) {
+        // Ignore logs from other contracts.
+      }
+    }
+
+    await logAdminAction({
+      req,
+      action: "APPROVE_HIGH_VALUE_SETTLEMENT",
+      targetType: "CLAIM",
+      targetId: id.toString(),
+      tx,
+      receipt,
+      metadata: approvalEvent || {},
+    });
+
+    const updatedClaim = await contract.getClaim(id);
+
+    res.status(200).json({
+      success: true,
+      message: "High-value settlement approved successfully",
+      transactionHash: tx.hash,
+      approvalEvent,
       claim: formatClaim(updatedClaim),
     });
   } catch (error) {
@@ -985,12 +1186,14 @@ module.exports = {
   getRegistryMerkleRoot,
   pushRegistryMerkleRoot,
   listAdminActionLogs,
+  getRoleSyncHealth,
   getAdminClaims,
   requestOracleForClaim,
   resolveTimedOutOracle,
   approveClaim,
   rejectClaim,
   settleClaim,
+  approveHighValueSettlement,
   closeClaim,
   sendClaimToManualReview,
 };

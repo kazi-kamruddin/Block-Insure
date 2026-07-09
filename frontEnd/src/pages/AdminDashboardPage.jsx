@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
-import { getReserveIntelligence } from "../services/api";
+import {
+  getAdminRoleSyncHealth,
+  getOracleHealth,
+  getReserveIntelligence,
+} from "../services/api";
 import "../styles/pages/AdminDashboardPage.css";
 
 function extractReserveIntelligence(data) {
@@ -32,10 +36,20 @@ export default function AdminDashboardPage() {
     queryKey: ["reserveIntelligence"],
     queryFn: getReserveIntelligence,
   });
+  const roleHealthQuery = useQuery({
+    queryKey: ["adminRoleSyncHealth"],
+    queryFn: getAdminRoleSyncHealth,
+  });
+  const oracleHealthQuery = useQuery({
+    queryKey: ["oracleHealth"],
+    queryFn: getOracleHealth,
+  });
 
   const intelligence = extractReserveIntelligence(data);
   const settlementQueue = intelligence?.settlementQueue || [];
   const solvencyStatus = intelligence?.solvency?.status || "UNKNOWN";
+  const roleHealth = roleHealthQuery.data;
+  const oracleHealth = oracleHealthQuery.data?.oracles || [];
 
   return (
     <section className="page-container page-admin-dashboard">
@@ -177,7 +191,63 @@ export default function AdminDashboardPage() {
           <p className="metric-value">{getBreakdownCount(intelligence, "REJECTED")}</p>
           <p>{getBreakdownCount(intelligence, "FRAUD_FLAGGED")} fraud flagged.</p>
         </div>
+
+        <div className="card">
+          <h3>Role Sync</h3>
+          <p className="metric-value">
+            {roleHealthQuery.isLoading
+              ? "Loading..."
+              : roleHealth?.summary?.healthy
+                ? "Healthy"
+                : `${roleHealth?.summary?.mismatches || 0} mismatch`}
+          </p>
+          <p>Backend roles compared with on-chain role grants.</p>
+          <Link to="/admin/role-health">Open diagnostics</Link>
+        </div>
+
+        <div className="card">
+          <h3>Oracle Health</h3>
+          <p className="metric-value">
+            {oracleHealthQuery.isLoading ? "Loading..." : oracleHealth.length}
+          </p>
+          <p>
+            {oracleHealth.filter((oracle) => oracle.status === "ONLINE").length} online,{" "}
+            {oracleHealth.filter((oracle) => oracle.status === "STALE").length} stale.
+          </p>
+        </div>
       </div>
+
+      {oracleHealth.length > 0 ? (
+        <div className="card reserve-table-card">
+          <h3>Oracle Identity and Independence</h3>
+          <table className="reserve-table">
+            <thead>
+              <tr>
+                <th>Oracle</th>
+                <th>Wallet</th>
+                <th>Registry Root</th>
+                <th>Heartbeat</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {oracleHealth.map((oracle) => (
+                <tr key={oracle.id || oracle.oracleWallet || oracle.oracleInstanceId}>
+                  <td>{oracle.label || oracle.oracleInstanceId || "Oracle"}</td>
+                  <td>{oracle.oracleWallet || "-"}</td>
+                  <td>{oracle.registryRoot || oracle.registrySnapshot || "-"}</td>
+                  <td>
+                    {oracle.lastHeartbeatAt
+                      ? new Date(oracle.lastHeartbeatAt).toLocaleString()
+                      : "-"}
+                  </td>
+                  <td>{oracle.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       {intelligence ? (
         <div className="reserve-grid">

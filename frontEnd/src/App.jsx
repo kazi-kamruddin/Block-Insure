@@ -28,6 +28,7 @@ import ClaimDetailPage from "./pages/ClaimDetailPage";
 import AdminClaimListPage from "./pages/AdminClaimListPage";
 import AdminClaimDetailPage from "./pages/AdminClaimDetailPage";
 import AdminActionAuditPage from "./pages/AdminActionAuditPage";
+import AdminRoleHealthPage from "./pages/AdminRoleHealthPage";
 import HealthcareRegistryPage from "./pages/HealthcareRegistryPage";
 import ThesisResultsDashboardPage from "./pages/ThesisResultsDashboardPage";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -69,6 +70,7 @@ export default function App() {
                 <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
                 <Route path="thesis-dashboard" element={<ThesisResultsDashboardPage />} />
                 <Route path="audit-actions" element={<AdminActionAuditPage />} />
+                <Route path="role-health" element={<AdminRoleHealthPage />} />
                 <Route path="claims" element={<AdminClaimListPage />} />
                 <Route path="claims/:id" element={<AdminClaimDetailPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />

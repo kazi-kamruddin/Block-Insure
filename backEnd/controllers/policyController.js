@@ -1,5 +1,6 @@
 const { ethers } = require("ethers");
 const { getReadOnlyContract } = require("../services/contractService");
+const { quoteRiskAdjustedPremium } = require("../services/pricingService");
 
 /* ---------------------- Format Contract Responses ---------------------- */
 
@@ -98,6 +99,29 @@ const getActivePolicyPackages = async (req, res, next) => {
   }
 };
 
+const getRiskPremiumQuote = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const policyPackage = await contract.getPolicyPackage(req.params.packageId);
+    const quote = quoteRiskAdjustedPremium({
+      basePremiumWei: policyPackage.premiumAmount,
+      ...req.body,
+    });
+
+    res.status(200).json({
+      success: true,
+      package: formatPolicyPackage(policyPackage),
+      quote: {
+        ...quote,
+        basePremiumEth: ethers.formatEther(quote.basePremiumWei),
+        finalPremiumEth: ethers.formatEther(quote.finalPremiumWei),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /* -------------------------- Purchased Policies -------------------------- */
 
 const getMyPolicies = async (req, res, next) => {
@@ -153,6 +177,7 @@ const getPolicyById = async (req, res, next) => {
 
 module.exports = {
   getActivePolicyPackages,
+  getRiskPremiumQuote,
   getMyPolicies,
   getPolicyById,
 };

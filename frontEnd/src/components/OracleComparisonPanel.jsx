@@ -63,6 +63,27 @@ function getOracleWallet(log) {
   );
 }
 
+function getOracleLabel(log) {
+  return (
+    log?.oracleLabel ||
+    log?.responseData?.oracleLabel ||
+    log?.responseData?.label ||
+    log?.oracleInstanceId ||
+    log?.oracleType ||
+    "Oracle"
+  );
+}
+
+function getRegistrySnapshot(log, merkleProof) {
+  return (
+    log?.responseData?.registrySnapshot ||
+    log?.responseData?.registryCommitment?.snapshotId ||
+    log?.responseData?.registryRoot ||
+    merkleProof?.rootHash ||
+    "-"
+  );
+}
+
 function getRegistryRootMatched(log, merkleProof) {
   if (log?.registryRootMatched !== undefined) return log.registryRootMatched;
   if (log?.responseData?.merkleRootMatchesChain !== undefined) {
@@ -128,7 +149,7 @@ function OracleLogCard({ log }) {
     <div className="oracle-comparison">
       <div className="oracle-comparison-header">
         <div>
-          <h4>{formatValue(log.oracleInstanceId || log.oracleType || "Oracle")}</h4>
+          <h4>{formatValue(getOracleLabel(log))}</h4>
           <p>{formatValue(getOracleWallet(log))}</p>
         </div>
         <span className={`oracle-comparison-score ${verified ? "is-verified" : "is-failed"}`}>
@@ -137,6 +158,8 @@ function OracleLogCard({ log }) {
       </div>
 
       <div className="oracle-comparison-metrics">
+        <span>Identity: {formatValue(log.responseData?.configIdentity || log.oracleInstanceId)}</span>
+        <span>Registry snapshot: {formatValue(getRegistrySnapshot(log, merkleProof))}</span>
         <span>Registry root: {rootMatched === null ? "N/A" : rootMatched ? "Match" : "Mismatch"}</span>
         <span>Risk: {formatValue(log.riskLevel || riskAssessment?.riskLevel)}</span>
         <span>Response: {formatDuration(log.responseTimeMs)}</span>

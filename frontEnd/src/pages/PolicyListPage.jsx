@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import PolicyCard from "../components/PolicyCard";
 import TransactionLink from "../components/TransactionLink";
-import { getPolicyPackages } from "../services/api";
+import { getPolicyPackages, getRiskPremiumQuote } from "../services/api";
 import {
   assertCorrectNetwork,
   getConnectedWalletAddress,
@@ -34,6 +34,13 @@ export default function PolicyListPage() {
   const [txHash, setTxHash] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [buyError, setBuyError] = useState("");
+  const [riskProfile, setRiskProfile] = useState({
+    ageBand: "30_45",
+    selectedRiskLevel: "MEDIUM",
+    treatmentCategory: "CONSULTATION",
+    claimHistoryCount: "0",
+    manualMultiplier: "",
+  });
 
   const {
     data,
@@ -47,6 +54,35 @@ export default function PolicyListPage() {
   });
 
   const packages = extractPackages(data);
+
+  const { data: quoteData } = useQuery({
+    queryKey: ["riskPremiumQuotes", packages.map((item) => item.packageId).join(","), riskProfile],
+    queryFn: async () => {
+      const quotes = await Promise.all(
+        packages.map(async (policyPackage) => {
+          const quote = await getRiskPremiumQuote(policyPackage.packageId, {
+            ...riskProfile,
+            claimHistoryCount: Number(riskProfile.claimHistoryCount || 0),
+            manualMultiplier: riskProfile.manualMultiplier
+              ? Number(riskProfile.manualMultiplier)
+              : null,
+          });
+
+          return [policyPackage.packageId, quote.quote];
+        })
+      );
+
+      return Object.fromEntries(quotes);
+    },
+    enabled: packages.length > 0,
+  });
+
+  function updateRiskProfile(field, value) {
+    setRiskProfile((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
 
   async function handleBuy(policyPackage) {
     setBuyError("");
@@ -103,6 +139,81 @@ export default function PolicyListPage() {
         {isFetching ? "Refreshing..." : "Refresh Packages"}
       </button>
 
+      <div className="card risk-pricing-card">
+        <h3>Risk-Based Premium Stub</h3>
+        <p className="muted-text">
+          Transparent underwriting demo. Final purchase still pays the smart-contract
+          package premium until on-chain risk pricing is activated.
+        </p>
+        <div className="form-grid">
+          <label>
+            Age band
+            <select
+              value={riskProfile.ageBand}
+              onChange={(event) => updateRiskProfile("ageBand", event.target.value)}
+            >
+              <option value="UNDER_30">Under 30</option>
+              <option value="30_45">30-45</option>
+              <option value="46_60">46-60</option>
+              <option value="OVER_60">Over 60</option>
+            </select>
+          </label>
+          <label>
+            Selected risk level
+            <select
+              value={riskProfile.selectedRiskLevel}
+              onChange={(event) =>
+                updateRiskProfile("selectedRiskLevel", event.target.value)
+              }
+            >
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+            </select>
+          </label>
+          <label>
+            Treatment category
+            <select
+              value={riskProfile.treatmentCategory}
+              onChange={(event) =>
+                updateRiskProfile("treatmentCategory", event.target.value)
+              }
+            >
+              <option value="CONSULTATION">Consultation</option>
+              <option value="HOSPITALIZATION">Hospitalization</option>
+              <option value="SURGERY">Surgery</option>
+              <option value="EMERGENCY">Emergency</option>
+            </select>
+          </label>
+          <label>
+            Claim history count
+            <input
+              type="number"
+              min="0"
+              max="5"
+              value={riskProfile.claimHistoryCount}
+              onChange={(event) =>
+                updateRiskProfile("claimHistoryCount", event.target.value)
+              }
+            />
+          </label>
+          <label>
+            Manual multiplier
+            <input
+              type="number"
+              min="0.5"
+              max="3"
+              step="0.05"
+              value={riskProfile.manualMultiplier}
+              onChange={(event) =>
+                updateRiskProfile("manualMultiplier", event.target.value)
+              }
+              placeholder="Optional"
+            />
+          </label>
+        </div>
+      </div>
+
       {loadError ? (
         <p className="error-text">
           {loadError.message || "Could not load policy packages"}
@@ -129,6 +240,7 @@ export default function PolicyListPage() {
           <PolicyCard
             key={policyPackage.packageId}
             policyPackage={policyPackage}
+            riskQuote={quoteData?.[policyPackage.packageId]}
             onBuy={handleBuy}
             isBuying={buyingPackageId === policyPackage.packageId}
           />

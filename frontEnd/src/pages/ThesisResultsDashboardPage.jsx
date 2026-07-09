@@ -402,9 +402,13 @@ export default function ThesisResultsDashboardPage() {
 
       <div className="thesis-section card">
         <div className="thesis-section-head">
-          <h3>Fraud Detection Performance</h3>
+          <h3>Fraud Decision Support</h3>
           <span>{summary?.dataset?.totalRecords || 0} held-out records</span>
         </div>
+        <p className="muted-text">
+          Decision support only. Human review is required, and model output is
+          not automatic approval or rejection.
+        </p>
         <DataNotice data={summaryQuery.data} fallback="Run npm run evaluate:risk first" />
         {summaryQuery.error ? (
           <p className="error-text">{summaryQuery.error.message}</p>

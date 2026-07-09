@@ -9,12 +9,14 @@ const {
   getRegistryMerkleRoot,
   pushRegistryMerkleRoot,
   listAdminActionLogs,
+  getRoleSyncHealth,
   getAdminClaims,
   requestOracleForClaim,
   resolveTimedOutOracle,
   approveClaim,
   rejectClaim,
   settleClaim,
+  approveHighValueSettlement,
   closeClaim,
   sendClaimToManualReview,
 } = require("../controllers/adminController");
@@ -152,6 +154,13 @@ router.get(
 );
 
 router.get(
+  "/role-sync-health",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getRoleSyncHealth
+);
+
+router.get(
   "/claims",
   authMiddleware,
   requireRole("ADMIN"),
@@ -198,6 +207,13 @@ router.post(
   authMiddleware,
   requireRole("ADMIN"),
   settleClaim
+);
+
+router.post(
+  "/claims/:id/approve-high-value-settlement",
+  authMiddleware,
+  requireRole("ADMIN"),
+  approveHighValueSettlement
 );
 
 router.post(

@@ -194,10 +194,10 @@ export default function HealthcareRegistryPage() {
 
   return (
     <section className="page-container page-healthcare-registry">
-      <h2>Synthetic Healthcare Registry</h2>
+      <h2>Synthetic External Registry</h2>
       <p>
         Browse the synthetic hospital, invoice, patient, and treatment records
-        used as the external oracle verification source.
+        used as the mock external oracle verification source.
       </p>
 
       <div className="registry-hero card">
@@ -207,6 +207,9 @@ export default function HealthcareRegistryPage() {
           <p>
             These records simulate inaccessible real-world hospital and national
             health databases for thesis evaluation and oracle verification.
+            A production deployment would replace this mock service with a
+            hospital API or signed data feed while keeping only hashes and
+            Merkle roots on-chain.
           </p>
         </div>
       </div>

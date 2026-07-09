@@ -62,6 +62,9 @@ const VALID_MOCK_HOSPITAL_PRESETS = [
   },
 ];
 
+const CLIENT_FILE_ENCRYPTION_ENABLED =
+  import.meta.env.VITE_ENABLE_CLIENT_FILE_ENCRYPTION === "true";
+
 function extractPolicies(data) {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.policies)) return data.policies;
@@ -285,6 +288,13 @@ export default function SubmitClaimPage() {
         documentId,
         sha256Hash,
         ipfsCID,
+        encryption: {
+          enabled: CLIENT_FILE_ENCRYPTION_ENABLED,
+          status: CLIENT_FILE_ENCRYPTION_ENABLED
+            ? "Scaffold enabled; current demo upload still preserves the original hash verification path."
+            : "Disabled; original file hash/CID flow preserved.",
+          keyStorage: "No decryption key is stored on-chain.",
+        },
       });
 
       const documentHashBytes32 = toBytes32FromBackendSha256(sha256Hash);
@@ -355,6 +365,10 @@ export default function SubmitClaimPage() {
           <p>
             <strong>IPFS CID:</strong> <IpfsLink cid={uploadInfo.ipfsCID} />
           </p>
+          <p>
+            <strong>Encryption:</strong> {uploadInfo.encryption.status}
+          </p>
+          <p className="muted-text">{uploadInfo.encryption.keyStorage}</p>
         </div>
       ) : null}
 
@@ -467,6 +481,18 @@ export default function SubmitClaimPage() {
             required
           />
         </label>
+
+        <div className="card">
+          <h3>Document Privacy</h3>
+          <p>
+            Client-side encryption scaffold:{" "}
+            {CLIENT_FILE_ENCRYPTION_ENABLED ? "enabled" : "disabled"}
+          </p>
+          <p className="muted-text">
+            The current upload keeps the original SHA-256 verification path.
+            Encryption can be activated later without placing decryption keys on-chain.
+          </p>
+        </div>
 
         <button type="submit" disabled={isSubmitting || activePolicies.length === 0}>
           {isSubmitting ? "Submitting..." : "Submit Claim"}
