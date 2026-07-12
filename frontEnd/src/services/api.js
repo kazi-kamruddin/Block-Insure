@@ -351,9 +351,10 @@ export function clearStoredSession() {
   localStorage.removeItem("blockinsure_user");
 }
 
-export async function attachDocumentToClaim(documentId, claimId) {
+export async function attachDocumentToClaim(documentId, claimId, attemptId = "") {
   const response = await api.patch(`/api/documents/${documentId}/claim`, {
     claimId,
+    attemptId,
   });
   return response.data;
 }

@@ -7,6 +7,7 @@ const { getReadOnlyContract } = require("../services/contractService");
 const { calculateSHA256 } = require("../services/hashService");
 const { uploadToPinata } = require("../services/ipfsService");
 const { notifyAdmins } = require("../services/notificationService");
+const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 
 const formatDocumentRecord = (fileRecord) => ({
   id: fileRecord._id,
@@ -24,7 +25,7 @@ const formatDocumentRecord = (fileRecord) => ({
 });
 
 const assertClaimBelongsToWallet = async (claimId, walletAddress) => {
-  if (!claimId) return;
+  if (!claimId) return null;
 
   const contract = getReadOnlyContract();
   const claim = await contract.getClaim(claimId);
@@ -34,6 +35,8 @@ const assertClaimBelongsToWallet = async (claimId, walletAddress) => {
     error.statusCode = 403;
     throw error;
   }
+
+  return claim;
 };
 
 const uploadDocument = async (req, res, next) => {
@@ -148,9 +151,32 @@ const attachClaimIdToDocument = async (req, res, next) => {
       });
     }
 
-    await assertClaimBelongsToWallet(claimId, req.user.walletAddress);
+    const claim = await assertClaimBelongsToWallet(
+      claimId,
+      req.user.walletAddress
+    );
 
-    await assignEvidenceChainLink(fileRecord, claimId);
+    const linkedDocument = await assignEvidenceChainLink(fileRecord, claimId);
+
+    const attemptId = String(req.body.attemptId || "").trim();
+
+    if (/^[a-f\d]{24}$/i.test(attemptId)) {
+      await ClaimSubmissionAttempt.findOneAndUpdate(
+        {
+          _id: attemptId,
+          walletAddress: req.user.walletAddress,
+          policyId: claim.policyId.toString(),
+        },
+        {
+          $set: {
+            claimId,
+            documentId: linkedDocument._id.toString(),
+            status: "COMPLETED",
+            completedAt: new Date(),
+          },
+        }
+      );
+    }
 
     await notifyAdmins({
       actorWallet: req.user.walletAddress,
@@ -165,7 +191,7 @@ const attachClaimIdToDocument = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Document linked to claim successfully",
-      document: formatDocumentRecord(fileRecord),
+      document: formatDocumentRecord(linkedDocument),
     });
   } catch (error) {
     next(error);

@@ -267,19 +267,25 @@ function OracleLogCard({ log }) {
 export default function OracleComparisonPanel({ log, logs, quorumSummary }) {
   const oracleLogs = logs || (log ? [log] : []);
 
-  if (!oracleLogs.length) {
+  if (!oracleLogs.length && !quorumSummary) {
     return <p>No oracle result found yet.</p>;
   }
 
   return (
     <div className="oracle-comparison-panel">
       <QuorumSummary summary={quorumSummary} logs={oracleLogs} />
-      {oracleLogs.map((oracleLog) => (
-        <OracleLogCard
-          key={oracleLog._id || `${oracleLog.requestId}-${oracleLog.oracleWallet || oracleLog.resultHash}`}
-          log={oracleLog}
-        />
-      ))}
+      {oracleLogs.length ? (
+        oracleLogs.map((oracleLog) => (
+          <OracleLogCard
+            key={oracleLog._id || `${oracleLog.requestId}-${oracleLog.oracleWallet || oracleLog.resultHash}`}
+            log={oracleLog}
+          />
+        ))
+      ) : (
+        <p className="muted-text">
+          On-chain confirmations exist, but no per-oracle metadata log is available yet.
+        </p>
+      )}
     </div>
   );
 }

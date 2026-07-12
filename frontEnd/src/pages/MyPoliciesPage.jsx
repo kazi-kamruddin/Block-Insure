@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { getMyPolicies } from "../services/api";
+import TransactionLink from "../components/TransactionLink";
 import { useWallet } from "../context/useWallet";
 import {
   parseTransactionError,
@@ -27,6 +28,7 @@ export default function MyPoliciesPage() {
   const { isConnected, walletAddress } = useWallet();
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
+  const [transactionHash, setTransactionHash] = useState("");
   const [actingPolicyId, setActingPolicyId] = useState("");
 
   const {
@@ -46,6 +48,7 @@ export default function MyPoliciesPage() {
   async function runPremiumAction(policy, actionType) {
     setActionMessage("");
     setActionError("");
+    setTransactionHash("");
     setActingPolicyId(policy.policyId);
 
     try {
@@ -56,6 +59,7 @@ export default function MyPoliciesPage() {
           : await payPolicyPremium(policy.policyId, premiumWei);
 
       await tx.wait();
+      setTransactionHash(tx.hash);
       setActionMessage(
         actionType === "reinstate"
           ? `Policy #${policy.policyId} reinstated.`
@@ -90,6 +94,11 @@ export default function MyPoliciesPage() {
       {isLoading ? <p>Loading policies...</p> : null}
       {actionMessage ? <p className="success-text">{actionMessage}</p> : null}
       {actionError ? <p className="error-text">{actionError}</p> : null}
+      {transactionHash ? (
+        <p>
+          Transaction: <TransactionLink txHash={transactionHash} />
+        </p>
+      ) : null}
 
       {!isLoading && policies.length === 0 ? (
         <p>No purchased policies found for this wallet yet.</p>

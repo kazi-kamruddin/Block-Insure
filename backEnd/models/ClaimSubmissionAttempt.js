@@ -14,6 +14,27 @@ const claimSubmissionAttemptSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    claimId: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
+    documentId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    status: {
+      type: String,
+      enum: ["AUTHORIZED", "COMPLETED"],
+      default: "AUTHORIZED",
+      index: true,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
     expiresAt: {
       type: Date,
       required: true,

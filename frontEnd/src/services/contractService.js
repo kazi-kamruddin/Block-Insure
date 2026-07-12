@@ -107,7 +107,13 @@ export function toBytes32FromBackendSha256(hash) {
     throw new Error("Missing SHA-256 document hash");
   }
 
-  return hash.startsWith("0x") ? hash : `0x${hash}`;
+  const normalizedHash = hash.startsWith("0x") ? hash : `0x${hash}`;
+
+  if (!ethers.isHexString(normalizedHash, 32)) {
+    throw new Error("Document hash must be a 32-byte SHA-256 value");
+  }
+
+  return normalizedHash;
 }
 
 export function hashInvoiceNumber(invoiceNumber) {
@@ -123,7 +129,13 @@ export function toUnixSecondsFromDateInput(dateValue) {
     throw new Error("Date is required");
   }
 
-  return Math.floor(new Date(dateValue).getTime() / 1000);
+  const milliseconds = new Date(dateValue).getTime();
+
+  if (Number.isNaN(milliseconds)) {
+    throw new Error("Invalid date value");
+  }
+
+  return Math.floor(milliseconds / 1000);
 }
 
 export function getStatusLabel(statusValue) {

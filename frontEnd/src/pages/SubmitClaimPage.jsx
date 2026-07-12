@@ -123,6 +123,17 @@ function extractClaimIdFromReceipt(contract, receipt) {
   return "";
 }
 
+async function resolveSubmittedClaimId(contract, receipt, walletAddress) {
+  const eventClaimId = extractClaimIdFromReceipt(contract, receipt);
+
+  if (eventClaimId) return eventClaimId;
+
+  const claimIds = await contract.getClaimsByWallet(walletAddress);
+  const latestClaimId = claimIds[claimIds.length - 1];
+
+  return latestClaimId ? latestClaimId.toString() : "";
+}
+
 function unixSecondsToDateTimeLocal(unixSeconds) {
   if (!unixSeconds) return "";
 
@@ -155,6 +166,9 @@ export default function SubmitClaimPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadInfo, setUploadInfo] = useState(null);
+  const [pendingEvidenceLink, setPendingEvidenceLink] = useState(null);
+  const [evidenceLinkError, setEvidenceLinkError] = useState("");
+  const [isLinkingEvidence, setIsLinkingEvidence] = useState(false);
   const [txHash, setTxHash] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
@@ -206,6 +220,28 @@ export default function SubmitClaimPage() {
     setClaimAmount(preset.claimAmount);
   }
 
+  async function linkEvidenceToClaim(link) {
+    if (!link?.documentId || !link?.claimId) return;
+
+    setEvidenceLinkError("");
+    setIsLinkingEvidence(true);
+
+    try {
+      await attachDocumentToClaim(link.documentId, link.claimId, link.attemptId);
+      setPendingEvidenceLink(null);
+      setSuccessMessage(
+        `Claim #${link.claimId} submitted and its evidence metadata was linked.`
+      );
+    } catch (linkError) {
+      console.error(linkError);
+      setEvidenceLinkError(
+        `Claim #${link.claimId} is confirmed on-chain, but its off-chain evidence metadata could not be linked. Retry the link when the backend is available.`
+      );
+    } finally {
+      setIsLinkingEvidence(false);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
 
@@ -213,6 +249,8 @@ export default function SubmitClaimPage() {
     setSuccessMessage("");
     setTxHash("");
     setUploadInfo(null);
+    setPendingEvidenceLink(null);
+    setEvidenceLinkError("");
 
     try {
       if (!isConnected) {
@@ -252,6 +290,10 @@ export default function SubmitClaimPage() {
       }
 
       const selectedIncidentSeconds = dateTimeLocalToUnixSeconds(incidentDateTime);
+
+      if (!Number.isFinite(selectedIncidentSeconds)) {
+        throw new Error("Incident date/time is invalid");
+      }
       const policyStartSeconds = Number(selectedPolicy.startDate || 0);
       const policyEndSeconds = Number(selectedPolicy.endDate || 0);
 
@@ -267,21 +309,23 @@ export default function SubmitClaimPage() {
 
       setIsSubmitting(true);
 
-      await authorizeClaimSubmission(policyId);
+      const authorization = await authorizeClaimSubmission(policyId);
+      const attemptId = authorization?.attemptId || authorization?.data?.attemptId || "";
 
       const uploadResponse = await uploadClaimDocument({
         file,
         documentType: "HOSPITAL_BILL",
-        claimId: "pending",
       });
 
       const sha256Hash = getUploadedHash(uploadResponse);
       const ipfsCID = getUploadedCid(uploadResponse);
       const documentId = getUploadedDocumentId(uploadResponse);
 
-      if (!sha256Hash || !ipfsCID) {
+      if (!sha256Hash || !ipfsCID || !documentId) {
         console.log("Upload response:", uploadResponse);
-        throw new Error("Backend upload did not return sha256Hash and ipfsCID");
+        throw new Error(
+          "Backend upload did not return document metadata needed to submit and link the claim"
+        );
       }
 
       setUploadInfo({
@@ -316,17 +360,20 @@ export default function SubmitClaimPage() {
       setTxHash(tx.hash);
 
       const receipt = await tx.wait();
-      const claimId = extractClaimIdFromReceipt(contract, receipt);
+      const claimId = await resolveSubmittedClaimId(contract, receipt, activeWallet);
 
-      if (documentId && claimId) {
-        await attachDocumentToClaim(documentId, claimId);
+      if (!claimId) {
+        setSuccessMessage(
+          "Claim transaction was confirmed, but its ID could not be resolved. Refresh My Claims before retrying any evidence link."
+        );
+        return;
       }
 
-      setSuccessMessage(
-        claimId
-          ? `Claim submitted successfully. Claim ID: ${claimId}`
-          : "Claim submitted successfully."
-      );
+      const evidenceLink = { documentId, claimId, attemptId };
+      setPendingEvidenceLink(evidenceLink);
+      setSuccessMessage(`Claim #${claimId} submitted on-chain. Linking evidence metadata...`);
+      await refetchPolicies();
+      await linkEvidenceToClaim(evidenceLink);
     } catch (err) {
       console.error(err);
       setError(parseTransactionError(err));
@@ -351,6 +398,7 @@ export default function SubmitClaimPage() {
 
       {error ? <p className="error-text">{error}</p> : null}
       {successMessage ? <p className="success-text">{successMessage}</p> : null}
+      {evidenceLinkError ? <p className="error-text">{evidenceLinkError}</p> : null}
 
       {txHash ? (
         <p>
@@ -369,6 +417,23 @@ export default function SubmitClaimPage() {
             <strong>Encryption:</strong> {uploadInfo.encryption.status}
           </p>
           <p className="muted-text">{uploadInfo.encryption.keyStorage}</p>
+        </div>
+      ) : null}
+
+      {pendingEvidenceLink ? (
+        <div className="card">
+          <h3>Evidence Link Pending</h3>
+          <p>
+            Claim #{pendingEvidenceLink.claimId} is already confirmed on-chain.
+            The remaining step only links supporting metadata in the backend.
+          </p>
+          <button
+            type="button"
+            onClick={() => linkEvidenceToClaim(pendingEvidenceLink)}
+            disabled={isLinkingEvidence}
+          >
+            {isLinkingEvidence ? "Linking Evidence..." : "Retry Evidence Link"}
+          </button>
         </div>
       ) : null}
 
@@ -494,7 +559,10 @@ export default function SubmitClaimPage() {
           </p>
         </div>
 
-        <button type="submit" disabled={isSubmitting || activePolicies.length === 0}>
+        <button
+          type="submit"
+          disabled={isSubmitting || isLinkingEvidence || activePolicies.length === 0}
+        >
           {isSubmitting ? "Submitting..." : "Submit Claim"}
         </button>
       </form>

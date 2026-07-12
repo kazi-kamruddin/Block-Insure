@@ -771,6 +771,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         Policy storage selectedPolicy = policies[policyId];
 
+        _syncPolicyStatus(policyId, selectedPolicy);
+
         require(
             selectedPolicy.holderWallet == msg.sender || hasRole(ADMIN_ROLE, msg.sender),
             "Caller cannot cancel policy"
@@ -1128,6 +1130,11 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         OracleRequest storage requestData = oracleRequests[requestId];
 
         uint256 claimId = requestData.claimId;
+
+        require(
+            block.number <= requestData.requestBlock + oracleTimeoutBlocks,
+            "Oracle request timed out"
+        );
 
         require(
             claims[claimId].status == ClaimStatus.ORACLE_PENDING,

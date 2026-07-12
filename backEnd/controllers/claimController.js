@@ -19,6 +19,16 @@ const CLAIM_STATUS = [
   "CLOSED",
 ];
 
+const POLICY_STATUS = [
+  "PENDING_PAYMENT",
+  "ACTIVE",
+  "GRACE_PERIOD",
+  "LAPSED",
+  "CANCELLED",
+  "EXPIRED",
+  "RENEWED",
+];
+
 const canReadClaim = (req, claim) => {
   if (req.user.role === "ADMIN" || req.user.role === "AUDITOR") {
     return true;
@@ -204,10 +214,37 @@ const authorizeClaimSubmission = async (req, res, next) => {
   try {
     const policyId = String(req.body.policyId || "").trim();
 
-    if (!policyId) {
+    if (!/^\d+$/.test(policyId) || BigInt(policyId) === 0n) {
       return res.status(400).json({
         success: false,
-        message: "policyId is required",
+        message: "policyId must be a positive integer",
+      });
+    }
+
+    const contract = getReadOnlyContract();
+    const [policy, effectiveStatus] = await Promise.all([
+      contract.getPolicy(policyId),
+      contract.getEffectivePolicyStatus(policyId),
+    ]);
+
+    if (policy.holderWallet.toLowerCase() !== req.user.walletAddress.toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: policy does not belong to this wallet",
+      });
+    }
+
+    const statusCode = Number(effectiveStatus);
+    const statusLabel = POLICY_STATUS[statusCode] || "UNKNOWN";
+
+    if (statusLabel !== "ACTIVE") {
+      return res.status(409).json({
+        success: false,
+        message:
+          statusLabel === "GRACE_PERIOD" || statusLabel === "LAPSED"
+            ? "Policy premium is overdue and cannot submit claims"
+            : `Policy is not active (${statusLabel})`,
+        policyStatus: { code: statusCode, label: statusLabel },
       });
     }
 
@@ -236,6 +273,7 @@ const authorizeClaimSubmission = async (req, res, next) => {
       message: "Claim submission authorized",
       attemptId: attempt._id,
       remainingToday: Math.max(maximumPerDay - recentAttempts - 1, 0),
+      policyStatus: { code: statusCode, label: statusLabel },
     });
   } catch (error) {
     next(error);

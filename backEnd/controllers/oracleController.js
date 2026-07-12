@@ -143,17 +143,22 @@ const buildQuorumSummary = async ({ contract, claimId, logs }) => {
   const verifiedCount = logs.filter((log) => log.verified === true).length;
   const failedCount = logs.filter((log) => log.verified === false).length;
   const requiredQuorum = Number(await contract.oracleQuorumThreshold());
+  let confirmationsReceived = logs.length;
   let oracleRequest = null;
   let statusLabel = "NO_REQUEST";
   let timedOut = false;
 
   try {
     oracleRequest = await contract.getOracleRequestByClaimId(claimId);
-    const claim = await contract.getClaim(claimId);
-    const currentBlock = await contract.runner.getBlockNumber();
-    const timeoutBlocks = await contract.oracleTimeoutBlocks();
+    const [claim, currentBlock, timeoutBlocks, confirmationCount] = await Promise.all([
+      contract.getClaim(claimId),
+      contract.runner.getBlockNumber(),
+      contract.oracleTimeoutBlocks(),
+      contract.oracleConfirmationCount(oracleRequest.requestId),
+    ]);
     const requestBlock = Number(oracleRequest.requestBlock);
 
+    confirmationsReceived = Number(confirmationCount);
     statusLabel = CLAIM_STATUS[Number(claim.status)] || "UNKNOWN";
     timedOut =
       !oracleRequest.isFulfilled &&
@@ -168,17 +173,18 @@ const buildQuorumSummary = async ({ contract, claimId, logs }) => {
       : "FAILED"
     : timedOut
       ? "TIMED_OUT"
-      : logs.length > 0
+      : confirmationsReceived > 0
         ? "PENDING_QUORUM"
         : "PENDING";
 
   return {
     requestId: oracleRequest?.requestId?.toString?.() || null,
-    confirmationsReceived: logs.length,
+    confirmationsReceived,
     requiredQuorum,
+    metadataLogCount: logs.length,
     verifiedCount,
     failedCount,
-    pendingCount: Math.max(requiredQuorum - logs.length, 0),
+    pendingCount: Math.max(requiredQuorum - confirmationsReceived, 0),
     timedOut,
     isFulfilled: Boolean(oracleRequest?.isFulfilled),
     finalOutcome,

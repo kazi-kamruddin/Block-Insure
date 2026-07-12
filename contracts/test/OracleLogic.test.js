@@ -369,6 +369,24 @@ describe("InsuranceManager - Phase 8 Oracle Contract Logic", function () {
     ).to.be.reverted;
   });
 
+  it("rejects oracle responses submitted after the configured timeout before resolution", async function () {
+    const { insuranceManager, oracle } = await deployFixture();
+
+    await insuranceManager.updateOracleTimeoutBlocks(2);
+    await insuranceManager.requestOracleVerification(1);
+    await ethers.provider.send("hardhat_mine", ["0x3"]);
+
+    await expect(
+      insuranceManager.connect(oracle).submitOracleResult(
+        1,
+        true,
+        hashText("expired-result"),
+        "LOW",
+        "Response arrived after timeout"
+      )
+    ).to.be.reverted;
+  });
+
   it("Split oracle confirmations finalize conservatively as failed", async function () {
     const { insuranceManager, oracle, secondOracle } = await deployFixture();
 

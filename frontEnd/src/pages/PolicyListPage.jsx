@@ -8,6 +8,7 @@ import {
   assertCorrectNetwork,
   getConnectedWalletAddress,
   getWalletContract,
+  parseTransactionError,
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
 import "../styles/pages/PolicyListPage.css";
@@ -123,9 +124,7 @@ export default function PolicyListPage() {
       );
     } catch (err) {
       console.error(err);
-      setBuyError(
-        err.shortMessage || err.reason || err.message || "Purchase failed"
-      );
+      setBuyError(parseTransactionError(err));
     } finally {
       setBuyingPackageId(null);
     }

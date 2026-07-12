@@ -164,6 +164,18 @@ describe("InsuranceManager - Premium Lifecycle", function () {
     ).to.be.reverted;
   });
 
+  it("does not allow an expired policy to be relabeled as cancelled", async function () {
+    const { insuranceManager, user } = await deployFixture();
+    const policy = await insuranceManager.getPolicy(1);
+
+    await time.increaseTo(policy.endDate + 1n);
+
+    await expect(insuranceManager.connect(user).cancelPolicy(1)).to.be.reverted;
+    expect(await insuranceManager.getEffectivePolicyStatus(1)).to.equal(
+      POLICY_STATUS.EXPIRED
+    );
+  });
+
   it("requires lapsed policies to use reinstatement instead of payPremium", async function () {
     const { insuranceManager, user, premium } = await deployFixture();
 

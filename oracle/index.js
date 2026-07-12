@@ -99,6 +99,8 @@ const saveOracleLog = async ({
         riskLevel,
         submittedTxHash,
         responseTimeMs,
+        oracleWallet: oracleWallet.address,
+        oracleInstanceId: ORACLE_INSTANCE_ID,
       },
       {
         headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
@@ -108,6 +110,36 @@ const saveOracleLog = async ({
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle log saved to backend`);
   } catch (error) {
     console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle log save failed:`, error.message);
+  }
+};
+
+const sendHeartbeat = async ({
+  lastProcessedRequestId = "",
+  lastProcessedClaimId = "",
+  lastTxHash = "",
+} = {}) => {
+  try {
+    const registryRoot = await contract.registryMerkleRoot();
+
+    await axios.post(
+      `${BACKEND_API_URL}/api/oracle/heartbeat`,
+      {
+        oracleWallet: oracleWallet.address,
+        oracleInstanceId: ORACLE_INSTANCE_ID,
+        label: `Oracle ${ORACLE_INSTANCE_ID}`,
+        registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
+        registryRoot,
+        lastProcessedRequestId,
+        lastProcessedClaimId,
+        lastTxHash,
+        configIdentity: `snapshot:${ORACLE_REGISTRY_SNAPSHOT}`,
+      },
+      {
+        headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
+      }
+    );
+  } catch (error) {
+    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Heartbeat failed:`, error.message);
   }
 };
 
@@ -159,6 +191,13 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       return;
     }
 
+    if (await contract.oracleHasConfirmed(requestId, oracleWallet.address)) {
+      console.log(
+        `[Oracle ${ORACLE_INSTANCE_ID}] Request ${requestKey} was already confirmed by this oracle`
+      );
+      return;
+    }
+
     console.log(`\n[Oracle ${ORACLE_INSTANCE_ID}] OracleRequested event received`);
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Request ID:`, requestId.toString());
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Claim ID:`, claimId.toString());
@@ -175,6 +214,13 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       if (refreshedRequest.isFulfilled) {
         console.log(
           `[Oracle ${ORACLE_INSTANCE_ID}] Request already finalized while waiting`
+        );
+        return;
+      }
+
+      if (await contract.oracleHasConfirmed(requestId, oracleWallet.address)) {
+        console.log(
+          `[Oracle ${ORACLE_INSTANCE_ID}] Request ${requestKey} was confirmed while waiting`
         );
         return;
       }
@@ -297,6 +343,12 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       submittedTxHash: tx.hash,
       responseTimeMs,
     });
+
+    await sendHeartbeat({
+      lastProcessedRequestId: requestId.toString(),
+      lastProcessedClaimId: claimId.toString(),
+      lastTxHash: tx.hash,
+    });
   } catch (error) {
     console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle handler failed:`, error.message);
   } finally {
@@ -317,6 +369,7 @@ const pollOracleRequests = async () => {
     const latestBlock = await provider.getBlockNumber();
 
     if (nextOracleScanBlock > latestBlock) {
+      await sendHeartbeat();
       return;
     }
 
@@ -335,6 +388,7 @@ const pollOracleRequests = async () => {
     }
 
     nextOracleScanBlock = latestBlock + 1;
+    await sendHeartbeat();
   } catch (error) {
     console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle polling failed:`, error.message);
   } finally {
