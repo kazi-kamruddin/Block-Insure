@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
+const { getPolicyIdsByWallet } = require("./helpers/contractQueries");
 
 describe("InsuranceManager - Phase 4 Policy Purchase System", function () {
   async function deployFixture() {
@@ -58,15 +59,18 @@ describe("InsuranceManager - Phase 4 Policy Purchase System", function () {
     expect(policy.premiumPaid).to.equal(PREMIUM);
     expect(policy.isActive).to.equal(true);
 
-    expect(await insuranceManager.isPolicyActive(1)).to.equal(true);
+    expect(await insuranceManager.getEffectivePolicyStatus(1)).to.equal(1);
   });
 
-  it("Stores purchased policy ID under the user's wallet", async function () {
+  it("Reconstructs purchased policy IDs for the user's wallet", async function () {
     const { insuranceManager, user, PREMIUM } = await deployFixture();
 
     await insuranceManager.connect(user).purchasePolicy(1, { value: PREMIUM });
 
-    const userPolicyIds = await insuranceManager.getPoliciesByWallet(user.address);
+    const userPolicyIds = await getPolicyIdsByWallet(
+      insuranceManager,
+      user.address
+    );
 
     expect(userPolicyIds.map((id) => Number(id))).to.deep.equal([1]);
   });
@@ -117,7 +121,10 @@ describe("InsuranceManager - Phase 4 Policy Purchase System", function () {
     await insuranceManager.connect(user).purchasePolicy(1, { value: PREMIUM });
     await insuranceManager.connect(user).purchasePolicy(1, { value: PREMIUM });
 
-    const userPolicyIds = await insuranceManager.getPoliciesByWallet(user.address);
+    const userPolicyIds = await getPolicyIdsByWallet(
+      insuranceManager,
+      user.address
+    );
 
     expect(userPolicyIds.map((id) => Number(id))).to.deep.equal([1, 2]);
 
@@ -134,23 +141,29 @@ describe("InsuranceManager - Phase 4 Policy Purchase System", function () {
     await insuranceManager.connect(user).purchasePolicy(1, { value: PREMIUM });
     await insuranceManager.connect(otherUser).purchasePolicy(1, { value: PREMIUM });
 
-    const userPolicyIds = await insuranceManager.getPoliciesByWallet(user.address);
-    const otherUserPolicyIds = await insuranceManager.getPoliciesByWallet(otherUser.address);
+    const userPolicyIds = await getPolicyIdsByWallet(
+      insuranceManager,
+      user.address
+    );
+    const otherUserPolicyIds = await getPolicyIdsByWallet(
+      insuranceManager,
+      otherUser.address
+    );
 
     expect(userPolicyIds.map((id) => Number(id))).to.deep.equal([1]);
     expect(otherUserPolicyIds.map((id) => Number(id))).to.deep.equal([2]);
   });
 
-  it("Returns false for expired policy using isPolicyActive", async function () {
+  it("Returns the effective expired policy status", async function () {
     const { insuranceManager, user, PREMIUM } = await deployFixture();
 
     await insuranceManager.connect(user).purchasePolicy(1, { value: PREMIUM });
 
-    expect(await insuranceManager.isPolicyActive(1)).to.equal(true);
+    expect(await insuranceManager.getEffectivePolicyStatus(1)).to.equal(1);
 
     await time.increase(366 * 24 * 60 * 60);
 
-    expect(await insuranceManager.isPolicyActive(1)).to.equal(false);
+    expect(await insuranceManager.getEffectivePolicyStatus(1)).to.equal(5);
   });
 
   it("Rejects reading non-existing policy", async function () {
@@ -159,7 +172,7 @@ describe("InsuranceManager - Phase 4 Policy Purchase System", function () {
     await expect(insuranceManager.getPolicy(999))
       .to.be.reverted;
 
-    await expect(insuranceManager.isPolicyActive(999))
+    await expect(insuranceManager.getEffectivePolicyStatus(999))
       .to.be.reverted;
   });
 

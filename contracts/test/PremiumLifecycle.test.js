@@ -78,7 +78,9 @@ describe("InsuranceManager - Premium Lifecycle", function () {
     expect(policy.gracePeriodEnd).to.equal(
       policy.nextPremiumDueDate + 7n * 24n * 60n * 60n
     );
-    expect(await insuranceManager.isPolicyActive(1)).to.equal(true);
+    expect(await insuranceManager.getEffectivePolicyStatus(1)).to.equal(
+      POLICY_STATUS.ACTIVE
+    );
   });
 
   it("payPremium advances due date and totals", async function () {

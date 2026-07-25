@@ -85,7 +85,7 @@ describe("InsuranceManager - Phase 6 Fraud and Duplicate Detection", function ()
     const claim = await insuranceManager.getClaim(1);
 
     expect(claim.status).to.equal(1); // DUPLICATE_CHECKED
-    expect(await insuranceManager.getClaimStatus(1)).to.equal(1);
+    expect((await insuranceManager.getClaim(1)).status).to.equal(1);
   });
 
   it("Duplicate document hash flags the second claim as FRAUD_FLAGGED", async function () {
@@ -126,7 +126,7 @@ describe("InsuranceManager - Phase 6 Fraud and Duplicate Detection", function ()
     const secondClaim = await insuranceManager.getClaim(2);
 
     expect(secondClaim.status).to.equal(2); // FRAUD_FLAGGED
-    expect(await insuranceManager.getClaimStatus(2)).to.equal(2);
+    expect((await insuranceManager.getClaim(2)).status).to.equal(2);
   });
 
   it("Duplicate invoice hash flags the second claim as FRAUD_FLAGGED", async function () {
@@ -167,7 +167,7 @@ describe("InsuranceManager - Phase 6 Fraud and Duplicate Detection", function ()
     const secondClaim = await insuranceManager.getClaim(2);
 
     expect(secondClaim.status).to.equal(2); // FRAUD_FLAGGED
-    expect(await insuranceManager.getClaimStatus(2)).to.equal(2);
+    expect((await insuranceManager.getClaim(2)).status).to.equal(2);
   });
 
   it("Same user + same incident date + same claim type flags duplicate claim", async function () {
@@ -209,7 +209,7 @@ describe("InsuranceManager - Phase 6 Fraud and Duplicate Detection", function ()
     const secondClaim = await insuranceManager.getClaim(2);
 
     expect(secondClaim.status).to.equal(2); // FRAUD_FLAGGED
-    expect(await insuranceManager.getClaimStatus(2)).to.equal(2);
+    expect((await insuranceManager.getClaim(2)).status).to.equal(2);
   });
 
   it("Same claim type from different user is not automatically fraud", async function () {
@@ -247,7 +247,7 @@ describe("InsuranceManager - Phase 6 Fraud and Duplicate Detection", function ()
     const secondClaim = await insuranceManager.getClaim(2);
 
     expect(secondClaim.status).to.equal(1); // DUPLICATE_CHECKED
-    expect(await insuranceManager.getClaimStatus(2)).to.equal(1);
+    expect((await insuranceManager.getClaim(2)).status).to.equal(1);
   });
 
   it("Fraudulent claim data is not registered as used for new invoice/document hashes", async function () {
@@ -301,13 +301,13 @@ describe("InsuranceManager - Phase 6 Fraud and Duplicate Detection", function ()
     const thirdClaim = await insuranceManager.getClaim(3);
 
     expect(thirdClaim.status).to.equal(1); // DUPLICATE_CHECKED
-    expect(await insuranceManager.getClaimStatus(3)).to.equal(1);
+    expect((await insuranceManager.getClaim(3)).status).to.equal(1);
   });
 
   it("Rejects claim status for non-existing claim", async function () {
     const { insuranceManager } = await deployFixture();
 
-    await expect(insuranceManager.getClaimStatus(999))
+    await expect(insuranceManager.getClaim(999))
       .to.be.reverted;
   });
 });

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.26;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     // =============================================================
@@ -132,15 +132,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => PolicyPackage) private policyPackages;
     mapping(uint256 => Policy) private policies;
 
-    uint256[] private packageIds;
-
-    mapping(address => uint256[]) private policiesByWallet;
-
     uint256 public claimCounter = 1;
 
     mapping(uint256 => Claim) private claims;
     mapping(uint256 => ClaimDocument[]) private claimDocuments;
-    mapping(address => uint256[]) private claimsByWallet;
     mapping(uint256 => uint256) private claimBaseRiskScore;
     mapping(uint256 => uint256) public claimCountPerPolicy;
     mapping(uint256 => uint256) public claimResolvedAt;
@@ -175,9 +170,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(address => uint256) public auditorReputation;
     mapping(address => uint256) public auditorTotalVotes;
     mapping(address => bool) private auditorReputationInitialized;
-    address[] private auditorMembers;
-    mapping(address => bool) private auditorMemberTracked;
-
     bytes32 public registryMerkleRoot;
     uint256 public registrySnapshotTimestamp;
     uint256 public registrySnapshotBlock;
@@ -460,10 +452,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         _grantRole(role, account);
 
-        if (role == AUDITOR_ROLE && !auditorMemberTracked[account]) {
-            auditorMemberTracked[account] = true;
-            auditorMembers.push(account);
-        }
     }
 
     function _revokeProjectRoleInternal(bytes32 role, address account) internal {
@@ -476,30 +464,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         }
 
         _revokeRole(role, account);
-    }
-
-    function getAuditors() external view returns (address[] memory) {
-        uint256 activeCount = 0;
-
-        for (uint256 i = 0; i < auditorMembers.length; i++) {
-            if (hasRole(AUDITOR_ROLE, auditorMembers[i])) {
-                activeCount++;
-            }
-        }
-
-        address[] memory activeAuditors = new address[](activeCount);
-        uint256 currentIndex = 0;
-
-        for (uint256 i = 0; i < auditorMembers.length; i++) {
-            address auditor = auditorMembers[i];
-
-            if (hasRole(AUDITOR_ROLE, auditor)) {
-                activeAuditors[currentIndex] = auditor;
-                currentIndex++;
-            }
-        }
-
-        return activeAuditors;
     }
 
     // =============================================================
@@ -550,7 +514,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             isActive: true
         });
 
-        packageIds.push(newPackageId);
         packageCounter++;
 
         emit PolicyPackageCreated(
@@ -621,34 +584,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         return policyPackages[packageId];
     }
 
-    function getAllPackageIds() external view returns (uint256[] memory) {
-        return packageIds;
-    }
-
-    function getActivePackageIds() external view returns (uint256[] memory) {
-        uint256 activeCount = 0;
-
-        for (uint256 i = 0; i < packageIds.length; i++) {
-            if (policyPackages[packageIds[i]].isActive) {
-                activeCount++;
-            }
-        }
-
-        uint256[] memory activeIds = new uint256[](activeCount);
-        uint256 currentIndex = 0;
-
-        for (uint256 i = 0; i < packageIds.length; i++) {
-            uint256 packageId = packageIds[i];
-
-            if (policyPackages[packageId].isActive) {
-                activeIds[currentIndex] = packageId;
-                currentIndex++;
-            }
-        }
-
-        return activeIds;
-    }
-
     // =============================================================
     // Phase 4: Policy Purchase System
     // =============================================================
@@ -686,7 +621,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             installmentsPaid: 1
         });
 
-        policiesByWallet[msg.sender].push(newPolicyId);
         policyCounter++;
 
         emit PolicyPurchased(
@@ -718,15 +652,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     function getEffectivePolicyStatus(uint256 policyId) public view returns (PolicyStatus) {
         require(_policyExists(policyId), "Policy does not exist");
         return _effectivePolicyStatus(policies[policyId]);
-    }
-
-    function getPoliciesByWallet(address wallet) external view returns (uint256[] memory) {
-        return policiesByWallet[wallet];
-    }
-
-    function isPolicyActive(uint256 policyId) public view returns (bool) {
-        require(_policyExists(policyId), "Policy does not exist");
-        return _effectivePolicyStatus(policies[policyId]) == PolicyStatus.ACTIVE;
     }
 
     function refreshPolicyStatus(uint256 policyId) public returns (PolicyStatus) {
@@ -891,8 +816,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             })
         );
 
-        claimsByWallet[msg.sender].push(newClaimId);
-
         emit ClaimSubmitted(
             newClaimId,
             policyId,
@@ -949,15 +872,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     function getClaimDocuments(uint256 claimId) external view returns (ClaimDocument[] memory) {
         require(_claimExists(claimId), "Claim does not exist");
         return claimDocuments[claimId];
-    }
-
-    function getClaimsByWallet(address wallet) external view returns (uint256[] memory) {
-        return claimsByWallet[wallet];
-    }
-
-    function getClaimStatus(uint256 claimId) external view returns (ClaimStatus) {
-        require(_claimExists(claimId), "Claim does not exist");
-        return claims[claimId].status;
     }
 
     // =============================================================
@@ -1018,35 +932,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         }
 
         return _capRiskScore(score);
-    }
-
-    function getRiskScore(uint256 claimId) external view returns (uint256) {
-        require(_claimExists(claimId), "Claim does not exist");
-        return claims[claimId].riskScore;
-    }
-
-    function getRiskLevel(uint256 claimId) external view returns (string memory) {
-        require(_claimExists(claimId), "Claim does not exist");
-
-        if (claims[claimId].status == ClaimStatus.FRAUD_FLAGGED) {
-            return "FRAUD_FLAGGED";
-        }
-
-        if (claims[claimId].status == ClaimStatus.ORACLE_FAILED) {
-            return "ORACLE_FAILED";
-        }
-
-        uint256 score = claims[claimId].riskScore;
-
-        if (score >= 80) {
-            return "LOW";
-        }
-
-        if (score >= 50) {
-            return "MEDIUM";
-        }
-
-        return "HIGH";
     }
 
     function _addOracleVerificationScore(uint256 claimId) internal {

@@ -14,9 +14,13 @@
 
 The prototype defaults are five claims per policy, a seven-day rejected-claim closure window, and a `0.1 ETH` reserve warning threshold. Admin-only setter functions can change each value.
 
-## Deployment Limitation: Contract Size
+## EIP-170 Deployment Readiness
 
-The current monolithic `InsuranceManager` contract still exceeds the EIP-170 deployed-bytecode limit, even after removing the record-only settlement path. Local Hardhat development permits this through `allowUnlimitedContractSize`, but a production deployment must split responsibilities into smaller contracts or libraries before targeting an EIP-170-enforcing network.
+`InsuranceManager` compiles to 24,367 bytes of deployed runtime code, 209 bytes below the 24,576-byte EIP-170 limit. The build pins Solidity 0.8.26, enables the IR optimizer with one run, strips revert strings from deployed bytecode, omits the metadata bytecode hash, and targets the Cancun EVM. Hardhat's unlimited-contract-size bypass is disabled, and the deployment-readiness test independently asserts the EIP-170 boundary.
+
+The reduction removes only duplicated read APIs and their redundant indexing arrays. Package, policy, and claim lists are reconstructed from monotonic counters and canonical record getters; active auditors are reconstructed from `RoleGranted` events and confirmed with `hasRole`. Claim documents, voting, oracle requests, appeals, approvals, and settlement records retain their canonical on-chain getters and state transitions. The backend and frontend contain the corresponding query adapters, so application behavior is unchanged.
+
+This contract is not upgradeable. Deployments made from the optimized source therefore require a fresh contract address and ABI; the local deployment workflow synchronizes both automatically. The 209-byte margin is intentionally protected by the deployment-readiness test, so future Solidity additions must either replace existing code or further decompose the contract rather than silently reintroduce an undeployable build.
 
 ## Production Limitation: Admin-Key Custody
 

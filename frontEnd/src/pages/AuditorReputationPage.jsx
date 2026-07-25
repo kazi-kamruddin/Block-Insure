@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { getReadOnlyContract } from "../services/contractService";
+import { getActiveRoleMembers } from "../utils/contractQueries";
 import "../styles/pages/AuditorReputationPage.css";
 
 function shortenAddress(address) {
@@ -23,7 +24,8 @@ function getReliabilityLevel(score) {
 
 async function loadAuditorReputations() {
   const contract = getReadOnlyContract();
-  const auditors = await contract.getAuditors();
+  const auditorRole = await contract.AUDITOR_ROLE();
+  const auditors = await getActiveRoleMembers(contract, auditorRole);
 
   return Promise.all(
     auditors.map(async (wallet) => {

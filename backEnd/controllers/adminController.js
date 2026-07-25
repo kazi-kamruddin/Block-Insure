@@ -6,6 +6,10 @@ const {
   getReadOnlyContract,
 } = require("../services/contractService");
 const { buildReserveIntelligence } = require("../services/settlementIntelligenceService");
+const {
+  getActiveRoleMembers,
+  getPolicyPackageIds,
+} = require("../services/contractQueryService");
 const { exportMerkleRoot } = require("../services/merkleRegistryService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
 const { logAdminAction } = require("../services/adminActionLogService");
@@ -172,7 +176,7 @@ const getConfiguredRoleWallets = () => {
 const getAllPolicyPackages = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
-    const packageIds = await contract.getAllPackageIds();
+    const packageIds = await getPolicyPackageIds(contract);
 
     const packages = await Promise.all(
       packageIds.map(async (packageId) => {
@@ -580,7 +584,9 @@ const getRoleSyncHealth = async (req, res, next) => {
     let trackedAuditors = [];
 
     try {
-      trackedAuditors = (await contract.getAuditors()).map(normalizeWallet);
+      trackedAuditors = (
+        await getActiveRoleMembers(contract, roleBytes.AUDITOR)
+      ).map(normalizeWallet);
     } catch (_) {
       trackedAuditors = [];
     }

@@ -9,6 +9,7 @@ const {
   getRegistrySnapshot,
   getReadOnlyContract,
 } = require("../services/contractService");
+const { getPolicyPackageIds } = require("../services/contractQueryService");
 
 const backendRoot = path.resolve(__dirname, "..");
 const projectRoot = path.resolve(backendRoot, "..");
@@ -348,7 +349,7 @@ const getDefenseSummary = async (req, res, next) => {
       registrySnapshot,
       modelSummary,
     ] = await Promise.all([
-      contract.getAllPackageIds().catch((error) => {
+      getPolicyPackageIds(contract).catch((error) => {
         warnings.push(`Policy package read failed: ${error.message}`);
         return [];
       }),

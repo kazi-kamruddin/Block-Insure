@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { getActiveRoleMembers } = require("./helpers/contractQueries");
 
 describe("InsuranceManager - Phase 2 Smoke Test", function () {
   async function deployFixture() {
@@ -98,11 +99,15 @@ describe("InsuranceManager - Phase 2 Smoke Test", function () {
 
     await insuranceManager.grantProjectRole(AUDITOR_ROLE, auditor.address);
 
-    expect(await insuranceManager.getAuditors()).to.deep.equal([auditor.address]);
+    expect(
+      await getActiveRoleMembers(insuranceManager, AUDITOR_ROLE)
+    ).to.deep.equal([auditor.address.toLowerCase()]);
 
     await insuranceManager.revokeProjectRole(AUDITOR_ROLE, auditor.address);
 
-    expect(await insuranceManager.getAuditors()).to.deep.equal([]);
+    expect(
+      await getActiveRoleMembers(insuranceManager, AUDITOR_ROLE)
+    ).to.deep.equal([]);
   });
 
   it("Admin should grant ORACLE_ROLE through inherited grantRole override", async function () {

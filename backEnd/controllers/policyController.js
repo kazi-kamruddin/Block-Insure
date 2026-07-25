@@ -1,6 +1,10 @@
 const { ethers } = require("ethers");
 const { getReadOnlyContract } = require("../services/contractService");
 const { quoteRiskAdjustedPremium } = require("../services/pricingService");
+const {
+  getActivePolicyPackageIds,
+  getPolicyIdsByWallet,
+} = require("../services/contractQueryService");
 
 /* ---------------------- Format Contract Responses ---------------------- */
 
@@ -80,7 +84,7 @@ const getActivePolicyPackages = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
 
-    const packageIds = await contract.getActivePackageIds();
+    const packageIds = await getActivePolicyPackageIds(contract);
 
     const packages = await Promise.all(
       packageIds.map(async (packageId) => {
@@ -128,7 +132,10 @@ const getMyPolicies = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
 
-    const policyIds = await contract.getPoliciesByWallet(req.user.walletAddress);
+    const policyIds = await getPolicyIdsByWallet(
+      contract,
+      req.user.walletAddress
+    );
 
     const policies = await Promise.all(
       policyIds.map(async (policyId) => {

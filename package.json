@@ -2,6 +2,6 @@
   "name": "block-insure-local-workflow",
   "private": true,
   "scripts": {
-    "setup:local": "npm --prefix backend run reset:local && npm --prefix contracts run deploy:local && npm --prefix contracts run fund:accounts:local && npm --prefix backend run grant:roles && npm --prefix backend run fund:local && npm --prefix backend run push:merkle && npm --prefix backend run verify:clean"
+    "setup:local": "npm --prefix backend run reset:local && npm --prefix contracts run fund:accounts:local && npm --prefix contracts run deploy:local && npm --prefix backend run grant:roles && npm --prefix backend run fund:local && npm --prefix backend run push:merkle && npm --prefix backend run verify:clean"
   }
 }

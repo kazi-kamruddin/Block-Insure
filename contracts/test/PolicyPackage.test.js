@@ -1,5 +1,9 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const {
+  getActivePackageIds,
+  getPackageIds,
+} = require("./helpers/contractQueries");
 
 describe("InsuranceManager - Phase 3 Policy Package System", function () {
   async function deployFixture() {
@@ -196,7 +200,7 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
     expect(policyPackage.isActive).to.equal(true);
   });
 
-  it("Can return all package IDs and active package IDs", async function () {
+  it("Can reconstruct all package IDs and active package IDs", async function () {
     const { insuranceManager } = await deployFixture();
 
     await insuranceManager.createPolicyPackage(
@@ -219,10 +223,10 @@ describe("InsuranceManager - Phase 3 Policy Package System", function () {
 
     await insuranceManager.deactivatePolicyPackage(2);
 
-    const allIds = await insuranceManager.getAllPackageIds();
+    const allIds = await getPackageIds(insuranceManager);
     expect(allIds.map((id) => Number(id))).to.deep.equal([1, 2]);
 
-    const activeIds = await insuranceManager.getActivePackageIds();
+    const activeIds = await getActivePackageIds(insuranceManager);
     expect(activeIds.map((id) => Number(id))).to.deep.equal([1]);
   });
 

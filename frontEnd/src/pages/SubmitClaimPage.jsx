@@ -29,6 +29,7 @@ import {
   encryptEvidenceFile,
   storeEvidenceKey,
 } from "../services/evidenceEncryption";
+import { getClaimIdsByWallet } from "../utils/contractQueries";
 import "../styles/pages/SubmitClaimPage.css";
 
 const VALID_MOCK_HOSPITAL_PRESETS = [
@@ -132,7 +133,7 @@ async function resolveSubmittedClaimId(contract, receipt, walletAddress) {
 
   if (eventClaimId) return eventClaimId;
 
-  const claimIds = await contract.getClaimsByWallet(walletAddress);
+  const claimIds = await getClaimIdsByWallet(contract, walletAddress);
   const latestClaimId = claimIds[claimIds.length - 1];
 
   return latestClaimId ? latestClaimId.toString() : "";

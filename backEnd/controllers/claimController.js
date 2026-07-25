@@ -8,6 +8,7 @@ const {
 } = require("../services/evidenceChainService");
 const { unpinFromPinata } = require("../services/ipfsService");
 const { notifyAdmins } = require("../services/notificationService");
+const { getClaimIdsByWallet } = require("../services/contractQueryService");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -101,7 +102,10 @@ const getMyClaims = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
 
-    const claimIds = await contract.getClaimsByWallet(req.user.walletAddress);
+    const claimIds = await getClaimIdsByWallet(
+      contract,
+      req.user.walletAddress
+    );
 
     const claims = await Promise.all(
       claimIds.map(async (claimId) => {

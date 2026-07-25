@@ -17,6 +17,7 @@ const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
 const VotingFinalization = require("../models/VotingFinalization");
 const { buildSyntheticRecords } = require("./seedMockData");
+const { getPolicyPackageIds } = require("../services/contractQueryService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -41,7 +42,7 @@ async function main() {
   );
 
   const [packageIds, policyCounter, claimCounter, reserveWei] = await Promise.all([
-    contract.getAllPackageIds(),
+    getPolicyPackageIds(contract),
     contract.policyCounter(),
     contract.claimCounter(),
     provider.getBalance(requireEnv("VITE_CONTRACT_ADDRESS")),

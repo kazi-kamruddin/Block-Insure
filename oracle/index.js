@@ -43,6 +43,9 @@ const ORACLE_START_BLOCK = Number(process.env.ORACLE_START_BLOCK || 0);
 const ORACLE_POLL_INTERVAL_MS = Number(
   process.env.ORACLE_POLL_INTERVAL_MS || 5000
 );
+const ORACLE_HEARTBEAT_INTERVAL_MS = Number(
+  process.env.ORACLE_HEARTBEAT_INTERVAL_MS || 30000
+);
 const ORACLE_API_KEY = process.env.ORACLE_API_KEY || "";
 const ORACLE_REGISTRY_SNAPSHOT =
   process.env.ORACLE_REGISTRY_SNAPSHOT ||
@@ -62,6 +65,8 @@ const contract = new ethers.Contract(
 const processingRequests = new Set();
 let nextOracleScanBlock = ORACLE_START_BLOCK;
 let isPolling = false;
+let cachedRegistryRoot = ethers.ZeroHash;
+let lastHeartbeatSentAt = 0;
 
 /* ----------------------------- Helpers --------------------------------- */
 
@@ -117,10 +122,16 @@ const sendHeartbeat = async ({
   lastProcessedRequestId = "",
   lastProcessedClaimId = "",
   lastTxHash = "",
+  force = false,
 } = {}) => {
-  try {
-    const registryRoot = await contract.registryMerkleRoot();
+  if (
+    !force &&
+    Date.now() - lastHeartbeatSentAt < ORACLE_HEARTBEAT_INTERVAL_MS
+  ) {
+    return;
+  }
 
+  try {
     await axios.post(
       `${BACKEND_API_URL}/api/oracle/heartbeat`,
       {
@@ -128,7 +139,7 @@ const sendHeartbeat = async ({
         oracleInstanceId: ORACLE_INSTANCE_ID,
         label: `Oracle ${ORACLE_INSTANCE_ID}`,
         registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
-        registryRoot,
+        registryRoot: cachedRegistryRoot,
         lastProcessedRequestId,
         lastProcessedClaimId,
         lastTxHash,
@@ -138,6 +149,7 @@ const sendHeartbeat = async ({
         headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
       }
     );
+    lastHeartbeatSentAt = Date.now();
   } catch (error) {
     console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Heartbeat failed:`, error.message);
   }
@@ -348,6 +360,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       lastProcessedRequestId: requestId.toString(),
       lastProcessedClaimId: claimId.toString(),
       lastTxHash: tx.hash,
+      force: true,
     });
   } catch (error) {
     console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle handler failed:`, error.message);
@@ -373,13 +386,23 @@ const pollOracleRequests = async () => {
       return;
     }
 
-    const filter = contract.filters.OracleRequested();
+    const [events, registryEvents] = await Promise.all([
+      contract.queryFilter(
+        contract.filters.OracleRequested(),
+        nextOracleScanBlock,
+        latestBlock
+      ),
+      contract.queryFilter(
+        contract.filters.RegistryRootUpdated(),
+        nextOracleScanBlock,
+        latestBlock
+      ),
+    ]);
 
-    const events = await contract.queryFilter(
-      filter,
-      nextOracleScanBlock,
-      latestBlock
-    );
+    const latestRegistryEvent = registryEvents.at(-1);
+    if (latestRegistryEvent) {
+      cachedRegistryRoot = latestRegistryEvent.args.newRoot;
+    }
 
     for (const event of events) {
       const { requestId, claimId, oracleType } = event.args;
@@ -409,6 +432,11 @@ const startOracle = async () => {
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Start block:`, ORACLE_START_BLOCK);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Poll interval:`, ORACLE_POLL_INTERVAL_MS, "ms");
   console.log(
+    `[Oracle ${ORACLE_INSTANCE_ID}] Heartbeat interval:`,
+    ORACLE_HEARTBEAT_INTERVAL_MS,
+    "ms"
+  );
+  console.log(
     `[Oracle ${ORACLE_INSTANCE_ID}] Simulated network delay:`,
     oracle2SimulatedNetworkDelayMs,
     "ms"
@@ -422,6 +450,7 @@ const startOracle = async () => {
     console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Run backend script: npm run grant:oracle`);
   }
 
+  cachedRegistryRoot = await contract.registryMerkleRoot();
   await pollOracleRequests();
 
   setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);

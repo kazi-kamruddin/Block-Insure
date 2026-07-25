@@ -11,6 +11,7 @@ const {
   getReadOnlyContract,
   getRegistrySnapshot,
 } = require("../services/contractService");
+const { getPolicyPackageIds } = require("../services/contractQueryService");
 
 const requiredEnv = [
   "MONGODB_URI",
@@ -168,7 +169,7 @@ async function main() {
 
   await verifyRoles(contract);
 
-  const packageIds = await contract.getAllPackageIds();
+  const packageIds = await getPolicyPackageIds(contract);
   const packages = await Promise.all(
     packageIds.map((packageId) => contract.getPolicyPackage(packageId))
   );

@@ -1,6 +1,14 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
+function getRiskLevel(claim) {
+  if (Number(claim.status) === 2) return "FRAUD_FLAGGED";
+  if (Number(claim.status) === 5) return "ORACLE_FAILED";
+  if (Number(claim.riskScore) >= 80) return "LOW";
+  if (Number(claim.riskScore) >= 50) return "MEDIUM";
+  return "HIGH";
+}
+
 describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
   async function deployFixture() {
     const [admin, user] = await ethers.getSigners();
@@ -67,7 +75,7 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
     const claim = await insuranceManager.getClaim(1);
 
     expect(claim.riskScore).to.equal(90);
-    expect(await insuranceManager.getRiskScore(1)).to.equal(90);
+    expect((await insuranceManager.getClaim(1)).riskScore).to.equal(90);
   });
 
   it("Clean claim risk level is LOW", async function () {
@@ -75,7 +83,7 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
 
     await submitClaim({ insuranceManager, user, policy });
 
-    expect(await insuranceManager.getRiskLevel(1)).to.equal("LOW");
+    expect(getRiskLevel(await insuranceManager.getClaim(1))).to.equal("LOW");
   });
 
   it("Fraud-flagged claim risk level returns FRAUD_FLAGGED", async function () {
@@ -108,17 +116,15 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
     const fraudClaim = await insuranceManager.getClaim(2);
 
     expect(fraudClaim.status).to.equal(2); // FRAUD_FLAGGED
-    expect(await insuranceManager.getRiskLevel(2)).to.equal("FRAUD_FLAGGED");
+    expect(getRiskLevel(await insuranceManager.getClaim(2))).to.equal(
+      "FRAUD_FLAGGED"
+    );
   });
 
   it("Rejects risk score and risk level lookup for non-existing claim", async function () {
     const { insuranceManager } = await deployFixture();
 
-    await expect(insuranceManager.getRiskScore(999))
-      .to.be.reverted;
-
-    await expect(insuranceManager.getRiskLevel(999))
-      .to.be.reverted;
+    await expect(insuranceManager.getClaim(999)).to.be.reverted;
   });
 
   it("Oracle-failed claim risk level returns ORACLE_FAILED", async function () {
@@ -145,6 +151,8 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
 
     expect(claim.status).to.equal(5); // ORACLE_FAILED
     expect(claim.riskScore).to.equal(90);
-    expect(await insuranceManager.getRiskLevel(1)).to.equal("ORACLE_FAILED");
+    expect(getRiskLevel(await insuranceManager.getClaim(1))).to.equal(
+      "ORACLE_FAILED"
+    );
   });
 });

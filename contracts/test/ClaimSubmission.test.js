@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { getClaimIdsByWallet } = require("./helpers/contractQueries");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
 describe("InsuranceManager - Phase 5 Claim Submission System", function () {
@@ -137,7 +138,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
     expect(documents[0].documentType).to.equal(REQUIRED_DOCUMENT);
   });
 
-  it("Stores submitted claim ID under claimant wallet", async function () {
+  it("Reconstructs a claimant's submitted claim IDs", async function () {
     const {
       insuranceManager,
       user,
@@ -161,7 +162,10 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
       DOCUMENT_CID
     );
 
-    const userClaimIds = await insuranceManager.getClaimsByWallet(user.address);
+    const userClaimIds = await getClaimIdsByWallet(
+      insuranceManager,
+      user.address
+    );
 
     expect(userClaimIds.map((id) => Number(id))).to.deep.equal([1]);
   });
