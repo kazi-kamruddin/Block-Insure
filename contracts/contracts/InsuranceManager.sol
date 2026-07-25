@@ -164,6 +164,9 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     mapping(uint256 => SettlementRecord) private settlementRecords;
     mapping(uint256 => bool) public highValueSettlementApproved;
+    mapping(uint256 => address) public highValueSettlementApprover;
+    mapping(uint256 => uint256) public approvedClaimLiabilityWei;
+    uint256 public totalReservedLiabilityWei;
     mapping(uint256 => bool) public claimAppealed;
     mapping(uint256 => bool) public claimAppealFinalized;
 
@@ -1264,8 +1267,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             insurerPays > highValueSettlementThresholdWei,
             "Settlement is below high-value threshold"
         );
+        require(!highValueSettlementApproved[claimId], "High-value settlement already approved");
 
         highValueSettlementApproved[claimId] = true;
+        highValueSettlementApprover[claimId] = msg.sender;
 
         emit HighValueSettlementApproved(
             claimId,
@@ -1308,6 +1313,9 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         );
 
         claims[claimId].status = ClaimStatus.APPROVED;
+        (, , , uint256 insurerPays, ) = calculateSettlement(claimId);
+        approvedClaimLiabilityWei[claimId] = insurerPays;
+        totalReservedLiabilityWei += insurerPays;
 
         emit ClaimApproved(claimId, msg.sender, block.timestamp);
     }
@@ -1321,6 +1329,13 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(reasonHash != bytes32(0), "Reason hash required");
         require(claims[claimId].status != ClaimStatus.SETTLED, "Claim already settled");
         require(claims[claimId].status != ClaimStatus.CLOSED, "Claim already closed");
+
+        if (claims[claimId].status == ClaimStatus.APPROVED) {
+            totalReservedLiabilityWei -= approvedClaimLiabilityWei[claimId];
+            delete approvedClaimLiabilityWei[claimId];
+            delete highValueSettlementApproved[claimId];
+            delete highValueSettlementApprover[claimId];
+        }
 
         claims[claimId].status = ClaimStatus.REJECTED;
         claimResolvedAt[claimId] = block.timestamp;
@@ -1488,6 +1503,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     ) external onlyRole(ADMIN_ROLE) {
         require(_deductibleRateBps <= 10000, "Deductible rate exceeds maximum");
         require(_insurerShareBps <= 10000, "Insurer share exceeds maximum");
+        require(totalReservedLiabilityWei == 0, "Approved claim liabilities are active");
 
         deductibleRateBps = _deductibleRateBps;
         deductibleCapWei = _deductibleCapWei;
@@ -1530,12 +1546,18 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
                 highValueSettlementApproved[claimId],
                 "High-value settlement requires approval"
             );
+            require(
+                highValueSettlementApprover[claimId] != msg.sender,
+                "High-value settlement requires a separate admin"
+            );
         }
 
         address recipient = claims[claimId].claimantWallet;
 
         claims[claimId].status = ClaimStatus.SETTLED;
         claimResolvedAt[claimId] = block.timestamp;
+        totalReservedLiabilityWei -= approvedClaimLiabilityWei[claimId];
+        delete approvedClaimLiabilityWei[claimId];
 
         settlementRecords[claimId] = SettlementRecord({
             claimId: claimId,
@@ -1594,6 +1616,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     function withdrawExcess(uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
         require(amount > 0, "Withdrawal amount required");
         require(address(this).balance >= amount, "Insufficient contract balance");
+        require(
+            address(this).balance - amount >= totalReservedLiabilityWei,
+            "Withdrawal would consume approved claim reserves"
+        );
 
         (bool success, ) = payable(msg.sender).call{value: amount}("");
         require(success, "Withdrawal failed");

@@ -27,9 +27,28 @@ const claimSubmissionAttemptSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["AUTHORIZED", "COMPLETED"],
+      enum: [
+        "AUTHORIZED",
+        "UPLOADING",
+        "UPLOADED",
+        "TX_SUBMITTED",
+        "COMPLETED",
+        "ABANDONED",
+        "FAILED",
+      ],
       default: "AUTHORIZED",
       index: true,
+    },
+    transactionHash: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
+    failureReason: {
+      type: String,
+      trim: true,
+      default: "",
     },
     completedAt: {
       type: Date,

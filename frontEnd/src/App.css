@@ -41,6 +41,28 @@ a:hover {
   color: var(--accent);
 }
 
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid rgba(94, 234, 212, 0.75);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  background: var(--brand);
+  color: #07131f;
+  transform: translateY(-160%);
+}
+
+.skip-link:focus {
+  color: #07131f;
+  transform: translateY(0);
+}
+
 button,
 .action-row a,
 .card-row > a,
@@ -85,6 +107,14 @@ button:disabled {
 
 .app-main {
   flex: 1;
+}
+
+.route-loading {
+  display: grid;
+  min-height: 55vh;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .navbar {
@@ -180,6 +210,17 @@ button:disabled {
 .wallet-address {
   color: var(--muted);
   font-weight: 700;
+}
+
+.wallet-role {
+  padding: 4px 7px;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.1);
+  color: #bfdbfe;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
 }
 
 .subnav {
@@ -464,6 +505,38 @@ button:disabled {
 .success-text {
   color: var(--success);
   font-weight: 700;
+}
+
+.status-message {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.status-message span {
+  color: var(--muted);
+}
+
+.status-message.is-error {
+  border-left-color: var(--danger);
+}
+
+.empty-state {
+  max-width: 680px;
+  border-style: dashed;
+  background:
+    linear-gradient(135deg, rgba(45, 212, 191, 0.055), transparent 58%),
+    var(--surface);
+}
+
+.empty-state > a {
+  display: inline-flex;
+  margin-top: 8px;
 }
 
 .status-wrapper {
@@ -1013,6 +1086,17 @@ button:disabled {
 
   .dashboard-status-strip {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
 

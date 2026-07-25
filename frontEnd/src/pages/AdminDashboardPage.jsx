@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 import {
   getAdminRoleSyncHealth,
   getOracleHealth,
   getReserveIntelligence,
+  reconcilePendingAdminTransactions,
 } from "../services/api";
 import "../styles/pages/AdminDashboardPage.css";
 
@@ -27,9 +29,24 @@ function getBreakdownCount(intelligence, status) {
 }
 
 export default function AdminDashboardPage() {
+  const [reconciliationMessage, setReconciliationMessage] = useState("");
+
+  useEffect(() => {
+    reconcilePendingAdminTransactions()
+      .then(({ confirmed, remaining }) => {
+        if (confirmed > 0 || remaining > 0) {
+          setReconciliationMessage(
+            `${confirmed} pending admin transaction(s) reconciled; ${remaining} still pending.`
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const {
     data,
     isLoading,
+    isFetching,
     error,
     refetch,
   } = useQuery({
@@ -50,9 +67,20 @@ export default function AdminDashboardPage() {
   const solvencyStatus = intelligence?.solvency?.status || "UNKNOWN";
   const roleHealth = roleHealthQuery.data;
   const oracleHealth = oracleHealthQuery.data?.oracles || [];
+  const isRefreshing =
+    isFetching || roleHealthQuery.isFetching || oracleHealthQuery.isFetching;
+
+  function refreshAll() {
+    refetch();
+    roleHealthQuery.refetch();
+    oracleHealthQuery.refetch();
+  }
 
   return (
     <section className="page-container page-admin-dashboard">
+      {reconciliationMessage ? (
+        <p className="success-text">{reconciliationMessage}</p>
+      ) : null}
       <div className="dashboard-heading">
         <div>
           <span className="dashboard-eyebrow">Administration workspace</span>
@@ -67,9 +95,10 @@ export default function AdminDashboardPage() {
           <button
             className="dashboard-refresh-button"
             type="button"
-            onClick={() => refetch()}
+            onClick={refreshAll}
+            disabled={isRefreshing}
           >
-            Refresh data
+            {isRefreshing ? "Refreshing..." : "Refresh data"}
           </button>
         </div>
       </div>
@@ -80,6 +109,18 @@ export default function AdminDashboardPage() {
             error.message ||
             "Could not load reserve intelligence"}
         </p>
+      ) : null}
+
+      {roleHealthQuery.error || oracleHealthQuery.error ? (
+        <div className="status-message is-error" role="alert">
+          <strong>Some operational diagnostics are unavailable.</strong>
+          <span>
+            {roleHealthQuery.error?.response?.data?.message ||
+              roleHealthQuery.error?.message ||
+              oracleHealthQuery.error?.response?.data?.message ||
+              oracleHealthQuery.error?.message}
+          </span>
+        </div>
       ) : null}
 
       {isLoading ? <p>Loading reserve intelligence...</p> : null}
@@ -197,6 +238,8 @@ export default function AdminDashboardPage() {
           <p className="metric-value">
             {roleHealthQuery.isLoading
               ? "Loading..."
+              : roleHealthQuery.error
+                ? "Unavailable"
               : roleHealth?.summary?.healthy
                 ? "Healthy"
                 : `${roleHealth?.summary?.mismatches || 0} mismatch`}
@@ -208,11 +251,18 @@ export default function AdminDashboardPage() {
         <div className="card">
           <h3>Oracle Health</h3>
           <p className="metric-value">
-            {oracleHealthQuery.isLoading ? "Loading..." : oracleHealth.length}
+            {oracleHealthQuery.isLoading
+              ? "Loading..."
+              : oracleHealthQuery.error
+                ? "Unavailable"
+                : oracleHealth.length}
           </p>
           <p>
-            {oracleHealth.filter((oracle) => oracle.status === "ONLINE").length} online,{" "}
-            {oracleHealth.filter((oracle) => oracle.status === "STALE").length} stale.
+            {oracleHealthQuery.error
+              ? "Check the backend and oracle health endpoint."
+              : oracleHealth.length === 0
+                ? "No heartbeats yet. Start both oracle workers."
+                : `${oracleHealth.filter((oracle) => oracle.status === "ONLINE").length} online, ${oracleHealth.filter((oracle) => oracle.status === "STALE").length} stale.`}
           </p>
         </div>
       </div>

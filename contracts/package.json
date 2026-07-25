@@ -4,9 +4,13 @@
   "description": "Block-Insure smart contracts and Hardhat verification suite",
   "main": "index.js",
   "scripts": {
-    "test": "hardhat test",
-    "compile": "hardhat compile",
-    "gas:compare": "npx hardhat run scripts/gasComparison.js --network localhost"
+    "node": "node scripts/runHardhat.js node",
+    "test": "node scripts/runHardhat.js test",
+    "compile": "node scripts/runHardhat.js compile",
+    "sync:abi": "node scripts/sync-abi.js",
+    "deploy:local": "node scripts/runHardhat.js run scripts/deploy-local.js --network localhost",
+    "fund:accounts:local": "node scripts/runHardhat.js run scripts/fund-demo-accounts-local.js --network localhost",
+    "gas:compare": "node scripts/runHardhat.js run scripts/gasComparison.js --network localhost"
   },
   "keywords": [],
   "author": "",

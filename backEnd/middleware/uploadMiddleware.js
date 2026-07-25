@@ -2,7 +2,12 @@ const multer = require("multer");
 
 const storage = multer.memoryStorage();
 
-const allowedMimeTypes = ["application/pdf", "image/jpeg", "image/png"];
+const allowedMimeTypes = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "application/octet-stream",
+];
 
 const fileFilter = (req, file, cb) => {
   if (!allowedMimeTypes.includes(file.mimetype)) {

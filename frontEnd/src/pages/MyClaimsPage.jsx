@@ -52,8 +52,19 @@ export default function MyClaimsPage() {
 
       {isLoading ? <p>Loading claims...</p> : null}
 
-      {!isLoading && claims.length === 0 ? (
-        <p>No claims found for this wallet yet.</p>
+      {!isLoading && !error && claims.length === 0 ? (
+        <div className="card empty-state">
+          <span className="dashboard-eyebrow">Clean claim history</span>
+          <h3>No claims submitted yet</h3>
+          <p>
+            Your first claim will appear here after it is committed on-chain.
+            You need an active policy before submitting.
+          </p>
+          <div className="action-row">
+            <Link to="/user/claims/new">Submit a Claim</Link>
+            <Link to="/user/policies">Check My Policies</Link>
+          </div>
+        </div>
       ) : null}
 
       <div className="card-row">

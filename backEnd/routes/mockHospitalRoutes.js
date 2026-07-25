@@ -10,6 +10,7 @@ const {
 } = require("../controllers/mockHospitalController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
+const requireOracleApiKey = require("../middleware/oracleApiKeyMiddleware");
 
 const router = express.Router();
 
@@ -49,6 +50,6 @@ router.get(
   requireRole("ADMIN", "AUDITOR"),
   getHospitalRecordById
 );
-router.get("/verify", verifyHospitalRecord);
+router.get("/verify", requireOracleApiKey, verifyHospitalRecord);
 
 module.exports = router;

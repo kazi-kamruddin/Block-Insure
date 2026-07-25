@@ -2,6 +2,12 @@ const { ethers } = require("ethers");
 const { getReadOnlyContract } = require("../services/contractService");
 const { getEvidenceChainForClaim } = require("../services/evidenceChainService");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
+const File = require("../models/File");
+const {
+  assignEvidenceChainLink,
+} = require("../services/evidenceChainService");
+const { unpinFromPinata } = require("../services/ipfsService");
+const { notifyAdmins } = require("../services/notificationService");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -253,6 +259,7 @@ const authorizeClaimSubmission = async (req, res, next) => {
     const recentAttempts = await ClaimSubmissionAttempt.countDocuments({
       walletAddress: req.user.walletAddress,
       createdAt: { $gte: windowStart },
+      status: { $nin: ["ABANDONED", "FAILED"] },
     });
 
     if (recentAttempts >= maximumPerDay) {
@@ -280,10 +287,213 @@ const authorizeClaimSubmission = async (req, res, next) => {
   }
 };
 
+const getOwnedAttempt = async (attemptId, walletAddress) => {
+  if (!/^[a-f\d]{24}$/i.test(String(attemptId || ""))) {
+    throw createError("A valid claim submission attempt id is required", 400);
+  }
+
+  const attempt = await ClaimSubmissionAttempt.findOne({
+    _id: attemptId,
+    walletAddress,
+  });
+
+  if (!attempt) {
+    throw createError("Claim submission attempt not found", 404);
+  }
+
+  return attempt;
+};
+
+const recordClaimTransaction = async (req, res, next) => {
+  try {
+    const transactionHash = String(req.body.transactionHash || "").trim();
+
+    if (!/^0x[a-f\d]{64}$/i.test(transactionHash)) {
+      throw createError("A valid transactionHash is required", 400);
+    }
+
+    const attempt = await getOwnedAttempt(
+      req.params.attemptId,
+      req.user.walletAddress
+    );
+
+    if (attempt.status === "COMPLETED") {
+      return res.status(200).json({ success: true, attempt });
+    }
+
+    if (!["UPLOADED", "TX_SUBMITTED"].includes(attempt.status)) {
+      throw createError(`Attempt cannot record a transaction from ${attempt.status}`, 409);
+    }
+
+    if (
+      attempt.transactionHash &&
+      attempt.transactionHash.toLowerCase() !== transactionHash.toLowerCase()
+    ) {
+      throw createError("Attempt is already bound to another transaction", 409);
+    }
+
+    attempt.transactionHash = transactionHash;
+    attempt.status = "TX_SUBMITTED";
+    await attempt.save();
+
+    res.status(200).json({ success: true, attempt });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const reconcileClaimSubmission = async (req, res, next) => {
+  try {
+    const attempt = await getOwnedAttempt(
+      req.params.attemptId,
+      req.user.walletAddress
+    );
+
+    if (attempt.status === "COMPLETED") {
+      return res.status(200).json({
+        success: true,
+        message: "Claim submission was already reconciled",
+        attempt,
+      });
+    }
+
+    if (attempt.status !== "TX_SUBMITTED" || !attempt.transactionHash) {
+      throw createError("Attempt does not have a submitted transaction", 409);
+    }
+
+    const contract = getReadOnlyContract();
+    const receipt = await contract.runner.getTransactionReceipt(
+      attempt.transactionHash
+    );
+
+    if (!receipt) {
+      return res.status(202).json({
+        success: false,
+        pending: true,
+        message: "Transaction is still pending",
+      });
+    }
+
+    if (Number(receipt.status) !== 1) {
+      attempt.status = "FAILED";
+      attempt.failureReason = "Blockchain transaction reverted";
+      await attempt.save();
+      throw createError("Claim transaction reverted", 409);
+    }
+
+    let claimId = "";
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+
+        if (parsedLog?.name === "ClaimSubmitted") {
+          claimId = parsedLog.args.claimId.toString();
+          break;
+        }
+      } catch {
+        // Ignore unrelated logs.
+      }
+    }
+
+    if (!claimId) {
+      throw createError("Confirmed transaction did not submit a claim", 409);
+    }
+
+    const [claim, fileRecord] = await Promise.all([
+      contract.getClaim(claimId),
+      File.findById(attempt.documentId),
+    ]);
+
+    if (!fileRecord) {
+      throw createError("Attempt document record is missing", 409);
+    }
+
+    if (
+      claim.claimantWallet.toLowerCase() !== req.user.walletAddress.toLowerCase() ||
+      claim.policyId.toString() !== attempt.policyId
+    ) {
+      throw createError("Confirmed claim does not match the authorized attempt", 409);
+    }
+
+    const expectedDocumentHash = `0x${fileRecord.sha256Hash}`.toLowerCase();
+
+    if (
+      claim.documentHash.toLowerCase() !== expectedDocumentHash ||
+      claim.documentCID !== fileRecord.ipfsCID
+    ) {
+      throw createError("Confirmed claim evidence does not match the uploaded document", 409);
+    }
+
+    await assignEvidenceChainLink(fileRecord, claimId);
+
+    attempt.claimId = claimId;
+    attempt.status = "COMPLETED";
+    attempt.completedAt = new Date();
+    attempt.failureReason = "";
+    await attempt.save();
+
+    await notifyAdmins({
+      actorWallet: req.user.walletAddress,
+      type: "CLAIM_SUBMITTED",
+      title: `New claim #${claimId}`,
+      message: `A new claim was submitted and its encrypted evidence was reconciled.`,
+      claimId,
+      link: `/admin/claims/${claimId}`,
+      dedupeKey: `claim:${claimId}:submitted`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Claim transaction and encrypted evidence reconciled",
+      attempt,
+      claimId,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const abandonClaimSubmission = async (req, res, next) => {
+  try {
+    const attempt = await getOwnedAttempt(
+      req.params.attemptId,
+      req.user.walletAddress
+    );
+
+    if (!["AUTHORIZED", "UPLOADED"].includes(attempt.status)) {
+      throw createError(`Attempt cannot be abandoned from ${attempt.status}`, 409);
+    }
+
+    if (attempt.documentId) {
+      const fileRecord = await File.findById(attempt.documentId);
+
+      if (fileRecord) {
+        await unpinFromPinata(fileRecord.ipfsCID);
+        await File.deleteOne({ _id: fileRecord._id });
+      }
+    }
+
+    attempt.status = "ABANDONED";
+    attempt.failureReason = String(req.body.reason || "Cancelled before submission");
+    await attempt.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Unused evidence was unpinned and the attempt was abandoned",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   authorizeClaimSubmission,
+  abandonClaimSubmission,
   getReadableClaims,
   getMyClaims,
   getClaimById,
   getClaimDocumentHash,
+  reconcileClaimSubmission,
+  recordClaimTransaction,
 };

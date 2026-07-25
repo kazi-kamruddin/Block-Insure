@@ -1,5 +1,65 @@
 require("dotenv").config();
 const hre = require("hardhat");
+const fs = require("fs");
+const path = require("path");
+
+function updateEnvValue(filePath, key, value) {
+  if (!fs.existsSync(filePath)) {
+    console.warn(`Skipped ${filePath}; file does not exist.`);
+    return;
+  }
+
+  const content = fs.readFileSync(filePath, "utf8");
+  const linePattern = new RegExp(`^${key}=.*$`, "m");
+  const nextContent = linePattern.test(content)
+    ? content.replace(linePattern, `${key}=${value}`)
+    : `${content.replace(/\s*$/, "")}\n${key}=${value}\n`;
+
+  fs.writeFileSync(filePath, nextContent, "utf8");
+  console.log(`Updated ${path.relative(process.cwd(), filePath)} (${key})`);
+}
+
+function syncLocalContractAddress(contractAddress) {
+  const projectRoot = path.resolve(__dirname, "..", "..");
+  const targets = [
+    { file: path.join(projectRoot, "backend", ".env"), key: "VITE_CONTRACT_ADDRESS" },
+    { file: path.join(projectRoot, "frontend", ".env"), key: "VITE_CONTRACT_ADDRESS" },
+    { file: path.join(projectRoot, "oracle", ".env"), key: "CONTRACT_ADDRESS" },
+    { file: path.join(projectRoot, "oracle", ".env.oracle2"), key: "CONTRACT_ADDRESS" },
+  ];
+
+  targets.forEach(({ file, key }) => updateEnvValue(file, key, contractAddress));
+}
+
+function syncContractAbi() {
+  const projectRoot = path.resolve(__dirname, "..", "..");
+  const artifactPath = path.join(
+    projectRoot,
+    "contracts",
+    "artifacts",
+    "contracts",
+    "InsuranceManager.sol",
+    "InsuranceManager.json"
+  );
+  const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+  const abiDocument = JSON.stringify(
+    {
+      contractName: "InsuranceManager",
+      abi: artifact.abi,
+    },
+    null,
+    2
+  );
+
+  [
+    path.join(projectRoot, "backend", "abi", "InsuranceManager.json"),
+    path.join(projectRoot, "frontend", "src", "abi", "InsuranceManager.json"),
+    path.join(projectRoot, "oracle", "abi", "InsuranceManager.json"),
+  ].forEach((target) => {
+    fs.writeFileSync(target, `${abiDocument}\n`, "utf8");
+    console.log(`Updated ${path.relative(projectRoot, target)}`);
+  });
+}
 
 async function main() {
   if (!process.env.ADMIN_PRIVATE_KEY) {
@@ -52,11 +112,10 @@ async function main() {
   await tx.wait();
 
   console.log("Health Basic policy package created");
+  syncContractAbi();
+  syncLocalContractAddress(contractAddress);
   console.log("");
-  console.log("Copy this contract address into:");
-  console.log("- backEnd/.env      VITE_CONTRACT_ADDRESS");
-  console.log("- frontEnd/.env     VITE_CONTRACT_ADDRESS");
-  console.log("- oracle/.env       CONTRACT_ADDRESS");
+  console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
   console.log("");
   console.log("CONTRACT_ADDRESS =", contractAddress);
 }

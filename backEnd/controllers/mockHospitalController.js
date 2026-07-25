@@ -677,7 +677,13 @@ const verifyHospitalRecord = async (req, res, next) => {
       query: verificationQuery,
       registrySnapshot,
       boundaryNote: BOUNDARY_NOTE,
-      record,
+      recordCommitment: {
+        hospitalId: record.hospitalId,
+        invoiceHash: record.invoiceHash,
+        recordStatus: record.recordStatus,
+        invoiceStatus: record.invoiceStatus,
+        fraudLabel: record.fraudLabel,
+      },
     });
   } catch (error) {
     next(error);

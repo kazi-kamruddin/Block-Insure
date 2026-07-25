@@ -1,9 +1,6 @@
 const crypto = require("crypto");
 const Appeal = require("../models/Appeal");
-const {
-  getAdminContract,
-  getReadOnlyContract,
-} = require("../services/contractService");
+const { getReadOnlyContract } = require("../services/contractService");
 const {
   notifyAdmins,
   notifyWallet,
@@ -123,7 +120,13 @@ const submitAppeal = async (req, res, next) => {
     const existingAppeal = await Appeal.findOne({ claimId });
 
     if (existingAppeal) {
-      throw createError("An appeal already exists for this claim", 409);
+      assertCanReadAppeal(req, existingAppeal);
+      return res.status(200).json({
+        success: true,
+        idempotent: true,
+        message: "Appeal was already saved",
+        appeal: formatAppeal(existingAppeal),
+      });
     }
 
     const onChainAppealed = await contract.claimAppealed(claimId);
@@ -143,27 +146,33 @@ const submitAppeal = async (req, res, next) => {
       throw createError("appealReasonHash does not match appealReason", 400);
     }
 
-    const appeal = await Appeal.create({
-      claimId,
-      claimantWallet,
-      appealReason,
-      reasonCategory: String(req.body.reasonCategory || "OTHER").trim().toUpperCase(),
-      appealDescription: req.body.appealDescription || appealReason,
-      appealReasonHash,
-      additionalDocumentHash: req.body.additionalDocumentHash || "",
-      additionalDocumentCID: req.body.additionalDocumentCID || "",
-      transactionHash: req.body.transactionHash || "",
-      appealDeadline,
-      history: [
-        {
-          status: "PENDING",
-          actorWallet: req.user.walletAddress,
-          actorRole: req.user.role,
-          note: "Appeal submitted by claimant",
-          timestamp: new Date(),
+    const appeal = await Appeal.findOneAndUpdate(
+      { claimId },
+      {
+        $setOnInsert: {
+          claimId,
+          claimantWallet,
+          appealReason,
+          reasonCategory: String(req.body.reasonCategory || "OTHER").trim().toUpperCase(),
+          appealDescription: req.body.appealDescription || appealReason,
+          appealReasonHash,
+          additionalDocumentHash: req.body.additionalDocumentHash || "",
+          additionalDocumentCID: req.body.additionalDocumentCID || "",
+          transactionHash: req.body.transactionHash || "",
+          appealDeadline,
+          history: [
+            {
+              status: "PENDING",
+              actorWallet: req.user.walletAddress,
+              actorRole: req.user.role,
+              note: "Appeal submitted by claimant",
+              timestamp: new Date(),
+            },
+          ],
         },
-      ],
-    });
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     await notifyAdmins({
       actorWallet: claimantWallet,
@@ -210,6 +219,8 @@ const getAppealByClaim = async (req, res, next) => {
 };
 
 const reviewAppeal = async (req, res, next) => {
+  let lockedAppealId = null;
+
   try {
     const {
       status,
@@ -231,31 +242,154 @@ const reviewAppeal = async (req, res, next) => {
 
     if (
       ["APPROVED", "REJECTED"].includes(existingAppeal.status) &&
+      normalizedStatus === existingAppeal.status
+    ) {
+      return res.status(200).json({
+        success: true,
+        idempotent: true,
+        message: `Appeal was already ${normalizedStatus.toLowerCase()}`,
+        transactionHash:
+          existingAppeal.reviewTransactionHash || existingAppeal.transactionHash,
+        appeal: formatAppeal(existingAppeal),
+      });
+    }
+
+    if (
+      ["APPROVED", "REJECTED"].includes(existingAppeal.status) &&
       normalizedStatus !== existingAppeal.status
     ) {
       throw createError("Finalized appeal decisions cannot be changed", 409);
     }
 
-    let transactionHash = "";
-    let reopenedClaim = null;
+    const isFinalDecision = ["APPROVED", "REJECTED"].includes(normalizedStatus);
 
-    if (normalizedStatus === "APPROVED" && existingAppeal.status !== "APPROVED") {
-      const contract = getAdminContract();
-      const tx = await contract.reopenClaimAfterAppeal(existingAppeal.claimId);
+    if (!isFinalDecision) {
+      const appeal = await Appeal.findByIdAndUpdate(
+        req.params.id,
+        {
+          $set: {
+            status: normalizedStatus,
+            adminNote,
+            auditorRecommendation,
+            reviewedAt: new Date(),
+          },
+          $push: {
+            history: {
+              status: normalizedStatus,
+              actorWallet: req.user.walletAddress,
+              actorRole: req.user.role,
+              note: adminNote,
+              timestamp: new Date(),
+            },
+          },
+        },
+        { new: true, runValidators: true }
+      );
 
-      await tx.wait();
-
-      transactionHash = tx.hash;
-      reopenedClaim = await contract.getClaim(existingAppeal.claimId);
+      return res.status(200).json({
+        success: true,
+        message: "Appeal review updated successfully",
+        transactionHash: "",
+        appeal: formatAppeal(appeal),
+      });
     }
 
-    if (normalizedStatus === "REJECTED" && existingAppeal.status !== "REJECTED") {
-      const contract = getAdminContract();
-      const tx = await contract.finalizeRejectedAppeal(existingAppeal.claimId);
+    const now = new Date();
+    const lockedAppeal = await Appeal.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        status: { $nin: ["APPROVED", "REJECTED"] },
+        $or: [
+          { reviewOperationStatus: { $ne: "PROCESSING" } },
+          { reviewLockExpiresAt: { $lte: now } },
+        ],
+      },
+      {
+        $set: {
+          reviewOperationStatus: "PROCESSING",
+          reviewDesiredStatus: normalizedStatus,
+          reviewLockExpiresAt: new Date(Date.now() + 2 * 60 * 1000),
+          reviewFailureReason: "",
+        },
+      },
+      { new: true }
+    );
 
-      await tx.wait();
+    if (!lockedAppeal) {
+      throw createError("Another appeal decision is currently processing", 409);
+    }
 
-      transactionHash = tx.hash;
+    lockedAppealId = lockedAppeal._id;
+    let transactionHash = "";
+    let reopenedClaim = null;
+    const contract = getReadOnlyContract();
+    const onChainClaim = await contract.getClaim(lockedAppeal.claimId);
+    const appealFinalized = await contract.claimAppealFinalized(
+      lockedAppeal.claimId
+    );
+    transactionHash =
+      String(req.body.transactionHash || "").trim() ||
+      lockedAppeal.reviewTransactionHash;
+
+    if (!appealFinalized) {
+      throw createError(
+        "Submit the on-chain appeal decision with the admin browser wallet first",
+        409
+      );
+    }
+
+    if (!/^0x[a-f\d]{64}$/i.test(transactionHash)) {
+      throw createError("A valid appeal decision transactionHash is required", 400);
+    }
+
+    const [receipt, transaction] = await Promise.all([
+      contract.runner.getTransactionReceipt(transactionHash),
+      contract.runner.getTransaction(transactionHash),
+    ]);
+
+    if (!receipt || !transaction || Number(receipt.status) !== 1) {
+      throw createError("Appeal decision transaction is not confirmed", 409);
+    }
+
+    if (
+      transaction.to?.toLowerCase() !== String(contract.target).toLowerCase() ||
+      transaction.from.toLowerCase() !== req.user.walletAddress.toLowerCase()
+    ) {
+      throw createError(
+        "Appeal decision transaction signer does not match this admin",
+        403
+      );
+    }
+
+    let decisionEventMatched = false;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+        const reopened = normalizedStatus === "APPROVED";
+
+        if (
+          parsedLog?.name === "ClaimAppealFinalized" &&
+          parsedLog.args.claimId.toString() === lockedAppeal.claimId &&
+          Boolean(parsedLog.args.reopened) === reopened
+        ) {
+          decisionEventMatched = true;
+          break;
+        }
+      } catch {
+        // Ignore unrelated logs.
+      }
+    }
+
+    if (!decisionEventMatched) {
+      throw createError(
+        "Transaction does not contain the requested appeal decision",
+        409
+      );
+    }
+
+    if (normalizedStatus === "APPROVED") {
+      reopenedClaim = onChainClaim;
     }
 
     const appeal = await Appeal.findByIdAndUpdate(
@@ -270,6 +404,11 @@ const reviewAppeal = async (req, res, next) => {
               ? finalRejectionReason || adminNote
               : existingAppeal.finalRejectionReason,
           reviewedAt: new Date(),
+          reviewOperationStatus: "COMPLETED",
+          reviewTransactionHash:
+            transactionHash || lockedAppeal.reviewTransactionHash,
+          reviewLockExpiresAt: null,
+          reviewFailureReason: "",
         },
         $push: {
           history: {
@@ -315,6 +454,16 @@ const reviewAppeal = async (req, res, next) => {
       appeal: formatAppeal(appeal),
     });
   } catch (error) {
+    if (lockedAppealId) {
+      await Appeal.findByIdAndUpdate(lockedAppealId, {
+        $set: {
+          reviewOperationStatus: "FAILED",
+          reviewLockExpiresAt: null,
+          reviewFailureReason: error.message,
+        },
+      }).catch(() => {});
+    }
+
     next(error);
   }
 };

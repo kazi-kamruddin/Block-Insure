@@ -38,6 +38,28 @@ const uploadToPinata = async (fileBuffer, fileName, mimeType) => {
   return response.data.IpfsHash;
 };
 
+const unpinFromPinata = async (ipfsCID) => {
+  if (!ipfsCID) return false;
+
+  const headers = {};
+
+  if (process.env.PINATA_JWT) {
+    headers.Authorization = `Bearer ${process.env.PINATA_JWT}`;
+  } else if (process.env.PINATA_API_KEY && process.env.PINATA_SECRET) {
+    headers.pinata_api_key = process.env.PINATA_API_KEY;
+    headers.pinata_secret_api_key = process.env.PINATA_SECRET;
+  } else {
+    return false;
+  }
+
+  await axios.delete(`https://api.pinata.cloud/pinning/unpin/${ipfsCID}`, {
+    headers,
+  });
+
+  return true;
+};
+
 module.exports = {
+  unpinFromPinata,
   uploadToPinata,
 };

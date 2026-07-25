@@ -84,6 +84,8 @@ const getClaimVoteSummary = async (req, res, next) => {
 };
 
 const finalizeVoting = async (req, res, next) => {
+  let finalizationId = null;
+
   try {
     const { claimId } = req.params;
 
@@ -93,94 +95,212 @@ const finalizeVoting = async (req, res, next) => {
 
     const existingFinalization = await VotingFinalization.findOne({
       claimId: claimId.toString(),
-    })
-      .select("_id")
-      .lean();
+    });
 
-    if (existingFinalization) {
-      throw createError("Voting has already been finalized for this claim", 409);
+    if (existingFinalization?.status === "COMPLETED") {
+      return res.status(200).json({
+        success: true,
+        idempotent: true,
+        message: "Voting was already finalized",
+        consensusResult: {
+          consensus: existingFinalization.consensus,
+          consensusCode: existingFinalization.consensusCode,
+          consensusStrength: existingFinalization.consensusStrength,
+          totalVoters: existingFinalization.totalVoters,
+        },
+        reputationChanges: existingFinalization.reputationChanges,
+        transactionHashes: existingFinalization.reputationTransactionHashes,
+      });
     }
 
     const contract = getAdminContract();
-    const rawVotes = await contract.getClaimVotes(claimId);
-    const voteSummary = formatVoteSummary(
-      claimId,
-      rawVotes,
-      req.user.walletAddress
-    );
+    let finalization = existingFinalization;
+    let voteSummary;
+    let createdFinalization = false;
 
-    if (voteSummary.totalVoters === 0) {
-      throw createError("No auditor votes found for this claim", 400);
+    if (!finalization) {
+      const rawVotes = await contract.getClaimVotes(claimId);
+      voteSummary = formatVoteSummary(
+        claimId,
+        rawVotes,
+        req.user.walletAddress
+      );
+
+      if (voteSummary.totalVoters === 0) {
+        throw createError("No auditor votes found for this claim", 400);
+      }
+
+      if (!voteSummary.consensusCode || voteSummary.isTie) {
+        throw createError(
+          "Voting cannot be finalized until there is a clear weighted consensus",
+          400
+        );
+      }
+
+      const plannedChanges = voteSummary.voters.map((voter) => ({
+        ...calculateReputationUpdate(
+          voter.auditorAddress,
+          claimId,
+          voteSummary
+        ),
+        applied: false,
+        transactionHash: "",
+        blockNumber: null,
+      }));
+
+      try {
+        finalization = await VotingFinalization.create({
+          claimId: claimId.toString(),
+          consensus: voteSummary.consensus,
+          consensusCode: voteSummary.consensusCode,
+          consensusStrength: voteSummary.consensusStrength,
+          totalVoters: voteSummary.totalVoters,
+          voters: voteSummary.voters.map((voter) => ({
+            auditorAddress: voter.auditorAddress,
+            vote: voter.vote,
+            voteLabel: voter.voteLabel,
+            reputationAtFinalization: voter.reputation,
+            votedWithConsensus: voter.vote === voteSummary.consensusCode,
+          })),
+          reputationChanges: plannedChanges,
+          reputationTransactionHashes: [],
+          finalizedBy: req.user.walletAddress,
+          status: "PROCESSING",
+          lockExpiresAt: new Date(Date.now() + 2 * 60 * 1000),
+        });
+        createdFinalization = true;
+      } catch (error) {
+        if (error.code !== 11000) throw error;
+        finalization = await VotingFinalization.findOne({
+          claimId: claimId.toString(),
+        });
+      }
     }
 
-    if (!voteSummary.consensusCode || voteSummary.isTie) {
-      throw createError(
-        "Voting cannot be finalized until there is a clear weighted consensus",
-        400
+    if (!finalization) {
+      throw createError("Could not create voting finalization", 500);
+    }
+
+    const now = new Date();
+
+    if (
+      !createdFinalization &&
+      finalization.status === "PROCESSING" &&
+      finalization.lockExpiresAt > now
+    ) {
+      throw createError("Another voting finalization is in progress", 409);
+    }
+
+    if (!createdFinalization) {
+      finalization = await VotingFinalization.findOneAndUpdate(
+        {
+          _id: finalization._id,
+          status: { $ne: "COMPLETED" },
+          $or: [
+            { status: { $ne: "PROCESSING" } },
+            { lockExpiresAt: { $lte: now } },
+          ],
+        },
+        {
+          $set: {
+            status: "PROCESSING",
+            finalizedBy: req.user.walletAddress,
+            lockExpiresAt: new Date(Date.now() + 2 * 60 * 1000),
+            failureReason: "",
+          },
+        },
+        { new: true }
       );
     }
 
-    const reputationChanges = [];
-    const transactionHashes = [];
+    if (!finalization) {
+      throw createError("Another voting finalization is in progress", 409);
+    }
+
+    finalizationId = finalization._id;
+    const transactionHashes = [...finalization.reputationTransactionHashes];
     let nextNonce = await contract.runner.getNonce("pending");
 
-    for (const voter of voteSummary.voters) {
-      const reputationChange = calculateReputationUpdate(
-        voter.auditorAddress,
-        claimId,
-        voteSummary
-      );
+    for (let index = 0; index < finalization.reputationChanges.length; index += 1) {
+      const change = finalization.reputationChanges[index];
 
-      const tx = await contract.updateAuditorReputation(
-        reputationChange.auditorAddress,
-        reputationChange.newReputation,
-        { nonce: nextNonce }
-      );
-      nextNonce += 1;
-      const receipt = await tx.wait();
+      if (change.applied) continue;
 
-      reputationChanges.push({
-        ...reputationChange,
-        transactionHash: tx.hash,
-        blockNumber: receipt.blockNumber,
-      });
-      transactionHashes.push(tx.hash);
+      const currentReputation = Number(
+        await contract.auditorReputation(change.auditorAddress)
+      );
+      let transactionHash = change.transactionHash || "";
+      let blockNumber = change.blockNumber || null;
+
+      if (currentReputation !== change.newReputation) {
+        const tx = await contract.updateAuditorReputation(
+          change.auditorAddress,
+          change.newReputation,
+          { nonce: nextNonce }
+        );
+        nextNonce += 1;
+        const receipt = await tx.wait();
+        transactionHash = tx.hash;
+        blockNumber = receipt.blockNumber;
+        transactionHashes.push(tx.hash);
+      }
+
+      await VotingFinalization.updateOne(
+        { _id: finalization._id },
+        {
+          $set: {
+            [`reputationChanges.${index}.applied`]: true,
+            [`reputationChanges.${index}.transactionHash`]: transactionHash,
+            [`reputationChanges.${index}.blockNumber`]: blockNumber,
+            lockExpiresAt: new Date(Date.now() + 2 * 60 * 1000),
+          },
+          ...(transactionHash
+            ? { $addToSet: { reputationTransactionHashes: transactionHash } }
+            : {}),
+        }
+      );
     }
 
-    await VotingFinalization.findOneAndUpdate(
-      { claimId: claimId.toString() },
+    finalization = await VotingFinalization.findByIdAndUpdate(
+      finalization._id,
       {
-        claimId: claimId.toString(),
-        consensus: voteSummary.consensus,
-        consensusCode: voteSummary.consensusCode,
-        consensusStrength: voteSummary.consensusStrength,
-        totalVoters: voteSummary.totalVoters,
-        voters: voteSummary.voters.map((voter) => ({
-          auditorAddress: voter.auditorAddress,
-          vote: voter.vote,
-          voteLabel: voter.voteLabel,
-          reputationAtFinalization: voter.reputation,
-          votedWithConsensus: voter.vote === voteSummary.consensusCode,
-        })),
-        reputationTransactionHashes: transactionHashes,
-        finalizedBy: req.user.walletAddress,
+        $set: {
+          status: "COMPLETED",
+          lockExpiresAt: null,
+          failureReason: "",
+        },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { new: true }
     );
+
+    const reputationChanges = finalization.reputationChanges;
+    voteSummary = voteSummary || {
+      consensus: finalization.consensus,
+      consensusCode: finalization.consensusCode,
+      consensusDisplayLabel: finalization.consensus,
+      consensusStrength: finalization.consensusStrength,
+      weightedResults: null,
+      totalVoters: finalization.totalVoters,
+    };
 
     await logAdminAction({
       req,
       action: "FINALIZE_VOTING",
       targetType: "CLAIM",
       targetId: claimId,
-      tx: { hash: transactionHashes[transactionHashes.length - 1] || "" },
+      tx: {
+        hash:
+          finalization.reputationTransactionHashes[
+            finalization.reputationTransactionHashes.length - 1
+          ] || "",
+      },
       receipt: reputationChanges[reputationChanges.length - 1] || null,
       metadata: {
         consensus: voteSummary.consensus,
         consensusCode: voteSummary.consensusCode,
         consensusStrength: voteSummary.consensusStrength,
         totalVoters: voteSummary.totalVoters,
-        transactionHashes,
+        transactionHashes: finalization.reputationTransactionHashes,
         reputationChanges,
       },
     });
@@ -197,9 +317,19 @@ const finalizeVoting = async (req, res, next) => {
         totalVoters: voteSummary.totalVoters,
       },
       reputationChanges,
-      transactionHashes,
+      transactionHashes: finalization.reputationTransactionHashes,
     });
   } catch (error) {
+    if (finalizationId) {
+      await VotingFinalization.findByIdAndUpdate(finalizationId, {
+        $set: {
+          status: "FAILED",
+          lockExpiresAt: null,
+          failureReason: error.message,
+        },
+      }).catch(() => {});
+    }
+
     next(error);
   }
 };

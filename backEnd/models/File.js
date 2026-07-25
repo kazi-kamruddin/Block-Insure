@@ -41,6 +41,21 @@ const fileSchema = new mongoose.Schema(
       trim: true,
       default: "CLAIM_DOCUMENT",
     },
+    encrypted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    encryptionAlgorithm: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    originalMimeType: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     previousEvidenceHash: {
       type: String,
       trim: true,

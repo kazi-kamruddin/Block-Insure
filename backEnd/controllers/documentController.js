@@ -5,7 +5,7 @@ const {
 } = require("../services/evidenceChainService");
 const { getReadOnlyContract } = require("../services/contractService");
 const { calculateSHA256 } = require("../services/hashService");
-const { uploadToPinata } = require("../services/ipfsService");
+const { unpinFromPinata, uploadToPinata } = require("../services/ipfsService");
 const { notifyAdmins } = require("../services/notificationService");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 
@@ -18,6 +18,9 @@ const formatDocumentRecord = (fileRecord) => ({
   sha256Hash: fileRecord.sha256Hash,
   ipfsCID: fileRecord.ipfsCID,
   documentType: fileRecord.documentType,
+  encrypted: Boolean(fileRecord.encrypted),
+  encryptionAlgorithm: fileRecord.encryptionAlgorithm || "",
+  originalMimeType: fileRecord.originalMimeType || "",
   previousEvidenceHash: fileRecord.previousEvidenceHash,
   evidenceChainHash: fileRecord.evidenceChainHash,
   evidenceChainIndex: fileRecord.evidenceChainIndex,
@@ -40,6 +43,10 @@ const assertClaimBelongsToWallet = async (claimId, walletAddress) => {
 };
 
 const uploadDocument = async (req, res, next) => {
+  let activeAttempt = null;
+  let createdFileRecord = null;
+  let uploadedCid = "";
+
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -50,6 +57,88 @@ const uploadDocument = async (req, res, next) => {
 
     const { documentType = "CLAIM_DOCUMENT" } = req.body;
     const claimId = normalizeClaimId(req.body.claimId);
+    const attemptId = String(req.body.attemptId || "").trim();
+    const encrypted = String(req.body.encrypted || "").toLowerCase() === "true";
+    const encryptionAlgorithm = String(req.body.encryptionAlgorithm || "").trim();
+    const originalMimeType = String(req.body.originalMimeType || "").trim();
+
+    if (!encrypted || req.file.mimetype !== "application/octet-stream") {
+      return res.status(400).json({
+        success: false,
+        message: "Evidence must be encrypted in the browser before upload",
+      });
+    }
+
+    if (req.file.buffer.subarray(0, 8).toString("utf8") !== "BINSENC1") {
+      return res.status(400).json({
+        success: false,
+        message: "Encrypted evidence header is invalid",
+      });
+    }
+
+    if (encrypted && encryptionAlgorithm !== "AES-256-GCM") {
+      return res.status(400).json({
+        success: false,
+        message: "Encrypted evidence must use AES-256-GCM",
+      });
+    }
+
+    if (!attemptId && !claimId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A claim submission attempt or an existing owned claim is required before upload",
+      });
+    }
+
+    let attempt = null;
+
+    if (attemptId) {
+      if (!/^[a-f\d]{24}$/i.test(attemptId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Claim submission attempt id is invalid",
+        });
+      }
+
+      attempt = await ClaimSubmissionAttempt.findOneAndUpdate({
+        _id: attemptId,
+        walletAddress: req.user.walletAddress,
+        expiresAt: { $gt: new Date() },
+        status: "AUTHORIZED",
+      }, {
+        $set: { status: "UPLOADING", failureReason: "" },
+      }, { new: true });
+
+      if (!attempt) {
+        const existingAttempt = await ClaimSubmissionAttempt.findOne({
+          _id: attemptId,
+          walletAddress: req.user.walletAddress,
+        });
+
+        if (existingAttempt?.status === "UPLOADED" && existingAttempt.documentId) {
+          const existingDocument = await File.findById(existingAttempt.documentId);
+
+          if (existingDocument) {
+            return res.status(200).json({
+              success: true,
+              idempotent: true,
+              message: "Evidence was already uploaded for this attempt",
+              document: formatDocumentRecord(existingDocument),
+            });
+          }
+        }
+
+        return res.status(409).json({
+          success: false,
+          message: existingAttempt
+            ? `Claim submission attempt is already ${existingAttempt.status.toLowerCase()}`
+            : "Claim submission attempt was not found or has expired",
+        });
+      }
+
+      activeAttempt = attempt;
+    }
 
     await assertClaimBelongsToWallet(claimId, req.user.walletAddress);
 
@@ -60,6 +149,7 @@ const uploadDocument = async (req, res, next) => {
       req.file.originalname,
       req.file.mimetype
     );
+    uploadedCid = ipfsCID;
 
     let fileRecord = await File.create({
       claimId,
@@ -69,9 +159,25 @@ const uploadDocument = async (req, res, next) => {
       sha256Hash,
       ipfsCID,
       documentType,
+      encrypted,
+      encryptionAlgorithm: encrypted ? encryptionAlgorithm : "",
+      originalMimeType: encrypted ? originalMimeType : req.file.mimetype,
     });
+    createdFileRecord = fileRecord;
 
     fileRecord = await assignEvidenceChainLink(fileRecord, claimId);
+
+    if (attempt) {
+      await ClaimSubmissionAttempt.updateOne(
+        { _id: attempt._id, status: "UPLOADING" },
+        {
+          $set: {
+            documentId: fileRecord._id.toString(),
+            status: "UPLOADED",
+          },
+        }
+      );
+    }
 
     res.status(201).json({
       success: true,
@@ -151,31 +257,62 @@ const attachClaimIdToDocument = async (req, res, next) => {
       });
     }
 
+    const attemptId = String(req.body.attemptId || "").trim();
+
+    if (!/^[a-f\d]{24}$/i.test(attemptId)) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid claim submission attempt is required",
+      });
+    }
+
+    const attempt = await ClaimSubmissionAttempt.findOne(
+      {
+        _id: attemptId,
+        walletAddress: req.user.walletAddress,
+        documentId: fileRecord._id.toString(),
+        status: { $in: ["UPLOADED", "TX_SUBMITTED", "COMPLETED"] },
+      }
+    );
+
+    if (!attempt) {
+      return res.status(409).json({
+        success: false,
+        message: "Document is not bound to this authorized claim attempt",
+      });
+    }
+
     const claim = await assertClaimBelongsToWallet(
       claimId,
       req.user.walletAddress
     );
 
+    if (attempt.policyId !== claim.policyId.toString()) {
+      return res.status(409).json({
+        success: false,
+        message: "Claim policy does not match the authorized attempt",
+      });
+    }
+
     const linkedDocument = await assignEvidenceChainLink(fileRecord, claimId);
 
-    const attemptId = String(req.body.attemptId || "").trim();
-
-    if (/^[a-f\d]{24}$/i.test(attemptId)) {
-      await ClaimSubmissionAttempt.findOneAndUpdate(
-        {
-          _id: attemptId,
-          walletAddress: req.user.walletAddress,
-          policyId: claim.policyId.toString(),
+    const completedAttempt = await ClaimSubmissionAttempt.findOneAndUpdate(
+      { _id: attempt._id },
+      {
+        $set: {
+          claimId,
+          status: "COMPLETED",
+          completedAt: new Date(),
         },
-        {
-          $set: {
-            claimId,
-            documentId: linkedDocument._id.toString(),
-            status: "COMPLETED",
-            completedAt: new Date(),
-          },
-        }
-      );
+      },
+      { new: true }
+    );
+
+    if (!completedAttempt) {
+      return res.status(409).json({
+        success: false,
+        message: "Document is not bound to this authorized claim attempt",
+      });
     }
 
     await notifyAdmins({
@@ -194,6 +331,30 @@ const attachClaimIdToDocument = async (req, res, next) => {
       document: formatDocumentRecord(linkedDocument),
     });
   } catch (error) {
+    if (activeAttempt) {
+      if (createdFileRecord) {
+        await ClaimSubmissionAttempt.updateOne(
+          { _id: activeAttempt._id },
+          {
+            $set: {
+              documentId: createdFileRecord._id.toString(),
+              status: "UPLOADED",
+              failureReason: error.message,
+            },
+          }
+        ).catch(() => {});
+      } else {
+        await ClaimSubmissionAttempt.updateOne(
+          { _id: activeAttempt._id, status: "UPLOADING" },
+          { $set: { status: "AUTHORIZED", failureReason: error.message } }
+        ).catch(() => {});
+      }
+    }
+
+    if (uploadedCid && !createdFileRecord) {
+      await unpinFromPinata(uploadedCid).catch(() => {});
+    }
+
     next(error);
   }
 };

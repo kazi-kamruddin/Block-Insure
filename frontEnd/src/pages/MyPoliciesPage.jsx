@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { getMyPolicies } from "../services/api";
 import TransactionLink from "../components/TransactionLink";
@@ -100,8 +101,16 @@ export default function MyPoliciesPage() {
         </p>
       ) : null}
 
-      {!isLoading && policies.length === 0 ? (
-        <p>No purchased policies found for this wallet yet.</p>
+      {!isLoading && !error && policies.length === 0 ? (
+        <div className="card empty-state">
+          <span className="dashboard-eyebrow">No active coverage</span>
+          <h3>Purchase your first policy</h3>
+          <p>
+            A purchased and active policy is required before you can submit a
+            claim.
+          </p>
+          <Link to="/user/policies/buy">Browse Policy Packages</Link>
+        </div>
       ) : null}
 
       <div className="card-row">

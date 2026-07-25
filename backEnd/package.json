@@ -14,6 +14,8 @@
     "grant:roles": "node scripts/grantProjectRolesLocal.js",
     "oracle:local": "node scripts/submitOracleResultLocal.js",
     "fund:local": "node scripts/fundContractLocal.js",
+    "reset:local": "node scripts/resetLocalData.js --yes",
+    "verify:clean": "node scripts/verifyCleanStart.js",
     "seed:mock": "node scripts/seedMockData.js",
     "demo:populate": "node scripts/populateDemoScenario.js",
     "verify:demo": "node scripts/verifyDemoSeed.js",

@@ -67,6 +67,36 @@ const votingFinalizationSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    status: {
+      type: String,
+      enum: ["PROCESSING", "COMPLETED", "FAILED"],
+      default: "PROCESSING",
+      index: true,
+    },
+    lockExpiresAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    failureReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    reputationChanges: {
+      type: [
+        {
+          auditorAddress: { type: String, lowercase: true, trim: true },
+          previousReputation: Number,
+          newReputation: Number,
+          delta: Number,
+          applied: { type: Boolean, default: false },
+          transactionHash: { type: String, trim: true, default: "" },
+          blockNumber: { type: Number, default: null },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true }
 );

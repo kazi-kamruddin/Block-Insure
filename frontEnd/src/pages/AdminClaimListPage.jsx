@@ -42,7 +42,17 @@ export default function AdminClaimListPage() {
 
       {isLoading ? <p>Loading claims...</p> : null}
 
-      {!isLoading && claims.length === 0 ? <p>No claims found.</p> : null}
+      {!isLoading && !error && claims.length === 0 ? (
+        <div className="card empty-state">
+          <span className="dashboard-eyebrow">Clean operational state</span>
+          <h3>No claims require review</h3>
+          <p>
+            Claims will appear here after a policyholder submits one. Nothing
+            has been pre-populated into this queue.
+          </p>
+          <Link to="/admin/dashboard">Return to Portfolio Overview</Link>
+        </div>
+      ) : null}
 
       <div className="card-row">
         {claims.map((claim) => (

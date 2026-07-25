@@ -100,6 +100,7 @@ async function getSettlementBreakdown(claimId) {
     reserveWarningThresholdWei,
     highValueSettlementThresholdWei,
     highValueSettlementApproved,
+    highValueSettlementApprover,
   ] =
     await Promise.all([
       contract.calculateSettlement(claimId),
@@ -109,6 +110,7 @@ async function getSettlementBreakdown(claimId) {
       contract.reserveWarningThresholdWei(),
       contract.highValueSettlementThresholdWei(),
       contract.highValueSettlementApproved(claimId),
+      contract.highValueSettlementApprover(claimId),
     ]);
   const reserveWei = await getContractBalance();
   const reserveAfterWei =
@@ -138,6 +140,7 @@ async function getSettlementBreakdown(claimId) {
       highValueApprovalRequired:
         settlement.insurerPays > highValueSettlementThresholdWei,
       highValueSettlementApproved: Boolean(highValueSettlementApproved),
+      highValueSettlementApprover,
     },
     params: {
       deductibleRateBps: deductibleRateBps.toString(),
@@ -413,6 +416,7 @@ export default function AdminClaimDetailPage() {
       () =>
         reviewAppeal(appeal.id, {
           status,
+          claimId: id,
           adminNote: appealAdminNote.trim(),
           auditorRecommendation: appealAuditorRecommendation.trim(),
           finalRejectionReason: appealFinalRejectionReason.trim(),
@@ -555,8 +559,17 @@ export default function AdminClaimDetailPage() {
               {settlementBreakdown.reserveGate.highValueApprovalRequired &&
               !settlementBreakdown.reserveGate.highValueSettlementApproved ? (
                 <p className="error-text">
-                  Direct settlement is blocked on-chain until high-value approval
-                  is recorded.
+                  Direct settlement is blocked until one admin wallet records
+                  high-value approval. A different on-chain admin wallet must
+                  then execute settlement.
+                </p>
+              ) : null}
+
+              {settlementBreakdown.reserveGate.highValueSettlementApproved ? (
+                <p className="muted-text">
+                  High-value approver:{" "}
+                  {settlementBreakdown.reserveGate.highValueSettlementApprover}.
+                  Settlement must be signed by a different admin address.
                 </p>
               ) : null}
 

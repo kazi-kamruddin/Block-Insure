@@ -3,8 +3,14 @@ import { useWallet } from "../context/useWallet";
 import "../styles/pages/HomePage.css";
 
 export default function HomePage() {
-  const { isConnected, workspace, connectWallet, isConnecting, error } =
-    useWallet();
+  const {
+    isConnected,
+    workspace,
+    connectWallet,
+    isConnecting,
+    isRestoringSession,
+    error,
+  } = useWallet();
 
   if (isConnected && workspace) {
     return <Navigate to={workspace.home} replace />;
@@ -23,15 +29,27 @@ export default function HomePage() {
           </p>
 
           <div className="home-hero-actions">
-            <button type="button" onClick={connectWallet} disabled={isConnecting}>
-              {isConnecting ? "Connecting wallet..." : "Connect wallet to enter"}
+            <button
+              type="button"
+              onClick={connectWallet}
+              disabled={isConnecting || isRestoringSession}
+            >
+              {isRestoringSession
+                ? "Checking saved session..."
+                : isConnecting
+                  ? "Connecting wallet..."
+                  : "Connect wallet to enter"}
             </button>
             <a className="home-secondary-action" href="#how-it-works">
               Explore the workflow
             </a>
           </div>
 
-          {error ? <p className="home-connect-error">{error}</p> : null}
+          {error ? (
+            <p className="home-connect-error" role="alert">
+              {error}
+            </p>
+          ) : null}
 
           <div className="home-proof-row" aria-label="Core platform properties">
             <span>Role-isolated workspaces</span>

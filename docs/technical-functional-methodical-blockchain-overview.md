@@ -25,7 +25,7 @@ The project is organized into four main runtime layers:
 | Oracle service | Node.js, ethers.js, Axios | Watches oracle requests, checks hospital registry data, submits signed oracle results |
 | Frontend | React, Vite, ethers.js | User, admin, auditor, claim, and result dashboards |
 
-The system can run locally with Hardhat, MongoDB, backend, frontend, and one or two oracle processes. The contract is also now prepared for deployment to an EIP-170-enforcing network because the deployed bytecode size has been reduced below the 24,576-byte contract size limit.
+The system can run locally with Hardhat, MongoDB, backend, frontend, and one or two oracle processes. The current monolithic contract is suitable for this local research environment, where Hardhat explicitly allows an oversized contract, but it is not yet deployable to an EIP-170-enforcing network.
 
 ## 3. Core Functional Workflow
 
@@ -229,18 +229,17 @@ This supports the thesis claim that blockchain is used for settlement integrity,
 
 ### 4.6 Deployment Readiness
 
-The original contract exceeded the EIP-170 deployed bytecode limit. The contract was optimized so that its deployed bytecode is now below the 24,576-byte limit.
+The current contract exceeds the EIP-170 deployed-bytecode limit. After the liability-reserve and two-admin settlement hardening, the compiled deployed bytecode is approximately `27,275` bytes, compared with the `24,576`-byte limit.
 
-Key deployment-readiness changes:
+Size-reduction work already applied:
 
-- deployed size reduced from about `30,028` bytes to about `24,466` bytes
-- `allowUnlimitedContractSize` removed from Hardhat config
+- deployed size reduced from the earlier approximately `30,028` bytes
 - revert strings stripped for deployability
 - metadata bytecode hash disabled
 - several convenience getters replaced with public-variable or provider reads
 - deployment-size regression test added
 
-This makes the contract more credible for a real testnet/L2 deployment attempt.
+The regression test currently fails intentionally and exposes the remaining gap. Hardhat uses `allowUnlimitedContractSize` for local simulation. A real EIP-170-enforcing deployment requires splitting responsibilities into smaller contracts or libraries.
 
 ## 5. Smart Contract Design
 
@@ -627,7 +626,7 @@ The research contribution can be framed around:
 
 Recent verification results:
 
-- Contract tests: `122 passing`
+- Contract tests: `138 passing`, with the EIP-170 deployment-size guard failing at `27,275` bytes
 - Backend analytics tests: passed
 - Oracle syntax test: passed
 - Frontend lint: passed
@@ -650,13 +649,13 @@ To deploy to a real testnet or L2, the system still needs manual environment set
 - MongoDB URI
 - Pinata/IPFS credentials if document upload is used
 
-The smart contract is now much closer to deployment readiness because it no longer depends on Hardhat's unlimited contract size setting.
+The local prototype depends on Hardhat's unlimited contract-size setting. Before deployment to an EIP-170-enforcing testnet or production network, the monolithic contract must be split or reduced below 24,576 deployed bytes.
 
 ## 15. Recommended Report Framing
 
 In the report, avoid claiming the system is production-ready insurance infrastructure. A stronger and more honest framing is:
 
-> This project is a deployable research prototype that demonstrates how smart contracts, Merkle commitments, independent oracles, fraud-risk scoring, and auditor review can be combined to create a transparent insurance claim lifecycle.
+> This project is a locally executable research prototype that demonstrates how smart contracts, Merkle commitments, independent oracles, fraud-risk scoring, and auditor review can be combined to create a transparent insurance claim lifecycle.
 
 For results, avoid presenting perfect scores as the main achievement. Instead, emphasize:
 
@@ -673,10 +672,10 @@ Important limitations:
 
 - Fraud data is synthetic, not real insurance data.
 - Oracle services are simulated independent services, not production oracle infrastructure.
-- The smart contract is deployable but still compact and monolithic.
-- Revert strings are stripped to satisfy deployment size constraints.
-- The backend still signs some admin transactions using an admin private key.
-- IPFS evidence is not yet encrypted.
+- The monolithic smart contract currently exceeds the EIP-170 deployed-bytecode limit.
+- Revert strings are stripped, but further contract decomposition is still required for EIP-170 deployment.
+- Claim decisions and settlements are signed by the authenticated admin browser wallet; some configuration and voting-reputation operations still use the backend admin signer.
+- Claim and appeal evidence is encrypted in the browser with AES-256-GCM before it is uploaded to IPFS. The decryption key remains in the policyholder browser profile.
 - Multisig admin control is not yet implemented.
 
 These limitations do not invalidate the thesis. They define the boundary of the prototype.

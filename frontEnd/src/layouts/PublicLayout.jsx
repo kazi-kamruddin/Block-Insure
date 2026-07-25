@@ -8,6 +8,9 @@ export default function PublicLayout() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <nav className="navbar">
         <Link className="brand" to="/">
           <span className="brand-mark">B</span>
@@ -29,7 +32,7 @@ export default function PublicLayout() {
         <WalletConnectButton />
       </nav>
 
-      <main className="app-main">
+      <main className="app-main" id="main-content">
         <Outlet />
       </main>
 

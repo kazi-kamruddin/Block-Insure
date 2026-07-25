@@ -313,6 +313,27 @@ const buildSyntheticRecords = () => {
   return records;
 };
 
+const buildOracle2Records = (mockRecords) => {
+  return mockRecords.map((record, index) => {
+    if (index !== 0) {
+      return record;
+    }
+
+    return {
+      ...record,
+      invoiceStatus: "USED",
+      recordStatus: "USED",
+      fraudLabel: "USED_INVOICE",
+      fraudSignals: {
+        ...record.fraudSignals,
+        usedInvoice: true,
+      },
+      previousClaimCount: 2,
+      syntheticSource: "phase-2-oracle2-independent-snapshot-v1",
+    };
+  });
+};
+
 const seedMockData = async () => {
   try {
     if (!process.env.MONGODB_URI) {
@@ -327,24 +348,7 @@ const seedMockData = async () => {
     await MockHospitalRecordOracle2.deleteMany({});
 
     await MockHospitalRecord.insertMany(mockRecords);
-    const oracle2Records = mockRecords.map((record, index) => {
-      if (index !== 0) {
-        return record;
-      }
-
-      return {
-        ...record,
-        invoiceStatus: "USED",
-        recordStatus: "USED",
-        fraudLabel: "USED_INVOICE",
-        fraudSignals: {
-          ...record.fraudSignals,
-          usedInvoice: true,
-        },
-        previousClaimCount: 2,
-        syntheticSource: "phase-2-oracle2-independent-snapshot-v1",
-      };
-    });
+    const oracle2Records = buildOracle2Records(mockRecords);
 
     await MockHospitalRecordOracle2.insertMany(oracle2Records);
 
@@ -391,5 +395,6 @@ if (require.main === module) {
 }
 
 module.exports = {
+  buildOracle2Records,
   buildSyntheticRecords,
 };

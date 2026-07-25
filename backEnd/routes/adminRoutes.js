@@ -11,14 +11,7 @@ const {
   listAdminActionLogs,
   getRoleSyncHealth,
   getAdminClaims,
-  requestOracleForClaim,
-  resolveTimedOutOracle,
-  approveClaim,
-  rejectClaim,
-  settleClaim,
-  approveHighValueSettlement,
-  closeClaim,
-  sendClaimToManualReview,
+  confirmAdminClaimTransaction,
 } = require("../controllers/adminController");
 const {
   getAuditorReputationAnalysis,
@@ -39,6 +32,13 @@ router.get(
   authMiddleware,
   requireRole("ADMIN"),
   getAllPolicyPackages
+);
+
+router.post(
+  "/claims/:id/confirm-transaction",
+  authMiddleware,
+  requireRole("ADMIN"),
+  confirmAdminClaimTransaction
 );
 
 router.post(
@@ -165,62 +165,6 @@ router.get(
   authMiddleware,
   requireRole("ADMIN"),
   getAdminClaims
-);
-
-router.post(
-  "/claims/:id/request-oracle",
-  authMiddleware,
-  requireRole("ADMIN"),
-  requestOracleForClaim
-);
-
-router.post(
-  "/claims/:id/resolve-oracle-timeout",
-  authMiddleware,
-  requireRole("ADMIN"),
-  resolveTimedOutOracle
-);
-
-router.post(
-  "/claims/:id/manual-review",
-  authMiddleware,
-  requireRole("ADMIN"),
-  sendClaimToManualReview
-);
-
-router.post(
-  "/claims/:id/approve",
-  authMiddleware,
-  requireRole("ADMIN"),
-  approveClaim
-);
-
-router.post(
-  "/claims/:id/reject",
-  authMiddleware,
-  requireRole("ADMIN"),
-  rejectClaim
-);
-
-router.post(
-  "/claims/:id/settle",
-  authMiddleware,
-  requireRole("ADMIN"),
-  settleClaim
-);
-
-router.post(
-  "/claims/:id/approve-high-value-settlement",
-  authMiddleware,
-  requireRole("ADMIN"),
-  approveHighValueSettlement
-);
-
-router.post(
-  "/claims/:id/close",
-  authMiddleware,
-  requireRole("ADMIN"),
-  closeClaim
 );
 
 module.exports = router;

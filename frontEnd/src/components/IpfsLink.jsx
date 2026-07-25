@@ -1,4 +1,10 @@
+import { useState } from "react";
+
 import CopyableText from "./CopyableText";
+import {
+  downloadDecryptedEvidence,
+  hasLocalEvidenceKey,
+} from "../services/evidenceEncryption";
 
 const DEFAULT_GATEWAY =
   import.meta.env.VITE_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs/";
@@ -15,6 +21,8 @@ function buildIpfsUrl(cid) {
 }
 
 export default function IpfsLink({ cid }) {
+  const [decryptError, setDecryptError] = useState("");
+
   if (!cid) {
     return <span>-</span>;
   }
@@ -24,8 +32,28 @@ export default function IpfsLink({ cid }) {
       <CopyableText value={cid} label="Copy CID" short />
       {" "}
       <a href={buildIpfsUrl(cid)} target="_blank" rel="noreferrer">
-        Open IPFS
+        Open encrypted IPFS payload
       </a>
+      {hasLocalEvidenceKey(cid) ? (
+        <>
+          {" "}
+          <button
+            type="button"
+            onClick={async () => {
+              setDecryptError("");
+
+              try {
+                await downloadDecryptedEvidence(cid, DEFAULT_GATEWAY);
+              } catch (error) {
+                setDecryptError(error.message);
+              }
+            }}
+          >
+            Download decrypted
+          </button>
+        </>
+      ) : null}
+      {decryptError ? <span className="error-text"> {decryptError}</span> : null}
     </span>
   );
 }

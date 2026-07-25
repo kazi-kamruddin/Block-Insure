@@ -97,6 +97,32 @@ const appealSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    reviewOperationStatus: {
+      type: String,
+      enum: ["IDLE", "PROCESSING", "CHAIN_CONFIRMED", "COMPLETED", "FAILED"],
+      default: "IDLE",
+      index: true,
+    },
+    reviewDesiredStatus: {
+      type: String,
+      enum: ["", "APPROVED", "REJECTED"],
+      default: "",
+    },
+    reviewTransactionHash: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    reviewLockExpiresAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    reviewFailureReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   { timestamps: true }
 );

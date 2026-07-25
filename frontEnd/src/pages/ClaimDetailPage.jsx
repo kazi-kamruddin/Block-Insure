@@ -16,6 +16,10 @@ import {
   uploadClaimDocument,
 } from "../services/api";
 import { getWalletContract, parseTransactionError } from "../services/contractService";
+import {
+  encryptEvidenceFile,
+  storeEvidenceKey,
+} from "../services/evidenceEncryption";
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/ClaimDetailPage.css";
@@ -143,14 +147,21 @@ export default function ClaimDetailPage() {
       let additionalDocumentCID = "";
 
       if (appealFile) {
+        const encryptedAppealEvidence = await encryptEvidenceFile(appealFile);
         const uploadResult = await uploadClaimDocument({
-          file: appealFile,
+          file: encryptedAppealEvidence.encryptedFile,
           documentType: "APPEAL_DOCUMENT",
           claimId: id,
+          encryption: {
+            enabled: true,
+            algorithm: encryptedAppealEvidence.algorithm,
+            originalMimeType: encryptedAppealEvidence.originalMimeType,
+          },
         });
 
         additionalDocumentHash = uploadResult.document?.sha256Hash || "";
         additionalDocumentCID = uploadResult.document?.ipfsCID || "";
+        storeEvidenceKey(additionalDocumentCID, encryptedAppealEvidence);
       }
 
       const contract = await getWalletContract();

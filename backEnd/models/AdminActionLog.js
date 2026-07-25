@@ -56,4 +56,12 @@ const adminActionLogSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+adminActionLogSchema.index(
+  { transactionHash: 1, action: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { transactionHash: { $gt: "" } },
+  }
+);
+
 module.exports = mongoose.model("AdminActionLog", adminActionLogSchema);

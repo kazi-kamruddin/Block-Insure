@@ -3,9 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import TransactionLink from "../components/TransactionLink";
 import {
+  abandonClaimSubmission,
   authorizeClaimSubmission,
   attachDocumentToClaim,
   getMyPolicies,
+  reconcileClaimSubmission,
+  recordClaimSubmissionTransaction,
   uploadClaimDocument,
 } from "../services/api";
 
@@ -22,6 +25,10 @@ import {
   toBytes32FromBackendSha256,
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
+import {
+  encryptEvidenceFile,
+  storeEvidenceKey,
+} from "../services/evidenceEncryption";
 import "../styles/pages/SubmitClaimPage.css";
 
 const VALID_MOCK_HOSPITAL_PRESETS = [
@@ -61,9 +68,6 @@ const VALID_MOCK_HOSPITAL_PRESETS = [
     claimAmount: "0.25",
   },
 ];
-
-const CLIENT_FILE_ENCRYPTION_ENABLED =
-  import.meta.env.VITE_ENABLE_CLIENT_FILE_ENCRYPTION === "true";
 
 function extractPolicies(data) {
   if (Array.isArray(data)) return data;
@@ -252,6 +256,9 @@ export default function SubmitClaimPage() {
     setPendingEvidenceLink(null);
     setEvidenceLinkError("");
 
+    let activeAttemptId = "";
+    let submittedTransactionHash = "";
+
     try {
       if (!isConnected) {
         await connectWallet();
@@ -311,10 +318,18 @@ export default function SubmitClaimPage() {
 
       const authorization = await authorizeClaimSubmission(policyId);
       const attemptId = authorization?.attemptId || authorization?.data?.attemptId || "";
+      activeAttemptId = attemptId;
+      const encryptedEvidence = await encryptEvidenceFile(file);
 
       const uploadResponse = await uploadClaimDocument({
-        file,
+        file: encryptedEvidence.encryptedFile,
         documentType: "HOSPITAL_BILL",
+        attemptId,
+        encryption: {
+          enabled: true,
+          algorithm: encryptedEvidence.algorithm,
+          originalMimeType: encryptedEvidence.originalMimeType,
+        },
       });
 
       const sha256Hash = getUploadedHash(uploadResponse);
@@ -328,16 +343,17 @@ export default function SubmitClaimPage() {
         );
       }
 
+      storeEvidenceKey(ipfsCID, encryptedEvidence);
+
       setUploadInfo({
         documentId,
         sha256Hash,
         ipfsCID,
         encryption: {
-          enabled: CLIENT_FILE_ENCRYPTION_ENABLED,
-          status: CLIENT_FILE_ENCRYPTION_ENABLED
-            ? "Scaffold enabled; current demo upload still preserves the original hash verification path."
-            : "Disabled; original file hash/CID flow preserved.",
-          keyStorage: "No decryption key is stored on-chain.",
+          enabled: true,
+          status: `${encryptedEvidence.algorithm}; encrypted before upload.`,
+          keyStorage:
+            "The decryption key is stored only in this browser. It is never sent to the backend, IPFS, or blockchain.",
         },
       });
 
@@ -358,6 +374,19 @@ export default function SubmitClaimPage() {
       );
 
       setTxHash(tx.hash);
+      submittedTransactionHash = tx.hash;
+      const pendingClaimKey = "block-insure:pending-claim-submissions";
+      const pendingClaims = JSON.parse(
+        localStorage.getItem(pendingClaimKey) || "[]"
+      );
+      localStorage.setItem(
+        pendingClaimKey,
+        JSON.stringify([
+          ...pendingClaims.filter((item) => item.attemptId !== attemptId),
+          { attemptId, transactionHash: tx.hash },
+        ])
+      );
+      await recordClaimSubmissionTransaction(attemptId, tx.hash);
 
       const receipt = await tx.wait();
       const claimId = await resolveSubmittedClaimId(contract, receipt, activeWallet);
@@ -373,9 +402,33 @@ export default function SubmitClaimPage() {
       setPendingEvidenceLink(evidenceLink);
       setSuccessMessage(`Claim #${claimId} submitted on-chain. Linking evidence metadata...`);
       await refetchPolicies();
-      await linkEvidenceToClaim(evidenceLink);
+      await reconcileClaimSubmission(attemptId);
+      localStorage.setItem(
+        pendingClaimKey,
+        JSON.stringify(
+          JSON.parse(localStorage.getItem(pendingClaimKey) || "[]").filter(
+            (item) => item.attemptId !== attemptId
+          )
+        )
+      );
+      setPendingEvidenceLink(null);
+      setSuccessMessage(
+        `Claim #${claimId} submitted and its encrypted evidence was reconciled successfully.`
+      );
     } catch (err) {
       console.error(err);
+
+      if (activeAttemptId && !submittedTransactionHash) {
+        try {
+          await abandonClaimSubmission(
+            activeAttemptId,
+            "Submission stopped before a blockchain transaction was sent"
+          );
+        } catch (cleanupError) {
+          console.error("Could not clean up unused evidence:", cleanupError);
+        }
+      }
+
       setError(parseTransactionError(err));
     } finally {
       setIsSubmitting(false);
@@ -550,12 +603,12 @@ export default function SubmitClaimPage() {
         <div className="card">
           <h3>Document Privacy</h3>
           <p>
-            Client-side encryption scaffold:{" "}
-            {CLIENT_FILE_ENCRYPTION_ENABLED ? "enabled" : "disabled"}
+            Client-side encryption: enabled
           </p>
           <p className="muted-text">
-            The current upload keeps the original SHA-256 verification path.
-            Encryption can be activated later without placing decryption keys on-chain.
+            Evidence is encrypted with AES-256-GCM before upload. Keep this
+            browser profile available because its local storage holds the
+            decryption key; the key is never written on-chain.
           </p>
         </div>
 

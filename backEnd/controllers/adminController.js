@@ -12,6 +12,26 @@ const { logAdminAction } = require("../services/adminActionLogService");
 const AdminActionLog = require("../models/AdminActionLog");
 const User = require("../models/User");
 
+const CONFIRMABLE_ADMIN_ACTIONS = {
+  REQUEST_ORACLE_VERIFICATION: {
+    event: "OracleRequested",
+    status: "ORACLE_PENDING",
+  },
+  SEND_CLAIM_TO_MANUAL_REVIEW: {
+    event: "ClaimSentToManualReview",
+    status: "MANUAL_REVIEW",
+  },
+  APPROVE_CLAIM: { event: "ClaimApproved", status: "APPROVED" },
+  REJECT_CLAIM: { event: "ClaimRejected", status: "REJECTED" },
+  SETTLE_CLAIM: { event: "ClaimSettled", status: "SETTLED" },
+  APPROVE_HIGH_VALUE_SETTLEMENT: {
+    event: "HighValueSettlementApproved",
+    status: "",
+  },
+  RESOLVE_ORACLE_TIMEOUT: { event: "OracleTimedOut", status: "ORACLE_FAILED" },
+  CLOSE_CLAIM: { event: "ClaimClosed", status: "CLOSED" },
+};
+
 /* ----------------------------- Status Map ------------------------------ */
 
 const CLAIM_STATUS = [
@@ -1176,6 +1196,143 @@ const sendClaimToManualReview = async (req, res, next) => {
   }
 };
 
+const confirmAdminClaimTransaction = async (req, res, next) => {
+  try {
+    const claimId = String(req.params.id || "").trim();
+    const action = String(req.body.action || "").trim().toUpperCase();
+    const transactionHash = String(req.body.transactionHash || "").trim();
+    const actionConfig = CONFIRMABLE_ADMIN_ACTIONS[action];
+
+    if (!claimId || !/^\d+$/.test(claimId)) {
+      throw createError("A valid claim id is required", 400);
+    }
+
+    if (!actionConfig) {
+      throw createError("Unsupported admin claim action", 400);
+    }
+
+    if (!/^0x[a-f\d]{64}$/i.test(transactionHash)) {
+      throw createError("A valid transactionHash is required", 400);
+    }
+
+    const previousConfirmation = await AdminActionLog.findOne({
+      action,
+      transactionHash,
+    }).lean();
+
+    if (previousConfirmation) {
+      const contract = getReadOnlyContract();
+      const claim = await contract.getClaim(claimId);
+
+      return res.status(200).json({
+        success: true,
+        idempotent: true,
+        message: "Admin transaction was already confirmed",
+        transactionHash,
+        claim: formatClaim(claim),
+      });
+    }
+
+    const contract = getReadOnlyContract();
+    const [receipt, transaction] = await Promise.all([
+      contract.runner.getTransactionReceipt(transactionHash),
+      contract.runner.getTransaction(transactionHash),
+    ]);
+
+    if (!receipt || !transaction) {
+      return res.status(202).json({
+        success: false,
+        pending: true,
+        message: "Admin transaction is still pending",
+      });
+    }
+
+    if (Number(receipt.status) !== 1) {
+      throw createError("Admin transaction reverted", 409);
+    }
+
+    if (
+      transaction.to?.toLowerCase() !== String(contract.target).toLowerCase()
+    ) {
+      throw createError("Transaction does not target InsuranceManager", 409);
+    }
+
+    if (
+      transaction.from.toLowerCase() !== req.user.walletAddress.toLowerCase()
+    ) {
+      throw createError(
+        "Transaction signer does not match the authenticated admin wallet",
+        403
+      );
+    }
+
+    let confirmedEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+        const eventClaimId = parsedLog?.args?.claimId?.toString();
+
+        if (
+          parsedLog?.name === actionConfig.event &&
+          eventClaimId === claimId
+        ) {
+          confirmedEvent = {
+            name: parsedLog.name,
+            claimId: eventClaimId,
+          };
+          break;
+        }
+      } catch {
+        // Ignore unrelated logs.
+      }
+    }
+
+    if (!confirmedEvent) {
+      throw createError(
+        `Transaction does not contain ${actionConfig.event} for claim #${claimId}`,
+        409
+      );
+    }
+
+    const claim = await contract.getClaim(claimId);
+
+    if (actionConfig.status) {
+      await notifyClaimStatusChange({
+        claim,
+        status: actionConfig.status,
+        transactionHash,
+        source: `wallet-admin-${action.toLowerCase()}`,
+        message: `Claim #${claimId} was updated by admin ${req.user.walletAddress}.`,
+      });
+    }
+
+    await logAdminAction({
+      req,
+      action,
+      targetType: "CLAIM",
+      targetId: claimId,
+      tx: { hash: transactionHash },
+      receipt,
+      metadata: {
+        confirmedEvent,
+        onChainActor: transaction.from,
+        executionMode: "ADMIN_BROWSER_WALLET",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Admin wallet transaction confirmed and audited",
+      transactionHash,
+      onChainActor: transaction.from,
+      claim: formatClaim(claim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllPolicyPackages,
   createPolicyPackage,
@@ -1195,5 +1352,6 @@ module.exports = {
   settleClaim,
   approveHighValueSettlement,
   closeClaim,
+  confirmAdminClaimTransaction,
   sendClaimToManualReview,
 };

@@ -175,6 +175,9 @@ async function main() {
 
     const claimOfficerWalletAddress =
       process.env.CLAIM_OFFICER_WALLET_ADDRESS || adminWallet.address;
+    const secondAdminWalletAddress = process.env.SECOND_ADMIN_WALLET_ADDRESS
+      ? ethers.getAddress(process.env.SECOND_ADMIN_WALLET_ADDRESS)
+      : "";
 
     const contract = new ethers.Contract(
       contractAddress,
@@ -199,6 +202,10 @@ async function main() {
       console.log(`  Auditor ${index + 1}: ${address}`);
     });
     console.log("Claim officer wallet:", claimOfficerWalletAddress);
+    console.log(
+      "Second admin wallet:",
+      secondAdminWalletAddress || "not configured (high-value settlement needs one)"
+    );
     console.log("");
 
     const adminRole = await contract.ADMIN_ROLE();
@@ -225,6 +232,16 @@ async function main() {
 
     console.log("Admin wallet has ADMIN_ROLE. Good.");
     console.log("");
+
+    if (secondAdminWalletAddress) {
+      await grantRoleIfMissing(
+        contract,
+        "ADMIN_ROLE",
+        adminRole,
+        secondAdminWalletAddress,
+        nonceState
+      );
+    }
 
     await grantRoleIfMissing(
       contract,
@@ -273,6 +290,9 @@ async function main() {
       await mongoose.connect(process.env.MONGODB_URI);
 
       await syncMongoRole(adminWallet.address, "ADMIN");
+      if (secondAdminWalletAddress) {
+        await syncMongoRole(secondAdminWalletAddress, "ADMIN");
+      }
       await syncMongoRole(claimOfficerWalletAddress, "ADMIN");
       await syncMongoRole(oracleWallet.address, "ORACLE");
 

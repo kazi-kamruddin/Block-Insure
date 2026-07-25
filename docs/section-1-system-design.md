@@ -6,6 +6,9 @@
 - Anyone can persist expiry enforcement by calling `deactivateExpiredPolicy` after a policy end date.
 - `maxClaimsPerPolicy` and `claimCountPerPolicy` enforce a configurable submission cap for every policy.
 - On-chain settlement emits `ReserveLowWarning` when the remaining contract balance is below `reserveWarningThresholdWei`. The backend listens for this event and creates an admin notification.
+- Approved payouts are accumulated in `totalReservedLiabilityWei`. `withdrawExcess` cannot reduce the balance below that amount, and settlement parameters cannot change while an approved liability is active.
+- High-value approval records its approving admin address. The contract requires a different on-chain admin address to execute the settlement.
+- Claim decisions, appeal decisions, and settlement actions are signed by the connected admin browser wallet. The backend verifies the receipt and signer before creating its idempotent audit record.
 - The unused record-only settlement path was removed. Settlements are now consistently represented as on-chain payouts.
 - `EMERGENCY_ROLE` can pause the contract without receiving full admin authority. While paused, policy purchases, claim submissions, oracle result confirmations, and settlements are blocked. Only an admin can unpause the contract.
 
@@ -17,6 +20,6 @@ The current monolithic `InsuranceManager` contract still exceeds the EIP-170 dep
 
 ## Production Limitation: Admin-Key Custody
 
-The prototype backend signs privileged transactions with a single `ADMIN_PRIVATE_KEY` loaded from environment configuration. This is a deliberate prototype limitation and a production single point of failure: compromise or loss of that key could expose every admin-authorized operation.
+The prototype backend still uses an `ADMIN_PRIVATE_KEY` for configuration, registry, and voting-reputation operations. Claim and settlement decisions have moved to the authenticated admin browser wallet, but the remaining backend-held signer is still a production custody limitation.
 
 A production deployment must replace the backend-held key with stronger custody. Suitable mitigations include a hardware wallet such as Ledger for individual signing, or preferably a Gnosis Safe-style 2-of-3 multisignature wallet so no single keyholder can execute privileged transactions alone. Operational controls should also include key rotation, signer separation, transaction monitoring, and an emergency-response procedure.

@@ -14,11 +14,41 @@ settlement.
 
 ## Local Services
 
-Start each service in its own terminal:
+### Clean local simulation
+
+Use this workflow for a fresh simulation. It deliberately removes only
+Block-Insure runtime data from the configured MongoDB database, deploys a new
+local contract, creates **one** `Health Basic` package, funds the configured
+local role accounts, and assigns the configured Admin, Auditor, and Oracle
+roles. It also funds a 1 ETH local settlement reserve. It creates **no
+policies, claims, appeals, evidence, oracle logs, or
+synthetic user activity**. It does rebuild the synthetic healthcare registry
+baseline and commits its Merkle root on the fresh local chain, so newly created
+claims can be verified by the oracle from the first run.
+
+Start a fresh Hardhat chain in the first terminal:
+
+```powershell
+npm --prefix contracts run node
+```
+
+Once it reports that it is listening on port 8545, run this once from the
+repository root in a second terminal:
+
+```powershell
+npm run setup:local
+```
+
+The command finishes with a clean-start verification. It must report one
+package and zero purchased policies/claims before you start the application.
+The deploy step also synchronizes the new contract address into the backend,
+frontend, and both oracle environment files.
+
+Then start each service in its own terminal:
 
 ```powershell
 cd contracts
-npx hardhat node
+npm run node
 ```
 
 ```powershell
@@ -37,6 +67,32 @@ npm run dev
 # In another terminal:
 npm run dev:oracle2
 ```
+
+Open separate browser profiles (or separate browsers) and connect MetaMask to
+the local Hardhat network (`http://127.0.0.1:8545`, chain ID `31337`). Import
+the accounts corresponding to the configured `ADMIN_PRIVATE_KEY` and
+`AUDITOR_WALLET_ADDRESS` values for the Admin and Auditor profiles. Use any
+other funded Hardhat account for the policyholder profile; its first login is
+created as a normal `USER`. Do not run `demo:populate` or
+`loadtest:claims` when you want an empty simulation.
+
+Admin claim decisions are signed by the connected Admin browser wallet. The
+backend verifies the confirmed transaction and records the same initiating
+wallet in its audit log. Configure `SECOND_ADMIN_WALLET_ADDRESS` before
+`setup:local` when you want to demonstrate a high-value settlement: one admin
+must approve it and a different on-chain admin must execute the settlement.
+
+Claim and appeal evidence is encrypted in the browser with AES-256-GCM before
+upload. Pinata, MongoDB, and the blockchain receive only encrypted bytes and
+their hash/CID. The decryption key stays in that browser profile's local
+storage, so preserve the policyholder profile if you want to use the
+**Download decrypted** control later. Clearing browser storage deliberately
+destroys that local key.
+
+The detailed synthetic hospital verification endpoint is not public. Oracle
+workers authenticate with `ORACLE_API_KEY`, and the response exposed to oracle
+logs contains a limited record commitment instead of patient and diagnosis
+fields.
 
 ## Verification
 
@@ -76,6 +132,9 @@ npm run loadtest:claims
 npm run analyze:auditors
 npm run charts:generate
 ```
+
+These commands intentionally generate synthetic data and/or test claims. They
+are separate from the clean local simulation workflow above.
 
 The admin **Thesis Results** dashboard reads generated artifacts from
 `backEnd/evaluation-results`.

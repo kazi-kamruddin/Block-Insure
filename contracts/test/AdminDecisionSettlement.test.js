@@ -4,16 +4,19 @@ const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 
 describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function () {
   async function deployFixture() {
-    const [admin, claimOfficer, oracle, user, attacker] = await ethers.getSigners();
+    const [admin, claimOfficer, oracle, user, attacker, secondAdmin] =
+      await ethers.getSigners();
 
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
     const insuranceManager = await InsuranceManager.deploy();
 
     const CLAIM_OFFICER_ROLE = await insuranceManager.CLAIM_OFFICER_ROLE();
     const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
+    const ADMIN_ROLE = await insuranceManager.ADMIN_ROLE();
 
     await insuranceManager.grantProjectRole(CLAIM_OFFICER_ROLE, claimOfficer.address);
     await insuranceManager.grantProjectRole(ORACLE_ROLE, oracle.address);
+    await insuranceManager.grantProjectRole(ADMIN_ROLE, secondAdmin.address);
     await insuranceManager.updateQuorumThreshold(1);
 
     const PREMIUM = ethers.parseEther("0.01");
@@ -40,6 +43,7 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
       oracle,
       user,
       attacker,
+      secondAdmin,
       PREMIUM,
       COVERAGE,
       CLAIM_AMOUNT,
@@ -384,7 +388,9 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
         anyValue
       );
 
-    await expect(() => insuranceManager.settleClaim(claimId))
+    await expect(insuranceManager.settleClaim(claimId)).to.be.reverted;
+
+    await expect(() => insuranceManager.connect(fixture.secondAdmin).settleClaim(claimId))
       .to.changeEtherBalances(
         [insuranceManager, user],
         [-expectedSettlement.insurerPays, expectedSettlement.insurerPays]
@@ -541,5 +547,19 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     const balanceAfter = await ethers.provider.getBalance(contractAddress);
 
     expect(balanceAfter).to.equal(balanceBefore - withdrawAmount);
+  });
+
+  it("Cannot withdraw funds reserved for an approved claim", async function () {
+    const fixture = await deployFixture();
+    const { insuranceManager, CLAIM_AMOUNT } = fixture;
+    const claimId = await createOracleVerifiedClaim(fixture);
+
+    await insuranceManager.approveClaim(claimId);
+    await insuranceManager.fundContract({ value: CLAIM_AMOUNT });
+
+    const reserved = await insuranceManager.approvedClaimLiabilityWei(claimId);
+
+    expect(await insuranceManager.totalReservedLiabilityWei()).to.equal(reserved);
+    await expect(insuranceManager.withdrawExcess(CLAIM_AMOUNT)).to.be.reverted;
   });
 });
