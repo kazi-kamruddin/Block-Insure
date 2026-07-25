@@ -15,7 +15,6 @@ const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
 const VotingFinalization = require("../models/VotingFinalization");
 const {
-  buildOracle2Records,
   buildSyntheticRecords,
 } = require("./seedMockData");
 
@@ -62,9 +61,7 @@ async function main() {
     await MockHospitalRecord.deleteMany({});
     await MockHospitalRecordOracle2.deleteMany({});
     await MockHospitalRecord.insertMany(registryRecords);
-    await MockHospitalRecordOracle2.insertMany(
-      buildOracle2Records(registryRecords)
-    );
+    await MockHospitalRecordOracle2.insertMany(registryRecords);
 
     console.log(`Rebuilt ${registryRecords.length} synthetic healthcare registry records for both oracle snapshots.`);
     console.log("MongoDB runtime data is clean. No policies, claims, appeals, or user activity are created by this script.");

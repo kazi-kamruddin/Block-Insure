@@ -9,6 +9,8 @@ const { buildReserveIntelligence } = require("../services/settlementIntelligence
 const {
   getActiveRoleMembers,
   getPolicyPackageIds,
+  paginate,
+  parsePagination,
 } = require("../services/contractQueryService");
 const { exportMerkleRoot } = require("../services/merkleRegistryService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
@@ -176,7 +178,11 @@ const getConfiguredRoleWallets = () => {
 const getAllPolicyPackages = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
-    const packageIds = await getPolicyPackageIds(contract);
+    const allPackageIds = await getPolicyPackageIds(contract);
+    const { items: packageIds, pagination } = paginate(
+      allPackageIds,
+      parsePagination(req.query)
+    );
 
     const packages = await Promise.all(
       packageIds.map(async (packageId) => {
@@ -188,6 +194,7 @@ const getAllPolicyPackages = async (req, res, next) => {
     res.status(200).json({
       success: true,
       count: packages.length,
+      pagination,
       packages,
     });
   } catch (error) {
@@ -643,19 +650,25 @@ const getAdminClaims = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
 
-    const nextClaimId = await contract.claimCounter();
-    const totalCreatedClaims = Number(nextClaimId) - 1;
-
-    const claims = [];
-
-    for (let claimId = 1; claimId <= totalCreatedClaims; claimId += 1) {
-      const claim = await contract.getClaim(claimId);
-      claims.push(formatClaim(claim));
-    }
+    const nextClaimId = Number(await contract.claimCounter());
+    const allClaimIds = Array.from(
+      { length: Math.max(nextClaimId - 1, 0) },
+      (_, index) => BigInt(index + 1)
+    );
+    const { items: claimIds, pagination } = paginate(
+      allClaimIds,
+      parsePagination(req.query)
+    );
+    const claims = await Promise.all(
+      claimIds.map(async (claimId) =>
+        formatClaim(await contract.getClaim(claimId))
+      )
+    );
 
     res.status(200).json({
       success: true,
       count: claims.length,
+      pagination,
       claims,
     });
   } catch (error) {

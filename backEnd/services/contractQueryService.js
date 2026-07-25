@@ -1,4 +1,66 @@
 const normalizeAddress = (address) => String(address || "").toLowerCase();
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
+const EVENT_BLOCK_CHUNK_SIZE = 2000;
+
+const parsePagination = (query = {}) => {
+  const requestedPage = Number.parseInt(query.page, 10);
+  const requestedLimit = Number.parseInt(query.limit, 10);
+  const page =
+    Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const limit =
+    Number.isInteger(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, MAX_PAGE_SIZE)
+      : DEFAULT_PAGE_SIZE;
+
+  return { page, limit };
+};
+
+const paginate = (items, { page, limit }) => {
+  const total = items.length;
+  const totalPages = Math.max(Math.ceil(total / limit), 1);
+  const offset = (page - 1) * limit;
+
+  return {
+    items: items.slice(offset, offset + limit),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    },
+  };
+};
+
+const queryEventsInChunks = async (
+  contract,
+  filter,
+  fromBlock = Number(process.env.CONTRACT_DEPLOYMENT_BLOCK || 0),
+  toBlock
+) => {
+  const provider = contract.runner?.provider;
+  const latestBlock =
+    toBlock === undefined ? await provider.getBlockNumber() : Number(toBlock);
+  const events = [];
+
+  for (
+    let chunkStart = Math.max(Number(fromBlock), 0);
+    chunkStart <= latestBlock;
+    chunkStart += EVENT_BLOCK_CHUNK_SIZE
+  ) {
+    const chunkEnd = Math.min(
+      chunkStart + EVENT_BLOCK_CHUNK_SIZE - 1,
+      latestBlock
+    );
+    events.push(
+      ...(await contract.queryFilter(filter, chunkStart, chunkEnd))
+    );
+  }
+
+  return events;
+};
 
 const getCreatedIds = async (contract, counterName) => {
   const nextId = Number(await contract[counterName]());
@@ -24,33 +86,26 @@ const getActivePolicyPackageIds = async (contract) => {
 };
 
 const getPolicyIdsByWallet = async (contract, walletAddress) => {
-  const targetWallet = normalizeAddress(walletAddress);
-  const policyIds = await getPolicyIds(contract);
-  const policies = await Promise.all(
-    policyIds.map((policyId) => contract.getPolicy(policyId))
+  const events = await queryEventsInChunks(
+    contract,
+    contract.filters.PolicyPurchased(null, null, walletAddress)
   );
-
-  return policyIds.filter(
-    (_, index) =>
-      normalizeAddress(policies[index].holderWallet) === targetWallet
-  );
+  return events.map((event) => event.args.policyId);
 };
 
 const getClaimIdsByWallet = async (contract, walletAddress) => {
-  const targetWallet = normalizeAddress(walletAddress);
-  const claimIds = await getClaimIds(contract);
-  const claims = await Promise.all(
-    claimIds.map((claimId) => contract.getClaim(claimId))
+  const events = await queryEventsInChunks(
+    contract,
+    contract.filters.ClaimSubmitted(null, null, walletAddress)
   );
-
-  return claimIds.filter(
-    (_, index) =>
-      normalizeAddress(claims[index].claimantWallet) === targetWallet
-  );
+  return events.map((event) => event.args.claimId);
 };
 
 const getActiveRoleMembers = async (contract, role) => {
-  const grants = await contract.queryFilter(contract.filters.RoleGranted(role));
+  const grants = await queryEventsInChunks(
+    contract,
+    contract.filters.RoleGranted(role)
+  );
   const candidates = [
     ...new Set(grants.map((event) => normalizeAddress(event.args.account))),
   ];
@@ -69,4 +124,7 @@ module.exports = {
   getPolicyIds,
   getPolicyIdsByWallet,
   getPolicyPackageIds,
+  paginate,
+  parsePagination,
+  queryEventsInChunks,
 };

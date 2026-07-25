@@ -26,6 +26,13 @@ synthetic user activity**. It does rebuild the synthetic healthcare registry
 baseline and commits its Merkle root on the fresh local chain, so newly created
 claims can be verified by the oracle from the first run.
 
+The clean role baseline is exactly one Admin, one Auditor, and two Oracle
+wallets. Auditor reputation is not seeded; it remains uninitialized until the
+Auditor casts a real vote. The two oracle workers use separate registry
+collections, but clean setup gives both the same committed baseline so valid
+claims can reach quorum. Research scripts may deliberately introduce divergent
+data, but the clean workflow never does.
+
 Start a fresh Hardhat chain in the first terminal:
 
 ```powershell
@@ -78,9 +85,9 @@ created as a normal `USER`. Do not run `demo:populate` or
 
 Admin claim decisions are signed by the connected Admin browser wallet. The
 backend verifies the confirmed transaction and records the same initiating
-wallet in its audit log. Configure `SECOND_ADMIN_WALLET_ADDRESS` before
-`setup:local` when you want to demonstrate a high-value settlement: one admin
-must approve it and a different on-chain admin must execute the settlement.
+wallet in its audit log. High-value settlements retain a separate explicit
+approval step, but the single configured Admin can approve and execute them in
+the local thesis workflow.
 
 Claim and appeal evidence is encrypted in the browser with AES-256-GCM before
 upload. Pinata, MongoDB, and the blockchain receive only encrypted bytes and
@@ -95,6 +102,14 @@ logs contains a limited record commitment instead of patient and diagnosis
 fields.
 
 ## Verification
+
+Run the complete repository verification from the project root:
+
+```powershell
+npm run verify:all
+```
+
+Or run individual checks:
 
 ```powershell
 cd contracts

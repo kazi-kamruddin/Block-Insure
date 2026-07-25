@@ -12,8 +12,6 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
   dns.setServers(["8.8.8.8", "1.1.1.1"]);
 }
 
-const DEFAULT_AUDITOR_REPUTATIONS = [72, 91, 48, 83, 64];
-
 function requireEnv(name) {
   const value = process.env[name];
 
@@ -22,78 +20,6 @@ function requireEnv(name) {
   }
 
   return value;
-}
-
-function readAddressList(...keys) {
-  const addresses = [];
-
-  keys.forEach((key) => {
-    const value = process.env[key];
-
-    if (!value) {
-      return;
-    }
-
-    value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-      .forEach((entry) => addresses.push(entry));
-  });
-
-  const normalizedAddresses = [];
-  const seen = new Set();
-
-  addresses.forEach((address) => {
-    const normalizedAddress = ethers.getAddress(address);
-    const key = normalizedAddress.toLowerCase();
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      normalizedAddresses.push(normalizedAddress);
-    }
-  });
-
-  return normalizedAddresses;
-}
-
-function readAuditorAddresses() {
-  const auditorAddresses = readAddressList(
-    "AUDITOR_WALLET_ADDRESS",
-    "AUDITOR_2_WALLET_ADDRESS",
-    "AUDITOR_3_WALLET_ADDRESS",
-    "AUDITOR_4_WALLET_ADDRESS",
-    "AUDITOR_5_WALLET_ADDRESS",
-    "AUDITOR_WALLET_ADDRESSES"
-  );
-
-  if (auditorAddresses.length === 0) {
-    throw new Error(
-      "At least one auditor wallet address is required. Set AUDITOR_WALLET_ADDRESS or AUDITOR_WALLET_ADDRESSES."
-    );
-  }
-
-  return auditorAddresses;
-}
-
-function getAuditorReputation(address, index) {
-  const explicitScore =
-    process.env[`AUDITOR_${index + 1}_REPUTATION`] ||
-    (index === 0 ? process.env.AUDITOR_REPUTATION : "");
-
-  if (explicitScore !== undefined && explicitScore !== null && explicitScore !== "") {
-    const score = Number(explicitScore);
-
-    if (!Number.isInteger(score) || score < 0 || score > 100) {
-      throw new Error(
-        `Invalid reputation score for ${address}. Use an integer from 0 to 100.`
-      );
-    }
-
-    return score;
-  }
-
-  return DEFAULT_AUDITOR_REPUTATIONS[index] ?? 50;
 }
 
 async function grantRoleIfMissing(contract, roleName, roleHash, walletAddress, nonceState) {
@@ -122,23 +48,6 @@ async function grantRoleIfMissing(contract, roleName, roleHash, walletAddress, n
   console.log(`${roleName} granted successfully`);
 }
 
-async function updateAuditorReputation(contract, walletAddress, score, nonceState) {
-  console.log(`Setting auditor reputation ${score}/100 for: ${walletAddress}`);
-
-  const tx = await contract.updateAuditorReputation(walletAddress, score, {
-    nonce: nonceState.current,
-  });
-
-  console.log(`Auditor reputation transaction sent: ${tx.hash}`);
-  console.log(`Auditor reputation nonce used: ${nonceState.current}`);
-
-  nonceState.current += 1;
-
-  await tx.wait();
-
-  console.log("Auditor reputation updated successfully");
-}
-
 async function syncMongoRole(walletAddress, role) {
   if (!process.env.MONGODB_URI) {
     console.log(`Mongo role sync skipped for ${walletAddress}: MONGODB_URI missing`);
@@ -164,7 +73,9 @@ async function main() {
     const contractAddress = requireEnv("VITE_CONTRACT_ADDRESS");
     const adminPrivateKey = requireEnv("ADMIN_PRIVATE_KEY");
     const oraclePrivateKey = requireEnv("ORACLE_PRIVATE_KEY");
-    const auditorWalletAddresses = readAuditorAddresses();
+    const auditorWalletAddress = ethers.getAddress(
+      requireEnv("AUDITOR_WALLET_ADDRESS")
+    );
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const adminWallet = new ethers.Wallet(adminPrivateKey, provider);
@@ -175,10 +86,6 @@ async function main() {
 
     const claimOfficerWalletAddress =
       process.env.CLAIM_OFFICER_WALLET_ADDRESS || adminWallet.address;
-    const secondAdminWalletAddress = process.env.SECOND_ADMIN_WALLET_ADDRESS
-      ? ethers.getAddress(process.env.SECOND_ADMIN_WALLET_ADDRESS)
-      : "";
-
     const contract = new ethers.Contract(
       contractAddress,
       InsuranceManagerArtifact.abi,
@@ -197,15 +104,8 @@ async function main() {
       "Second oracle wallet:",
       secondOracleWallet ? secondOracleWallet.address : "not configured"
     );
-    console.log("Auditor wallets:");
-    auditorWalletAddresses.forEach((address, index) => {
-      console.log(`  Auditor ${index + 1}: ${address}`);
-    });
+    console.log("Auditor wallet:", auditorWalletAddress);
     console.log("Claim officer wallet:", claimOfficerWalletAddress);
-    console.log(
-      "Second admin wallet:",
-      secondAdminWalletAddress || "not configured (high-value settlement needs one)"
-    );
     console.log("");
 
     const adminRole = await contract.ADMIN_ROLE();
@@ -233,16 +133,6 @@ async function main() {
     console.log("Admin wallet has ADMIN_ROLE. Good.");
     console.log("");
 
-    if (secondAdminWalletAddress) {
-      await grantRoleIfMissing(
-        contract,
-        "ADMIN_ROLE",
-        adminRole,
-        secondAdminWalletAddress,
-        nonceState
-      );
-    }
-
     await grantRoleIfMissing(
       contract,
       "CLAIM_OFFICER_ROLE",
@@ -269,30 +159,18 @@ async function main() {
       );
     }
 
-    for (const [index, auditorWalletAddress] of auditorWalletAddresses.entries()) {
-      await grantRoleIfMissing(
-        contract,
-        "AUDITOR_ROLE",
-        auditorRole,
-        auditorWalletAddress,
-        nonceState
-      );
-
-      await updateAuditorReputation(
-        contract,
-        auditorWalletAddress,
-        getAuditorReputation(auditorWalletAddress, index),
-        nonceState
-      );
-    }
+    await grantRoleIfMissing(
+      contract,
+      "AUDITOR_ROLE",
+      auditorRole,
+      auditorWalletAddress,
+      nonceState
+    );
 
     if (process.env.MONGODB_URI) {
       await mongoose.connect(process.env.MONGODB_URI);
 
       await syncMongoRole(adminWallet.address, "ADMIN");
-      if (secondAdminWalletAddress) {
-        await syncMongoRole(secondAdminWalletAddress, "ADMIN");
-      }
       await syncMongoRole(claimOfficerWalletAddress, "ADMIN");
       await syncMongoRole(oracleWallet.address, "ORACLE");
 
@@ -300,9 +178,7 @@ async function main() {
         await syncMongoRole(secondOracleWallet.address, "ORACLE");
       }
 
-      for (const auditorWalletAddress of auditorWalletAddresses) {
-        await syncMongoRole(auditorWalletAddress, "AUDITOR");
-      }
+      await syncMongoRole(auditorWalletAddress, "AUDITOR");
 
       await mongoose.connection.close();
     } else {

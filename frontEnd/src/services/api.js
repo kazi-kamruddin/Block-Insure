@@ -61,8 +61,8 @@ export async function getCurrentUser() {
   return response.data;
 }
 
-export async function getPolicyPackages() {
-  const response = await api.get("/api/policy-packages");
+export async function getPolicyPackages(params = {}) {
+  const response = await api.get("/api/policy-packages", { params });
   return response.data;
 }
 
@@ -84,8 +84,8 @@ export async function logoutSession() {
   return response.data;
 }
 
-export async function getAdminPolicyPackages() {
-  const response = await api.get("/api/admin/policy-packages");
+export async function getAdminPolicyPackages(params = {}) {
+  const response = await api.get("/api/admin/policy-packages", { params });
   return response.data;
 }
 
@@ -108,8 +108,8 @@ export async function reactivatePolicyPackage(packageId) {
   return response.data;
 }
 
-export async function getMyPolicies() {
-  const response = await api.get("/api/policies/my");
+export async function getMyPolicies(params = {}) {
+  const response = await api.get("/api/policies/my", { params });
   return response.data;
 }
 
@@ -151,13 +151,13 @@ export async function uploadClaimDocument({
   return response.data;
 }
 
-export async function getMyClaims() {
-  const response = await api.get("/api/claims/my");
+export async function getMyClaims(params = {}) {
+  const response = await api.get("/api/claims/my", { params });
   return response.data;
 }
 
-export async function getAllReadableClaims() {
-  const response = await api.get("/api/claims/all");
+export async function getAllReadableClaims(params = {}) {
+  const response = await api.get("/api/claims/all", { params });
   return response.data;
 }
 
@@ -304,8 +304,8 @@ export async function finalizeClaimVoting(claimId) {
   return response.data;
 }
 
-export async function getAdminClaims() {
-  const response = await api.get("/api/admin/claims");
+export async function getAdminClaims(params = {}) {
+  const response = await api.get("/api/admin/claims", { params });
   return response.data;
 }
 

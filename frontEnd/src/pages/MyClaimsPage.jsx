@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import IpfsLink from "../components/IpfsLink";
+import PaginationControls from "../components/PaginationControls";
 import { getMyClaims } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import { getClaimStatusName } from "../utils/claimStatus";
@@ -17,6 +19,7 @@ function extractClaims(data) {
 
 export default function MyClaimsPage() {
   const { isConnected, walletAddress } = useWallet();
+  const [page, setPage] = useState(1);
 
   const {
     data,
@@ -25,8 +28,8 @@ export default function MyClaimsPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["myClaims", walletAddress],
-    queryFn: getMyClaims,
+    queryKey: ["myClaims", walletAddress, page],
+    queryFn: () => getMyClaims({ page }),
     enabled: isConnected,
   });
 
@@ -89,6 +92,10 @@ export default function MyClaimsPage() {
           </div>
         ))}
       </div>
+      <PaginationControls
+        pagination={data?.pagination}
+        onPageChange={setPage}
+      />
     </section>
   );
 }

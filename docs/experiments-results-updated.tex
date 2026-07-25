@@ -217,24 +217,23 @@ remaining testing gap than the overall passing-test count.
 \hline
 \textbf{Measurement} & \textbf{Bytes} \\
 \hline
-Creation bytecode & 30,576 \\
+Creation bytecode & 24,888 \\
 \hline
-Deployed runtime bytecode & 30,028 \\
+Deployed runtime bytecode & 24,340 \\
 \hline
 EIP-170 deployed-bytecode limit & 24,576 \\
 \hline
-Amount above limit & 5,452 \\
+Remaining margin below limit & 236 \\
 \hline
-Percentage above limit & 22.18\% \\
+Percentage below limit & 0.96\% \\
 \hline
 \end{tabular}
 \end{table}
 
-The contract cannot be deployed unchanged to an EIP-170-enforcing public EVM
-network. The local Hardhat configuration succeeds because
-\texttt{allowUnlimitedContractSize} is enabled. This is a significant
-engineering limitation: a production version must split responsibilities into
-smaller governed modules or libraries.
+The optimized contract is deployable on an EIP-170-enforcing EVM network.
+Hardhat's unlimited-size bypass is disabled, and a regression test enforces the
+24,576-byte boundary. The small remaining margin means future additions must
+replace existing code or use governed modules rather than growing the monolith.
 
 \section{Gas-Efficiency Study}
 \label{sec:gas_results}
@@ -673,8 +672,8 @@ nonce failures identified & Exploratory local evidence \\
 \hline
 Validate auditor reputation & Analysis tooling implemented & Pending data \\
 \hline
-Support public-network deployment & Runtime bytecode exceeds EIP-170 by 22.18\%
-& Not achieved; modularization required \\
+Support public-network deployment & Runtime bytecode is 236 bytes below EIP-170
+& Achieved for Cancun-compatible EVM networks \\
 \hline
 \end{tabular}
 }
@@ -686,8 +685,8 @@ The evaluation demonstrates that Block-Insure implements and tests a substantial
 claim-processing lifecycle, produces compact and highly gas-efficient registry
 commitments, and separates deliberately designed synthetic fraud scenarios. It
 also exposes important limitations that improve the credibility of the result:
-branch coverage remains lower than other coverage measures, the contract
-exceeds EIP-170, fraud metrics are based on a small deterministic dataset,
+branch coverage remains lower than other coverage measures, contract-size
+headroom remains narrow, fraud metrics are based on a small deterministic dataset,
 high-concurrency results are affected by local nonce handling, and the auditor
 study has no data. The defensible conclusion is that Block-Insure is a working
 and reproducible research prototype with clearly identified paths toward

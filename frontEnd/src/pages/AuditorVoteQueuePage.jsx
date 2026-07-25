@@ -35,7 +35,7 @@ async function getActiveWalletAddress(fallbackWallet) {
 
 async function loadVoteQueue(fallbackWallet) {
   const activeWalletAddress = await getActiveWalletAddress(fallbackWallet);
-  const claimsData = await getAllReadableClaims();
+  const claimsData = await getAllReadableClaims({ limit: 100 });
   const claims = extractClaims(claimsData).filter((claim) =>
     VOTE_OPEN_STATUSES.has(getClaimStatusName(claim))
   );

@@ -388,9 +388,7 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
         anyValue
       );
 
-    await expect(insuranceManager.settleClaim(claimId)).to.be.reverted;
-
-    await expect(() => insuranceManager.connect(fixture.secondAdmin).settleClaim(claimId))
+    await expect(() => insuranceManager.settleClaim(claimId))
       .to.changeEtherBalances(
         [insuranceManager, user],
         [-expectedSettlement.insurerPays, expectedSettlement.insurerPays]

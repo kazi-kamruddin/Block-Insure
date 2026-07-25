@@ -8,7 +8,11 @@ const {
 } = require("../services/evidenceChainService");
 const { unpinFromPinata } = require("../services/ipfsService");
 const { notifyAdmins } = require("../services/notificationService");
-const { getClaimIdsByWallet } = require("../services/contractQueryService");
+const {
+  getClaimIdsByWallet,
+  paginate,
+  parsePagination,
+} = require("../services/contractQueryService");
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -102,9 +106,13 @@ const getMyClaims = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
 
-    const claimIds = await getClaimIdsByWallet(
+    const allClaimIds = await getClaimIdsByWallet(
       contract,
       req.user.walletAddress
+    );
+    const { items: claimIds, pagination } = paginate(
+      allClaimIds,
+      parsePagination(req.query)
     );
 
     const claims = await Promise.all(
@@ -117,6 +125,7 @@ const getMyClaims = async (req, res, next) => {
     res.status(200).json({
       success: true,
       count: claims.length,
+      pagination,
       claims,
     });
   } catch (error) {
@@ -134,18 +143,25 @@ const getReadableClaims = async (req, res, next) => {
     }
 
     const contract = getReadOnlyContract();
-    const nextClaimId = await contract.claimCounter();
-    const totalCreatedClaims = Number(nextClaimId) - 1;
-    const claims = [];
-
-    for (let claimId = 1; claimId <= totalCreatedClaims; claimId += 1) {
-      const claim = await contract.getClaim(claimId);
-      claims.push(formatClaim(claim));
-    }
+    const nextClaimId = Number(await contract.claimCounter());
+    const allClaimIds = Array.from(
+      { length: Math.max(nextClaimId - 1, 0) },
+      (_, index) => BigInt(index + 1)
+    );
+    const { items: claimIds, pagination } = paginate(
+      allClaimIds,
+      parsePagination(req.query)
+    );
+    const claims = await Promise.all(
+      claimIds.map(async (claimId) =>
+        formatClaim(await contract.getClaim(claimId))
+      )
+    );
 
     res.status(200).json({
       success: true,
       count: claims.length,
+      pagination,
       claims,
     });
   } catch (error) {

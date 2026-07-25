@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { getMyPolicies } from "../services/api";
+import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
 import { useWallet } from "../context/useWallet";
 import {
@@ -31,6 +32,7 @@ export default function MyPoliciesPage() {
   const [actionError, setActionError] = useState("");
   const [transactionHash, setTransactionHash] = useState("");
   const [actingPolicyId, setActingPolicyId] = useState("");
+  const [page, setPage] = useState(1);
 
   const {
     data,
@@ -39,8 +41,8 @@ export default function MyPoliciesPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["myPolicies", walletAddress],
-    queryFn: getMyPolicies,
+    queryKey: ["myPolicies", walletAddress, page],
+    queryFn: () => getMyPolicies({ page }),
     enabled: isConnected,
   });
 
@@ -166,6 +168,10 @@ export default function MyPoliciesPage() {
           </div>
         ))}
       </div>
+      <PaginationControls
+        pagination={data?.pagination}
+        onPageChange={setPage}
+      />
     </section>
   );
 }

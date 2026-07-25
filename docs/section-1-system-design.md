@@ -7,7 +7,7 @@
 - `maxClaimsPerPolicy` and `claimCountPerPolicy` enforce a configurable submission cap for every policy.
 - On-chain settlement emits `ReserveLowWarning` when the remaining contract balance is below `reserveWarningThresholdWei`. The backend listens for this event and creates an admin notification.
 - Approved payouts are accumulated in `totalReservedLiabilityWei`. `withdrawExcess` cannot reduce the balance below that amount, and settlement parameters cannot change while an approved liability is active.
-- High-value approval records its approving admin address. The contract requires a different on-chain admin address to execute the settlement.
+- High-value approval records its approving admin address and remains a separate explicit step before settlement. The thesis workflow intentionally permits the single configured Admin to approve and execute it; production deployments should add multisignature separation.
 - Claim decisions, appeal decisions, and settlement actions are signed by the connected admin browser wallet. The backend verifies the receipt and signer before creating its idempotent audit record.
 - The unused record-only settlement path was removed. Settlements are now consistently represented as on-chain payouts.
 - `EMERGENCY_ROLE` can pause the contract without receiving full admin authority. While paused, policy purchases, claim submissions, oracle result confirmations, and settlements are blocked. Only an admin can unpause the contract.
@@ -16,11 +16,17 @@ The prototype defaults are five claims per policy, a seven-day rejected-claim cl
 
 ## EIP-170 Deployment Readiness
 
-`InsuranceManager` compiles to 24,367 bytes of deployed runtime code, 209 bytes below the 24,576-byte EIP-170 limit. The build pins Solidity 0.8.26, enables the IR optimizer with one run, strips revert strings from deployed bytecode, omits the metadata bytecode hash, and targets the Cancun EVM. Hardhat's unlimited-contract-size bypass is disabled, and the deployment-readiness test independently asserts the EIP-170 boundary.
+`InsuranceManager` compiles to 24,340 bytes of deployed runtime code, 236 bytes below the 24,576-byte EIP-170 limit. The build pins Solidity 0.8.26, enables the IR optimizer with one run, strips revert strings from deployed bytecode, omits the metadata bytecode hash, and targets the Cancun EVM. Hardhat's unlimited-contract-size bypass is disabled, and the deployment-readiness test independently asserts the EIP-170 boundary.
 
 The reduction removes only duplicated read APIs and their redundant indexing arrays. Package, policy, and claim lists are reconstructed from monotonic counters and canonical record getters; active auditors are reconstructed from `RoleGranted` events and confirmed with `hasRole`. Claim documents, voting, oracle requests, appeals, approvals, and settlement records retain their canonical on-chain getters and state transitions. The backend and frontend contain the corresponding query adapters, so application behavior is unchanged.
 
-This contract is not upgradeable. Deployments made from the optimized source therefore require a fresh contract address and ABI; the local deployment workflow synchronizes both automatically. The 209-byte margin is intentionally protected by the deployment-readiness test, so future Solidity additions must either replace existing code or further decompose the contract rather than silently reintroduce an undeployable build.
+Wallet-specific policy and claim discovery uses indexed `PolicyPurchased` and
+`ClaimSubmitted` events. Backend event queries are split into bounded block
+ranges beginning at the synchronized deployment block, and user-facing lists
+are paginated with capped page sizes. A dedicated persistent chain indexer
+would still be preferable when historical volume grows beyond thesis scale.
+
+This contract is not upgradeable. Deployments made from the optimized source therefore require a fresh contract address and ABI; the local deployment workflow synchronizes the address, ABI, and deployment block automatically. The 236-byte margin is intentionally protected by the deployment-readiness test, so future Solidity additions must either replace existing code or further decompose the contract rather than silently reintroduce an undeployable build.
 
 ## Production Limitation: Admin-Key Custody
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import PolicyCard from "../components/PolicyCard";
+import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
 import { getPolicyPackages, getRiskPremiumQuote } from "../services/api";
 import {
@@ -35,6 +36,7 @@ export default function PolicyListPage() {
   const [txHash, setTxHash] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [buyError, setBuyError] = useState("");
+  const [page, setPage] = useState(1);
   const [riskProfile, setRiskProfile] = useState({
     ageBand: "30_45",
     selectedRiskLevel: "MEDIUM",
@@ -50,8 +52,8 @@ export default function PolicyListPage() {
     error: loadError,
     refetch,
   } = useQuery({
-    queryKey: ["policyPackages"],
-    queryFn: getPolicyPackages,
+    queryKey: ["policyPackages", page],
+    queryFn: () => getPolicyPackages({ page }),
   });
 
   const packages = extractPackages(data);
@@ -245,6 +247,10 @@ export default function PolicyListPage() {
           />
         ))}
       </div>
+      <PaginationControls
+        pagination={data?.pagination}
+        onPageChange={setPage}
+      />
     </section>
   );
 }

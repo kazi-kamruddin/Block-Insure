@@ -3,24 +3,18 @@ function normalizeAddress(address) {
 }
 
 export async function getClaimIdsByWallet(contract, walletAddress) {
-  const nextClaimId = Number(await contract.claimCounter());
-  const claimIds = Array.from(
-    { length: Math.max(nextClaimId - 1, 0) },
-    (_, index) => BigInt(index + 1)
+  const events = await contract.queryFilter(
+    contract.filters.ClaimSubmitted(null, null, walletAddress),
+    Number(import.meta.env.VITE_CONTRACT_DEPLOYMENT_BLOCK || 0)
   );
-  const claims = await Promise.all(
-    claimIds.map((claimId) => contract.getClaim(claimId))
-  );
-  const targetWallet = normalizeAddress(walletAddress);
-
-  return claimIds.filter(
-    (_, index) =>
-      normalizeAddress(claims[index].claimantWallet) === targetWallet
-  );
+  return events.map((event) => event.args.claimId);
 }
 
 export async function getActiveRoleMembers(contract, role) {
-  const grants = await contract.queryFilter(contract.filters.RoleGranted(role));
+  const grants = await contract.queryFilter(
+    contract.filters.RoleGranted(role),
+    Number(import.meta.env.VITE_CONTRACT_DEPLOYMENT_BLOCK || 0)
+  );
   const candidates = [
     ...new Set(grants.map((event) => normalizeAddress(event.args.account))),
   ];

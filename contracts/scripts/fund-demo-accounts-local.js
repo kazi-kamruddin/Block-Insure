@@ -19,21 +19,6 @@ function getAddressFromPrivateKey(privateKey) {
   }
 }
 
-function readAddressList(...keys) {
-  return keys.flatMap((key) => {
-    const value = process.env[key];
-
-    if (!value) {
-      return [];
-    }
-
-    return value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-  });
-}
-
 function addAccount(accounts, seen, name, address) {
   if (!address) {
     return;
@@ -67,16 +52,12 @@ function getAccountsToFund() {
     process.env.CLAIM_OFFICER_WALLET_ADDRESS
   );
 
-  readAddressList(
-    "AUDITOR_WALLET_ADDRESS",
-    "AUDITOR_2_WALLET_ADDRESS",
-    "AUDITOR_3_WALLET_ADDRESS",
-    "AUDITOR_4_WALLET_ADDRESS",
-    "AUDITOR_5_WALLET_ADDRESS",
-    "AUDITOR_WALLET_ADDRESSES"
-  ).forEach((address, index) => {
-    addAccount(accounts, seen, `auditor${index + 1}Account`, address);
-  });
+  addAccount(
+    accounts,
+    seen,
+    "auditorAccount",
+    process.env.AUDITOR_WALLET_ADDRESS
+  );
 
   addAccount(
     accounts,

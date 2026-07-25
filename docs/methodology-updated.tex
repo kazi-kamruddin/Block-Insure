@@ -689,16 +689,17 @@ IP and wallet submission limits & Defaults to 5 requests per 15 minutes and 3
 wallet attempts per 24 hours & Direct contract calls bypass backend limits;
 on-chain per-policy cap is the backstop \\
 \hline
-Document hash, CID, evidence chain, and Merkle root & Supports integrity
-checking and auditability & IPFS is not private; off-chain chain and registry
-can be rewritten by privileged operators \\
+Encrypted evidence, document hash, CID, evidence chain, and Merkle root &
+Supports confidentiality, integrity checking, and auditability & Browser-held
+decryption keys can be lost; off-chain chain and registry remain operator-managed \\
 \hline
-Two-oracle quorum and timeout & Requires two confirmations and fails split
-decisions conservatively & Workers share infrastructure; root matching is not
-an enforced verification gate \\
+Two-oracle quorum and timeout & Requires two confirmations, locally verifies
+Merkle proofs, enforces the committed root, and fails split decisions
+conservatively & Workers still share prototype infrastructure \\
 \hline
-Reserve intelligence and warning & Exposes liabilities and emits low-reserve
-warning & Withdrawal is not liability-constrained \\
+Reserve intelligence and warning & Exposes liabilities, emits low-reserve
+warning, and prevents withdrawals from consuming approved liabilities &
+Prototype funding remains manually administered \\
 \hline
 \end{tabular}
 }
@@ -707,11 +708,10 @@ warning & Withdrawal is not liability-constrained \\
 The backend signs privileged transactions with one environment-configured
 \texttt{ADMIN\_PRIVATE\_KEY}. A production deployment should use multisignature
 custody, timelocks, separation of treasury and operational signers, monitoring,
-and key rotation. In addition, the monolithic compiled contract has a deployed
-runtime size of 30,028 bytes, which exceeds the 24,576-byte EIP-170 limit by
-5,452 bytes. Local Hardhat execution enables
-\texttt{allowUnlimitedContractSize}; deployment to an EIP-170-enforcing public
-network requires contract modularization.
+and key rotation. The optimized monolithic contract has a deployed runtime size
+of 24,340 bytes, which is 236 bytes below the 24,576-byte EIP-170 limit.
+Hardhat's unlimited-size bypass is disabled and a regression test protects the
+boundary.
 
 \section{Experimental Design and Reproducibility}
 \label{sec:experimental_design}

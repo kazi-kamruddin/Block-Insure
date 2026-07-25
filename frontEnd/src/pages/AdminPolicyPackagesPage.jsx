@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import TransactionLink from "../components/TransactionLink";
+import PaginationControls from "../components/PaginationControls";
 import {
   deactivatePolicyPackage,
   getAdminPolicyPackages,
@@ -36,6 +37,7 @@ export default function AdminPolicyPackagesPage() {
   const [actionMessage, setActionMessage] = useState("");
   const [actionTxHash, setActionTxHash] = useState("");
   const [actingPackageId, setActingPackageId] = useState("");
+  const [page, setPage] = useState(1);
 
   const {
     data,
@@ -44,8 +46,8 @@ export default function AdminPolicyPackagesPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["adminPolicyPackages"],
-    queryFn: getAdminPolicyPackages,
+    queryKey: ["adminPolicyPackages", page],
+    queryFn: () => getAdminPolicyPackages({ page }),
   });
 
   const packages = extractPackages(data);
@@ -306,6 +308,10 @@ export default function AdminPolicyPackagesPage() {
           </div>
         ))}
       </div>
+      <PaginationControls
+        pagination={data?.pagination}
+        onPageChange={setPage}
+      />
     </section>
   );
 }

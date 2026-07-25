@@ -8,6 +8,7 @@ require("dotenv").config({ path: envFile });
 const axios = require("axios");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("./abi/InsuranceManager.json");
+const { verifyRegistryProof } = require("./merkleProof");
 
 /* ----------------------------- Config ---------------------------------- */
 
@@ -284,15 +285,30 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
     const merkleRootMatchesChain =
       normalizeHash(localMerkleRoot) !== "" &&
       normalizeHash(localMerkleRoot) === normalizeHash(onChainMerkleRoot);
+    const registrySnapshotMatches =
+      hospitalResponse.data.registrySnapshot === ORACLE_REGISTRY_SNAPSHOT;
+    const merkleProofVerifiedLocally = verifyRegistryProof(
+      hospitalResponse.data.merkleProof
+    );
     const hospitalVerified = hospitalResponse.data.verified === true;
-    const verified = hospitalVerified && merkleRootMatchesChain;
+    const verified =
+      hospitalVerified &&
+      registrySnapshotMatches &&
+      merkleProofVerifiedLocally &&
+      merkleRootMatchesChain;
     const riskLevel =
+      !registrySnapshotMatches ||
+      !merkleProofVerifiedLocally ||
       !merkleRootMatchesChain
         ? "HIGH"
         : hospitalResponse.data.riskLevel || (verified ? "LOW" : "HIGH");
 
     const remarks =
-      !merkleRootMatchesChain
+      !registrySnapshotMatches
+        ? "Hospital registry snapshot identity mismatch"
+        : !merkleProofVerifiedLocally
+          ? "Hospital registry Merkle proof failed local verification"
+          : !merkleRootMatchesChain
         ? "Hospital registry Merkle root mismatch"
         : hospitalResponse.data.message ||
           (verified ? "Hospital record matched" : "Hospital record mismatch");
@@ -304,6 +320,8 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       queryData,
       hospitalVerification: hospitalResponse.data,
       hospitalVerified,
+      registrySnapshotMatches,
+      merkleProofVerifiedLocally,
       merkleRootMatchesChain,
       registryCommitment: {
         localRoot: localMerkleRoot,
@@ -326,6 +344,10 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Verified:`, verified);
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Risk level:`, riskLevel);
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Merkle root matches chain:`, merkleRootMatchesChain);
+    console.log(
+      `[Oracle ${ORACLE_INSTANCE_ID}] Merkle proof verified locally:`,
+      merkleProofVerifiedLocally
+    );
     console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Result hash:`, resultHash);
 
     const tx = await submitWithRetry(

@@ -4,6 +4,8 @@ const { quoteRiskAdjustedPremium } = require("../services/pricingService");
 const {
   getActivePolicyPackageIds,
   getPolicyIdsByWallet,
+  paginate,
+  parsePagination,
 } = require("../services/contractQueryService");
 
 /* ---------------------- Format Contract Responses ---------------------- */
@@ -84,7 +86,11 @@ const getActivePolicyPackages = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
 
-    const packageIds = await getActivePolicyPackageIds(contract);
+    const allPackageIds = await getActivePolicyPackageIds(contract);
+    const { items: packageIds, pagination } = paginate(
+      allPackageIds,
+      parsePagination(req.query)
+    );
 
     const packages = await Promise.all(
       packageIds.map(async (packageId) => {
@@ -96,6 +102,7 @@ const getActivePolicyPackages = async (req, res, next) => {
     res.status(200).json({
       success: true,
       count: packages.length,
+      pagination,
       packages,
     });
   } catch (error) {
@@ -132,9 +139,13 @@ const getMyPolicies = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
 
-    const policyIds = await getPolicyIdsByWallet(
+    const allPolicyIds = await getPolicyIdsByWallet(
       contract,
       req.user.walletAddress
+    );
+    const { items: policyIds, pagination } = paginate(
+      allPolicyIds,
+      parsePagination(req.query)
     );
 
     const policies = await Promise.all(
@@ -150,6 +161,7 @@ const getMyPolicies = async (req, res, next) => {
     res.status(200).json({
       success: true,
       count: policies.length,
+      pagination,
       policies,
     });
   } catch (error) {

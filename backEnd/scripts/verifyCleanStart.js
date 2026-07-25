@@ -18,6 +18,7 @@ const User = require("../models/User");
 const VotingFinalization = require("../models/VotingFinalization");
 const { buildSyntheticRecords } = require("./seedMockData");
 const { getPolicyPackageIds } = require("../services/contractQueryService");
+const { buildRegistryMerkleRoot } = require("../services/merkleRegistryService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -31,6 +32,18 @@ function requireEnv(name) {
   }
 
   return process.env[name];
+}
+
+async function getActiveRoleMembers(contract, role) {
+  const grants = await contract.queryFilter(contract.filters.RoleGranted(role));
+  const candidates = [
+    ...new Set(grants.map((event) => event.args.account.toLowerCase())),
+  ];
+  const activeChecks = await Promise.all(
+    candidates.map((account) => contract.hasRole(role, account))
+  );
+
+  return candidates.filter((_, index) => activeChecks[index]);
 }
 
 async function main() {
@@ -58,6 +71,65 @@ async function main() {
 
   const registryRoot = await contract.registryMerkleRoot();
   if (registryRoot === ethers.ZeroHash) failures.push("expected a published healthcare registry Merkle root");
+
+  const expectedAdmin = new ethers.Wallet(
+    requireEnv("ADMIN_PRIVATE_KEY")
+  ).address.toLowerCase();
+  const expectedAuditor = ethers
+    .getAddress(requireEnv("AUDITOR_WALLET_ADDRESS"))
+    .toLowerCase();
+  const expectedOracles = [
+    new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY")).address.toLowerCase(),
+    new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY_2")).address.toLowerCase(),
+  ].sort();
+  const [adminRole, auditorRole, oracleRole] = await Promise.all([
+    contract.ADMIN_ROLE(),
+    contract.AUDITOR_ROLE(),
+    contract.ORACLE_ROLE(),
+  ]);
+  const [activeAdmins, activeAuditors, activeOracles] = await Promise.all([
+    getActiveRoleMembers(contract, adminRole),
+    getActiveRoleMembers(contract, auditorRole),
+    getActiveRoleMembers(contract, oracleRole),
+  ]);
+
+  if (
+    activeAdmins.length !== 1 ||
+    activeAdmins[0] !== expectedAdmin
+  ) {
+    failures.push(
+      `expected only configured Admin ${expectedAdmin}, found ${activeAdmins.join(", ") || "none"}`
+    );
+  }
+  if (
+    activeAuditors.length !== 1 ||
+    activeAuditors[0] !== expectedAuditor
+  ) {
+    failures.push(
+      `expected only configured Auditor ${expectedAuditor}, found ${activeAuditors.join(", ") || "none"}`
+    );
+  }
+  if (
+    activeOracles.length !== expectedOracles.length ||
+    activeOracles.slice().sort().join(",") !== expectedOracles.join(",")
+  ) {
+    failures.push(
+      `expected configured Oracle wallets ${expectedOracles.join(", ")}, found ${activeOracles.join(", ") || "none"}`
+    );
+  }
+
+  const [auditorReputation, auditorVotes] = await Promise.all([
+    contract.auditorReputation(expectedAuditor),
+    contract.auditorTotalVotes(expectedAuditor),
+  ]);
+  if (auditorReputation !== 0n) {
+    failures.push(
+      `expected uninitialized auditor reputation 0, found ${auditorReputation}`
+    );
+  }
+  if (auditorVotes !== 0n) {
+    failures.push(`expected 0 auditor votes, found ${auditorVotes}`);
+  }
 
   await mongoose.connect(requireEnv("MONGODB_URI"));
   try {
@@ -90,6 +162,17 @@ async function main() {
       failures.push(`expected ${expectedRegistryCount} oracle 2 registry records, found ${oracle2RegistryCount}`);
     }
 
+    const [primaryMerkle, oracle2Merkle] = await Promise.all([
+      buildRegistryMerkleRoot("primary"),
+      buildRegistryMerkleRoot("oracle2"),
+    ]);
+    if (primaryMerkle.rootHash.toLowerCase() !== registryRoot.toLowerCase()) {
+      failures.push("primary registry root does not match the on-chain commitment");
+    }
+    if (oracle2Merkle.rootHash.toLowerCase() !== registryRoot.toLowerCase()) {
+      failures.push("Oracle 2 clean registry root does not match the on-chain commitment");
+    }
+
     const userCount = await User.countDocuments({});
     if (userCount < 2) failures.push(`expected configured role users, found ${userCount}`);
   } finally {
@@ -101,7 +184,7 @@ async function main() {
     throw new Error(`Clean-start verification failed: ${failures.join("; ")}`);
   }
 
-  console.log("Clean-start verification passed: 1 package, 0 purchased policies/claims, funded settlement reserve, no prior runtime activity, and a published healthcare registry baseline.");
+  console.log("Clean-start verification passed: one Admin, one uninitialized Auditor, two Oracles, one package, zero policies/claims/votes, funded settlement reserve, no prior runtime activity, and a published healthcare registry baseline.");
 }
 
 main().catch((error) => {

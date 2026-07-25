@@ -34,13 +34,18 @@ async function loadAuditorReputations() {
         contract.auditorTotalVotes(wallet),
       ]);
       const reputationScore = toNumber(reputation);
+      const voteCount = toNumber(totalVotes);
+      const isInitialized = voteCount > 0;
 
       return {
         wallet,
         shortWallet: shortenAddress(wallet),
-        totalVotes: toNumber(totalVotes),
+        totalVotes: voteCount,
         reputationScore,
-        reliabilityLevel: getReliabilityLevel(reputationScore),
+        isInitialized,
+        reliabilityLevel: isInitialized
+          ? getReliabilityLevel(reputationScore)
+          : "Unrated",
       };
     })
   );
@@ -98,10 +103,16 @@ export default function AuditorReputationPage() {
                   <td title={auditor.wallet}>{auditor.shortWallet}</td>
                   <td>{auditor.totalVotes}</td>
                   <td>
-                    <div className="reputation-meter">
-                      <span style={{ width: `${auditor.reputationScore}%` }} />
-                    </div>
-                    <strong>{auditor.reputationScore}/100</strong>
+                    {auditor.isInitialized ? (
+                      <>
+                        <div className="reputation-meter">
+                          <span style={{ width: `${auditor.reputationScore}%` }} />
+                        </div>
+                        <strong>{auditor.reputationScore}/100</strong>
+                      </>
+                    ) : (
+                      <strong>Not initialized</strong>
+                    )}
                   </td>
                   <td>
                     <span

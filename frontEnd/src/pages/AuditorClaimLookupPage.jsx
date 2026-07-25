@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
+import PaginationControls from "../components/PaginationControls";
 import { getAllReadableClaims } from "../services/api";
 import { getClaimStatusName, getStatusExplanation } from "../utils/claimStatus";
 import "../styles/pages/AuditorClaimLookupPage.css";
@@ -24,6 +26,7 @@ function formatDate(timestamp) {
 }
 
 export default function AuditorClaimLookupPage() {
+  const [page, setPage] = useState(1);
   const {
     data,
     isLoading,
@@ -31,8 +34,8 @@ export default function AuditorClaimLookupPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["auditorAllClaims"],
-    queryFn: getAllReadableClaims,
+    queryKey: ["auditorAllClaims", page],
+    queryFn: () => getAllReadableClaims({ page }),
   });
 
   const claims = extractClaims(data);
@@ -95,6 +98,10 @@ export default function AuditorClaimLookupPage() {
           })}
         </div>
       ) : null}
+      <PaginationControls
+        pagination={data?.pagination}
+        onPageChange={setPage}
+      />
     </section>
   );
 }

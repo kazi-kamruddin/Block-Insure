@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
+import PaginationControls from "../components/PaginationControls";
 import { getAdminClaims } from "../services/api";
 import "../styles/pages/AdminClaimListPage.css";
 
@@ -13,6 +15,7 @@ function extractClaims(data) {
 }
 
 export default function AdminClaimListPage() {
+  const [page, setPage] = useState(1);
   const {
     data,
     isLoading,
@@ -20,8 +23,8 @@ export default function AdminClaimListPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["adminClaims"],
-    queryFn: getAdminClaims,
+    queryKey: ["adminClaims", page],
+    queryFn: () => getAdminClaims({ page }),
   });
 
   const claims = extractClaims(data);
@@ -81,6 +84,10 @@ export default function AdminClaimListPage() {
           </div>
         ))}
       </div>
+      <PaginationControls
+        pagination={data?.pagination}
+        onPageChange={setPage}
+      />
     </section>
   );
 }

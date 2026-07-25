@@ -1431,10 +1431,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
                 highValueSettlementApproved[claimId],
                 "High-value settlement requires approval"
             );
-            require(
-                highValueSettlementApprover[claimId] != msg.sender,
-                "High-value settlement requires a separate admin"
-            );
         }
 
         address recipient = claims[claimId].claimantWallet;

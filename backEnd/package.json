@@ -4,7 +4,7 @@
   "description": "Block-Insure API, oracle registry, and thesis evaluation tools",
   "main": "server.js",
   "scripts": {
-    "test": "npm run test:section3",
+    "test": "npm run test:section3 && npm run test:unit",
     "dev": "nodemon server.js",
     "start": "node server.js",
     "test:wallet-login": "node scripts/testWalletLogin.js",
@@ -29,6 +29,7 @@
     "analyze:auditors": "node scripts/analyzeAuditorReputation.js",
     "loadtest:claims": "node scripts/loadTestClaims.js",
     "test:section3": "node scripts/testSection3Analytics.js",
+    "test:unit": "node --test test/*.test.js",
     "role:set": "node scripts/setUserRole.js"
   },
   "keywords": [],

@@ -559,9 +559,8 @@ export default function AdminClaimDetailPage() {
               {settlementBreakdown.reserveGate.highValueApprovalRequired &&
               !settlementBreakdown.reserveGate.highValueSettlementApproved ? (
                 <p className="error-text">
-                  Direct settlement is blocked until one admin wallet records
-                  high-value approval. A different on-chain admin wallet must
-                  then execute settlement.
+                  Settlement is blocked until the Admin records explicit
+                  high-value approval.
                 </p>
               ) : null}
 
@@ -569,7 +568,7 @@ export default function AdminClaimDetailPage() {
                 <p className="muted-text">
                   High-value approver:{" "}
                   {settlementBreakdown.reserveGate.highValueSettlementApprover}.
-                  Settlement must be signed by a different admin address.
+                  The approved settlement can now be executed.
                 </p>
               ) : null}
 

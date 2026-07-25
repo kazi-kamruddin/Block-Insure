@@ -229,17 +229,21 @@ This supports the thesis claim that blockchain is used for settlement integrity,
 
 ### 4.6 Deployment Readiness
 
-The current contract exceeds the EIP-170 deployed-bytecode limit. After the liability-reserve and two-admin settlement hardening, the compiled deployed bytecode is approximately `27,275` bytes, compared with the `24,576`-byte limit.
+The optimized contract compiles to `24,340` bytes of deployed runtime code,
+`236` bytes below the `24,576`-byte EIP-170 limit.
 
-Size-reduction work already applied:
+Size-reduction and deployment controls include:
 
-- deployed size reduced from the earlier approximately `30,028` bytes
-- revert strings stripped for deployability
-- metadata bytecode hash disabled
-- several convenience getters replaced with public-variable or provider reads
-- deployment-size regression test added
+- Solidity 0.8.26 pinned locally with Cancun bytecode generation
+- IR optimization with one run
+- revert strings stripped and metadata bytecode hash disabled
+- redundant collection arrays and convenience getters removed
+- list reconstruction moved to bounded provider/event queries
+- deployment-size regression test enforced
+- Hardhat's unlimited-contract-size bypass removed
 
-The regression test currently fails intentionally and exposes the remaining gap. Hardhat uses `allowUnlimitedContractSize` for local simulation. A real EIP-170-enforcing deployment requires splitting responsibilities into smaller contracts or libraries.
+Local deployment synchronizes the contract address, ABI, and deployment block
+across the backend, frontend, and oracle workers.
 
 ## 5. Smart Contract Design
 
@@ -626,9 +630,9 @@ The research contribution can be framed around:
 
 Recent verification results:
 
-- Contract tests: `138 passing`, with the EIP-170 deployment-size guard failing at `27,275` bytes
-- Backend analytics tests: passed
-- Oracle syntax test: passed
+- Contract tests: `139 passing`, including the EIP-170 deployment-size guard at `24,340` bytes
+- Backend analytics and pagination tests: passed
+- Oracle syntax and independent Merkle-proof tests: passed
 - Frontend lint: passed
 - Frontend production build: passed
 
@@ -672,8 +676,7 @@ Important limitations:
 
 - Fraud data is synthetic, not real insurance data.
 - Oracle services are simulated independent services, not production oracle infrastructure.
-- The monolithic smart contract currently exceeds the EIP-170 deployed-bytecode limit.
-- Revert strings are stripped, but further contract decomposition is still required for EIP-170 deployment.
+- The monolithic contract now fits EIP-170, but its small remaining size margin means future additions require replacement or decomposition.
 - Claim decisions and settlements are signed by the authenticated admin browser wallet; some configuration and voting-reputation operations still use the backend admin signer.
 - Claim and appeal evidence is encrypted in the browser with AES-256-GCM before it is uploaded to IPFS. The decryption key remains in the policyholder browser profile.
 - Multisig admin control is not yet implemented.
@@ -685,12 +688,12 @@ These limitations do not invalidate the thesis. They define the boundary of the 
 Most valuable next steps:
 
 1. Deploy the optimized contract to a real testnet or L2.
-2. Run two oracle instances with separate keys and divergent registry snapshots.
+2. Run the two oracle keys against independently operated data-provider infrastructure using the same committed baseline, with divergence injected only as an explicit failure experiment.
 3. Add screenshots and transaction hashes from a real deployment.
 4. Add a short ablation study for fraud signals.
 5. Add a small comparison table: single oracle vs quorum oracle, no Merkle vs Merkle-anchored registry.
-6. Add evidence encryption if there is enough time.
-7. Move admin signing to multisig or at least document it as future work.
+6. Add a persistent chain indexer for datasets that outgrow the current bounded event scans and paginated record reads.
+7. Move the remaining backend configuration signer to stronger custody when the prototype scope permits.
 
 ## 18. One-Sentence Summary
 

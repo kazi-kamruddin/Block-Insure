@@ -25,9 +25,11 @@ The backend exposes two synthetic registry snapshots:
 - `primary`: the default registry used by Oracle 1.
 - `oracle2`: a separately seeded MongoDB collection used by Oracle 2.
 
-The Oracle 2 seed intentionally differs on one invoice so the two oracle nodes can
-produce independent results. Registry, summary, Merkle-root, Merkle-proof, and
-verification responses identify the snapshot they served.
+Clean initialization gives both separately stored snapshots the same committed
+baseline so two valid confirmations can reach quorum. Research seeding may
+deliberately alter Oracle 2 data to demonstrate disagreement. Registry, summary,
+Merkle-root, Merkle-proof, and verification responses identify the snapshot they
+served.
 
 This is a simulation boundary, not full decentralization. Both oracle processes
 still call the same backend deployment and MongoDB server. In production, each
@@ -35,8 +37,11 @@ oracle should query an independently operated hospital registry, national health
 database node, or other authoritative data provider. Its own authenticated data
 source and infrastructure should determine its result.
 
-Because the simulated snapshots may differ, Oracle 2's Merkle root can differ from
-the primary root stored on-chain. The oracle logs that mismatch for auditability.
+Each worker validates the returned snapshot identity, independently recomputes the
+Merkle proof, and requires the proof root to match the on-chain commitment before
+reporting a verified result. A research-induced snapshot difference therefore
+produces a conservative failed confirmation instead of silently trusting the
+shared API response.
 
 ## Oracle Timeout Resolution
 

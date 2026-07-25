@@ -19,7 +19,7 @@ function updateEnvValue(filePath, key, value) {
   console.log(`Updated ${path.relative(process.cwd(), filePath)} (${key})`);
 }
 
-function syncLocalContractAddress(contractAddress) {
+function syncLocalContractDeployment(contractAddress, deploymentBlock) {
   const projectRoot = path.resolve(__dirname, "..", "..");
   const targets = [
     { file: path.join(projectRoot, "backend", ".env"), key: "VITE_CONTRACT_ADDRESS" },
@@ -29,6 +29,25 @@ function syncLocalContractAddress(contractAddress) {
   ];
 
   targets.forEach(({ file, key }) => updateEnvValue(file, key, contractAddress));
+
+  [
+    {
+      file: path.join(projectRoot, "backend", ".env"),
+      key: "CONTRACT_DEPLOYMENT_BLOCK",
+    },
+    {
+      file: path.join(projectRoot, "frontend", ".env"),
+      key: "VITE_CONTRACT_DEPLOYMENT_BLOCK",
+    },
+    {
+      file: path.join(projectRoot, "oracle", ".env"),
+      key: "ORACLE_START_BLOCK",
+    },
+    {
+      file: path.join(projectRoot, "oracle", ".env.oracle2"),
+      key: "ORACLE_START_BLOCK",
+    },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, deploymentBlock));
 }
 
 function syncContractAbi() {
@@ -94,8 +113,11 @@ async function main() {
   await insuranceManager.waitForDeployment();
 
   const contractAddress = await insuranceManager.getAddress();
+  const deploymentReceipt = await insuranceManager.deploymentTransaction().wait();
+  const deploymentBlock = deploymentReceipt.blockNumber;
 
   console.log("InsuranceManager deployed to:", contractAddress);
+  console.log("InsuranceManager deployment block:", deploymentBlock);
 
   const premiumAmount = hre.ethers.parseEther("0.01");
   const coverageAmount = hre.ethers.parseEther("1");
@@ -113,7 +135,7 @@ async function main() {
 
   console.log("Health Basic policy package created");
   syncContractAbi();
-  syncLocalContractAddress(contractAddress);
+  syncLocalContractDeployment(contractAddress, deploymentBlock);
   console.log("");
   console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
   console.log("");
