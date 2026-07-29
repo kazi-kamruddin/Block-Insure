@@ -264,6 +264,9 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
         incidentDate: claim.incidentDate.toString(),
         registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
       },
+      headers: ORACLE_API_KEY
+        ? { "x-oracle-api-key": ORACLE_API_KEY }
+        : {},
     });
 
     const [registryRoot, registryTimestamp, registryBlock] = await Promise.all([
