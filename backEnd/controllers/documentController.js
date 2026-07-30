@@ -8,6 +8,11 @@ const { calculateSHA256 } = require("../services/hashService");
 const { unpinFromPinata, uploadToPinata } = require("../services/ipfsService");
 const { notifyAdmins } = require("../services/notificationService");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
+const EvidenceAccessLog = require("../models/EvidenceAccessLog");
+const {
+  getEvidenceKeyMaterial,
+  unwrapEvidenceKey,
+} = require("../services/evidenceKeyService");
 
 const formatDocumentRecord = (fileRecord) => ({
   id: fileRecord._id,
@@ -21,11 +26,31 @@ const formatDocumentRecord = (fileRecord) => ({
   encrypted: Boolean(fileRecord.encrypted),
   encryptionAlgorithm: fileRecord.encryptionAlgorithm || "",
   originalMimeType: fileRecord.originalMimeType || "",
+  keyProvider: fileRecord.keyProvider || "",
+  keyId: fileRecord.keyId || "",
+  recoverableAcrossBrowsers: Boolean(fileRecord.keyId),
   previousEvidenceHash: fileRecord.previousEvidenceHash,
   evidenceChainHash: fileRecord.evidenceChainHash,
   evidenceChainIndex: fileRecord.evidenceChainIndex,
   uploadedAt: fileRecord.createdAt,
 });
+
+const getEncryptionPublicKey = async (_req, res, next) => {
+  try {
+    const { publicKeyPem, keyId } = getEvidenceKeyMaterial();
+
+    res.status(200).json({
+      success: true,
+      key: {
+        keyId,
+        algorithm: "RSA-OAEP-3072-SHA256",
+        publicKeyPem,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 const assertClaimBelongsToWallet = async (claimId, walletAddress) => {
   if (!claimId) return null;
@@ -61,6 +86,9 @@ const uploadDocument = async (req, res, next) => {
     const encrypted = String(req.body.encrypted || "").toLowerCase() === "true";
     const encryptionAlgorithm = String(req.body.encryptionAlgorithm || "").trim();
     const originalMimeType = String(req.body.originalMimeType || "").trim();
+    const originalName = String(req.body.originalName || "").trim();
+    const wrappedEvidenceKey = String(req.body.wrappedEvidenceKey || "").trim();
+    const keyId = String(req.body.keyId || "").trim();
 
     if (!encrypted || req.file.mimetype !== "application/octet-stream") {
       return res.status(400).json({
@@ -80,6 +108,16 @@ const uploadDocument = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: "Encrypted evidence must use AES-256-GCM",
+      });
+    }
+
+    const activeKey = getEvidenceKeyMaterial();
+
+    if (!wrappedEvidenceKey || !keyId || keyId !== activeKey.keyId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Evidence must include an AES key wrapped by the active application RSA key",
       });
     }
 
@@ -154,7 +192,7 @@ const uploadDocument = async (req, res, next) => {
     let fileRecord = await File.create({
       claimId,
       uploaderWallet: req.user.walletAddress,
-      originalName: req.file.originalname,
+      originalName: originalName || req.file.originalname.replace(/\.binsenc$/i, ""),
       mimeType: req.file.mimetype,
       sha256Hash,
       ipfsCID,
@@ -162,6 +200,9 @@ const uploadDocument = async (req, res, next) => {
       encrypted,
       encryptionAlgorithm: encrypted ? encryptionAlgorithm : "",
       originalMimeType: encrypted ? originalMimeType : req.file.mimetype,
+      keyProvider: "LOCAL_RSA",
+      keyId,
+      wrappedEvidenceKey,
     });
     createdFileRecord = fileRecord;
 
@@ -214,6 +255,76 @@ const verifyDocument = async (req, res, next) => {
     res.status(200).json({
       success: true,
       document: formatDocumentRecord(fileRecord),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getDecryptionKey = async (req, res, next) => {
+  try {
+    const fileRecord = await File.findById(req.params.id).select(
+      "+wrappedEvidenceKey"
+    );
+
+    if (!fileRecord) {
+      return res.status(404).json({
+        success: false,
+        message: "Document record not found",
+      });
+    }
+
+    const isOwner =
+      fileRecord.uploaderWallet.toLowerCase() ===
+      req.user.walletAddress.toLowerCase();
+    const isAuthorizedReviewer =
+      req.user.role === "ADMIN" || req.user.role === "AUDITOR";
+
+    if (!isOwner && !isAuthorizedReviewer) {
+      return res.status(403).json({
+        success: false,
+        message: "This wallet is not authorized to decrypt this evidence",
+      });
+    }
+
+    if (!fileRecord.wrappedEvidenceKey || !fileRecord.keyId) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This legacy document has a browser-only key and cannot be recovered by the application",
+      });
+    }
+
+    const activeKey = getEvidenceKeyMaterial();
+
+    if (fileRecord.keyId !== activeKey.keyId) {
+      return res.status(409).json({
+        success: false,
+        message: `Evidence key ${fileRecord.keyId} is not available on this server`,
+      });
+    }
+
+    const rawKey = unwrapEvidenceKey(fileRecord.wrappedEvidenceKey);
+
+    await EvidenceAccessLog.create({
+      documentId: fileRecord._id,
+      claimId: fileRecord.claimId,
+      actorWallet: req.user.walletAddress,
+      actorRole: req.user.role,
+      action: "UNWRAP_KEY",
+      userAgent: req.get("user-agent") || "",
+    });
+
+    res.status(200).json({
+      success: true,
+      decryption: {
+        algorithm: fileRecord.encryptionAlgorithm,
+        keyBase64: rawKey.toString("base64"),
+        keyId: fileRecord.keyId,
+        originalName: fileRecord.originalName,
+        originalMimeType:
+          fileRecord.originalMimeType || "application/octet-stream",
+      },
     });
   } catch (error) {
     next(error);
@@ -331,35 +442,13 @@ const attachClaimIdToDocument = async (req, res, next) => {
       document: formatDocumentRecord(linkedDocument),
     });
   } catch (error) {
-    if (activeAttempt) {
-      if (createdFileRecord) {
-        await ClaimSubmissionAttempt.updateOne(
-          { _id: activeAttempt._id },
-          {
-            $set: {
-              documentId: createdFileRecord._id.toString(),
-              status: "UPLOADED",
-              failureReason: error.message,
-            },
-          }
-        ).catch(() => {});
-      } else {
-        await ClaimSubmissionAttempt.updateOne(
-          { _id: activeAttempt._id, status: "UPLOADING" },
-          { $set: { status: "AUTHORIZED", failureReason: error.message } }
-        ).catch(() => {});
-      }
-    }
-
-    if (uploadedCid && !createdFileRecord) {
-      await unpinFromPinata(uploadedCid).catch(() => {});
-    }
-
     next(error);
   }
 };
 
 module.exports = {
+  getEncryptionPublicKey,
+  getDecryptionKey,
   uploadDocument,
   verifyDocument,
   attachClaimIdToDocument,

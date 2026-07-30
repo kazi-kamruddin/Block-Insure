@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import TransactionLink from "../components/TransactionLink";
 import { createPolicyPackage } from "../services/api";
+import { showToast } from "../services/toast";
 import "../styles/pages/AdminCreatePolicyPackagePage.css";
 
 const PACKAGE_PRESETS = [
@@ -92,19 +93,20 @@ export default function AdminCreatePolicyPackagePage() {
       });
 
       setTxHash(result.transactionHash || result.txHash || "");
-      setSuccessMessage(
-        `Policy package created successfully. Package ID: ${
-          result.packageId || "-"
-        }`
-      );
+      const message = `Policy package created successfully. Package ID: ${
+        result.packageId || "-"
+      }`;
+      setSuccessMessage(message);
+      showToast(message, { title: "Package created" });
     } catch (err) {
       console.error(err);
-      setError(
+      const message =
         err.response?.data?.message ||
           err.response?.data?.error ||
           err.message ||
-          "Could not create policy package"
-      );
+          "Could not create policy package";
+      setError(message);
+      showToast(message, { tone: "error", title: "Package creation failed" });
     } finally {
       setIsSubmitting(false);
     }

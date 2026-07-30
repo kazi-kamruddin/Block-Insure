@@ -64,6 +64,12 @@ const formatAppeal = (appeal) => {
     appealReasonHash: appeal.appealReasonHash,
     additionalDocumentHash: appeal.additionalDocumentHash,
     additionalDocumentCID: appeal.additionalDocumentCID,
+    proposedCorrections: {
+      hospitalId: appeal.proposedHospitalId || "",
+      invoiceNumber: appeal.proposedInvoiceNumber || "",
+      claimType: appeal.proposedClaimType || "",
+      claimAmountEth: appeal.proposedClaimAmountEth || "",
+    },
     status: appeal.status,
     adminNote: appeal.adminNote,
     auditorRecommendation: appeal.auditorRecommendation,
@@ -158,6 +164,16 @@ const submitAppeal = async (req, res, next) => {
           appealReasonHash,
           additionalDocumentHash: req.body.additionalDocumentHash || "",
           additionalDocumentCID: req.body.additionalDocumentCID || "",
+          proposedHospitalId: String(req.body.proposedHospitalId || "").trim(),
+          proposedInvoiceNumber: String(
+            req.body.proposedInvoiceNumber || ""
+          ).trim(),
+          proposedClaimType: String(req.body.proposedClaimType || "")
+            .trim()
+            .toUpperCase(),
+          proposedClaimAmountEth: String(
+            req.body.proposedClaimAmountEth || ""
+          ).trim(),
           transactionHash: req.body.transactionHash || "",
           appealDeadline,
           history: [

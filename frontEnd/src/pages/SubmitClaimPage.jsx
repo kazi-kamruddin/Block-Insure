@@ -9,6 +9,7 @@ import {
   getMyPolicies,
   reconcileClaimSubmission,
   recordClaimSubmissionTransaction,
+  resetMyClaimSubmissionLimit,
   uploadClaimDocument,
 } from "../services/api";
 
@@ -31,6 +32,7 @@ import {
 } from "../services/evidenceEncryption";
 import { getClaimIdsByWallet } from "../utils/contractQueries";
 import "../styles/pages/SubmitClaimPage.css";
+import { showToast } from "../services/toast";
 
 const VALID_MOCK_HOSPITAL_PRESETS = [
   {
@@ -139,16 +141,6 @@ async function resolveSubmittedClaimId(contract, receipt, walletAddress) {
   return latestClaimId ? latestClaimId.toString() : "";
 }
 
-function unixSecondsToDateTimeLocal(unixSeconds) {
-  if (!unixSeconds) return "";
-
-  const date = new Date(Number(unixSeconds) * 1000);
-  const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000;
-  const localDate = new Date(date.getTime() - timezoneOffsetMs);
-
-  return localDate.toISOString().slice(0, 16);
-}
-
 function dateTimeLocalToUnixSeconds(dateTimeValue) {
   return Math.floor(new Date(dateTimeValue).getTime() / 1000);
 }
@@ -177,6 +169,7 @@ export default function SubmitClaimPage() {
   const [txHash, setTxHash] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
+  const [submissionLimit, setSubmissionLimit] = useState(null);
 
   const {
     data: policiesData,
@@ -202,14 +195,7 @@ export default function SubmitClaimPage() {
 
   function handlePolicyChange(nextPolicyId) {
     setPolicyId(nextPolicyId);
-
-    const nextPolicy = activePolicies.find(
-      (policy) => String(policy.policyId) === String(nextPolicyId)
-    );
-
-    if (nextPolicy?.startDate) {
-      setIncidentDateTime(unixSecondsToDateTimeLocal(nextPolicy.startDate));
-    }
+    setIncidentDateTime("");
   }
 
   function applyMockPreset(presetLabel) {
@@ -237,6 +223,9 @@ export default function SubmitClaimPage() {
       setSuccessMessage(
         `Claim #${link.claimId} submitted and its evidence metadata was linked.`
       );
+      showToast(`Claim #${link.claimId} submitted successfully.`, {
+        title: "Claim confirmed",
+      });
     } catch (linkError) {
       console.error(linkError);
       setEvidenceLinkError(
@@ -251,6 +240,7 @@ export default function SubmitClaimPage() {
     event.preventDefault();
 
     setError("");
+    setSubmissionLimit(null);
     setSuccessMessage("");
     setTxHash("");
     setUploadInfo(null);
@@ -305,10 +295,12 @@ export default function SubmitClaimPage() {
       const policyStartSeconds = Number(selectedPolicy.startDate || 0);
       const policyEndSeconds = Number(selectedPolicy.endDate || 0);
 
-      let incidentSeconds = selectedIncidentSeconds;
+      const incidentSeconds = selectedIncidentSeconds;
 
       if (policyStartSeconds && incidentSeconds < policyStartSeconds) {
-        incidentSeconds = policyStartSeconds;
+        throw new Error(
+          "Incident date/time is before the policy coverage start time."
+        );
       }
 
       if (policyEndSeconds && incidentSeconds > policyEndSeconds) {
@@ -326,11 +318,14 @@ export default function SubmitClaimPage() {
         file: encryptedEvidence.encryptedFile,
         documentType: "HOSPITAL_BILL",
         attemptId,
-        encryption: {
-          enabled: true,
-          algorithm: encryptedEvidence.algorithm,
-          originalMimeType: encryptedEvidence.originalMimeType,
-        },
+          encryption: {
+            enabled: true,
+            algorithm: encryptedEvidence.algorithm,
+            originalMimeType: encryptedEvidence.originalMimeType,
+            originalName: encryptedEvidence.originalName,
+            wrappedEvidenceKey: encryptedEvidence.wrappedEvidenceKey,
+            keyId: encryptedEvidence.keyId,
+          },
       });
 
       const sha256Hash = getUploadedHash(uploadResponse);
@@ -416,6 +411,9 @@ export default function SubmitClaimPage() {
       setSuccessMessage(
         `Claim #${claimId} submitted and its encrypted evidence was reconciled successfully.`
       );
+      showToast(`Claim #${claimId} and its encrypted evidence were confirmed.`, {
+        title: "Claim submitted",
+      });
     } catch (err) {
       console.error(err);
 
@@ -430,9 +428,29 @@ export default function SubmitClaimPage() {
         }
       }
 
-      setError(parseTransactionError(err));
+      const message = parseTransactionError(err);
+      if (err.response?.status === 429) {
+        setSubmissionLimit(err.response.data || null);
+      }
+      setError(message);
+      showToast(message, { tone: "error", title: "Claim submission failed" });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleDevelopmentLimitReset() {
+    try {
+      const result = await resetMyClaimSubmissionLimit();
+      setSubmissionLimit(null);
+      setError("");
+      showToast(
+        `${result.removedAttempts || 0} local submission record(s) cleared.`,
+        { title: "Testing limit reset" }
+      );
+    } catch (resetError) {
+      const message = parseTransactionError(resetError);
+      showToast(message, { tone: "error", title: "Reset failed" });
     }
   }
 
@@ -450,7 +468,22 @@ export default function SubmitClaimPage() {
         </p>
       ) : null}
 
-      {error ? <p className="error-text">{error}</p> : null}
+      {error ? (
+        <div className="form-feedback error-text" role="alert">
+          <p>{error}</p>
+          {submissionLimit?.resetAt ? (
+            <p>
+              This testing allowance resets at{" "}
+              {new Date(submissionLimit.resetAt).toLocaleString()}.
+            </p>
+          ) : null}
+          {submissionLimit?.devResetAvailable ? (
+            <button type="button" onClick={handleDevelopmentLimitReset}>
+              Reset My Local Testing Limit
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {successMessage ? <p className="success-text">{successMessage}</p> : null}
       {evidenceLinkError ? <p className="error-text">{evidenceLinkError}</p> : null}
 
@@ -516,7 +549,8 @@ export default function SubmitClaimPage() {
             <option value="">Select policy</option>
             {activePolicies.map((policy) => (
               <option key={policy.policyId} value={policy.policyId}>
-                Policy #{policy.policyId} — Coverage{" "}
+                {policy.packageName || `Policy #${policy.policyId}`} — Policy #
+                {policy.policyId} · Coverage{" "}
                 {policy.coverageAmountEth || policy.coverageAmount} ETH
               </option>
             ))}
@@ -524,7 +558,7 @@ export default function SubmitClaimPage() {
         </label>
 
         <label>
-          Mock hospital preset for verified oracle test
+          Test data preset
           <select
             defaultValue=""
             onChange={(event) => applyMockPreset(event.target.value)}
@@ -536,6 +570,11 @@ export default function SubmitClaimPage() {
               </option>
             ))}
           </select>
+          <small>
+            Presets fill a record that exists in the local healthcare registry.
+            Manual values are accepted, but the oracle will fail them when they
+            do not match a registered hospital invoice.
+          </small>
         </label>
 
         <label>
@@ -554,10 +593,15 @@ export default function SubmitClaimPage() {
           Incident date/time
           <input
             type="datetime-local"
+            step="60"
             value={incidentDateTime}
             onChange={(event) => setIncidentDateTime(event.target.value)}
             required
           />
+          <small>
+            Enter when the incident actually occurred. This value is never
+            replaced with the policy purchase time.
+          </small>
         </label>
 
         <label>
@@ -607,9 +651,11 @@ export default function SubmitClaimPage() {
             Client-side encryption: enabled
           </p>
           <p className="muted-text">
-            Evidence is encrypted with AES-256-GCM before upload. Keep this
-            browser profile available because its local storage holds the
-            decryption key; the key is never written on-chain.
+            Evidence is encrypted with AES-256-GCM before upload. Its AES key is
+            wrapped with the application RSA public key, so the policyholder and
+            authorized admins or auditors can recover it after signing in from
+            another browser. Neither the plaintext file nor AES key is written
+            on-chain.
           </p>
         </div>
 

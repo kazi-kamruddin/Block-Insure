@@ -23,6 +23,7 @@ import {
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/ClaimDetailPage.css";
+import { showToast } from "../services/toast";
 
 function extractClaim(data) {
   return data?.claim || data?.data?.claim || data?.data || data;
@@ -66,6 +67,10 @@ export default function ClaimDetailPage() {
   const [appealReasonCategory, setAppealReasonCategory] = useState("DOCUMENT_ERROR");
   const [appealDescription, setAppealDescription] = useState("");
   const [appealFile, setAppealFile] = useState(null);
+  const [proposedHospitalId, setProposedHospitalId] = useState("");
+  const [proposedInvoiceNumber, setProposedInvoiceNumber] = useState("");
+  const [proposedClaimType, setProposedClaimType] = useState("");
+  const [proposedClaimAmountEth, setProposedClaimAmountEth] = useState("");
   const [appealError, setAppealError] = useState("");
   const [appealMessage, setAppealMessage] = useState("");
   const [appealTxHash, setAppealTxHash] = useState("");
@@ -115,6 +120,9 @@ export default function ClaimDetailPage() {
 
   const claim = extractClaim(claimData);
   const evidenceChain = extractEvidenceChain(claimData);
+  const originalEvidenceDocument = evidenceChain?.documents?.find(
+    (document) => document.ipfsCID === claim?.documentCID
+  );
   const oracleLogs = extractOracleLogs(oracleData);
   const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const statusName = getClaimStatusName(claim);
@@ -156,6 +164,9 @@ export default function ClaimDetailPage() {
             enabled: true,
             algorithm: encryptedAppealEvidence.algorithm,
             originalMimeType: encryptedAppealEvidence.originalMimeType,
+            originalName: encryptedAppealEvidence.originalName,
+            wrappedEvidenceKey: encryptedAppealEvidence.wrappedEvidenceKey,
+            keyId: encryptedAppealEvidence.keyId,
           },
         });
 
@@ -180,17 +191,30 @@ export default function ClaimDetailPage() {
         additionalDocumentHash,
         additionalDocumentCID,
         transactionHash: tx.hash,
+        proposedHospitalId: proposedHospitalId.trim(),
+        proposedInvoiceNumber: proposedInvoiceNumber.trim(),
+        proposedClaimType: proposedClaimType.trim(),
+        proposedClaimAmountEth: proposedClaimAmountEth.trim(),
       });
 
       setAppealReason("");
       setAppealDescription("");
       setAppealFile(null);
+      setProposedHospitalId("");
+      setProposedInvoiceNumber("");
+      setProposedClaimType("");
+      setProposedClaimAmountEth("");
       setAppealMessage("Appeal submitted successfully.");
+      showToast(`Appeal for claim #${id} submitted successfully.`, {
+        title: "Appeal submitted",
+      });
       await refetchAppeal();
       await refetch();
     } catch (err) {
       console.error(err);
-      setAppealError(parseTransactionError(err));
+      const message = parseTransactionError(err);
+      setAppealError(message);
+      showToast(message, { tone: "error", title: "Appeal failed" });
     } finally {
       setIsSubmittingAppeal(false);
     }
@@ -223,27 +247,68 @@ export default function ClaimDetailPage() {
         </p>
       ) : null}
 
+      <div className="claim-detail-workspace">
       {claim ? (
         <div className="card">
-          <h3>Claim #{formatValue(claim.claimId || id)}</h3>
+          <span className="section-eyebrow">Claim overview</span>
+          <h3>
+            {claim.displayTitle ||
+              `${claim.packageName || "Insurance claim"} · Claim #${formatValue(
+                claim.claimId || id
+              )}`}
+          </h3>
 
-          <p>Policy ID: {formatValue(claim.policyId)}</p>
-          <p>Claimant: {formatValue(claim.claimantWallet)}</p>
           <p>Amount: {formatValue(claim.claimAmountEth || claim.claimAmount)} ETH</p>
           <p>Claim type: {formatValue(claim.claimType)}</p>
           <p>Hospital ID: {formatValue(claim.hospitalId)}</p>
           <p>
             Status: <ClaimStatusBadge status={statusName} showHelp />
           </p>
-          <p>Risk score: {formatValue(claim.riskScore)}</p>
-          <p>Submitted at: {formatValue(claim.submittedAtFormatted || claim.submittedAt)}</p>
+          <p>
+            On-chain validation score:{" "}
+            {claim.riskScoreAvailable === false
+              ? "Not calculated"
+              : `${formatValue(claim.riskScore)}/100`}
+          </p>
+          <p className="muted-text">
+            Higher values mean the on-chain duplicate checks found fewer
+            warning signals. This is not the oracle fraud probability.
+          </p>
+          <p>
+            Submitted:{" "}
+            {formatDate(claim.submittedAtFormatted || claim.submittedAt)}
+          </p>
+          {claim.fraudReason ? (
+            <p className="error-text">
+              <strong>Flag reason:</strong> {claim.fraudReason}
+            </p>
+          ) : null}
+
+          <details className="technical-details">
+            <summary>Policy and wallet identifiers</summary>
+            <p>Policy ID: {formatValue(claim.policyId)}</p>
+            <p>Claimant wallet: {formatValue(claim.claimantWallet)}</p>
+          </details>
 
           <h3>Evidence</h3>
-          <EvidenceField label="Invoice hash" value={claim.invoiceHash} />
-          <EvidenceField label="Document hash" value={claim.documentHash} />
-          <p>
-            <strong>Document CID:</strong> <IpfsLink cid={claim.documentCID} />
+          <p className="muted-text">
+            Files are encrypted. The hash chain verifies integrity; the oracle
+            or an authorized reviewer still determines whether the content is
+            valid.
           </p>
+          <details className="technical-details">
+            <summary>Original evidence identifiers</summary>
+            <EvidenceField label="Invoice hash" value={claim.invoiceHash} />
+            <EvidenceField label="Document hash" value={claim.documentHash} />
+            <p>
+              <strong>Encrypted IPFS object:</strong>{" "}
+              <IpfsLink
+                cid={claim.documentCID}
+                documentId={originalEvidenceDocument?.id}
+                recoverable={originalEvidenceDocument?.recoverableAcrossBrowsers}
+              />
+            </p>
+          </details>
           <EvidenceChainPanel evidenceChain={evidenceChain} />
         </div>
       ) : null}
@@ -329,6 +394,54 @@ export default function ClaimDetailPage() {
                 />
               </label>
 
+              <fieldset>
+                <legend>Corrected claim information (optional)</legend>
+                <p className="muted-text">
+                  Enter only information that was wrong originally. If the
+                  appeal is approved, the next oracle round will use these
+                  corrections and identify them as appeal-supplied data.
+                </p>
+                <label>
+                  Correct hospital ID
+                  <input
+                    value={proposedHospitalId}
+                    onChange={(event) => setProposedHospitalId(event.target.value)}
+                    placeholder={claim?.hospitalId || "HOSP-001"}
+                  />
+                </label>
+                <label>
+                  Correct invoice number
+                  <input
+                    value={proposedInvoiceNumber}
+                    onChange={(event) =>
+                      setProposedInvoiceNumber(event.target.value)
+                    }
+                    placeholder="INV-HOSP-001-001"
+                  />
+                </label>
+                <label>
+                  Correct claim type
+                  <input
+                    value={proposedClaimType}
+                    onChange={(event) => setProposedClaimType(event.target.value)}
+                    placeholder={claim?.claimType || "HOSPITALIZATION"}
+                  />
+                </label>
+                <label>
+                  Correct claim amount in ETH
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={proposedClaimAmountEth}
+                    onChange={(event) =>
+                      setProposedClaimAmountEth(event.target.value)
+                    }
+                    placeholder={claim?.claimAmountEth || "0.1"}
+                  />
+                </label>
+              </fieldset>
+
               <button type="submit" disabled={isSubmittingAppeal}>
                 {isSubmittingAppeal ? "Submitting Appeal..." : "Appeal This Decision"}
               </button>
@@ -360,6 +473,7 @@ export default function ClaimDetailPage() {
           ) : null}
         </div>
       ) : null}
+      </div>
 
       <h3>Oracle Results</h3>
 

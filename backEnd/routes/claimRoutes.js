@@ -8,6 +8,7 @@ const {
   getClaimDocumentHash,
   reconcileClaimSubmission,
   recordClaimTransaction,
+  resetMyClaimSubmissionLimit,
 } = require("../controllers/claimController");
 const authMiddleware = require("../middleware/authMiddleware");
 const claimSubmissionRateLimit = require("../middleware/claimSubmissionRateLimit");
@@ -19,6 +20,11 @@ router.post(
   authMiddleware,
   claimSubmissionRateLimit,
   authorizeClaimSubmission
+);
+router.delete(
+  "/submission-limit/me",
+  authMiddleware,
+  resetMyClaimSubmissionLimit
 );
 router.patch(
   "/submission-attempts/:attemptId/transaction",

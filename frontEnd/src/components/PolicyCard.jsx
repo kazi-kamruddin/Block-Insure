@@ -9,7 +9,14 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
         <div className="risk-premium-summary">
           <p>Risk multiplier: {riskQuote.multiplier}x</p>
           <p>Risk-adjusted quote: {riskQuote.finalPremiumEth} ETH</p>
-          <p className="muted-text">Demo quote only; purchase uses the on-chain package premium.</p>
+          <p className="muted-text">
+            Calculation: {riskQuote.basePremiumEth || policyPackage.premiumAmountEth} ETH
+            {" × "}{riskQuote.multiplier} = {riskQuote.finalPremiumEth} ETH.
+          </p>
+          <strong className="warning-text">
+            Simulation only. MetaMask will charge the on-chain base premium of{" "}
+            {policyPackage.premiumAmountEth} ETH.
+          </strong>
         </div>
       ) : null}
       <p>Coverage: {policyPackage.coverageAmountEth} ETH</p>

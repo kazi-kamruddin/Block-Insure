@@ -37,6 +37,8 @@ function formatTimestamp(value) {
 export default function AuditorDocumentVerificationPage() {
   const [claimId, setClaimId] = useState("");
   const [file, setFile] = useState(null);
+  const [documentId, setDocumentId] = useState("");
+  const [evidenceOptions, setEvidenceOptions] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState("");
@@ -67,7 +69,7 @@ export default function AuditorDocumentVerificationPage() {
 
       const [localHash, claimHashData] = await Promise.all([
         calculateFileSha256(file),
-        getClaimDocumentHash(claimId.trim()),
+        getClaimDocumentHash(claimId.trim(), documentId),
       ]);
 
       const storedHash = normalizeHash(claimHashData.documentHash);
@@ -79,6 +81,7 @@ export default function AuditorDocumentVerificationPage() {
         storedHash,
         claim: claimHashData,
       });
+      setEvidenceOptions(claimHashData.evidenceOptions || []);
     } catch (err) {
       console.error(err);
       setError(
@@ -139,6 +142,28 @@ export default function AuditorDocumentVerificationPage() {
             />
           </label>
 
+          <label>
+            Evidence link
+            <select
+              value={documentId}
+              onChange={(event) => {
+                setDocumentId(event.target.value);
+                setResult(null);
+              }}
+            >
+              <option value="">Original on-chain claim commitment</option>
+              {evidenceOptions.map((document) => (
+                <option key={document.id} value={document.id}>
+                  Link #{document.evidenceChainIndex} · {document.name}
+                </option>
+              ))}
+            </select>
+            <small>
+              Verify once to load every evidence-chain link for this claim,
+              then select an appeal or additional document if needed.
+            </small>
+          </label>
+
           <button type="submit" disabled={isVerifying}>
             {isVerifying ? "Verifying..." : "Verify Integrity"}
           </button>
@@ -162,8 +187,10 @@ export default function AuditorDocumentVerificationPage() {
                   : "Hash Mismatch - Document May Have Been Tampered"}
               </h3>
               <p>
-                Claim #{result.claim.claimId} committed at block{" "}
-                {result.claim.blockNumber || "-"}.
+                Claim #{result.claim.claimId} ·{" "}
+                {result.claim.commitmentSource === "ON_CHAIN_CLAIM"
+                  ? `on-chain commitment at block ${result.claim.blockNumber || "-"}`
+                  : "backend evidence-chain commitment"}.
               </p>
             </div>
           </div>
@@ -174,7 +201,11 @@ export default function AuditorDocumentVerificationPage() {
               <CopyableText value={result.computedHash} label="Copy hash" short />
             </div>
             <div>
-              <span>Stored On-Chain Hash</span>
+              <span>
+                {result.claim.commitmentSource === "ON_CHAIN_CLAIM"
+                  ? "Stored On-Chain Hash"
+                  : "Stored Evidence-Chain Hash"}
+              </span>
               <CopyableText value={result.storedHash} label="Copy hash" short />
             </div>
           </div>

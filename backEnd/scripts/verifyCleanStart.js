@@ -75,9 +75,17 @@ async function main() {
   const expectedAdmin = new ethers.Wallet(
     requireEnv("ADMIN_PRIVATE_KEY")
   ).address.toLowerCase();
-  const expectedAuditor = ethers
-    .getAddress(requireEnv("AUDITOR_WALLET_ADDRESS"))
-    .toLowerCase();
+  const expectedAuditors = [
+    ethers.getAddress(requireEnv("AUDITOR_WALLET_ADDRESS")).toLowerCase(),
+    ethers
+      .getAddress(
+        process.env.AUDITOR_WALLET_ADDRESS_2 ||
+          (process.env.DEMO_AUDITOR_PRIVATE_KEY_2
+            ? new ethers.Wallet(process.env.DEMO_AUDITOR_PRIVATE_KEY_2).address
+            : requireEnv("AUDITOR_WALLET_ADDRESS_2"))
+      )
+      .toLowerCase(),
+  ].sort();
   const expectedOracles = [
     new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY")).address.toLowerCase(),
     new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY_2")).address.toLowerCase(),
@@ -102,11 +110,11 @@ async function main() {
     );
   }
   if (
-    activeAuditors.length !== 1 ||
-    activeAuditors[0] !== expectedAuditor
+    activeAuditors.length !== expectedAuditors.length ||
+    activeAuditors.slice().sort().join(",") !== expectedAuditors.join(",")
   ) {
     failures.push(
-      `expected only configured Auditor ${expectedAuditor}, found ${activeAuditors.join(", ") || "none"}`
+      `expected configured Auditors ${expectedAuditors.join(", ")}, found ${activeAuditors.join(", ") || "none"}`
     );
   }
   if (
@@ -118,17 +126,19 @@ async function main() {
     );
   }
 
-  const [auditorReputation, auditorVotes] = await Promise.all([
-    contract.auditorReputation(expectedAuditor),
-    contract.auditorTotalVotes(expectedAuditor),
-  ]);
-  if (auditorReputation !== 0n) {
-    failures.push(
-      `expected uninitialized auditor reputation 0, found ${auditorReputation}`
-    );
-  }
-  if (auditorVotes !== 0n) {
-    failures.push(`expected 0 auditor votes, found ${auditorVotes}`);
+  for (const auditor of expectedAuditors) {
+    const [auditorReputation, auditorVotes] = await Promise.all([
+      contract.auditorReputation(auditor),
+      contract.auditorTotalVotes(auditor),
+    ]);
+    if (auditorReputation !== 0n) {
+      failures.push(
+        `expected uninitialized auditor reputation 0 for ${auditor}, found ${auditorReputation}`
+      );
+    }
+    if (auditorVotes !== 0n) {
+      failures.push(`expected 0 auditor votes for ${auditor}, found ${auditorVotes}`);
+    }
   }
 
   await mongoose.connect(requireEnv("MONGODB_URI"));
@@ -184,7 +194,7 @@ async function main() {
     throw new Error(`Clean-start verification failed: ${failures.join("; ")}`);
   }
 
-  console.log("Clean-start verification passed: one Admin, one uninitialized Auditor, two Oracles, one package, zero policies/claims/votes, funded settlement reserve, no prior runtime activity, and a published healthcare registry baseline.");
+  console.log("Clean-start verification passed: one Admin, two uninitialized Auditors, two Oracles, one package, zero policies/claims/votes, funded settlement reserve, no prior runtime activity, and a published healthcare registry baseline.");
 }
 
 main().catch((error) => {

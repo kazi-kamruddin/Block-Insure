@@ -91,6 +91,80 @@ const formatClaim = (claim) => {
   };
 };
 
+const formatEnrichedClaim = async (
+  contract,
+  claim,
+  { includeLifecycle = false } = {}
+) => {
+  const formatted = formatClaim(claim);
+  let policyPackageName = "";
+  let fraudReason = "";
+  let closure = null;
+
+  try {
+    const policy = await contract.getPolicy(claim.policyId);
+    const policyPackage = await contract.getPolicyPackage(policy.packageId);
+    policyPackageName = policyPackage.name;
+  } catch {
+    // Optional display enrichment must not hide a readable on-chain claim.
+  }
+
+  if (formatted.status.label === "FRAUD_FLAGGED") {
+    try {
+      const events = await contract.queryFilter(
+        contract.filters.ClaimFlagged(claim.claimId),
+        0,
+        "latest"
+      );
+      fraudReason = events.at(-1)?.args?.reason || "";
+    } catch {
+      // Older deployments may not support the indexed event filter.
+    }
+  }
+
+  if (includeLifecycle) {
+    try {
+      const [resolvedAt, closureWindow, appealed, appealFinalized] =
+        await Promise.all([
+          contract.claimResolvedAt(claim.claimId),
+          contract.claimClosureWindowSeconds(),
+          contract.claimAppealed(claim.claimId),
+          contract.claimAppealFinalized(claim.claimId),
+        ]);
+      const resolvedAtSeconds = Number(resolvedAt);
+      const closureEligibleAtSeconds = resolvedAtSeconds
+        ? resolvedAtSeconds + Number(closureWindow)
+        : 0;
+      closure = {
+        resolvedAt: formatTimestamp(resolvedAt),
+        closureWindowSeconds: Number(closureWindow),
+        closureEligibleAt: formatTimestamp(closureEligibleAtSeconds),
+        appealed: Boolean(appealed),
+        appealFinalized: Boolean(appealFinalized),
+        canClose:
+          formatted.status.label === "SETTLED" ||
+          (formatted.status.label === "REJECTED" &&
+            (Boolean(appealFinalized) ||
+              (closureEligibleAtSeconds > 0 &&
+                Math.floor(Date.now() / 1000) >= closureEligibleAtSeconds))),
+      };
+    } catch {
+      // Older deployments can still return the core claim record.
+    }
+  }
+
+  return {
+    ...formatted,
+    policyPackageName,
+    displayTitle: `${formatted.claimType || "Insurance"} claim${
+      formatted.hospitalId ? ` — ${formatted.hospitalId}` : ""
+    }`,
+    fraudReason,
+    riskScoreAvailable: formatted.status.label !== "FRAUD_FLAGGED",
+    closure,
+  };
+};
+
 const formatClaimDocument = (document) => {
   return {
     documentHash: document.documentHash,
@@ -118,7 +192,7 @@ const getMyClaims = async (req, res, next) => {
     const claims = await Promise.all(
       claimIds.map(async (claimId) => {
         const claim = await contract.getClaim(claimId);
-        return formatClaim(claim);
+        return formatEnrichedClaim(contract, claim);
       })
     );
 
@@ -154,7 +228,7 @@ const getReadableClaims = async (req, res, next) => {
     );
     const claims = await Promise.all(
       claimIds.map(async (claimId) =>
-        formatClaim(await contract.getClaim(claimId))
+        formatEnrichedClaim(contract, await contract.getClaim(claimId))
       )
     );
 
@@ -187,7 +261,9 @@ const getClaimById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      claim: formatClaim(claim),
+      claim: await formatEnrichedClaim(contract, claim, {
+        includeLifecycle: true,
+      }),
       documents: documents.map(formatClaimDocument),
       evidenceChain,
     });
@@ -208,6 +284,23 @@ const getClaimDocumentHash = async (req, res, next) => {
     const contract = getReadOnlyContract();
     const claimId = BigInt(req.params.claimId);
     const claim = await contract.getClaim(claimId);
+    const linkedDocuments = await File.find({
+      claimId: claimId.toString(),
+      status: "PINNED",
+    }).sort({ evidenceChainIndex: 1, createdAt: 1 });
+    const requestedDocumentId = String(req.query.documentId || "").trim();
+    const selectedDocument = requestedDocumentId
+      ? linkedDocuments.find(
+          (document) => document._id.toString() === requestedDocumentId
+        )
+      : null;
+
+    if (requestedDocumentId && !selectedDocument) {
+      return res.status(404).json({
+        success: false,
+        message: "Selected evidence document is not linked to this claim",
+      });
+    }
 
     let blockNumber = null;
 
@@ -226,8 +319,19 @@ const getClaimDocumentHash = async (req, res, next) => {
       success: true,
       claimId: claim.claimId.toString(),
       claimantWallet: claim.claimantWallet,
-      documentHash: claim.documentHash,
-      documentCID: claim.documentCID,
+      documentHash: selectedDocument?.sha256Hash || claim.documentHash,
+      documentCID: selectedDocument?.ipfsCID || claim.documentCID,
+      documentId: selectedDocument?._id || null,
+      documentName: selectedDocument?.originalName || "Original claim evidence",
+      commitmentSource: selectedDocument
+        ? "BACKEND_EVIDENCE_CHAIN"
+        : "ON_CHAIN_CLAIM",
+      evidenceOptions: linkedDocuments.map((document) => ({
+        id: document._id,
+        name: document.originalName,
+        documentType: document.documentType,
+        evidenceChainIndex: document.evidenceChainIndex,
+      })),
       submittedAt: formatTimestamp(claim.submittedAt),
       blockNumber,
     });
@@ -276,16 +380,35 @@ const authorizeClaimSubmission = async (req, res, next) => {
 
     const maximumPerDay = Number(process.env.CLAIMS_PER_WALLET_24H || 3);
     const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentAttempts = await ClaimSubmissionAttempt.countDocuments({
+    const attemptQuery = {
       walletAddress: req.user.walletAddress,
       createdAt: { $gte: windowStart },
       status: { $nin: ["ABANDONED", "FAILED"] },
-    });
+    };
+    const [recentAttempts, oldestActiveAttempt] = await Promise.all([
+      ClaimSubmissionAttempt.countDocuments(attemptQuery),
+      ClaimSubmissionAttempt.findOne(attemptQuery).sort({ createdAt: 1 }),
+    ]);
 
-    if (recentAttempts >= maximumPerDay) {
+    if (maximumPerDay > 0 && recentAttempts >= maximumPerDay) {
+      const resetAt = new Date(
+        new Date(oldestActiveAttempt?.createdAt || Date.now()).getTime() +
+          24 * 60 * 60 * 1000
+      );
+      const retryAfterSeconds = Math.max(
+        Math.ceil((resetAt.getTime() - Date.now()) / 1000),
+        1
+      );
+      res.set("Retry-After", String(retryAfterSeconds));
       return res.status(429).json({
         success: false,
         message: `Wallet claim submission limit reached (${maximumPerDay} per 24 hours).`,
+        limit: maximumPerDay,
+        resetAt: resetAt.toISOString(),
+        retryAfterSeconds,
+        devResetAvailable:
+          process.env.NODE_ENV !== "production" &&
+          process.env.DEV_ALLOW_CLAIM_LIMIT_RESET === "true",
       });
     }
 
@@ -299,8 +422,35 @@ const authorizeClaimSubmission = async (req, res, next) => {
       success: true,
       message: "Claim submission authorized",
       attemptId: attempt._id,
-      remainingToday: Math.max(maximumPerDay - recentAttempts - 1, 0),
+      remainingToday:
+        maximumPerDay > 0
+          ? Math.max(maximumPerDay - recentAttempts - 1, 0)
+          : null,
       policyStatus: { code: statusCode, label: statusLabel },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const resetMyClaimSubmissionLimit = async (req, res, next) => {
+  try {
+    if (
+      process.env.NODE_ENV === "production" ||
+      process.env.DEV_ALLOW_CLAIM_LIMIT_RESET !== "true"
+    ) {
+      throw createError("Development claim-limit reset is disabled", 403);
+    }
+
+    const result = await ClaimSubmissionAttempt.deleteMany({
+      walletAddress: req.user.walletAddress,
+      status: { $in: ["AUTHORIZED", "UPLOADED", "COMPLETED"] },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Development claim submission limit reset",
+      removedAttempts: result.deletedCount,
     });
   } catch (error) {
     next(error);
@@ -516,4 +666,5 @@ module.exports = {
   getClaimDocumentHash,
   reconcileClaimSubmission,
   recordClaimTransaction,
+  resetMyClaimSubmissionLimit,
 };

@@ -9,6 +9,7 @@ const {
   buildRegistryMerkleRoot,
 } = require("../services/merkleRegistryService");
 const { getReadOnlyContract, getRegistrySnapshot } = require("../services/contractService");
+const Appeal = require("../models/Appeal");
 
 const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -570,7 +571,7 @@ const getHospitalRegistryMerkleProof = async (req, res, next) => {
 
 const verifyHospitalRecord = async (req, res, next) => {
   try {
-    const {
+    let {
       hospitalId,
       invoiceHash,
       claimAmountEth,
@@ -579,6 +580,36 @@ const verifyHospitalRecord = async (req, res, next) => {
       incidentDate,
       registrySnapshot: requestedRegistrySnapshot,
     } = req.query;
+    const claimId = String(req.query.claimId || "").trim();
+    let verificationSource = "ORIGINAL_CLAIM";
+
+    if (claimId) {
+      const approvedAppeal = await Appeal.findOne({
+        claimId,
+        status: "APPROVED",
+      }).lean();
+
+      if (
+        approvedAppeal &&
+        [
+          approvedAppeal.proposedHospitalId,
+          approvedAppeal.proposedInvoiceNumber,
+          approvedAppeal.proposedClaimType,
+          approvedAppeal.proposedClaimAmountEth,
+        ].some(Boolean)
+      ) {
+        hospitalId = approvedAppeal.proposedHospitalId || hospitalId;
+        invoiceHash = approvedAppeal.proposedInvoiceNumber
+          ? ethers.keccak256(
+              ethers.toUtf8Bytes(approvedAppeal.proposedInvoiceNumber.trim())
+            )
+          : invoiceHash;
+        claimType = approvedAppeal.proposedClaimType || claimType;
+        claimAmountEth =
+          approvedAppeal.proposedClaimAmountEth || claimAmountEth;
+        verificationSource = "APPROVED_APPEAL_CORRECTION";
+      }
+    }
 
     if (!hospitalId || !invoiceHash) {
       return res.status(400).json({
@@ -617,6 +648,8 @@ const verifyHospitalRecord = async (req, res, next) => {
       claimAmountWei: claimAmountWei || null,
       claimType: claimType || null,
       incidentDate: incidentDate || null,
+      claimId: claimId || null,
+      source: verificationSource,
     };
     const riskAssessment = await buildRiskAssessment({
       record,

@@ -56,6 +56,23 @@ const fileSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    keyProvider: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    keyId: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
+    wrappedEvidenceKey: {
+      type: String,
+      trim: true,
+      default: "",
+      select: false,
+    },
     previousEvidenceHash: {
       type: String,
       trim: true,

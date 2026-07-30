@@ -86,7 +86,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 if (process.env.NODE_ENV !== "test") {
-  app.use(morgan("dev"));
+  app.use(morgan("[Backend] :method :url :status :response-time ms"));
 }
 
 /* ---------------------------- Base Routes ----------------------------- */
@@ -99,9 +99,17 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
+  const databaseState =
+    mongoose.connection.readyState === 1 ? "connected" : "disconnected";
   res.status(200).json({
     success: true,
     message: "Backend is healthy",
+    services: {
+      database: databaseState,
+      blockchainRpc: process.env.RPC_URL ? "configured" : "missing",
+      contract: process.env.VITE_CONTRACT_ADDRESS ? "configured" : "missing",
+      evidenceKeyProvider: "local-rsa",
+    },
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
@@ -158,7 +166,7 @@ app.use((err, req, res, next) => {
 
 const connectDatabase = async () => {
   await mongoose.connect(MONGODB_URI);
-  console.log("MongoDB connected successfully");
+  console.log("[Backend] MongoDB connected successfully");
 };
 
 /* -------------------------- Server Startup ----------------------------- */
@@ -169,8 +177,8 @@ const startServer = async () => {
     await startBlockchainEventListener();
 
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/health`);
+      console.log(`[Backend] Server running on port ${PORT}`);
+      console.log(`[Backend] Health check: http://localhost:${PORT}/health`);
     });
   } catch (error) {
     console.error("MongoDB connection failed:", error.message);

@@ -30,13 +30,13 @@ test("clean setup contains only infrastructure initialization in safe order", ()
   }
 });
 
-test("clean role bootstrap does not seed extra auditors or reputation", () => {
+test("clean role bootstrap creates quorum auditors without seeding reputation", () => {
   const roleScript = fs.readFileSync(
     path.join(projectRoot, "backend", "scripts", "grantProjectRolesLocal.js"),
     "utf8"
   );
 
   assert.equal(roleScript.includes("updateAuditorReputation"), false);
-  assert.equal(roleScript.includes("AUDITOR_2_WALLET_ADDRESS"), false);
+  assert.equal(roleScript.includes("AUDITOR_WALLET_ADDRESS_2"), true);
   assert.equal(roleScript.includes("AUDITOR_REPUTATION"), false);
 });

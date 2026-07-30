@@ -47,6 +47,27 @@ const appealSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    proposedHospitalId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    proposedInvoiceNumber: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    proposedClaimType: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+    },
+    proposedClaimAmountEth: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     status: {
       type: String,
       enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"],

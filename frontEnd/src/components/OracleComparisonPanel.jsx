@@ -98,6 +98,34 @@ function getRegistryRootMatched(log, merkleProof) {
   return null;
 }
 
+function groupLogsByRequest(logs) {
+  const rounds = new Map();
+
+  logs.forEach((log) => {
+    const requestId = String(log?.requestId || "unknown");
+    if (!rounds.has(requestId)) rounds.set(requestId, []);
+    rounds.get(requestId).push(log);
+  });
+
+  return [...rounds.entries()]
+    .map(([requestId, roundLogs]) => ({
+      requestId,
+      logs: roundLogs.sort(
+        (left, right) =>
+          new Date(left.createdAt || left.timestamp || 0).getTime() -
+          new Date(right.createdAt || right.timestamp || 0).getTime()
+      ),
+    }))
+    .sort((left, right) => {
+      const leftNumber = Number(left.requestId);
+      const rightNumber = Number(right.requestId);
+      if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+        return rightNumber - leftNumber;
+      }
+      return right.requestId.localeCompare(left.requestId);
+    });
+}
+
 function QuorumSummary({ summary, logs }) {
   if (!summary && !logs.length) return null;
 
@@ -266,6 +294,7 @@ function OracleLogCard({ log }) {
 
 export default function OracleComparisonPanel({ log, logs, quorumSummary }) {
   const oracleLogs = logs || (log ? [log] : []);
+  const rounds = groupLogsByRequest(oracleLogs);
 
   if (!oracleLogs.length && !quorumSummary) {
     return <p>No oracle result found yet.</p>;
@@ -274,13 +303,48 @@ export default function OracleComparisonPanel({ log, logs, quorumSummary }) {
   return (
     <div className="oracle-comparison-panel">
       <QuorumSummary summary={quorumSummary} logs={oracleLogs} />
-      {oracleLogs.length ? (
-        oracleLogs.map((oracleLog) => (
-          <OracleLogCard
-            key={oracleLog._id || `${oracleLog.requestId}-${oracleLog.oracleWallet || oracleLog.resultHash}`}
-            log={oracleLog}
-          />
-        ))
+      {rounds.length ? (
+        <div className="oracle-round-list">
+          {rounds.map((round, roundIndex) => {
+            const verifiedCount = round.logs.filter(
+              (oracleLog) => oracleLog.verified === true
+            ).length;
+            const failedCount = round.logs.length - verifiedCount;
+
+            return (
+              <details
+                className="oracle-round"
+                key={round.requestId}
+                open={roundIndex === 0}
+              >
+                <summary>
+                  <span>
+                    Verification round {round.requestId}
+                    {roundIndex === 0 ? " (latest)" : ""}
+                  </span>
+                  <span>
+                    {round.logs.length} response{round.logs.length === 1 ? "" : "s"}
+                    {" · "}
+                    {verifiedCount} verified · {failedCount} failed
+                  </span>
+                </summary>
+                <p className="oracle-round-help">
+                  Each card below is one independent oracle response for this
+                  request. Older rounds remain available for the audit trail.
+                </p>
+                {round.logs.map((oracleLog) => (
+                  <OracleLogCard
+                    key={
+                      oracleLog._id ||
+                      `${oracleLog.requestId}-${oracleLog.oracleWallet || oracleLog.resultHash}`
+                    }
+                    log={oracleLog}
+                  />
+                ))}
+              </details>
+            );
+          })}
+        </div>
       ) : (
         <p className="muted-text">
           On-chain confirmations exist, but no per-oracle metadata log is available yet.

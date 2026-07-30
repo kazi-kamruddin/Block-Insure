@@ -11,6 +11,7 @@ import {
   updatePolicyPackage,
 } from "../services/api";
 import "../styles/pages/AdminPolicyPackagesPage.css";
+import { showToast } from "../services/toast";
 
 function extractPackages(data) {
   if (Array.isArray(data)) return data;
@@ -84,16 +85,18 @@ export default function AdminPolicyPackagesPage() {
 
       setActionTxHash(result.transactionHash || result.txHash || "");
       setActionMessage(successText);
+      showToast(successText, { title: "Package updated" });
       cancelEditing();
       await refetch();
     } catch (err) {
       console.error(err);
-      setActionError(
+      const message =
         err.response?.data?.message ||
           err.response?.data?.error ||
           err.message ||
-          "Package action failed"
-      );
+          "Package action failed";
+      setActionError(message);
+      showToast(message, { tone: "error", title: "Package action failed" });
     } finally {
       setActingPackageId("");
     }

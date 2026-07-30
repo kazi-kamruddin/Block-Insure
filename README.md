@@ -19,16 +19,19 @@ settlement.
 Use this workflow for a fresh simulation. It deliberately removes only
 Block-Insure runtime data from the configured MongoDB database, deploys a new
 local contract, creates **one** `Health Basic` package, funds the configured
-local role accounts, and assigns the configured Admin, Auditor, and Oracle
+local role accounts, and assigns the configured Admin, two Auditors, and Oracle
 roles. It also funds a 1 ETH local settlement reserve. It creates **no
 policies, claims, appeals, evidence, oracle logs, or
 synthetic user activity**. It does rebuild the synthetic healthcare registry
 baseline and commits its Merkle root on the fresh local chain, so newly created
 claims can be verified by the oracle from the first run.
 
-The clean role baseline is exactly one Admin, one Auditor, and two Oracle
-wallets. Auditor reputation is not seeded; it remains uninitialized until the
-Auditor casts a real vote. The two oracle workers use separate registry
+The clean role baseline is exactly one Admin, two Auditors, and two Oracle
+wallets. Auditor reputation is not seeded; it remains uninitialized until an
+Auditor casts a real vote. Two distinct votes are required before an
+administrator can finalize a manual-review decision. Configure the second
+wallet with `AUDITOR_WALLET_ADDRESS_2` (or
+`DEMO_AUDITOR_PRIVATE_KEY_2`) before running clean setup. The two oracle workers use separate registry
 collections, but clean setup gives both the same committed baseline so valid
 claims can reach quorum. Research scripts may deliberately introduce divergent
 data, but the clean workflow never does.
@@ -51,7 +54,7 @@ package and zero purchased policies/claims before you start the application.
 The deploy step also synchronizes the new contract address into the backend,
 frontend, and both oracle environment files.
 
-Then start each service in its own terminal:
+For separate terminals, start each service with:
 
 ```powershell
 cd contracts
@@ -75,6 +78,14 @@ npm run dev
 npm run dev:oracle2
 ```
 
+Alternatively, once a local deployment already exists, start all five
+processes with prefixed logs in one terminal:
+
+```powershell
+npm run preflight
+npm run dev:all
+```
+
 Open separate browser profiles (or separate browsers) and connect MetaMask to
 the local Hardhat network (`http://127.0.0.1:8545`, chain ID `31337`). Import
 the accounts corresponding to the configured `ADMIN_PRIVATE_KEY` and
@@ -91,10 +102,19 @@ the local thesis workflow.
 
 Claim and appeal evidence is encrypted in the browser with AES-256-GCM before
 upload. Pinata, MongoDB, and the blockchain receive only encrypted bytes and
-their hash/CID. The decryption key stays in that browser profile's local
-storage, so preserve the policyholder profile if you want to use the
-**Download decrypted** control later. Clearing browser storage deliberately
-destroys that local key.
+their hash/CID. The browser also wraps the AES key with the application's
+RSA-3072 public key. The backend may unwrap that key only for the policyholder
+who owns the claim or an authenticated Admin/Auditor, and every unwrap is
+recorded in the evidence-access log. This makes authorized recovery work from
+another browser while keeping the raw AES key out of IPFS and the blockchain.
+For local development, the RSA key pair is generated under
+`backEnd/.local-keys`; production should replace this provider with managed KMS
+or OpenBao and enforce its release policy.
+
+The normal claim allowance is controlled by `CLAIMS_PER_WALLET_24H`. Set it to
+`0` to disable the daily allowance locally, or opt into the authenticated local
+reset control with `DEV_ALLOW_CLAIM_LIMIT_RESET=true`. Never enable the reset
+control in production.
 
 The detailed synthetic hospital verification endpoint is not public. Oracle
 workers authenticate with `ORACLE_API_KEY`, and the response exposed to oracle

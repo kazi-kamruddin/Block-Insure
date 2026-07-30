@@ -44,13 +44,19 @@ const formatPolicyStatus = (statusValue) => {
   };
 };
 
-const formatPolicy = (policy, effectiveStatus = policy.status) => {
+const formatPolicy = (
+  policy,
+  effectiveStatus = policy.status,
+  policyPackage = null
+) => {
   const premiumAmount = policy.premiumAmount || 0n;
   const totalPremiumPaid = policy.totalPremiumPaid || policy.premiumPaid || 0n;
 
   return {
     policyId: policy.policyId.toString(),
     packageId: policy.packageId.toString(),
+    packageName: policyPackage?.name || "",
+    policyType: policyPackage?.policyType || "",
     holderWallet: policy.holderWallet,
     startDate: policy.startDate.toString(),
     endDate: policy.endDate.toString(),
@@ -154,7 +160,8 @@ const getMyPolicies = async (req, res, next) => {
           contract.getPolicy(policyId),
           contract.getEffectivePolicyStatus(policyId),
         ]);
-        return formatPolicy(policy, effectiveStatus);
+        const policyPackage = await contract.getPolicyPackage(policy.packageId);
+        return formatPolicy(policy, effectiveStatus, policyPackage);
       })
     );
 
@@ -187,7 +194,11 @@ const getPolicyById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      policy: formatPolicy(policy, effectiveStatus),
+      policy: formatPolicy(
+        policy,
+        effectiveStatus,
+        await contract.getPolicyPackage(policy.packageId)
+      ),
     });
   } catch (error) {
     next(error);

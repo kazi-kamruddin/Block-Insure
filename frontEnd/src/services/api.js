@@ -140,6 +140,9 @@ export async function uploadClaimDocument({
     formData.append("encrypted", "true");
     formData.append("encryptionAlgorithm", encryption.algorithm);
     formData.append("originalMimeType", encryption.originalMimeType);
+    formData.append("originalName", encryption.originalName);
+    formData.append("wrappedEvidenceKey", encryption.wrappedEvidenceKey);
+    formData.append("keyId", encryption.keyId);
   }
 
   const response = await api.post("/api/documents/upload", formData, {
@@ -156,6 +159,18 @@ export async function getMyClaims(params = {}) {
   return response.data;
 }
 
+export async function getEvidenceEncryptionKey() {
+  const response = await api.get("/api/documents/encryption-key");
+  return response.data;
+}
+
+export async function getEvidenceDecryptionKey(documentId) {
+  const response = await api.get(
+    `/api/documents/${documentId}/decryption-key`
+  );
+  return response.data;
+}
+
 export async function getAllReadableClaims(params = {}) {
   const response = await api.get("/api/claims/all", { params });
   return response.data;
@@ -168,6 +183,11 @@ export async function getClaimById(claimId) {
 
 export async function authorizeClaimSubmission(policyId) {
   const response = await api.post("/api/claims/submission-check", { policyId });
+  return response.data;
+}
+
+export async function resetMyClaimSubmissionLimit() {
+  const response = await api.delete("/api/claims/submission-limit/me");
   return response.data;
 }
 
@@ -214,8 +234,10 @@ export async function reconcilePendingClaimSubmissions() {
   return { reconciled, remaining: remaining.length };
 }
 
-export async function getClaimDocumentHash(claimId) {
-  const response = await api.get(`/api/claims/${claimId}/document-hash`);
+export async function getClaimDocumentHash(claimId, documentId = "") {
+  const response = await api.get(`/api/claims/${claimId}/document-hash`, {
+    params: documentId ? { documentId } : {},
+  });
   return response.data;
 }
 

@@ -63,12 +63,35 @@ const notifyClaimStatusChange = ({
   const claimId = claim.claimId.toString();
   const claimantWallet = claim.claimantWallet;
   const displayStatus = String(status || "UNKNOWN").replaceAll("_", " ");
+  const guidanceByStatus = {
+    DUPLICATE_CHECKED:
+      "Automated duplicate checks passed. An administrator can now request oracle verification.",
+    FRAUD_FLAGGED:
+      "Automated checks found a duplicate or fraud signal. The claim requires manual review.",
+    ORACLE_PENDING:
+      "Independent oracle nodes are checking the submitted hospital record.",
+    ORACLE_VERIFIED:
+      "The oracle quorum verified the hospital record. The claim is ready for an admin decision.",
+    ORACLE_FAILED:
+      "The oracle quorum could not verify the hospital record. The claim can be sent to auditor review.",
+    MANUAL_REVIEW:
+      "The claim is open for auditor voting. A final admin decision follows the voting result.",
+    APPROVED:
+      "The claim was approved and is ready for on-chain settlement.",
+    REJECTED:
+      "The claim was rejected. Open the claim to view the reason and appeal options.",
+    SETTLED:
+      "The insurer payout was transferred on-chain. Open the claim for the settlement breakdown.",
+    CLOSED:
+      "The claim lifecycle is complete. No further processing is available.",
+  };
 
   return notifyWallet(claimantWallet, {
     type: "CLAIM_STATUS_CHANGED",
     title: `Claim #${claimId} is now ${displayStatus}`,
     message:
       message ||
+      guidanceByStatus[status] ||
       `The status of claim #${claimId} changed to ${displayStatus}.`,
     claimId,
     status,

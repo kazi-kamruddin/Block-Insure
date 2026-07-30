@@ -8,6 +8,7 @@ import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import TransactionLink from "../components/TransactionLink";
+import { showToast } from "../services/toast";
 import {
   approveClaim,
   approveHighValueSettlement,
@@ -258,6 +259,9 @@ export default function AdminClaimDetailPage() {
 
   const claim = extractClaim(claimData);
   const evidenceChain = extractEvidenceChain(claimData);
+  const originalEvidenceDocument = evidenceChain?.documents?.find(
+    (document) => document.ipfsCID === claim?.documentCID
+  );
   const oracleLogs = extractOracleLogs(oracleData);
   const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const statusName = getClaimStatusName(claim);
@@ -293,10 +297,25 @@ export default function AdminClaimDetailPage() {
     statusName === "FRAUD_FLAGGED"
       ? { allowed: true, reason: "" }
       : getAdminRule(CLAIM_ACTIONS.MANUAL_REVIEW);
-  const approveRule = getAdminRule(CLAIM_ACTIONS.APPROVE);
-  const rejectRule = getAdminRule(CLAIM_ACTIONS.REJECT);
+  const manualGovernance = {
+    auditorVotingFinalized: Boolean(voteSummary?.finalized),
+    auditorConsensusCode:
+      voteSummary?.finalization?.consensusCode || voteSummary?.consensusCode,
+  };
+  const approveRule = getAdminRule(CLAIM_ACTIONS.APPROVE, manualGovernance);
+  const rejectRule = getAdminRule(CLAIM_ACTIONS.REJECT, manualGovernance);
   const settleRule = getAdminRule(CLAIM_ACTIONS.SETTLE);
-  const closeRule = getAdminRule(CLAIM_ACTIONS.CLOSE);
+  const baseCloseRule = getAdminRule(CLAIM_ACTIONS.CLOSE);
+  const closeRule =
+    baseCloseRule.allowed &&
+    statusName === "REJECTED" &&
+    claim?.closure &&
+    !claim.closure.canClose
+      ? {
+          allowed: false,
+          reason: "The appeal window is still open",
+        }
+      : baseCloseRule;
   const resolveTimeoutRule = getAdminRule(CLAIM_ACTIONS.RESOLVE_ORACLE_TIMEOUT, {
     oracleQuorumReached: true,
   });
@@ -333,11 +352,14 @@ export default function AdminClaimDetailPage() {
 
       setActionTxHash(getTransactionHash(result));
       setActionMessage(successText);
+      showToast(successText, { title: "Admin action confirmed" });
 
       await refreshAll();
     } catch (err) {
       console.error(err);
-      setActionError(parseTransactionError(err));
+      const message = parseTransactionError(err);
+      setActionError(message);
+      showToast(message, { tone: "error", title: "Admin action failed" });
     } finally {
       setIsActing(false);
     }
@@ -444,7 +466,9 @@ export default function AdminClaimDetailPage() {
         Refresh Claim
       </button>
 
-      <div className="card">
+      <div className="admin-claim-workspace">
+        <div className="admin-claim-main">
+      <div className="card reserve-summary-card">
         <h3>Contract Reserve</h3>
         <p>{reserveLoading ? "Loading..." : `${reserveBalance} ETH`}</p>
         <p>This is the central payout reserve used during claim settlement.</p>
@@ -479,13 +503,27 @@ export default function AdminClaimDetailPage() {
           <p>
             Status: <ClaimStatusBadge status={statusName} showHelp />
           </p>
-          <p>Risk score: {formatValue(claim.riskScore)}</p>
+          <p>
+            On-chain validation score:{" "}
+            {claim.riskScoreAvailable === false
+              ? "Not calculated"
+              : `${formatValue(claim.riskScore)}/100`}
+          </p>
+          <p className="muted-text">
+            Higher is cleaner in the contract’s duplicate-check model. Oracle
+            fraud probability is reported separately below.
+          </p>
 
           <h3>Evidence</h3>
           <EvidenceField label="Invoice hash" value={claim.invoiceHash} />
           <EvidenceField label="Document hash" value={claim.documentHash} />
           <p>
-            <strong>Document CID:</strong> <IpfsLink cid={claim.documentCID} />
+            <strong>Document CID:</strong>{" "}
+            <IpfsLink
+              cid={claim.documentCID}
+              documentId={originalEvidenceDocument?.id}
+              recoverable={originalEvidenceDocument?.recoverableAcrossBrowsers}
+            />
           </p>
           <EvidenceChainPanel evidenceChain={evidenceChain} />
         </div>
@@ -584,6 +622,8 @@ export default function AdminClaimDetailPage() {
         </div>
       ) : null}
 
+        </div>
+        <aside className="admin-claim-sidebar">
       <div className="card">
         <h3>Admin Actions</h3>
 
@@ -592,6 +632,7 @@ export default function AdminClaimDetailPage() {
         </p>
 
         <div className="action-row">
+          {statusName === "DUPLICATE_CHECKED" ? (
           <button
             type="button"
             onClick={handleRequestOracle}
@@ -600,7 +641,9 @@ export default function AdminClaimDetailPage() {
           >
             Request Oracle Verification
           </button>
+          ) : null}
 
+          {statusName === "ORACLE_FAILED" ? (
           <button
             type="button"
             onClick={handleManualReview}
@@ -609,7 +652,9 @@ export default function AdminClaimDetailPage() {
           >
             Send to Manual Review
           </button>
+          ) : null}
 
+          {statusName === "ORACLE_PENDING" ? (
           <button
             type="button"
             onClick={handleResolveOracleTimeout}
@@ -618,7 +663,9 @@ export default function AdminClaimDetailPage() {
           >
             Resolve Oracle Timeout
           </button>
+          ) : null}
 
+          {["ORACLE_VERIFIED", "MANUAL_REVIEW"].includes(statusName) ? (
           <button
             type="button"
             onClick={handleApprove}
@@ -627,7 +674,10 @@ export default function AdminClaimDetailPage() {
           >
             Approve Claim
           </button>
+          ) : null}
 
+          {statusName === "APPROVED" &&
+          settlementBreakdown?.reserveGate?.highValueApprovalRequired ? (
           <button
             type="button"
             onClick={handleApproveHighValueSettlement}
@@ -645,7 +695,9 @@ export default function AdminClaimDetailPage() {
           >
             Approve High-Value Settlement
           </button>
+          ) : null}
 
+          {statusName === "APPROVED" ? (
           <button
             type="button"
             onClick={handleSettle}
@@ -664,7 +716,10 @@ export default function AdminClaimDetailPage() {
           >
             Settle Claim
           </button>
+          ) : null}
 
+          {["SETTLED", "REJECTED"].includes(statusName) ? (
+          <>
           <button
             type="button"
             onClick={handleClose}
@@ -673,8 +728,23 @@ export default function AdminClaimDetailPage() {
           >
             Close Claim
           </button>
+          {statusName === "REJECTED" && claim?.closure && !claim.closure.canClose ? (
+            <p className="muted-text">
+              Closure is locked while the appeal window is open. Earliest
+              closure: {formatValue(claim.closure.closureEligibleAt?.iso)}.
+            </p>
+          ) : null}
+          </>
+          ) : null}
         </div>
 
+        {[
+          "DUPLICATE_CHECKED",
+          "ORACLE_PENDING",
+          "ORACLE_VERIFIED",
+          "ORACLE_FAILED",
+          "MANUAL_REVIEW",
+        ].includes(statusName) ? (
         <div className="form-grid">
           <label>
             Rejection reason
@@ -695,6 +765,22 @@ export default function AdminClaimDetailPage() {
             Reject Claim
           </button>
         </div>
+        ) : null}
+
+        {![
+          "DUPLICATE_CHECKED",
+          "ORACLE_PENDING",
+          "ORACLE_VERIFIED",
+          "ORACLE_FAILED",
+          "MANUAL_REVIEW",
+          "APPROVED",
+          "SETTLED",
+          "REJECTED",
+        ].includes(statusName) ? (
+          <p className="muted-text">
+            No administrator action is available for the current lifecycle state.
+          </p>
+        ) : null}
       </div>
 
       {statusName === "ORACLE_PENDING" ? (
@@ -798,12 +884,19 @@ export default function AdminClaimDetailPage() {
                 disabled={
                   isActing ||
                   !voteSummary.totalVoters ||
+                  !voteSummary.quorumReached ||
                   voteSummary.isTie ||
-                  !voteSummary.consensusCode
+                  !voteSummary.consensusCode ||
+                  voteSummary.finalized
                 }
               >
                 Finalize Voting & Update Reputations
               </button>
+              <p className={voteSummary.quorumReached ? "success-text" : "muted-text"}>
+                {voteSummary.finalized
+                  ? "Voting is finalized and closed."
+                  : `${voteSummary.totalVoters || 0} of ${voteSummary.minimumVoters || 2} required auditor votes recorded.`}
+              </p>
             </>
           ) : null}
         </div>
@@ -828,11 +921,32 @@ export default function AdminClaimDetailPage() {
             </p>
             <p>Submitted: {formatValue(appeal.submittedAt)}</p>
             <p>Appeal deadline: {formatValue(appeal.appealDeadline)}</p>
-            <p>Category: {formatValue(appeal.reasonCategory)}</p>
-            <p>Claimant: {formatValue(appeal.claimantWallet)}</p>
-            <p>Reason: {formatValue(appeal.appealReason)}</p>
-            <p>Description: {formatValue(appeal.appealDescription)}</p>
-            <EvidenceField label="Appeal reason hash" value={appeal.appealReasonHash} />
+            <div className="appeal-focus-panel">
+              <span className="dashboard-eyebrow">Why the policyholder appealed</span>
+              <h4>{formatValue(appeal.appealReason)}</h4>
+              <p>{formatValue(appeal.appealDescription)}</p>
+              <span>Category: {formatValue(appeal.reasonCategory)}</span>
+            </div>
+            {appeal.proposedCorrections &&
+            Object.values(appeal.proposedCorrections).some(Boolean) ? (
+              <div className="appeal-corrections">
+                <h4>Proposed corrected claim information</h4>
+                {Object.entries(appeal.proposedCorrections)
+                  .filter(([, value]) => value)
+                  .map(([field, value]) => (
+                    <p key={field}>
+                      <strong>{field}:</strong> {value}
+                    </p>
+                  ))}
+                <p className="muted-text">
+                  An approved appeal uses these values in the next oracle round.
+                </p>
+              </div>
+            ) : null}
+            <details className="technical-details">
+              <summary>Appeal transaction and hashes</summary>
+              <p>Claimant: {formatValue(appeal.claimantWallet)}</p>
+              <EvidenceField label="Appeal reason hash" value={appeal.appealReasonHash} />
             {appeal.additionalDocumentHash ? (
               <EvidenceField
                 label="Additional document hash"
@@ -849,6 +963,7 @@ export default function AdminClaimDetailPage() {
                 Appeal tx: <TransactionLink txHash={appeal.transactionHash} />
               </p>
             ) : null}
+            </details>
 
             <div className="form-grid">
               <label>
@@ -917,6 +1032,9 @@ export default function AdminClaimDetailPage() {
             ))}
           </div>
         ) : null}
+      </div>
+
+        </aside>
       </div>
 
       <h3>Oracle Results</h3>

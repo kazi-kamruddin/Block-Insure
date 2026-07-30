@@ -6,6 +6,7 @@ import { getMyPolicies } from "../services/api";
 import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
 import { useWallet } from "../context/useWallet";
+import { showToast } from "../services/toast";
 import {
   parseTransactionError,
   payPolicyPremium,
@@ -24,6 +25,23 @@ function formatUnixDate(unixSeconds) {
   const value = Number(unixSeconds || 0);
   if (!value) return "-";
   return new Date(value * 1000).toLocaleString();
+}
+
+function getInstallmentProgress(policy) {
+  const start = Number(policy.startDate || 0);
+  const end = Number(policy.endDate || 0);
+  const interval = Number(policy.premiumInterval || 0);
+  const paid = Number(policy.installmentsPaid || 0);
+  const expected =
+    interval > 0 && end > start
+      ? Math.max(1, Math.ceil((end - start) / interval))
+      : Math.max(1, paid);
+
+  return {
+    paid,
+    expected,
+    percentage: Math.min(100, Math.round((paid / expected) * 100)),
+  };
 }
 
 export default function MyPoliciesPage() {
@@ -63,14 +81,17 @@ export default function MyPoliciesPage() {
 
       await tx.wait();
       setTransactionHash(tx.hash);
-      setActionMessage(
+      const message =
         actionType === "reinstate"
-          ? `Policy #${policy.policyId} reinstated.`
-          : `Premium paid for policy #${policy.policyId}.`
-      );
+          ? `${policy.packageName || `Policy #${policy.policyId}`} reinstated successfully.`
+          : `Premium paid for ${policy.packageName || `policy #${policy.policyId}`}.`;
+      setActionMessage(message);
+      showToast(message);
       await refetch();
     } catch (error) {
-      setActionError(parseTransactionError(error));
+      const message = parseTransactionError(error);
+      setActionError(message);
+      showToast(message, { tone: "error", title: "Policy action failed" });
     } finally {
       setActingPolicyId("");
     }
@@ -117,55 +138,62 @@ export default function MyPoliciesPage() {
 
       <div className="card-row">
         {policies.map((policy) => (
-          <div className="card" key={policy.policyId}>
-            <h3>Policy #{policy.policyId}</h3>
-
-            <p>Package ID: {policy.packageId}</p>
-            <p>Holder: {policy.holderWallet}</p>
-            <p>
-              Coverage: {policy.coverageAmountEth || policy.coverageAmount} ETH
-            </p>
-            <p>Premium paid: {policy.premiumPaidEth || policy.premiumPaid} ETH</p>
-            <p>Total premium paid: {policy.totalPremiumPaidEth || policy.premiumPaidEth} ETH</p>
-            <p>Installments paid: {policy.installmentsPaid || "1"}</p>
-            <p>Status: {policy.status?.label || (policy.isActive ? "ACTIVE" : "INACTIVE")}</p>
-            <p>Next premium due: {formatUnixDate(policy.nextPremiumDueDate)}</p>
-            <p>Grace period end: {formatUnixDate(policy.gracePeriodEnd)}</p>
-            <p>Start: {formatUnixDate(policy.startDate)}</p>
-            <p>End: {formatUnixDate(policy.endDate)}</p>
+          <article className="card policy-lifecycle-card" key={policy.policyId}>
+            <div className="policy-card-heading">
+              <div>
+                <span className="dashboard-eyebrow">Policy #{policy.policyId}</span>
+                <h3>{policy.packageName || `Package #${policy.packageId}`}</h3>
+                <p>{policy.policyType || "Insurance coverage"}</p>
+              </div>
+              <strong className="policy-state">
+                {policy.status?.label || (policy.isActive ? "ACTIVE" : "INACTIVE")}
+              </strong>
+            </div>
+            <div className="policy-metric-grid">
+              <div><span>Coverage</span><strong>{policy.coverageAmountEth || policy.coverageAmount} ETH</strong></div>
+              <div><span>Recurring premium</span><strong>{policy.premiumAmountEth || policy.premiumPaidEth} ETH</strong></div>
+              <div><span>Total paid</span><strong>{policy.totalPremiumPaidEth || policy.premiumPaidEth} ETH</strong></div>
+            </div>
+            {(() => {
+              const progress = getInstallmentProgress(policy);
+              return (
+                <div className="premium-progress">
+                  <div>
+                    <strong>Premium progress</strong>
+                    <span>{progress.paid} of {progress.expected} scheduled installments</span>
+                  </div>
+                  <progress value={progress.percentage} max="100" />
+                </div>
+              );
+            })()}
+            <div className="policy-timeline">
+              <div><span>Coverage began</span><strong>{formatUnixDate(policy.startDate)}</strong></div>
+              <div><span>Next premium due</span><strong>{formatUnixDate(policy.nextPremiumDueDate)}</strong></div>
+              <div><span>Grace deadline</span><strong>{formatUnixDate(policy.gracePeriodEnd)}</strong></div>
+              <div><span>Coverage ends</span><strong>{formatUnixDate(policy.endDate)}</strong></div>
+            </div>
             <div className="action-row">
-              <button
+              {["ACTIVE", "GRACE_PERIOD"].includes(policy.status?.label) ? <button
                 type="button"
                 onClick={() => runPremiumAction(policy, "pay")}
-                disabled={
-                  actingPolicyId === policy.policyId ||
-                  !["ACTIVE", "GRACE_PERIOD"].includes(policy.status?.label)
-                }
-                title={
-                  ["ACTIVE", "GRACE_PERIOD"].includes(policy.status?.label)
-                    ? ""
-                    : "Premium payment is only available for active or grace-period policies"
-                }
+                disabled={actingPolicyId === policy.policyId}
               >
-                Pay Premium
-              </button>
-              <button
+                {actingPolicyId === policy.policyId ? "Confirming..." : "Pay Premium"}
+              </button> : null}
+              {policy.status?.label === "LAPSED" ? <button
                 type="button"
                 onClick={() => runPremiumAction(policy, "reinstate")}
-                disabled={
-                  actingPolicyId === policy.policyId ||
-                  policy.status?.label !== "LAPSED"
-                }
-                title={
-                  policy.status?.label === "LAPSED"
-                    ? ""
-                    : "Only lapsed policies can be reinstated"
-                }
+                disabled={actingPolicyId === policy.policyId}
               >
                 Reinstate
-              </button>
+              </button> : null}
             </div>
-          </div>
+            <details className="technical-details">
+              <summary>Technical policy details</summary>
+              <p>Package ID: {policy.packageId}</p>
+              <p>Holder wallet: {policy.holderWallet}</p>
+            </details>
+          </article>
         ))}
       </div>
       <PaginationControls

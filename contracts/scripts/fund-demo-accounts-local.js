@@ -58,6 +58,13 @@ function getAccountsToFund() {
     "auditorAccount",
     process.env.AUDITOR_WALLET_ADDRESS
   );
+  addAccount(
+    accounts,
+    seen,
+    "auditorTwoAccount",
+    process.env.AUDITOR_WALLET_ADDRESS_2 ||
+      getAddressFromPrivateKey(process.env.DEMO_AUDITOR_PRIVATE_KEY_2)
+  );
 
   addAccount(
     accounts,

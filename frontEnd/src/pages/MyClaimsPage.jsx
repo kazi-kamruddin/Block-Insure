@@ -3,11 +3,13 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
-import IpfsLink from "../components/IpfsLink";
 import PaginationControls from "../components/PaginationControls";
 import { getMyClaims } from "../services/api";
 import { useWallet } from "../context/useWallet";
-import { getClaimStatusName } from "../utils/claimStatus";
+import {
+  getClaimStatusName,
+  getStatusExplanation,
+} from "../utils/claimStatus";
 import "../styles/pages/MyClaimsPage.css";
 
 function extractClaims(data) {
@@ -20,6 +22,8 @@ function extractClaims(data) {
 export default function MyClaimsPage() {
   const { isConnected, walletAddress } = useWallet();
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const {
     data,
@@ -33,7 +37,22 @@ export default function MyClaimsPage() {
     enabled: isConnected,
   });
 
-  const claims = extractClaims(data);
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const claims = [...extractClaims(data)].reverse().filter((claim) => {
+    const matchesStatus =
+      statusFilter === "ALL" || getClaimStatusName(claim) === statusFilter;
+    const searchable = [
+      claim.claimId,
+      claim.displayTitle,
+      claim.policyPackageName,
+      claim.claimType,
+      claim.hospitalId,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return matchesStatus && (!normalizedSearch || searchable.includes(normalizedSearch));
+  });
 
   return (
     <section className="page-container page-my-claims">
@@ -46,6 +65,36 @@ export default function MyClaimsPage() {
       >
         {isFetching ? "Refreshing..." : "Refresh My Claims"}
       </button>
+      <div className="list-toolbar" role="search">
+        <label className="compact-filter">
+          Search claims
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Claim, package, hospital..."
+          />
+        </label>
+        <label className="compact-filter">
+          Show
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="ALL">All claims</option>
+            <option value="DUPLICATE_CHECKED">Duplicate checks passed</option>
+            <option value="FRAUD_FLAGGED">Flagged</option>
+            <option value="ORACLE_PENDING">Oracle pending</option>
+            <option value="ORACLE_VERIFIED">Oracle verified</option>
+            <option value="ORACLE_FAILED">Oracle failed</option>
+            <option value="MANUAL_REVIEW">Manual review</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="SETTLED">Settled</option>
+            <option value="CLOSED">Closed</option>
+          </select>
+        </label>
+      </div>
 
       {error ? (
         <p className="error-text">
@@ -72,24 +121,37 @@ export default function MyClaimsPage() {
 
       <div className="card-row">
         {claims.map((claim) => (
-          <div className="card" key={claim.claimId}>
-            <h3>Claim #{claim.claimId}</h3>
-
-            <p>Policy ID: {claim.policyId}</p>
-            <p>Amount: {claim.claimAmountEth || claim.claimAmount} ETH</p>
-            <p>Claim type: {claim.claimType}</p>
-            <p>Hospital ID: {claim.hospitalId}</p>
-            <p>
-              Status:{" "}
+          <article className="card claim-summary-card" key={claim.claimId}>
+            <div className="claim-card-heading">
+              <div>
+                <span className="dashboard-eyebrow">Claim #{claim.claimId}</span>
+                <h3>{claim.displayTitle || `${claim.claimType} claim`}</h3>
+                <p>{claim.policyPackageName || `Policy #${claim.policyId}`}</p>
+              </div>
               <ClaimStatusBadge status={getClaimStatusName(claim)} showHelp />
+            </div>
+            <div className="claim-card-metrics">
+              <span><strong>{claim.claimAmountEth || claim.claimAmount} ETH</strong> claimed</span>
+              <span><strong>{claim.hospitalId}</strong> provider</span>
+              <span>
+                <strong>
+                  {claim.riskScoreAvailable === false
+                    ? "Not calculated"
+                    : `${claim.riskScore ?? "-"}/100`}
+                </strong>{" "}
+                validation score
+              </span>
+            </div>
+            <p className="claim-next-step">
+              {claim.fraudReason
+                ? `Screening reason: ${claim.fraudReason}. `
+                : ""}
+              {getStatusExplanation(getClaimStatusName(claim))}
             </p>
-            <p>Risk score: {claim.riskScore ?? "-"}</p>
-            <p>
-              Document CID: <IpfsLink cid={claim.documentCID} />
-            </p>
-
-            <Link to={`/user/claims/${claim.claimId}`}>View Details</Link>
-          </div>
+            <Link className="primary-link-button" to={`/user/claims/${claim.claimId}`}>
+              Open Claim
+            </Link>
+          </article>
         ))}
       </div>
       <PaginationControls

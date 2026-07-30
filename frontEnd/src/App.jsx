@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { WalletProvider } from "./context/WalletContext";
+import ToastViewport from "./components/ToastViewport";
 
 import PublicLayout from "./layouts/PublicLayout";
 import UserLayout from "./layouts/UserLayout";
@@ -68,6 +69,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WalletProvider>
+        <ToastViewport />
         <BrowserRouter>
           <Suspense
             fallback={

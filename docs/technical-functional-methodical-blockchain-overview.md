@@ -678,7 +678,7 @@ Important limitations:
 - Oracle services are simulated independent services, not production oracle infrastructure.
 - The monolithic contract now fits EIP-170, but its small remaining size margin means future additions require replacement or decomposition.
 - Claim decisions and settlements are signed by the authenticated admin browser wallet; some configuration and voting-reputation operations still use the backend admin signer.
-- Claim and appeal evidence is encrypted in the browser with AES-256-GCM before it is uploaded to IPFS. The decryption key remains in the policyholder browser profile.
+- Claim and appeal evidence is encrypted in the browser with AES-256-GCM before it is uploaded to IPFS. The AES key is wrapped with an application RSA-3072 public key. Only the claim owner or an authenticated Admin/Auditor may request an unwrap, and each unwrap is logged. The local provider stores its private key outside the database and repository; a production deployment should replace it with managed KMS or OpenBao.
 - Multisig admin control is not yet implemented.
 
 These limitations do not invalidate the thesis. They define the boundary of the prototype.

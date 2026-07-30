@@ -76,6 +76,12 @@ async function main() {
     const auditorWalletAddress = ethers.getAddress(
       requireEnv("AUDITOR_WALLET_ADDRESS")
     );
+    const secondAuditorWalletAddress = ethers.getAddress(
+      process.env.AUDITOR_WALLET_ADDRESS_2 ||
+        (process.env.DEMO_AUDITOR_PRIVATE_KEY_2
+          ? new ethers.Wallet(process.env.DEMO_AUDITOR_PRIVATE_KEY_2).address
+          : requireEnv("AUDITOR_WALLET_ADDRESS_2"))
+    );
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const adminWallet = new ethers.Wallet(adminPrivateKey, provider);
@@ -105,6 +111,7 @@ async function main() {
       secondOracleWallet ? secondOracleWallet.address : "not configured"
     );
     console.log("Auditor wallet:", auditorWalletAddress);
+    console.log("Second auditor wallet:", secondAuditorWalletAddress);
     console.log("Claim officer wallet:", claimOfficerWalletAddress);
     console.log("");
 
@@ -166,6 +173,13 @@ async function main() {
       auditorWalletAddress,
       nonceState
     );
+    await grantRoleIfMissing(
+      contract,
+      "AUDITOR_ROLE",
+      auditorRole,
+      secondAuditorWalletAddress,
+      nonceState
+    );
 
     if (process.env.MONGODB_URI) {
       await mongoose.connect(process.env.MONGODB_URI);
@@ -179,6 +193,7 @@ async function main() {
       }
 
       await syncMongoRole(auditorWalletAddress, "AUDITOR");
+      await syncMongoRole(secondAuditorWalletAddress, "AUDITOR");
 
       await mongoose.connection.close();
     } else {

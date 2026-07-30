@@ -50,6 +50,14 @@ const formatEvidenceDocument = (fileRecord, expectedHash = "") => {
     sha256Hash: fileRecord.sha256Hash,
     ipfsCID: fileRecord.ipfsCID,
     documentType: fileRecord.documentType,
+    encrypted: Boolean(fileRecord.encrypted),
+    encryptionAlgorithm: fileRecord.encryptionAlgorithm || "",
+    originalMimeType: fileRecord.originalMimeType || "",
+    keyProvider: fileRecord.keyProvider || "",
+    keyId: fileRecord.keyId || "",
+    recoverableAcrossBrowsers: Boolean(
+      fileRecord.wrappedEvidenceKey && fileRecord.keyId
+    ),
     uploadedAt: fileRecord.createdAt,
     previousEvidenceHash: fileRecord.previousEvidenceHash || "",
     evidenceChainHash: fileRecord.evidenceChainHash || "",
@@ -120,10 +128,12 @@ const getEvidenceChainForClaim = async (claimId) => {
     };
   }
 
-  const files = await File.find({ claimId: normalizedClaimId }).sort({
-    evidenceChainIndex: 1,
-    createdAt: 1,
-  });
+  const files = await File.find({ claimId: normalizedClaimId })
+    .select("+wrappedEvidenceKey")
+    .sort({
+      evidenceChainIndex: 1,
+      createdAt: 1,
+    });
   let previousHash = GENESIS_EVIDENCE_HASH;
   const documents = files.map((fileRecord, index) => {
     const expectedHash = buildEvidenceChainHash({

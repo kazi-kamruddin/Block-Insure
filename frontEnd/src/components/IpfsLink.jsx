@@ -20,7 +20,7 @@ function buildIpfsUrl(cid) {
   return `${gateway}${cleanCid}`;
 }
 
-export default function IpfsLink({ cid }) {
+export default function IpfsLink({ cid, documentId, recoverable = false }) {
   const [decryptError, setDecryptError] = useState("");
 
   if (!cid) {
@@ -31,10 +31,10 @@ export default function IpfsLink({ cid }) {
     <span className="ipfs-link">
       <CopyableText value={cid} label="Copy CID" short />
       {" "}
-      <a href={buildIpfsUrl(cid)} target="_blank" rel="noreferrer">
-        Open encrypted IPFS payload
+      <a href={buildIpfsUrl(cid)} target="_blank" rel="noreferrer" download>
+        Download encrypted file
       </a>
-      {hasLocalEvidenceKey(cid) ? (
+      {hasLocalEvidenceKey(cid) || (recoverable && documentId) ? (
         <>
           {" "}
           <button
@@ -43,7 +43,11 @@ export default function IpfsLink({ cid }) {
               setDecryptError("");
 
               try {
-                await downloadDecryptedEvidence(cid, DEFAULT_GATEWAY);
+                await downloadDecryptedEvidence(
+                  cid,
+                  DEFAULT_GATEWAY,
+                  documentId
+                );
               } catch (error) {
                 setDecryptError(error.message);
               }

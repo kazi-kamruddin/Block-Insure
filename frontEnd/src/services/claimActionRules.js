@@ -53,6 +53,9 @@ export function getClaimActionRule({
   insufficientReserve = false,
   oracleQuorumReached = true,
   hasVoted = false,
+  auditorVotingFinalized = false,
+  auditorConsensusCode = null,
+  allowAdminOverride = false,
 }) {
   const allowed = allowedStatuses[action] || [];
 
@@ -82,7 +85,39 @@ export function getClaimActionRule({
   if (appealAlreadyUsed) return { allowed: false, reason: "Appeal already used" };
   if (insufficientReserve) return { allowed: false, reason: "Insufficient reserve" };
   if (!oracleQuorumReached) return { allowed: false, reason: "Oracle quorum not reached" };
+  if (action === CLAIM_ACTIONS.AUDITOR_VOTE && auditorVotingFinalized) {
+    return { allowed: false, reason: "Auditor voting is finalized" };
+  }
   if (hasVoted) return { allowed: false, reason: "Already voted" };
+  if (
+    ["APPROVE", "REJECT"].includes(action) &&
+    statusName === "MANUAL_REVIEW" &&
+    !auditorVotingFinalized &&
+    !allowAdminOverride
+  ) {
+    return {
+      allowed: false,
+      reason: "Finalize the required auditor quorum before deciding this claim",
+    };
+  }
+  if (
+    action === CLAIM_ACTIONS.APPROVE &&
+    statusName === "MANUAL_REVIEW" &&
+    auditorConsensusCode &&
+    Number(auditorConsensusCode) !== 1 &&
+    !allowAdminOverride
+  ) {
+    return { allowed: false, reason: "Auditor consensus is not Valid Claim" };
+  }
+  if (
+    action === CLAIM_ACTIONS.REJECT &&
+    statusName === "MANUAL_REVIEW" &&
+    auditorConsensusCode &&
+    Number(auditorConsensusCode) !== 2 &&
+    !allowAdminOverride
+  ) {
+    return { allowed: false, reason: "Auditor consensus is not Invalid Claim" };
+  }
 
   return { allowed: true, reason: "" };
 }

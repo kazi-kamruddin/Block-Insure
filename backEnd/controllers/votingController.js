@@ -9,6 +9,10 @@ const {
 } = require("../services/votingService");
 const VotingFinalization = require("../models/VotingFinalization");
 const { logAdminAction } = require("../services/adminActionLogService");
+const MINIMUM_AUDITOR_VOTES = Math.max(
+  2,
+  Number(process.env.MINIMUM_AUDITOR_VOTES || 2)
+);
 
 const createError = (message, statusCode) => {
   const error = new Error(message);
@@ -22,7 +26,12 @@ const shortenAddress = (address) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
 
-const formatVoteSummary = (claimId, rawVotes, currentWalletAddress = "") => {
+const formatVoteSummary = (
+  claimId,
+  rawVotes,
+  currentWalletAddress = "",
+  finalization = null
+) => {
   const voters = Array.from(rawVotes.voters || rawVotes[0] || []);
   const votes = Array.from(rawVotes.votes || rawVotes[1] || []);
   const reputations = Array.from(rawVotes.reputations || rawVotes[2] || []);
@@ -51,6 +60,20 @@ const formatVoteSummary = (claimId, rawVotes, currentWalletAddress = "") => {
           voteDisplayLabel: currentUserVote.voteDisplayLabel,
         }
       : null,
+    minimumVoters: MINIMUM_AUDITOR_VOTES,
+    quorumReached: formattedVoters.length >= MINIMUM_AUDITOR_VOTES,
+    finalized: finalization?.status === "COMPLETED",
+    finalization: finalization
+      ? {
+          status: finalization.status,
+          consensus: finalization.consensus,
+          consensusCode: finalization.consensusCode,
+          consensusStrength: finalization.consensusStrength,
+          totalVoters: finalization.totalVoters,
+          finalizedBy: finalization.finalizedBy,
+          finalizedAt: finalization.updatedAt,
+        }
+      : null,
   };
 };
 
@@ -68,10 +91,14 @@ const getClaimVoteSummary = async (req, res, next) => {
     const currentWalletAddress = ethers.isAddress(voterAddress)
       ? voterAddress
       : req.user.walletAddress;
+    const finalization = await VotingFinalization.findOne({
+      claimId: claimId.toString(),
+    });
     const voteSummary = formatVoteSummary(
       claimId,
       rawVotes,
-      currentWalletAddress
+      currentWalletAddress,
+      finalization
     );
 
     res.status(200).json({
@@ -128,6 +155,13 @@ const finalizeVoting = async (req, res, next) => {
 
       if (voteSummary.totalVoters === 0) {
         throw createError("No auditor votes found for this claim", 400);
+      }
+
+      if (voteSummary.totalVoters < MINIMUM_AUDITOR_VOTES) {
+        throw createError(
+          `At least ${MINIMUM_AUDITOR_VOTES} auditor votes are required`,
+          400
+        );
       }
 
       if (!voteSummary.consensusCode || voteSummary.isTie) {

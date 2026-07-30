@@ -30,6 +30,10 @@ export default function EvidenceChainPanel({ evidenceChain }) {
             {formatValue(evidenceChain.documentCount)} linked document
             {evidenceChain.documentCount === 1 ? "" : "s"}
           </p>
+          <p>
+            Integrity check only: this proves the stored files and their order
+            have not changed. It does not prove that the medical content is true.
+          </p>
         </div>
         <span
           className={`evidence-chain-status ${
@@ -59,34 +63,50 @@ export default function EvidenceChainPanel({ evidenceChain }) {
               key={document.id || document.evidenceChainHash}
             >
               <div className="evidence-chain-item-head">
-                <strong>Link #{formatValue(document.evidenceChainIndex)}</strong>
+                <strong>
+                  {Number(document.evidenceChainIndex) === 0
+                    ? "Original claim evidence"
+                    : document.documentType === "APPEAL_DOCUMENT"
+                      ? "Appeal evidence"
+                      : `Additional evidence #${formatValue(document.evidenceChainIndex)}`}
+                </strong>
                 <span>{document.chainLinkVerified ? "VALID" : "CHECK"}</span>
               </div>
 
-              <p>{formatValue(document.originalName)}</p>
-              <p>Type: {formatValue(document.documentType)}</p>
+              <p className="evidence-file-name">
+                {formatValue(document.originalName)}
+              </p>
               <p>Uploaded: {formatDate(document.uploadedAt)}</p>
               <p>
-                IPFS: <IpfsLink cid={document.ipfsCID} />
-              </p>
-              <p>
-                File hash:{" "}
-                <CopyableText value={document.sha256Hash} label="Copy hash" />
-              </p>
-              <p>
-                Previous:{" "}
-                <CopyableText
-                  value={document.previousEvidenceHash}
-                  label="Copy previous"
+                Encrypted evidence:{" "}
+                <IpfsLink
+                  cid={document.ipfsCID}
+                  documentId={document.id}
+                  recoverable={document.recoverableAcrossBrowsers}
                 />
               </p>
-              <p>
-                Chain hash:{" "}
-                <CopyableText
-                  value={document.evidenceChainHash}
-                  label="Copy chain hash"
-                />
-              </p>
+              <details className="technical-details">
+                <summary>Integrity and storage details</summary>
+                <p>Document type: {formatValue(document.documentType)}</p>
+                <p>
+                  File SHA-256:{" "}
+                  <CopyableText value={document.sha256Hash} label="Copy hash" />
+                </p>
+                <p>
+                  Previous chain hash:{" "}
+                  <CopyableText
+                    value={document.previousEvidenceHash}
+                    label="Copy previous"
+                  />
+                </p>
+                <p>
+                  This link’s chain hash:{" "}
+                  <CopyableText
+                    value={document.evidenceChainHash}
+                    label="Copy chain hash"
+                  />
+                </p>
+              </details>
             </article>
           ))}
         </div>

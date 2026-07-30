@@ -16,6 +16,7 @@ import { getWalletContract, parseTransactionError } from "../services/contractSe
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/AuditorVotingPage.css";
+import { showToast } from "../services/toast";
 
 const VOTE_OPTIONS = [
   { code: 1, label: "Valid Claim", tone: "valid" },
@@ -139,6 +140,7 @@ export default function AuditorVotingPage() {
     statusName,
     role: "AUDITOR",
     hasVoted: Boolean(voteSummary?.hasCurrentUserVoted),
+    auditorVotingFinalized: Boolean(voteSummary?.finalized),
   });
   const isReviewable = voteRule.allowed || voteRule.reason === "Already voted";
   const canVote = voteRule.allowed && voteSummary && !isVoting;
@@ -163,11 +165,19 @@ export default function AuditorVotingPage() {
       setVoteTxHash(tx.hash);
 
       await tx.wait();
-      setVoteMessage("Vote recorded on-chain.");
+      const label =
+        VOTE_OPTIONS.find((option) => option.code === voteCode)?.label ||
+        "Auditor";
+      setVoteMessage(`${label} vote recorded on-chain.`);
+      showToast(`${label} vote recorded for claim #${claimId}.`, {
+        title: "Auditor vote confirmed",
+      });
       await refreshAll();
     } catch (error) {
       console.error(error);
-      setVoteError(parseTransactionError(error));
+      const message = parseTransactionError(error);
+      setVoteError(message);
+      showToast(message, { tone: "error", title: "Vote failed" });
     } finally {
       setIsVoting(false);
     }
@@ -203,6 +213,8 @@ export default function AuditorVotingPage() {
         </p>
       ) : null}
 
+      <div className="auditor-vote-workspace">
+        <div className="auditor-vote-analysis">
       {claim ? (
         <div className="card">
           <h3>Claim #{formatValue(claim.claimId || claimId)}</h3>
@@ -213,7 +225,10 @@ export default function AuditorVotingPage() {
             <p>
               Status: <ClaimStatusBadge status={statusName} />
             </p>
-            <p>On-chain trust score: {formatValue(claim.riskScore)}/100</p>
+            <p>
+              On-chain validation score: {formatValue(claim.riskScore)}/100
+              <small> Higher means the deterministic submission checks passed.</small>
+            </p>
             <p>
               Bayesian fraud probability:{" "}
               {bayesianFraudPercent === null
@@ -245,6 +260,8 @@ export default function AuditorVotingPage() {
         ) : null}
       </div>
 
+        </div>
+        <aside className="auditor-vote-decision">
       <div className="card">
         <h3>Weighted Consensus</h3>
         {voteLoading ? <p>Loading votes...</p> : null}
@@ -280,7 +297,10 @@ export default function AuditorVotingPage() {
                 Strength: <strong>{formatPercent(voteSummary.consensusStrength)}</strong>
               </span>
               <span>
-                Total voters: <strong>{voteSummary.totalVoters || 0}</strong>
+                Quorum:{" "}
+                <strong>
+                  {voteSummary.totalVoters || 0}/{voteSummary.minimumVoters || 2}
+                </strong>
               </span>
             </div>
 
@@ -299,7 +319,11 @@ export default function AuditorVotingPage() {
         <div className="action-row vote-action-row">
           {VOTE_OPTIONS.map((option) => (
             <button
-              className={`vote-button vote-${option.tone}`}
+              className={`vote-button vote-${option.tone} ${
+                voteSummary?.currentUserVote?.vote === option.code
+                  ? "is-selected"
+                  : ""
+              }`}
               type="button"
               key={option.code}
               onClick={() => handleCastVote(option.code)}
@@ -315,6 +339,8 @@ export default function AuditorVotingPage() {
             {voteRule.reason || `Current status ${statusName} is not open for auditor voting.`}
           </p>
         ) : null}
+      </div>
+        </aside>
       </div>
     </section>
   );

@@ -1,4 +1,8 @@
 const ENCRYPTED_FILE_MAGIC = "BINSENC1";
+import {
+  getEvidenceDecryptionKey,
+  getEvidenceEncryptionKey,
+} from "./api";
 
 function bytesToBase64(bytes) {
   let binary = "";
@@ -8,6 +12,14 @@ function bytesToBase64(bytes) {
   });
 
   return window.btoa(binary);
+}
+
+function pemToArrayBuffer(pem) {
+  const base64 = pem
+    .replace(/-----BEGIN PUBLIC KEY-----/g, "")
+    .replace(/-----END PUBLIC KEY-----/g, "")
+    .replace(/\s/g, "");
+  return base64ToBytes(base64).buffer;
 }
 
 export async function encryptEvidenceFile(file) {
@@ -30,6 +42,27 @@ export async function encryptEvidenceFile(file) {
     await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext)
   );
   const rawKey = new Uint8Array(await window.crypto.subtle.exportKey("raw", key));
+  const keyResponse = await getEvidenceEncryptionKey();
+  const applicationKey = keyResponse?.key || keyResponse?.data?.key;
+
+  if (!applicationKey?.publicKeyPem || !applicationKey?.keyId) {
+    throw new Error("Application evidence-encryption key is unavailable");
+  }
+
+  const rsaPublicKey = await window.crypto.subtle.importKey(
+    "spki",
+    pemToArrayBuffer(applicationKey.publicKeyPem),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["encrypt"]
+  );
+  const wrappedEvidenceKey = new Uint8Array(
+    await window.crypto.subtle.encrypt(
+      { name: "RSA-OAEP" },
+      rsaPublicKey,
+      rawKey
+    )
+  );
   const magic = new TextEncoder().encode(ENCRYPTED_FILE_MAGIC);
   const payload = new Uint8Array(magic.length + iv.length + ciphertext.length);
 
@@ -45,6 +78,8 @@ export async function encryptEvidenceFile(file) {
     algorithm: "AES-256-GCM",
     originalName: file.name,
     originalMimeType: file.type || "application/octet-stream",
+    wrappedEvidenceKey: bytesToBase64(wrappedEvidenceKey),
+    keyId: applicationKey.keyId,
   };
 }
 
@@ -74,13 +109,28 @@ export function hasLocalEvidenceKey(cid) {
   );
 }
 
-export async function downloadDecryptedEvidence(cid, gatewayBase) {
-  const storedValue = window.localStorage.getItem(
+export async function downloadDecryptedEvidence(cid, gatewayBase, documentId) {
+  let storedValue = window.localStorage.getItem(
     `block-insure:evidence-key:${cid}`
   );
 
+  if (!storedValue && documentId) {
+    const keyResponse = await getEvidenceDecryptionKey(documentId);
+    const recovered = keyResponse?.decryption || keyResponse?.data?.decryption;
+
+    if (recovered?.keyBase64) {
+      storedValue = JSON.stringify(recovered);
+      window.localStorage.setItem(
+        `block-insure:evidence-key:${cid}`,
+        storedValue
+      );
+    }
+  }
+
   if (!storedValue) {
-    throw new Error("This browser does not hold the evidence decryption key");
+    throw new Error(
+      "No recoverable key is available for this legacy evidence document"
+    );
   }
 
   const keyRecord = JSON.parse(storedValue);

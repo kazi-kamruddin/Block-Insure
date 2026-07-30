@@ -10,3 +10,81 @@
 .page-my-policies .card p:first-of-type {
   color: var(--muted);
 }
+
+.policy-lifecycle-card {
+  display: grid;
+  gap: 16px;
+}
+
+.policy-card-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.policy-card-heading h3,
+.policy-card-heading p {
+  margin: 4px 0 0;
+}
+
+.policy-card-heading p,
+.policy-state,
+.policy-timeline span,
+.policy-metric-grid span,
+.premium-progress span {
+  color: var(--muted);
+}
+
+.policy-state {
+  height: fit-content;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.policy-metric-grid,
+.policy-timeline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.policy-timeline {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.policy-metric-grid > div,
+.policy-timeline > div {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.premium-progress {
+  display: grid;
+  gap: 8px;
+}
+
+.premium-progress > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.premium-progress progress {
+  width: 100%;
+  accent-color: var(--brand);
+}
+
+.technical-details {
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .policy-metric-grid,
+  .policy-timeline {
+    grid-template-columns: 1fr 1fr;
+  }
+}
