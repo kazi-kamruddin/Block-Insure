@@ -28,7 +28,7 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 
 function requireEnv(name) {
   if (!process.env[name]) {
-    throw new Error(`${name} is missing in backend/.env`);
+    throw new Error(`${name} is missing in backEnd/.env`);
   }
 
   return process.env[name];

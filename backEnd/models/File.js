@@ -98,5 +98,16 @@ fileSchema.index({
   evidenceChainIndex: 1,
   createdAt: 1,
 });
+fileSchema.index(
+  { claimId: 1, evidenceChainIndex: 1 },
+  {
+    unique: true,
+    name: "unique_claim_evidence_chain_index",
+    partialFilterExpression: {
+      claimId: { $gt: "" },
+      evidenceChainIndex: { $type: "number" },
+    },
+  }
+);
 
 module.exports = mongoose.model("File", fileSchema);

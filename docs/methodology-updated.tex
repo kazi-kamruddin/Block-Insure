@@ -190,6 +190,9 @@ eligible claim decisions. An administrator manages configuration, roles,
 registry commitments, appeals, settlements, and closure. Oracle workers submit
 external-verification confirmations. Auditors inspect histories and vote on
 claims in manual-review or oracle-failed states.
+Weighted \texttt{NEEDS\_MORE} consensus is treated as non-final: reputation
+updates and claim-decision gating remain open until additional evidence and
+votes produce a valid-or-invalid consensus.
 
 \begin{table}[htbp]
 \centering
@@ -750,7 +753,7 @@ correlation & Refuses to generate a result without finalized sessions \\
 \end{table}
 
 The generated JSON, CSV, and PNG artifacts are retained under
-\texttt{backend/evaluation-results}, while gas measurements are retained in
+\texttt{backEnd/evaluation-results}, while gas measurements are retained in
 \texttt{contracts/gas-comparison-results.csv}. The next chapter reports the
 measured results and discusses their validity.
 

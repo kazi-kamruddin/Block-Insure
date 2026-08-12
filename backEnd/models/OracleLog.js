@@ -71,4 +71,13 @@ const oracleLogSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+oracleLogSchema.index(
+  { submittedTxHash: 1 },
+  {
+    unique: true,
+    name: "unique_oracle_submission_transaction",
+    partialFilterExpression: { submittedTxHash: { $gt: "" } },
+  }
+);
+
 module.exports = mongoose.model("OracleLog", oracleLogSchema);

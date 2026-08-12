@@ -306,6 +306,7 @@ export default function ClaimDetailPage() {
                 cid={claim.documentCID}
                 documentId={originalEvidenceDocument?.id}
                 recoverable={originalEvidenceDocument?.recoverableAcrossBrowsers}
+                sha256Hash={originalEvidenceDocument?.sha256Hash}
               />
             </p>
           </details>

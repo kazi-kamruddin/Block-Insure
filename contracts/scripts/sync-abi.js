@@ -21,8 +21,8 @@ const abiDocument = `${JSON.stringify(
 )}\n`;
 
 [
-  path.join(projectRoot, "backend", "abi", "InsuranceManager.json"),
-  path.join(projectRoot, "frontend", "src", "abi", "InsuranceManager.json"),
+  path.join(projectRoot, "backEnd", "abi", "InsuranceManager.json"),
+  path.join(projectRoot, "frontEnd", "src", "abi", "InsuranceManager.json"),
   path.join(projectRoot, "oracle", "abi", "InsuranceManager.json"),
 ].forEach((target) => {
   fs.writeFileSync(target, abiDocument, "utf8");

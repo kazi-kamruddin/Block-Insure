@@ -1,6 +1,10 @@
 {
+  "schemaVersion": 2,
   "generatedAt": "2026-06-05T20:48:33.335Z",
+  "schemaUpdatedAt": "2026-08-12",
   "dataset": {
+    "unit": "held-out claim scenarios",
+    "evaluationScenarios": 35,
     "totalRecords": 35,
     "legitimateRecords": 21,
     "fraudRecords": 14,

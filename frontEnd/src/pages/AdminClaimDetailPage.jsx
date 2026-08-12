@@ -523,6 +523,7 @@ export default function AdminClaimDetailPage() {
               cid={claim.documentCID}
               documentId={originalEvidenceDocument?.id}
               recoverable={originalEvidenceDocument?.recoverableAcrossBrowsers}
+              sha256Hash={originalEvidenceDocument?.sha256Hash}
             />
           </p>
           <EvidenceChainPanel evidenceChain={evidenceChain} />

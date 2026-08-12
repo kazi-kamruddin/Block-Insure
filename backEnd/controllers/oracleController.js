@@ -1,5 +1,6 @@
 const OracleLog = require("../models/OracleLog");
 const OracleHealth = require("../models/OracleHealth");
+const { ethers } = require("ethers");
 const { getReadOnlyContract } = require("../services/contractService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
 
@@ -16,6 +17,164 @@ const CLAIM_STATUS = [
   "SETTLED",
   "CLOSED",
 ];
+
+const createError = (message, statusCode) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+const normalizeHash = (value) => String(value || "").trim().toLowerCase();
+
+const verifyOracleSubmission = async ({
+  contract,
+  submittedTxHash,
+  requestId,
+  claimId,
+  oracleType,
+  resultHash,
+  verified,
+  riskLevel,
+  remarks,
+  oracleWallet,
+}) => {
+  if (!/^0x[a-fA-F0-9]{64}$/.test(String(submittedTxHash || ""))) {
+    throw createError("A valid oracle submission transaction hash is required", 400);
+  }
+
+  const [receipt, transaction] = await Promise.all([
+    contract.runner.getTransactionReceipt(submittedTxHash),
+    contract.runner.getTransaction(submittedTxHash),
+  ]);
+
+  if (!receipt || !transaction) {
+    throw createError("Oracle submission transaction is not available yet", 409);
+  }
+  if (Number(receipt.status) !== 1) {
+    throw createError("Oracle submission transaction failed", 409);
+  }
+  if (normalizeHash(receipt.to) !== normalizeHash(contract.target)) {
+    throw createError("Transaction does not target the configured contract", 400);
+  }
+
+  let decoded;
+  try {
+    decoded = contract.interface.parseTransaction({
+      data: transaction.data,
+      value: transaction.value,
+    });
+  } catch {
+    throw createError("Transaction calldata is not a contract oracle submission", 400);
+  }
+
+  if (!decoded || decoded.name !== "submitOracleResult") {
+    throw createError("Transaction is not submitOracleResult", 400);
+  }
+
+  const [txRequestId, txVerified, txResultHash, txRiskLevel, txRemarks] =
+    decoded.args;
+  if (
+    txRequestId.toString() !== requestId.toString() ||
+    Boolean(txVerified) !== Boolean(verified) ||
+    normalizeHash(txResultHash) !== normalizeHash(resultHash) ||
+    String(txRiskLevel) !== String(riskLevel) ||
+    String(txRemarks) !== String(remarks)
+  ) {
+    throw createError("Oracle log does not match transaction calldata", 400);
+  }
+
+  const confirmation = receipt.logs
+    .filter((log) => normalizeHash(log.address) === normalizeHash(contract.target))
+    .map((log) => {
+      try {
+        return contract.interface.parseLog(log);
+      } catch {
+        return null;
+      }
+    })
+    .find((entry) => entry?.name === "OracleConfirmationReceived");
+
+  if (
+    !confirmation ||
+    confirmation.args.requestId.toString() !== requestId.toString() ||
+    confirmation.args.claimId.toString() !== claimId.toString() ||
+    Boolean(confirmation.args.verified) !== Boolean(verified) ||
+    normalizeHash(confirmation.args.oracle) !== normalizeHash(transaction.from)
+  ) {
+    throw createError("Oracle confirmation event does not match the log payload", 400);
+  }
+
+  const oracleRequest = await contract.getOracleRequest(requestId);
+  if (
+    oracleRequest.claimId.toString() !== claimId.toString() ||
+    String(oracleRequest.oracleType) !== String(oracleType)
+  ) {
+    throw createError("Oracle log does not match the on-chain request", 400);
+  }
+
+  if (oracleWallet && normalizeHash(oracleWallet) !== normalizeHash(transaction.from)) {
+    throw createError("Oracle wallet does not match the transaction signer", 400);
+  }
+
+  const oracleRole = await contract.ORACLE_ROLE();
+  if (
+    !(await contract.hasRole(oracleRole, transaction.from, {
+      blockTag: receipt.blockNumber,
+    }))
+  ) {
+    throw createError("Transaction signer lacked the oracle role", 403);
+  }
+
+  return ethers.getAddress(transaction.from).toLowerCase();
+};
+
+const verifyHeartbeat = async ({
+  contract,
+  oracleWallet,
+  oracleInstanceId,
+  heartbeatTimestamp,
+  heartbeatSignature,
+  lastProcessedRequestId,
+  lastProcessedClaimId,
+  lastTxHash,
+}) => {
+  if (!ethers.isAddress(oracleWallet)) {
+    throw createError("A valid oracle wallet is required", 400);
+  }
+
+  const timestamp = new Date(heartbeatTimestamp);
+  if (
+    Number.isNaN(timestamp.getTime()) ||
+    Math.abs(Date.now() - timestamp.getTime()) > 2 * 60 * 1000
+  ) {
+    throw createError("Oracle heartbeat timestamp is invalid or stale", 401);
+  }
+
+  const message = [
+    "Block-Insure oracle heartbeat",
+    String(oracleInstanceId || ""),
+    oracleWallet.toLowerCase(),
+    heartbeatTimestamp,
+    String(lastProcessedRequestId || ""),
+    String(lastProcessedClaimId || ""),
+    String(lastTxHash || "").toLowerCase(),
+  ].join(":");
+  let recoveredWallet;
+  try {
+    recoveredWallet = ethers.verifyMessage(message, heartbeatSignature);
+  } catch {
+    throw createError("Oracle heartbeat signature is invalid", 401);
+  }
+
+  if (normalizeHash(recoveredWallet) !== normalizeHash(oracleWallet)) {
+    throw createError("Oracle heartbeat signer does not match its wallet", 401);
+  }
+
+  const oracleRole = await contract.ORACLE_ROLE();
+  if (!(await contract.hasRole(oracleRole, recoveredWallet))) {
+    throw createError("Heartbeat signer does not have the oracle role", 403);
+  }
+};
 
 const canReadClaimOracleLogs = async (req, claimId) => {
   if (req.user.role === "ADMIN" || req.user.role === "AUDITOR") {
@@ -234,24 +393,61 @@ const createOracleLog = async (req, res, next) => {
       });
     }
 
-    const oracleLog = await OracleLog.create({
-      requestId: requestId.toString(),
-      claimId: claimId.toString(),
+    const calculatedResultHash = ethers.keccak256(
+      ethers.toUtf8Bytes(JSON.stringify(responseData))
+    );
+    if (normalizeHash(calculatedResultHash) !== normalizeHash(resultHash)) {
+      throw createError("Oracle response data does not match its result hash", 400);
+    }
+
+    const contract = getReadOnlyContract();
+    const verifiedOracleWallet = await verifyOracleSubmission({
+      contract,
+      submittedTxHash,
+      requestId,
+      claimId,
       oracleType,
-      queryData,
-      responseData,
       resultHash,
       verified,
       riskLevel,
-      submittedTxHash,
-      responseTimeMs: normalizedResponseTimeMs,
-      oracleWallet,
-      oracleInstanceId,
       remarks,
+      oracleWallet,
     });
+    const existingLog = await OracleLog.findOne({ submittedTxHash });
+
+    if (existingLog) {
+      return res.status(200).json({
+        success: true,
+        idempotent: true,
+        message: "Oracle log was already recorded",
+        oracleLog: existingLog,
+      });
+    }
+
+    let oracleLog;
+    try {
+      oracleLog = await OracleLog.create({
+        requestId: requestId.toString(),
+        claimId: claimId.toString(),
+        oracleType,
+        queryData: responseData.queryData || queryData,
+        responseData,
+        resultHash,
+        verified,
+        riskLevel,
+        submittedTxHash,
+        responseTimeMs: normalizedResponseTimeMs,
+        oracleWallet: verifiedOracleWallet,
+        oracleInstanceId,
+        remarks,
+      });
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+      oracleLog = await OracleLog.findOne({ submittedTxHash });
+    }
 
     await upsertOracleHealth({
-      oracleWallet: oracleWallet || responseData.oracleWallet,
+      oracleWallet: verifiedOracleWallet,
       oracleInstanceId: oracleInstanceId || responseData.oracleInstanceId,
       label: responseData.oracleLabel || responseData.label || "",
       registrySnapshot:
@@ -267,7 +463,6 @@ const createOracleLog = async (req, res, next) => {
       configIdentity: responseData.configIdentity || "",
     });
 
-    const contract = getReadOnlyContract();
     const request = await contract.getOracleRequest(requestId);
 
     if (request.isFulfilled) {
@@ -338,7 +533,21 @@ const recordOracleHeartbeat = async (req, res, next) => {
       lastProcessedClaimId = "",
       lastTxHash = "",
       configIdentity = "",
+      heartbeatTimestamp = "",
+      heartbeatSignature = "",
     } = req.body;
+
+    const contract = getReadOnlyContract();
+    await verifyHeartbeat({
+      contract,
+      oracleWallet,
+      oracleInstanceId,
+      heartbeatTimestamp,
+      heartbeatSignature,
+      lastProcessedRequestId,
+      lastProcessedClaimId,
+      lastTxHash,
+    });
 
     const health = await upsertOracleHealth({
       oracleWallet,
@@ -383,6 +592,8 @@ const getOracleHealth = async (req, res, next) => {
 };
 
 module.exports = {
+  _verifyHeartbeat: verifyHeartbeat,
+  _verifyOracleSubmission: verifyOracleSubmission,
   createOracleLog,
   getOracleLogsByClaim,
   getOracleHealth,

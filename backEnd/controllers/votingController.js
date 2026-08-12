@@ -4,6 +4,7 @@ const {
 } = require("../services/contractService");
 const { ethers } = require("ethers");
 const {
+  VOTE_CODES,
   calculateReputationUpdate,
   calculateWeightedConsensus,
 } = require("../services/votingService");
@@ -168,6 +169,13 @@ const finalizeVoting = async (req, res, next) => {
         throw createError(
           "Voting cannot be finalized until there is a clear weighted consensus",
           400
+        );
+      }
+
+      if (voteSummary.consensusCode === VOTE_CODES.NEEDS_MORE) {
+        throw createError(
+          "Auditor consensus requests more evidence. Keep voting open until additional evidence and votes produce a claim decision.",
+          409
         );
       }
 

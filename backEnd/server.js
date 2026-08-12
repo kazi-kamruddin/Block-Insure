@@ -10,6 +10,7 @@ const {
   startBlockchainEventListener,
   stopBlockchainEventListener,
 } = require("./services/notificationService");
+const { writeEvent } = require("../scripts/observability");
 
 /* ----------------------------- DNS Config ----------------------------- */
 
@@ -86,7 +87,16 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 if (process.env.NODE_ENV !== "test") {
-  app.use(morgan("[Backend] :method :url :status :response-time ms"));
+  app.use(
+    morgan("[Backend] :method :url :status :response-time ms", {
+      stream: {
+        write(line) {
+          writeEvent("Backend", "info", line.trim());
+          process.stdout.write(line);
+        },
+      },
+    })
+  );
 }
 
 /* ---------------------------- Base Routes ----------------------------- */
@@ -154,11 +164,27 @@ app.use((req, res) => {
 /* ------------------------ Global Error Handler ------------------------- */
 
 app.use((err, req, res, next) => {
-  console.error("Server error:", err);
+  const statusCode = Number(err.statusCode) || 500;
+  const isServerError = statusCode >= 500;
+  const exposeInternalErrors =
+    process.env.NODE_ENV !== "production" ||
+    process.env.EXPOSE_INTERNAL_ERRORS === "true";
 
-  res.status(err.statusCode || 500).json({
+  console.error("Server error:", {
+    method: req.method,
+    path: req.originalUrl,
+    statusCode,
+    message: err.message,
+    stack: process.env.NODE_ENV === "production" ? undefined : err.stack,
+  });
+  writeEvent("Backend", isServerError ? "error" : "warn", err.message);
+
+  res.status(statusCode).json({
     success: false,
-    message: err.message || "Internal server error",
+    message:
+      isServerError && !exposeInternalErrors
+        ? "Internal server error"
+        : err.message || "Internal server error",
   });
 });
 

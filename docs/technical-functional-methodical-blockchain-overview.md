@@ -524,13 +524,13 @@ This helps show that the Bayesian model is not only being reported in isolation.
 
 The backend writes evaluation artifacts to:
 
-- `backend/evaluation-results/risk-model-summary.json`
-- `backend/evaluation-results/risk-model-records.csv`
-- `backend/evaluation-results/baseline-comparison.csv`
-- `backend/evaluation-results/roc-curve.csv`
-- `backend/evaluation-results/precision-recall-curve.csv`
-- `backend/evaluation-results/threshold-sensitivity.csv`
-- `backend/evaluation-results/evaluation-charts/*.png`
+- `backEnd/evaluation-results/risk-model-summary.json`
+- `backEnd/evaluation-results/risk-model-records.csv`
+- `backEnd/evaluation-results/baseline-comparison.csv`
+- `backEnd/evaluation-results/roc-curve.csv`
+- `backEnd/evaluation-results/precision-recall-curve.csv`
+- `backEnd/evaluation-results/threshold-sensitivity.csv`
+- `backEnd/evaluation-results/evaluation-charts/*.png`
 
 These files support the thesis result tables and figures.
 
@@ -645,7 +645,7 @@ To deploy to a real testnet or L2, the system still needs manual environment set
 - funded deployer wallet
 - RPC URL
 - admin private key
-- deployed contract address copied to backend/frontend/oracle env files
+- deployed contract address copied to backEnd/frontEnd/oracle env files
 - oracle private keys
 - backend URL
 - frontend URL
@@ -653,7 +653,7 @@ To deploy to a real testnet or L2, the system still needs manual environment set
 - MongoDB URI
 - Pinata/IPFS credentials if document upload is used
 
-The local prototype depends on Hardhat's unlimited contract-size setting. Before deployment to an EIP-170-enforcing testnet or production network, the monolithic contract must be split or reduced below 24,576 deployed bytes.
+The current deployed runtime is 24,340 bytes, which is below the 24,576-byte EIP-170 limit but leaves only 236 bytes of headroom. The synchronization check enforces both EIP-170 and a stricter maintenance budget; future growth should trigger modularization before deployment.
 
 ## 15. Recommended Report Framing
 

@@ -2,6 +2,7 @@ const File = require("../models/File");
 const { calculateTextSHA256 } = require("./hashService");
 
 const GENESIS_EVIDENCE_HASH = "GENESIS";
+const MAX_CHAIN_ASSIGNMENT_ATTEMPTS = 5;
 
 const normalizeClaimId = (claimId) => {
   const value = String(claimId || "").trim();
@@ -84,35 +85,49 @@ const assignEvidenceChainLink = async (fileRecord, claimId) => {
     return fileRecord;
   }
 
-  const latestDocument = await File.findOne({
-    claimId: normalizedClaimId,
-    _id: { $ne: fileRecord._id },
-    evidenceChainHash: { $ne: "" },
-  }).sort({ evidenceChainIndex: -1, createdAt: -1 });
+  for (let attempt = 1; attempt <= MAX_CHAIN_ASSIGNMENT_ATTEMPTS; attempt += 1) {
+    const latestDocument = await File.findOne({
+      claimId: normalizedClaimId,
+      _id: { $ne: fileRecord._id },
+      evidenceChainHash: { $ne: "" },
+    }).sort({ evidenceChainIndex: -1, createdAt: -1 });
 
-  const previousEvidenceHash =
-    latestDocument?.evidenceChainHash || GENESIS_EVIDENCE_HASH;
-  const evidenceChainIndex = latestDocument
-    ? Number(latestDocument.evidenceChainIndex || 0) + 1
-    : 0;
-  const evidenceChainHash = buildEvidenceChainHash({
-    claimId: normalizedClaimId,
-    evidenceChainIndex,
-    previousEvidenceHash,
-    sha256Hash: fileRecord.sha256Hash,
-    ipfsCID: fileRecord.ipfsCID,
-    documentType: fileRecord.documentType,
-    uploaderWallet: fileRecord.uploaderWallet,
-  });
+    const previousEvidenceHash =
+      latestDocument?.evidenceChainHash || GENESIS_EVIDENCE_HASH;
+    const evidenceChainIndex = latestDocument
+      ? Number(latestDocument.evidenceChainIndex || 0) + 1
+      : 0;
+    const evidenceChainHash = buildEvidenceChainHash({
+      claimId: normalizedClaimId,
+      evidenceChainIndex,
+      previousEvidenceHash,
+      sha256Hash: fileRecord.sha256Hash,
+      ipfsCID: fileRecord.ipfsCID,
+      documentType: fileRecord.documentType,
+      uploaderWallet: fileRecord.uploaderWallet,
+    });
 
-  fileRecord.claimId = normalizedClaimId;
-  fileRecord.previousEvidenceHash = previousEvidenceHash;
-  fileRecord.evidenceChainIndex = evidenceChainIndex;
-  fileRecord.evidenceChainHash = evidenceChainHash;
+    fileRecord.claimId = normalizedClaimId;
+    fileRecord.previousEvidenceHash = previousEvidenceHash;
+    fileRecord.evidenceChainIndex = evidenceChainIndex;
+    fileRecord.evidenceChainHash = evidenceChainHash;
 
-  await fileRecord.save();
+    try {
+      await fileRecord.save();
+      return fileRecord;
+    } catch (error) {
+      if (error?.code !== 11000 || attempt === MAX_CHAIN_ASSIGNMENT_ATTEMPTS) {
+        throw error;
+      }
 
-  return fileRecord;
+      // Another upload won this index. Reload the head and retry with its hash.
+      fileRecord.previousEvidenceHash = "";
+      fileRecord.evidenceChainIndex = null;
+      fileRecord.evidenceChainHash = "";
+    }
+  }
+
+  throw new Error("Could not allocate an evidence-chain index");
 };
 
 const getEvidenceChainForClaim = async (claimId) => {

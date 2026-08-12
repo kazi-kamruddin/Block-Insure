@@ -2,10 +2,11 @@
   "name": "block-insure-local-workflow",
   "private": true,
   "scripts": {
-    "setup:local": "npm --prefix backend run reset:local && npm --prefix contracts run fund:accounts:local && npm --prefix contracts run deploy:local && npm --prefix backend run grant:roles && npm --prefix backend run fund:local && npm --prefix backend run push:merkle && npm --prefix backend run verify:clean",
+    "setup:local": "npm --prefix backEnd run reset:local && npm --prefix contracts run fund:accounts:local && npm --prefix contracts run deploy:local && npm --prefix backEnd run grant:roles && npm --prefix backEnd run fund:local && npm --prefix backEnd run push:merkle && npm --prefix backEnd run verify:clean",
     "preflight": "node scripts/preflight.js",
     "dev:all": "node scripts/devAll.js",
-    "verify:all": "npm --prefix contracts test && npm --prefix backend test && npm --prefix frontend run lint && npm --prefix frontend run build && npm --prefix oracle test",
+    "dev:observe": "node scripts/devObservability.js",
+    "verify:all": "npm --prefix contracts test && npm --prefix backEnd test && npm --prefix frontEnd run lint && npm --prefix frontEnd run build && npm --prefix oracle test",
     "verify:sync": "node scripts/verifySynchronization.js"
   }
 }

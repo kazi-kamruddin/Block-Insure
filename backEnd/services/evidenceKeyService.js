@@ -9,6 +9,7 @@ const PRIVATE_KEY_PATH = path.join(KEY_DIRECTORY, "evidence-private.pem");
 const PUBLIC_KEY_PATH = path.join(KEY_DIRECTORY, "evidence-public.pem");
 
 let cachedKeyMaterial = null;
+let cachedPreviousKeys = null;
 
 const fingerprintPublicKey = (publicKeyPem) =>
   crypto
@@ -40,6 +41,12 @@ const loadConfiguredKeyMaterial = () => {
 };
 
 const loadOrCreateLocalKeyMaterial = () => {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Production evidence encryption requires configured RSA key material"
+    );
+  }
+
   fs.mkdirSync(KEY_DIRECTORY, { recursive: true });
 
   if (fs.existsSync(PRIVATE_KEY_PATH) && fs.existsSync(PUBLIC_KEY_PATH)) {
@@ -80,25 +87,68 @@ const loadOrCreateLocalKeyMaterial = () => {
   return { privateKeyPem: privateKey, publicKeyPem: publicKey };
 };
 
-const getEvidenceKeyMaterial = () => {
-  if (cachedKeyMaterial) return cachedKeyMaterial;
+const loadPreviousKeyMaterial = () => {
+  if (cachedPreviousKeys) return cachedPreviousKeys;
 
-  const material = loadConfiguredKeyMaterial() || loadOrCreateLocalKeyMaterial();
-  cachedKeyMaterial = {
-    ...material,
-    keyId: `local-rsa-${fingerprintPublicKey(material.publicKeyPem)}`,
-  };
+  const serialized = process.env.EVIDENCE_RSA_PREVIOUS_KEYS_JSON || "{}";
+  let configuredKeys;
 
-  return cachedKeyMaterial;
+  try {
+    configuredKeys = JSON.parse(serialized);
+  } catch {
+    throw new Error("EVIDENCE_RSA_PREVIOUS_KEYS_JSON must be valid JSON");
+  }
+
+  cachedPreviousKeys = new Map(
+    Object.entries(configuredKeys).map(([keyId, material]) => [
+      keyId,
+      {
+        keyId,
+        privateKeyPem: String(material.privateKeyPem || "").replaceAll("\\n", "\n"),
+        publicKeyPem: String(material.publicKeyPem || "").replaceAll("\\n", "\n"),
+        passphrase: material.passphrase || undefined,
+      },
+    ])
+  );
+
+  for (const [keyId, material] of cachedPreviousKeys) {
+    if (!material.privateKeyPem) {
+      throw new Error(`Previous evidence key ${keyId} is missing privateKeyPem`);
+    }
+  }
+
+  return cachedPreviousKeys;
 };
 
-const unwrapEvidenceKey = (wrappedKeyBase64) => {
-  const { privateKeyPem } = getEvidenceKeyMaterial();
+const getEvidenceKeyMaterial = (keyId = "") => {
+  if (!cachedKeyMaterial) {
+    const material = loadConfiguredKeyMaterial() || loadOrCreateLocalKeyMaterial();
+    cachedKeyMaterial = {
+      ...material,
+      passphrase: process.env.EVIDENCE_RSA_KEY_PASSPHRASE || undefined,
+      keyId: `local-rsa-${fingerprintPublicKey(material.publicKeyPem)}`,
+    };
+  }
+
+  if (!keyId || keyId === cachedKeyMaterial.keyId) return cachedKeyMaterial;
+
+  const previousKey = loadPreviousKeyMaterial().get(keyId);
+  if (!previousKey) {
+    const error = new Error(`Evidence key ${keyId} is not available on this server`);
+    error.statusCode = 409;
+    throw error;
+  }
+
+  return previousKey;
+};
+
+const unwrapEvidenceKey = (wrappedKeyBase64, keyId = "") => {
+  const { privateKeyPem, passphrase } = getEvidenceKeyMaterial(keyId);
 
   return crypto.privateDecrypt(
     {
       key: privateKeyPem,
-      passphrase: process.env.EVIDENCE_RSA_KEY_PASSPHRASE || undefined,
+      passphrase,
       padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
       oaepHash: "sha256",
     },

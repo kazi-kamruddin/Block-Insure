@@ -6,9 +6,24 @@ const envFile =
 require("dotenv").config({ path: envFile });
 
 const axios = require("axios");
+const path = require("node:path");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("./abi/InsuranceManager.json");
 const { verifyRegistryProof } = require("./merkleProof");
+const { loadCursorState, persistCursorState } = require("./cursorState");
+const { writeEvent } = require("../scripts/observability");
+
+const originalConsole = {
+  log: console.log.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+};
+for (const [method, level] of [["log", "info"], ["warn", "warn"], ["error", "error"]]) {
+  console[method] = (...parts) => {
+    writeEvent(`Oracle ${instanceFromEnvironment}`, level, ...parts);
+    originalConsole[method](...parts);
+  };
+}
 
 /* ----------------------------- Config ---------------------------------- */
 
@@ -47,10 +62,25 @@ const ORACLE_POLL_INTERVAL_MS = Number(
 const ORACLE_HEARTBEAT_INTERVAL_MS = Number(
   process.env.ORACLE_HEARTBEAT_INTERVAL_MS || 30000
 );
+const ORACLE_EVENT_QUERY_CHUNK_SIZE = Math.max(
+  1,
+  Number(process.env.ORACLE_EVENT_QUERY_CHUNK_SIZE || 2000)
+);
+const ORACLE_SUBMIT_MAX_ATTEMPTS = Math.max(
+  1,
+  Number(process.env.ORACLE_SUBMIT_MAX_ATTEMPTS || 3)
+);
+const ORACLE_SUBMIT_RETRY_DELAY_MS = Math.max(
+  0,
+  Number(process.env.ORACLE_SUBMIT_RETRY_DELAY_MS || 5000)
+);
 const ORACLE_API_KEY = process.env.ORACLE_API_KEY || "";
 const ORACLE_REGISTRY_SNAPSHOT =
   process.env.ORACLE_REGISTRY_SNAPSHOT ||
   (ORACLE_INSTANCE_ID === "2" ? "oracle2" : "primary");
+const ORACLE_CURSOR_FILE =
+  process.env.ORACLE_CURSOR_FILE ||
+  path.join(__dirname, ".oracle-state", `cursor-${ORACLE_INSTANCE_ID}.json`);
 
 /* ----------------------------- Setup ----------------------------------- */
 
@@ -79,6 +109,58 @@ const normalizeHash = (value) => String(value || "").trim().toLowerCase();
 const sleep = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+const buildHeartbeatMessage = ({
+  timestamp,
+  lastProcessedRequestId,
+  lastProcessedClaimId,
+  lastTxHash,
+}) =>
+  [
+    "Block-Insure oracle heartbeat",
+    ORACLE_INSTANCE_ID,
+    oracleWallet.address.toLowerCase(),
+    timestamp,
+    lastProcessedRequestId,
+    lastProcessedClaimId,
+    String(lastTxHash || "").toLowerCase(),
+  ].join(":");
+
+const loadPersistedCursor = async () => {
+  try {
+    const network = await provider.getNetwork();
+    const cursor = loadCursorState({
+      filePath: ORACLE_CURSOR_FILE,
+      chainId: network.chainId.toString(),
+      contractAddress: CONTRACT_ADDRESS,
+      oracleInstanceId: ORACLE_INSTANCE_ID,
+      startBlock: ORACLE_START_BLOCK,
+    });
+    nextOracleScanBlock = cursor.nextBlock;
+
+    if (cursor.found && !cursor.matched) {
+      console.warn(
+        `[Oracle ${ORACLE_INSTANCE_ID}] Ignoring cursor state from a different deployment`
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `[Oracle ${ORACLE_INSTANCE_ID}] Could not load cursor state:`,
+      error.message
+    );
+  }
+};
+
+const persistCursor = async () => {
+  const network = await provider.getNetwork();
+  persistCursorState({
+    filePath: ORACLE_CURSOR_FILE,
+    chainId: network.chainId.toString(),
+    contractAddress: CONTRACT_ADDRESS,
+    oracleInstanceId: ORACLE_INSTANCE_ID,
+    nextBlock: nextOracleScanBlock,
+  });
+};
+
 const saveOracleLog = async ({
   requestId,
   claimId,
@@ -88,6 +170,7 @@ const saveOracleLog = async ({
   resultHash,
   verified,
   riskLevel,
+  remarks,
   submittedTxHash,
   responseTimeMs,
 }) => {
@@ -103,6 +186,7 @@ const saveOracleLog = async ({
         resultHash,
         verified,
         riskLevel,
+        remarks,
         submittedTxHash,
         responseTimeMs,
         oracleWallet: oracleWallet.address,
@@ -133,6 +217,15 @@ const sendHeartbeat = async ({
   }
 
   try {
+    const heartbeatTimestamp = new Date().toISOString();
+    const heartbeatSignature = await oracleWallet.signMessage(
+      buildHeartbeatMessage({
+        timestamp: heartbeatTimestamp,
+        lastProcessedRequestId,
+        lastProcessedClaimId,
+        lastTxHash,
+      })
+    );
     await axios.post(
       `${BACKEND_API_URL}/api/oracle/heartbeat`,
       {
@@ -145,6 +238,8 @@ const sendHeartbeat = async ({
         lastProcessedClaimId,
         lastTxHash,
         configIdentity: `snapshot:${ORACLE_REGISTRY_SNAPSHOT}`,
+        heartbeatTimestamp,
+        heartbeatSignature,
       },
       {
         headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
@@ -163,26 +258,30 @@ const submitWithRetry = async (
   riskLevel,
   remarks
 ) => {
-  try {
-    return await contract.submitOracleResult(
-      requestId,
-      verified,
-      resultHash,
-      riskLevel,
-      remarks
-    );
-  } catch (error) {
-    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Submit failed once. Retrying in 5 seconds...`);
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+  let lastError;
 
-    return await contract.submitOracleResult(
-      requestId,
-      verified,
-      resultHash,
-      riskLevel,
-      remarks
-    );
+  for (let attempt = 1; attempt <= ORACLE_SUBMIT_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await contract.submitOracleResult(
+        requestId,
+        verified,
+        resultHash,
+        riskLevel,
+        remarks
+      );
+    } catch (error) {
+      lastError = error;
+      if (attempt === ORACLE_SUBMIT_MAX_ATTEMPTS) break;
+
+      const delay = ORACLE_SUBMIT_RETRY_DELAY_MS * attempt;
+      console.warn(
+        `[Oracle ${ORACLE_INSTANCE_ID}] Submit attempt ${attempt} failed. Retrying in ${delay}ms...`
+      );
+      await sleep(delay);
+    }
   }
+
+  throw lastError;
 };
 
 /* ----------------------------- Handler --------------------------------- */
@@ -191,7 +290,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
   const requestKey = requestId.toString();
 
   if (processingRequests.has(requestKey)) {
-    return;
+    return false;
   }
 
   processingRequests.add(requestKey);
@@ -201,14 +300,14 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
     const oracleRequest = await contract.getOracleRequest(requestId);
 
     if (oracleRequest.isFulfilled) {
-      return;
+      return true;
     }
 
     if (await contract.oracleHasConfirmed(requestId, oracleWallet.address)) {
       console.log(
         `[Oracle ${ORACLE_INSTANCE_ID}] Request ${requestKey} was already confirmed by this oracle`
       );
-      return;
+      return true;
     }
 
     console.log(`\n[Oracle ${ORACLE_INSTANCE_ID}] OracleRequested event received`);
@@ -228,14 +327,14 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
         console.log(
           `[Oracle ${ORACLE_INSTANCE_ID}] Request already finalized while waiting`
         );
-        return;
+        return true;
       }
 
       if (await contract.oracleHasConfirmed(requestId, oracleWallet.address)) {
         console.log(
           `[Oracle ${ORACLE_INSTANCE_ID}] Request ${requestKey} was confirmed while waiting`
         );
-        return;
+        return true;
       }
     }
 
@@ -377,6 +476,7 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       resultHash,
       verified,
       riskLevel,
+      remarks,
       submittedTxHash: tx.hash,
       responseTimeMs,
     });
@@ -387,8 +487,10 @@ const handleOracleRequested = async (requestId, claimId, oracleType) => {
       lastTxHash: tx.hash,
       force: true,
     });
+    return true;
   } catch (error) {
     console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle handler failed:`, error.message);
+    throw error;
   } finally {
     processingRequests.delete(requestKey);
   }
@@ -411,16 +513,20 @@ const pollOracleRequests = async () => {
       return;
     }
 
+    const chunkEndBlock = Math.min(
+      latestBlock,
+      nextOracleScanBlock + ORACLE_EVENT_QUERY_CHUNK_SIZE - 1
+    );
     const [events, registryEvents] = await Promise.all([
       contract.queryFilter(
         contract.filters.OracleRequested(),
         nextOracleScanBlock,
-        latestBlock
+        chunkEndBlock
       ),
       contract.queryFilter(
         contract.filters.RegistryRootUpdated(),
         nextOracleScanBlock,
-        latestBlock
+        chunkEndBlock
       ),
     ]);
 
@@ -435,7 +541,8 @@ const pollOracleRequests = async () => {
       await handleOracleRequested(requestId, claimId, oracleType);
     }
 
-    nextOracleScanBlock = latestBlock + 1;
+    nextOracleScanBlock = chunkEndBlock + 1;
+    await persistCursor();
     await sendHeartbeat();
   } catch (error) {
     console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle polling failed:`, error.message);
@@ -476,6 +583,7 @@ const startOracle = async () => {
   }
 
   cachedRegistryRoot = await contract.registryMerkleRoot();
+  await loadPersistedCursor();
   await pollOracleRequests();
 
   setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);

@@ -29,7 +29,7 @@ real-world fraud-model generalization.
 \hline
 \textbf{RQ} & \textbf{Principal Finding} & \textbf{Interpretation} \\
 \hline
-RQ1 & 117 contract tests passed; statement, function, and line coverage exceeded
+RQ1 & 139 contract tests passed; statement, function, and line coverage exceeded
 98\%, while branch coverage was 77.21\% & Strong evidence of conformance to the
 specified test suite, but not a security audit \\
 \hline
@@ -37,9 +37,10 @@ RQ2 & Merkle-root storage saved 82.41\%--99.62\% gas across tested registry
 sizes & Compact commitment scales substantially better than individual hash
 storage \\
 \hline
-RQ3 & Held-out synthetic evaluation produced \(TP=7\), \(TN=8\), \(FP=0\),
-\(FN=0\), with AUC and AP of 1.0000 & The model separates deliberately
-structured synthetic cases; result is not generalizable to real fraud \\
+RQ3 & Held-out synthetic evaluation produced \(TP=12\), \(TN=15\), \(FP=6\),
+\(FN=2\), with AUC 0.8758 and AP 0.8602 & The model identifies most designed
+fraud cases but also exposes false positives and subtle-fraud misses; the result
+is not generalizable to real fraud \\
 \hline
 RQ4 & Throughput increased to 48.3827 successful claims/s at concurrency 20
 with no failures; concurrency 50 achieved 49.2880 successful claims/s but only
@@ -55,10 +56,11 @@ fabricating a result was avoided \\
 \section{Experimental Environment and Verification Status}
 \label{sec:experimental_environment}
 
-The implementation and generated artifacts were audited on 4 June 2026 using
-the local workspace configuration shown in Table~\ref{tab:environment}.
-Contract tests, backend analytics tests, oracle syntax validation, frontend lint,
-and the frontend build attempt were rerun during the audit. The retained
+The generated evaluation artifacts were originally audited on 4 June 2026.
+Implementation verification was rerun on 12 August 2026 using the local
+workspace configuration shown in Table~\ref{tab:environment}. Contract tests,
+backend unit tests, oracle tests, frontend lint, and the frontend production
+build were rerun. The retained
 coverage report was generated earlier by the same project test suite.
 Node-visible memory is reported because it was measured programmatically;
 installed physical memory should be manually confirmed before final thesis
@@ -80,14 +82,14 @@ Node-visible memory & 7,883,206,656 bytes, approximately 7.34 GiB \\
 \hline
 Node.js and npm & Node.js \texttt{v24.16.0}; npm \texttt{10.2.5} \\
 \hline
-Blockchain toolchain & Solidity \texttt{0.8.28}; Hardhat \texttt{2.28.0};
+Blockchain toolchain & Solidity \texttt{0.8.26}; Hardhat \texttt{2.28.0};
 OpenZeppelin Contracts \texttt{5.6.1}; ethers.js \texttt{6.16.0} \\
 \hline
 Application stack & Express \texttt{5.2.1}; Mongoose \texttt{9.6.2}; React
 \texttt{19.2.6}; Vite \texttt{8.0.14} \\
 \hline
-Blockchain network & Local Hardhat network with automining and unlimited
-contract size enabled \\
+Blockchain network & Local Hardhat network with automining; deployed runtime
+verified below the EIP-170 contract-size limit \\
 \hline
 \end{tabular}
 \end{table}
@@ -100,7 +102,7 @@ contract size enabled \\
 \hline
 \textbf{Check or Study} & \textbf{Status} & \textbf{Observed Result} \\
 \hline
-Hardhat smart-contract tests & Complete & 117 passing, 0 failing \\
+Hardhat smart-contract tests & Complete & 139 passing, 0 failing \\
 \hline
 Solidity coverage artifact & Complete & 98.64\% statements; 77.21\% branches;
 100\% functions; 98.91\% lines \\
@@ -111,8 +113,8 @@ Oracle syntax validation & Complete & Passed \\
 \hline
 Frontend lint & Complete & Passed \\
 \hline
-Frontend production build & Environment-blocked & Vite/Rolldown rejected the
-Windows workspace path containing spaces \\
+Frontend production build & Complete & Passed from the Windows workspace path
+containing spaces \\
 \hline
 Gas comparison & Complete & Six registry sizes measured \\
 \hline
@@ -134,7 +136,7 @@ sessions \\
 
 The Hardhat suite exercised successful operations, invalid inputs, unauthorized
 calls, duplicate detection, oracle quorum, timeout behavior, appeals, voting,
-settlement, closure, and emergency controls. All 117 tests passed.
+settlement, closure, and emergency controls. All 139 tests passed.
 
 \begin{table}[htbp]
 \centering
@@ -166,7 +168,7 @@ On-chain risk score & 5 & Passed \\
 \hline
 System-design hardening & 8 & Passed \\
 \hline
-\textbf{Total} & \textbf{117} & \textbf{Passed} \\
+\textbf{Total} & \textbf{139} & \textbf{Passed} \\
 \hline
 \end{tabular}
 \end{table}
@@ -298,24 +300,25 @@ prototype verifies proofs off-chain.
 
 \subsection{Dataset and Evaluation Protocol}
 
-The deterministic synthetic registry contains 72 records: 39 fraud-labeled and
-33 legitimate. After stable sorting by hospital and invoice, every fifth record
-was held out and the remaining four were used for training. This produced 57
-training records and 15 held-out records.
+The deterministic synthetic registry contains 120 source records. After stable
+sorting by hospital and invoice, the deterministic 80/20 split produced 96
+training records and 24 held-out records. Scenario generation produced 130
+training claim scenarios and 35 held-out claim scenarios. The held-out scenario
+set contains 14 fraud cases and 21 legitimate cases.
 
 \begin{table}[htbp]
 \centering
 \caption{Synthetic dataset composition}
 \label{tab:dataset_composition}
-\begin{tabular}{|p{6.5cm}|r|r|r|}
+\begin{tabular}{|p{6.5cm}|r|r|}
 \hline
-\textbf{Split} & \textbf{Total} & \textbf{Fraud} & \textbf{Legitimate} \\
+\textbf{Split} & \textbf{Registry Records} & \textbf{Claim Scenarios} \\
 \hline
-Full registry & 72 & 39 & 33 \\
+Full registry & 120 & -- \\
 \hline
-Training & 57 & 32 & 25 \\
+Training & 96 & 130 \\
 \hline
-Held-out & 15 & 7 & 8 \\
+Held-out & 24 & 35 \\
 \hline
 \end{tabular}
 \end{table}
@@ -324,56 +327,55 @@ Model likelihoods and anomaly statistics were calculated only from the training
 split. Thresholds from 0 to 100 in steps of five were evaluated on the training
 records. The selected threshold maximized training F1, with ties broken by
 higher precision and then the higher threshold. The selected threshold,
-\(\theta=85\), was applied once to the held-out records. Held-out labels were
+\(\theta=90\), was applied once to the held-out scenarios. Held-out labels were
 not used for threshold selection.
 
 \subsection{Threshold Selection}
 
 \begin{table}[htbp]
 \centering
-\caption{Representative training threshold-selection results}
+\caption{Representative held-out sensitivity results; threshold 90 was selected on training scenarios}
 \label{tab:threshold_selection_results}
 \begin{tabular}{|r|r|r|r|r|}
 \hline
 \textbf{Threshold} & \textbf{Precision} & \textbf{Recall} &
 \textbf{F1} & \textbf{Selection Role} \\
 \hline
-100 & 1.0000 & 0.5313 & 0.6939 & Too restrictive \\
+100 & 1.0000 & 0.5714 & 0.7273 & Too restrictive \\
 \hline
-95 & 1.0000 & 0.8438 & 0.9153 & High precision, lower recall \\
+95 & 1.0000 & 0.6429 & 0.7826 & Held-out best; not used for selection \\
 \hline
-90 & 1.0000 & 0.8438 & 0.9153 & High precision, lower recall \\
+90 & 0.6667 & 0.8571 & 0.7500 & Selected on training F1 (0.8276) \\
 \hline
-85 & 1.0000 & 1.0000 & 1.0000 & Selected threshold \\
+85 & 0.6667 & 0.8571 & 0.7500 & Sensitivity comparison \\
 \hline
-20 & 1.0000 & 1.0000 & 1.0000 & Tied maximum F1 \\
+20 & 0.6000 & 0.8571 & 0.7059 & Lower precision \\
 \hline
-5 & 1.0000 & 1.0000 & 1.0000 & Tied maximum F1 \\
+5 & 0.6000 & 0.8571 & 0.7059 & Lower precision \\
 \hline
-0 & 0.5614 & 1.0000 & 0.7191 & Predicts every training record as fraud \\
+0 & 0.4000 & 1.0000 & 0.5714 & Predicts every held-out scenario as fraud \\
 \hline
 \end{tabular}
 \end{table}
 
-The broad interval of perfect training F1, from threshold 5 through 85,
-demonstrates unusually strong separation in the synthetic data. It also shows
-that the selected value of 85 is primarily a consequence of the explicit
-tie-breaking rule, not evidence that 85 is a generally optimal real-world fraud
+Training-split selection chose threshold 90 with F1 0.8276. The held-out
+sensitivity results show the expected precision--recall trade-off and are
+reported for analysis only; they were not used to replace the selected
 threshold.
 
 \subsection{Held-Out Classification}
 
 \begin{table}[htbp]
 \centering
-\caption{Held-out confusion matrix at \(\theta=85\)}
+\caption{Held-out confusion matrix at \(\theta=90\)}
 \label{tab:heldout_confusion}
 \begin{tabular}{|p{4.3cm}|c|c|}
 \hline
 \textbf{Actual / Predicted} & \textbf{Fraud} & \textbf{Legitimate} \\
 \hline
-Actual Fraud & \(TP=7\) & \(FN=0\) \\
+Actual Fraud & \(TP=12\) & \(FN=2\) \\
 \hline
-Actual Legitimate & \(FP=0\) & \(TN=8\) \\
+Actual Legitimate & \(FP=6\) & \(TN=15\) \\
 \hline
 \end{tabular}
 \end{table}
@@ -386,25 +388,25 @@ Actual Legitimate & \(FP=0\) & \(TN=8\) \\
 \hline
 \textbf{Metric} & \textbf{Value} \\
 \hline
-Accuracy & 1.0000 \\
+Accuracy & 0.7714 \\
 \hline
-Precision & 1.0000 \\
+Precision & 0.6667 \\
 \hline
-Recall / sensitivity & 1.0000 \\
+Recall / sensitivity & 0.8571 \\
 \hline
-Specificity & 1.0000 \\
+Specificity & 0.7143 \\
 \hline
-False-positive rate & 0.0000 \\
+False-positive rate & 0.2857 \\
 \hline
-F1 score & 1.0000 \\
+F1 score & 0.7500 \\
 \hline
-ROC AUC & 1.0000 \\
+ROC AUC & 0.8758 \\
 \hline
-Average Precision & 1.0000 \\
+Average Precision & 0.8602 \\
 \hline
-Fraud prevalence & 0.4667 \\
+Fraud prevalence & 0.4000 \\
 \hline
-Average held-out risk score & 49.4 \\
+Average held-out risk score & 54.66 \\
 \hline
 \end{tabular}
 \end{table}
@@ -421,13 +423,13 @@ Average held-out risk score & 49.4 \\
 \textbf{Model} & \textbf{TP} & \textbf{TN} & \textbf{FP} & \textbf{FN} &
 \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
 \hline
-Bayesian model, \(\theta=85\) & 7 & 8 & 0 & 0 & 1.0000 & 1.0000 &
-1.0000 & 1.0000 \\
+Bayesian model, \(\theta=90\) & 12 & 15 & 6 & 2 & 0.7714 & 0.6667 &
+0.8571 & 0.7500 \\
 \hline
-Always Fraud & 7 & 0 & 8 & 0 & 0.4667 & 0.4667 & 1.0000 & 0.6364 \\
+Always Fraud & 14 & 0 & 21 & 0 & 0.4000 & 0.4000 & 1.0000 & 0.5714 \\
 \hline
-Amount above training mean (0.330175 ETH) & 3 & 6 & 2 & 4 & 0.6000 &
-0.6000 & 0.4286 & 0.5000 \\
+Amount above training mean (0.350833 ETH) & 5 & 17 & 4 & 9 & 0.6286 &
+0.5556 & 0.3571 & 0.4348 \\
 \hline
 \end{tabular}
 }
@@ -448,32 +450,35 @@ class prevalence or claim amount.
 \textbf{Scenario} & \textbf{Records} & \textbf{Detection Rate} &
 \textbf{Mean Risk Score} \\
 \hline
-Legitimate & 8 & 0.0000 & 5.5 \\
+Legitimate & 21 & 0.2857 & 34.67 \\
 \hline
-Used invoice & 1 & 1.0000 & 100.0 \\
+Used invoice & 2 & 1.0000 & 100.0 \\
 \hline
-Date mismatch & 1 & 1.0000 & 100.0 \\
+Date mismatch & 1 & 1.0000 & 99.0 \\
 \hline
-Suspicious repeated pattern & 2 & 1.0000 & 100.0 \\
+Suspicious repeated pattern & 1 & 1.0000 & 100.0 \\
 \hline
-Cancelled record & 1 & 1.0000 & 99.0 \\
+Cancelled record & 2 & 1.0000 & 100.0 \\
 \hline
-Blacklisted hospital & 2 & 1.0000 & 99.0 \\
+Inflated amount & 3 & 1.0000 & 93.33 \\
+\hline
+Subtle synthetic fraud & 2 & 0.0000 & 3.0 \\
+\hline
+Blacklisted hospital & 3 & 1.0000 & 100.0 \\
 \hline
 \end{tabular}
 \end{table}
 
-The scenario table explains the perfect aggregate metrics. Fraud cases were
-constructed with strong indicators such as invalid registry status, repeated
-claim count, cancelled invoice, suspended license, or blacklisted hospital,
-while most legitimate records activated only the clean-match factor. One
-legitimate record received a manual-review recommendation due to a bill-range
-anomaly but remained below the fraud threshold.
+The scenario table explains both the model's strengths and its errors. Obvious
+registry-marker fraud was detected consistently, while two subtle fraud cases
+without registry markers were missed. Six noisy legitimate amount-rounding
+scenarios were false positives. These cases prevent the synthetic evaluation
+from presenting an artificially perfect separation result.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.75\textwidth]
-{backend/evaluation-results/evaluation-charts/confusion_matrix.png}
+{backEnd/evaluation-results/evaluation-charts/confusion_matrix.png}
 \caption{Held-out confusion matrix for the Bayesian fraud model}
 \label{fig:confusion_matrix}
 \end{figure}
@@ -481,7 +486,7 @@ anomaly but remained below the fraud threshold.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.75\textwidth]
-{backend/evaluation-results/evaluation-charts/roc_curve.png}
+{backEnd/evaluation-results/evaluation-charts/roc_curve.png}
 \caption{Held-out ROC curve}
 \label{fig:roc_curve}
 \end{figure}
@@ -489,7 +494,7 @@ anomaly but remained below the fraud threshold.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.75\textwidth]
-{backend/evaluation-results/evaluation-charts/precision_recall_curve.png}
+{backEnd/evaluation-results/evaluation-charts/precision_recall_curve.png}
 \caption{Held-out precision-recall curve}
 \label{fig:precision_recall_curve}
 \end{figure}
@@ -503,8 +508,8 @@ labels to observable statuses and signals. Evaluation queries are also
 constructed from the same registry records, so ordinary legitimate cases are
 exact matches. Furthermore, the runtime rule-based oracle comparison directly
 checks the synthetic \texttt{fraudLabel}, although that label is excluded from
-the Bayesian evidence factors. The perfect AUC, AP, and confusion matrix
-therefore demonstrate correct separation of designed scenarios, not expected
+the Bayesian evidence factors. The measured AUC, AP, false positives, and false
+negatives therefore describe behavior on designed scenarios, not expected
 performance on noisy or adversarial real insurance data.
 
 \section{Claim-Submission Throughput Study}
@@ -577,7 +582,7 @@ primary measured bottleneck.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.82\textwidth]
-{backend/evaluation-results/evaluation-charts/throughput_vs_latency.png}
+{backEnd/evaluation-results/evaluation-charts/throughput_vs_latency.png}
 \caption{Local successful throughput and latency by concurrency}
 \label{fig:throughput_latency}
 \end{figure}
@@ -626,8 +631,8 @@ External validity & Local Hardhat automining, one machine, synthetic healthcare
 records, and shared oracle infrastructure differ from production & Deploy a
 modular contract to a public testnet and use independently operated data sources \\
 \hline
-Conclusion validity & Held-out set contains only 15 records; AUC and AP are
-perfect because of strong separation; no repeated throughput runs & Use larger
+Conclusion validity & Held-out set contains only 35 claim scenarios derived
+from 24 registry records; no repeated throughput runs & Use larger
 expert-labeled data, cross-validation, stronger baselines, and statistical
 uncertainty estimates \\
 \hline
@@ -652,7 +657,7 @@ withdrawals, and use multisignature administration \\
 \hline
 \textbf{Objective} & \textbf{Evidence} & \textbf{Assessment} \\
 \hline
-Enforce auditable lifecycle and role boundaries & 117 passing contract tests;
+Enforce auditable lifecycle and role boundaries & 139 passing contract tests;
 98.64\% statement and 98.91\% line coverage & Demonstrated within tested scope \\
 \hline
 Detect exact duplicate claims & Passing document-hash, invoice-hash, and

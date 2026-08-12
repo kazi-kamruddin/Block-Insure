@@ -43,7 +43,7 @@ async function main() {
   }
 
   if (!process.env.MONGODB_URI) {
-    throw new Error("MONGODB_URI is missing in backend/.env");
+    throw new Error("MONGODB_URI is missing in backEnd/.env");
   }
 
   await mongoose.connect(process.env.MONGODB_URI);

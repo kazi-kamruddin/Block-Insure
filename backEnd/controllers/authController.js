@@ -10,6 +10,7 @@ const normalizeWalletAddress = (walletAddress) => {
 const JWT_ISSUER = process.env.JWT_ISSUER || "block-insure-api";
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "block-insure-client";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const NONCE_TTL_MS = Number(process.env.AUTH_NONCE_TTL_MS || 5 * 60 * 1000);
 
 const createError = (message, statusCode) => {
   const error = new Error(message);
@@ -23,12 +24,14 @@ const getNonce = async (req, res, next) => {
 
     const nonce = crypto.randomBytes(16).toString("hex");
     const message = `Block-Insure login nonce: ${nonce}`;
+    const nonceExpiresAt = new Date(Date.now() + NONCE_TTL_MS);
 
     const user = await User.findOneAndUpdate(
       { walletAddress },
       {
         walletAddress,
         nonce,
+        nonceExpiresAt,
       },
       {
         new: true,
@@ -42,6 +45,7 @@ const getNonce = async (req, res, next) => {
       walletAddress: user.walletAddress,
       nonce,
       message,
+      expiresAt: nonceExpiresAt.toISOString(),
     });
   } catch (error) {
     next(error);
@@ -68,6 +72,10 @@ const walletLogin = async (req, res, next) => {
       throw createError("Nonce not found. Request a nonce first.", 400);
     }
 
+    if (!user.nonceExpiresAt || user.nonceExpiresAt <= new Date()) {
+      throw createError("Nonce expired. Request a new nonce.", 401);
+    }
+
     const message = `Block-Insure login nonce: ${user.nonce}`;
     const recoveredAddress = verifyMessage(message, signature).toLowerCase();
 
@@ -75,14 +83,25 @@ const walletLogin = async (req, res, next) => {
       throw createError("Invalid wallet signature", 401);
     }
 
-    user.nonce = "";
-    await user.save();
+    const consumedUser = await User.findOneAndUpdate(
+      {
+        _id: user._id,
+        nonce: user.nonce,
+        nonceExpiresAt: { $gt: new Date() },
+      },
+      { $set: { nonce: "", nonceExpiresAt: null } },
+      { new: true }
+    );
+
+    if (!consumedUser) {
+      throw createError("Nonce was already used or expired.", 401);
+    }
 
     const token = jwt.sign(
       {
         jti: crypto.randomUUID(),
-        walletAddress: user.walletAddress,
-        role: user.role,
+        walletAddress: consumedUser.walletAddress,
+        role: consumedUser.role,
       },
       process.env.JWT_SECRET,
       {
@@ -97,10 +116,10 @@ const walletLogin = async (req, res, next) => {
       message: "Wallet login successful",
       token,
       user: {
-        walletAddress: user.walletAddress,
-        role: user.role,
-        name: user.name,
-        email: user.email,
+        walletAddress: consumedUser.walletAddress,
+        role: consumedUser.role,
+        name: consumedUser.name,
+        email: consumedUser.email,
       },
     });
   } catch (error) {

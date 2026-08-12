@@ -4,6 +4,18 @@ import {
   getEvidenceEncryptionKey,
 } from "./api";
 
+const evidenceKeyStorageName = (cid) => `block-insure:evidence-key:${cid}`;
+
+function readEvidenceKey(cid) {
+  if (!cid) return null;
+  const key = evidenceKeyStorageName(cid);
+  return window.sessionStorage.getItem(key) || window.localStorage.getItem(key);
+}
+
+function writeSessionEvidenceKey(cid, value) {
+  window.sessionStorage.setItem(evidenceKeyStorageName(cid), value);
+}
+
 function bytesToBase64(bytes) {
   let binary = "";
 
@@ -86,8 +98,8 @@ export async function encryptEvidenceFile(file) {
 export function storeEvidenceKey(cid, encryption) {
   if (!cid || !encryption?.keyBase64) return;
 
-  window.localStorage.setItem(
-    `block-insure:evidence-key:${cid}`,
+  writeSessionEvidenceKey(
+    cid,
     JSON.stringify({
       algorithm: encryption.algorithm,
       keyBase64: encryption.keyBase64,
@@ -104,15 +116,23 @@ function base64ToBytes(value) {
 }
 
 export function hasLocalEvidenceKey(cid) {
-  return Boolean(
-    cid && window.localStorage.getItem(`block-insure:evidence-key:${cid}`)
-  );
+  return Boolean(readEvidenceKey(cid));
 }
 
-export async function downloadDecryptedEvidence(cid, gatewayBase, documentId) {
-  let storedValue = window.localStorage.getItem(
-    `block-insure:evidence-key:${cid}`
+async function calculateSHA256Hex(bytes) {
+  const digest = new Uint8Array(
+    await window.crypto.subtle.digest("SHA-256", bytes)
   );
+  return Array.from(digest, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+export async function downloadDecryptedEvidence(
+  cid,
+  gatewayBase,
+  documentId,
+  expectedEncryptedSha256Hash = ""
+) {
+  let storedValue = readEvidenceKey(cid);
 
   if (!storedValue && documentId) {
     const keyResponse = await getEvidenceDecryptionKey(documentId);
@@ -120,10 +140,7 @@ export async function downloadDecryptedEvidence(cid, gatewayBase, documentId) {
 
     if (recovered?.keyBase64) {
       storedValue = JSON.stringify(recovered);
-      window.localStorage.setItem(
-        `block-insure:evidence-key:${cid}`,
-        storedValue
-      );
+      writeSessionEvidenceKey(cid, storedValue);
     }
   }
 
@@ -142,6 +159,17 @@ export async function downloadDecryptedEvidence(cid, gatewayBase, documentId) {
   }
 
   const payload = new Uint8Array(await response.arrayBuffer());
+  const expectedHash = String(
+    expectedEncryptedSha256Hash || keyRecord.encryptedSha256Hash || ""
+  ).toLowerCase();
+
+  if (expectedHash) {
+    const downloadedHash = await calculateSHA256Hex(payload);
+    if (downloadedHash !== expectedHash) {
+      throw new Error("Downloaded evidence does not match its recorded SHA-256 hash");
+    }
+  }
+
   const magicLength = new TextEncoder().encode(ENCRYPTED_FILE_MAGIC).length;
   const magic = new TextDecoder().decode(payload.slice(0, magicLength));
 

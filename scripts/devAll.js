@@ -2,6 +2,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const net = require("node:net");
 const path = require("node:path");
 const readline = require("node:readline");
+const { writeEvent } = require("./observability");
 
 const projectRoot = path.resolve(__dirname, "..");
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -9,7 +10,10 @@ const children = [];
 
 function prefixStream(stream, label, output) {
   const reader = readline.createInterface({ input: stream });
-  reader.on("line", (line) => output.write(`[${label}] ${line}\n`));
+  reader.on("line", (line) => {
+    writeEvent(label, "info", line);
+    output.write(`[${label}] ${line}\n`);
+  });
 }
 
 function startService(label, directory, args) {
@@ -24,8 +28,10 @@ function startService(label, directory, args) {
   prefixStream(child.stderr, label, process.stderr);
   child.on("exit", (code, signal) => {
     if (code && code !== 0) {
+      writeEvent(label, "error", `exited with code ${code}`);
       console.error(`[Launcher] ${label} exited with code ${code}.`);
     } else if (signal) {
+      writeEvent(label, "warn", `stopped (${signal})`);
       console.log(`[Launcher] ${label} stopped (${signal}).`);
     }
   });

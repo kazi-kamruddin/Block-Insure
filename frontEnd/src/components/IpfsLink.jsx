@@ -20,7 +20,12 @@ function buildIpfsUrl(cid) {
   return `${gateway}${cleanCid}`;
 }
 
-export default function IpfsLink({ cid, documentId, recoverable = false }) {
+export default function IpfsLink({
+  cid,
+  documentId,
+  recoverable = false,
+  sha256Hash = "",
+}) {
   const [decryptError, setDecryptError] = useState("");
 
   if (!cid) {
@@ -46,7 +51,8 @@ export default function IpfsLink({ cid, documentId, recoverable = false }) {
                 await downloadDecryptedEvidence(
                   cid,
                   DEFAULT_GATEWAY,
-                  documentId
+                  documentId,
+                  sha256Hash
                 );
               } catch (error) {
                 setDecryptError(error.message);

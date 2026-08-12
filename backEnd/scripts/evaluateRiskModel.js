@@ -248,8 +248,12 @@ const calculateMetrics = ({
   });
 
   return {
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     dataset: {
+      unit: "held-out claim scenarios",
+      evaluationScenarios: rows.length,
+      // Retained for compatibility with existing dashboard consumers.
       totalRecords: rows.length,
       legitimateRecords: rows.filter((row) => !row.actualFraud).length,
       fraudRecords: rows.filter((row) => row.actualFraud).length,
@@ -543,7 +547,9 @@ const printSummary = (result) => {
 
   console.log("Risk model evaluation completed");
   console.log(`Training records: ${summary.split.trainingRecords}`);
-  console.log(`Held-out records evaluated: ${summary.dataset.totalRecords}`);
+  console.log(
+    `Held-out claim scenarios evaluated: ${summary.dataset.evaluationScenarios}`
+  );
   console.log(`Selected threshold: ${summary.decisionRule.selectedThreshold}`);
   console.log(`Accuracy: ${(summary.metrics.accuracy * 100).toFixed(2)}%`);
   console.log(`Precision: ${(summary.metrics.precision * 100).toFixed(2)}%`);

@@ -83,6 +83,26 @@ function main() {
     `InsuranceManager deployed bytecode is ${deployedBytes} bytes (EIP-170 maximum 24576)`,
     failures
   );
+  const configuredSizeBudget = Number(
+    process.env.CONTRACT_RUNTIME_SIZE_BUDGET_BYTES || 24_448
+  );
+  assert(
+    Number.isInteger(configuredSizeBudget) &&
+      configuredSizeBudget > 0 &&
+      configuredSizeBudget <= 24_576,
+    "CONTRACT_RUNTIME_SIZE_BUDGET_BYTES must be an integer between 1 and 24576",
+    failures
+  );
+  assert(
+    deployedBytes <= configuredSizeBudget,
+    `InsuranceManager deployed bytecode is ${deployedBytes} bytes, above the configured ${configuredSizeBudget}-byte maintenance budget`,
+    failures
+  );
+  if (24_576 - deployedBytes < 512) {
+    warnings.push(
+      `InsuranceManager has only ${24_576 - deployedBytes} bytes of EIP-170 headroom`
+    );
+  }
 
   const environments = [
     ["backend", readEnv("backEnd/.env"), "VITE_CONTRACT_ADDRESS"],

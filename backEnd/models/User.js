@@ -35,6 +35,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    nonceExpiresAt: {
+      type: Date,
+      default: null,
+    },
     role: {
       type: String,
       enum: ["USER", "ADMIN", "AUDITOR", "ORACLE"],

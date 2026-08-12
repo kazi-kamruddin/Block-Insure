@@ -22,8 +22,8 @@ function updateEnvValue(filePath, key, value) {
 function syncLocalContractDeployment(contractAddress, deploymentBlock) {
   const projectRoot = path.resolve(__dirname, "..", "..");
   const targets = [
-    { file: path.join(projectRoot, "backend", ".env"), key: "VITE_CONTRACT_ADDRESS" },
-    { file: path.join(projectRoot, "frontend", ".env"), key: "VITE_CONTRACT_ADDRESS" },
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "VITE_CONTRACT_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_CONTRACT_ADDRESS" },
     { file: path.join(projectRoot, "oracle", ".env"), key: "CONTRACT_ADDRESS" },
     { file: path.join(projectRoot, "oracle", ".env.oracle2"), key: "CONTRACT_ADDRESS" },
   ];
@@ -32,11 +32,11 @@ function syncLocalContractDeployment(contractAddress, deploymentBlock) {
 
   [
     {
-      file: path.join(projectRoot, "backend", ".env"),
+      file: path.join(projectRoot, "backEnd", ".env"),
       key: "CONTRACT_DEPLOYMENT_BLOCK",
     },
     {
-      file: path.join(projectRoot, "frontend", ".env"),
+      file: path.join(projectRoot, "frontEnd", ".env"),
       key: "VITE_CONTRACT_DEPLOYMENT_BLOCK",
     },
     {
@@ -71,8 +71,8 @@ function syncContractAbi() {
   );
 
   [
-    path.join(projectRoot, "backend", "abi", "InsuranceManager.json"),
-    path.join(projectRoot, "frontend", "src", "abi", "InsuranceManager.json"),
+    path.join(projectRoot, "backEnd", "abi", "InsuranceManager.json"),
+    path.join(projectRoot, "frontEnd", "src", "abi", "InsuranceManager.json"),
     path.join(projectRoot, "oracle", "abi", "InsuranceManager.json"),
   ].forEach((target) => {
     fs.writeFileSync(target, `${abiDocument}\n`, "utf8");

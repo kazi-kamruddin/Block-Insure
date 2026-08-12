@@ -295,16 +295,10 @@ const getDecryptionKey = async (req, res, next) => {
       });
     }
 
-    const activeKey = getEvidenceKeyMaterial();
-
-    if (fileRecord.keyId !== activeKey.keyId) {
-      return res.status(409).json({
-        success: false,
-        message: `Evidence key ${fileRecord.keyId} is not available on this server`,
-      });
-    }
-
-    const rawKey = unwrapEvidenceKey(fileRecord.wrappedEvidenceKey);
+    const rawKey = unwrapEvidenceKey(
+      fileRecord.wrappedEvidenceKey,
+      fileRecord.keyId
+    );
 
     await EvidenceAccessLog.create({
       documentId: fileRecord._id,
@@ -321,6 +315,7 @@ const getDecryptionKey = async (req, res, next) => {
         algorithm: fileRecord.encryptionAlgorithm,
         keyBase64: rawKey.toString("base64"),
         keyId: fileRecord.keyId,
+        encryptedSha256Hash: fileRecord.sha256Hash,
         originalName: fileRecord.originalName,
         originalMimeType:
           fileRecord.originalMimeType || "application/octet-stream",

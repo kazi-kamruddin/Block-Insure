@@ -83,6 +83,7 @@ export default function EvidenceChainPanel({ evidenceChain }) {
                   cid={document.ipfsCID}
                   documentId={document.id}
                   recoverable={document.recoverableAcrossBrowsers}
+                  sha256Hash={document.sha256Hash}
                 />
               </p>
               <details className="technical-details">

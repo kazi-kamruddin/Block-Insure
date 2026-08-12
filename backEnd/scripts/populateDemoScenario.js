@@ -57,7 +57,7 @@ function requireEnv(name) {
   const value = process.env[name];
 
   if (!value) {
-    throw new Error(`${name} is missing in backend/.env`);
+    throw new Error(`${name} is missing in backEnd/.env`);
   }
 
   return value;
@@ -79,6 +79,28 @@ function getOptionalPrivateKey(envName, fallbackName) {
   }
 
   return DEFAULT_LOCAL_KEYS[fallbackName] || ethers.Wallet.createRandom().privateKey;
+}
+
+function assertBuiltInDemoKeysAreLocal(rpcUrl) {
+  const usesBuiltInUserKey =
+    !process.env.DEMO_USER_PRIVATE_KEY &&
+    process.env.DEMO_USE_HARDHAT_ACCOUNTS !== "false";
+
+  if (!usesBuiltInUserKey) return;
+
+  let hostname;
+  try {
+    hostname = new URL(rpcUrl).hostname.toLowerCase();
+  } catch {
+    throw new Error("RPC_URL must be a valid URL before demo keys can be used");
+  }
+
+  const localHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+  if (!localHosts.has(hostname)) {
+    throw new Error(
+      "Built-in Hardhat demo keys are restricted to a localhost RPC. Configure DEMO_USER_PRIVATE_KEY or set DEMO_USE_HARDHAT_ACCOUNTS=false."
+    );
+  }
 }
 
 function getWallet(privateKey, provider, label) {
@@ -173,7 +195,7 @@ async function assertContractDeployed(provider, contractAddress) {
       [
         `No contract bytecode found at ${contractAddress}.`,
         "This usually means the Hardhat node was restarted after deployment,",
-        "or backend/.env VITE_CONTRACT_ADDRESS was not updated with the latest deployed address.",
+        "or backEnd/.env VITE_CONTRACT_ADDRESS was not updated with the latest deployed address.",
       ].join(" ")
     );
   }
@@ -606,6 +628,7 @@ async function createClaimScenario({ userContract, userWallet, record, packageId
 
 async function main() {
   const rpcUrl = requireEnv("RPC_URL");
+  assertBuiltInDemoKeysAreLocal(rpcUrl);
   const mongodbUri = requireEnv("MONGODB_URI");
   const contractAddress = requireEnv("VITE_CONTRACT_ADDRESS");
   const adminPrivateKey = requireEnv("ADMIN_PRIVATE_KEY");

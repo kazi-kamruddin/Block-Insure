@@ -28,11 +28,15 @@ test("clean setup contains only infrastructure initialization in safe order", ()
   for (const forbidden of ["demo:populate", "seed:mock", "loadtest:claims"]) {
     assert.equal(setup.includes(forbidden), false);
   }
+
+  assert.equal(setup.includes("--prefix backend"), false);
+  assert.equal(setup.includes("--prefix frontend"), false);
+  assert.equal(setup.includes("--prefix backEnd"), true);
 });
 
 test("clean role bootstrap creates quorum auditors without seeding reputation", () => {
   const roleScript = fs.readFileSync(
-    path.join(projectRoot, "backend", "scripts", "grantProjectRolesLocal.js"),
+    path.join(projectRoot, "backEnd", "scripts", "grantProjectRolesLocal.js"),
     "utf8"
   );
 
