@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import PolicyCard from "../components/PolicyCard";
+import PolicyEligibilitySimulator from "../components/PolicyEligibilitySimulator";
 import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
 import { getPolicyPackages, getRiskPremiumQuote } from "../services/api";
@@ -245,6 +246,10 @@ export default function PolicyListPage() {
 
       {!isLoading && packages.length === 0 ? (
         <p>No active policy packages found.</p>
+      ) : null}
+
+      {packages.length > 0 ? (
+        <PolicyEligibilitySimulator packages={packages} />
       ) : null}
 
       <div className="card-row">

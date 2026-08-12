@@ -1,0 +1,75 @@
+.policy-terms-panel {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(45, 212, 191, 0.06);
+}
+
+.policy-terms-panel summary {
+  cursor: pointer;
+  color: var(--brand-strong);
+  font-weight: 700;
+}
+
+.policy-terms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.policy-terms-grid div {
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.policy-terms-grid dt {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.policy-terms-grid dd {
+  margin: 3px 0 0;
+  font-weight: 700;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+.eligibility-result {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.eligibility-result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.eligibility-result-heading h3 {
+  margin: 0;
+}
+
+.outcome-waiting_period,
+.outcome-manual_review {
+  border-left-color: #b7791f;
+}
+
+.outcome-excluded,
+.outcome-outside_coverage {
+  border-left-color: #c53030;
+}

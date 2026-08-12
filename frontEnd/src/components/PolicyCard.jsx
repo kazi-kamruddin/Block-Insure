@@ -1,3 +1,5 @@
+import PolicyTermsPanel from "./PolicyTermsPanel";
+
 export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }) {
   return (
     <div className="card">
@@ -22,6 +24,7 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
       <p>Coverage: {policyPackage.coverageAmountEth} ETH</p>
       <p>Duration: {policyPackage.durationDays} days</p>
       <p>Required document: {policyPackage.requiredDocumentType}</p>
+      <PolicyTermsPanel terms={policyPackage.policyTerms} />
 
       <button
         type="button"

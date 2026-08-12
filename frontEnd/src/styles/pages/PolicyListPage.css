@@ -10,3 +10,8 @@
 .page-policy-list .card h3 {
   color: var(--brand-strong);
 }
+
+.page-policy-list .risk-pricing-card,
+.page-policy-list .policy-simulator-card {
+  margin: 18px 0;
+}

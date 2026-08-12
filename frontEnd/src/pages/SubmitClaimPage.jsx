@@ -7,6 +7,7 @@ import {
   authorizeClaimSubmission,
   attachDocumentToClaim,
   getMyPolicies,
+  previewPurchasedPolicyEligibility,
   reconcileClaimSubmission,
   recordClaimSubmissionTransaction,
   resetMyClaimSubmissionLimit,
@@ -15,6 +16,8 @@ import {
 
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
+import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
+import PolicyTermsPanel from "../components/PolicyTermsPanel";
 
 import {
   assertCorrectNetwork,
@@ -170,6 +173,8 @@ export default function SubmitClaimPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
   const [submissionLimit, setSubmissionLimit] = useState(null);
+  const [preExistingCondition, setPreExistingCondition] = useState(false);
+  const [disclosedAtPurchase, setDisclosedAtPurchase] = useState(false);
 
   const {
     data: policiesData,
@@ -192,6 +197,33 @@ export default function SubmitClaimPage() {
   const selectedPolicy = activePolicies.find(
     (policy) => String(policy.policyId) === String(policyId)
   );
+
+  const { data: eligibilityData, error: eligibilityError } = useQuery({
+    queryKey: [
+      "policyEligibilityPreview",
+      policyId,
+      incidentDateTime,
+      claimType,
+      claimAmount,
+      preExistingCondition,
+      disclosedAtPurchase,
+    ],
+    queryFn: () =>
+      previewPurchasedPolicyEligibility(policyId, {
+        incidentDate: dateTimeLocalToUnixSeconds(incidentDateTime),
+        claimType,
+        claimAmountEth: claimAmount,
+        preExistingCondition,
+        disclosedAtPurchase,
+      }),
+    enabled: Boolean(
+      selectedPolicy &&
+        incidentDateTime &&
+        claimType.trim() &&
+        Number(claimAmount) > 0
+    ),
+    retry: false,
+  });
 
   function handlePolicyChange(nextPolicyId) {
     setPolicyId(nextPolicyId);
@@ -535,6 +567,14 @@ export default function SubmitClaimPage() {
           <h3>Selected Policy Timing</h3>
           <p>Start: {formatUnixDate(selectedPolicy.startDate)}</p>
           <p>End: {formatUnixDate(selectedPolicy.endDate)}</p>
+          <PolicyTermsPanel terms={selectedPolicy.policyTerms} />
+          {eligibilityError ? (
+            <p className="warning-text">
+              Eligibility preview is temporarily unavailable; the existing claim
+              submission flow is still available.
+            </p>
+          ) : null}
+          <PolicyEligibilityResult evaluation={eligibilityData?.evaluation} />
         </div>
       ) : null}
 
@@ -644,6 +684,29 @@ export default function SubmitClaimPage() {
             required
           />
         </label>
+
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={preExistingCondition}
+            onChange={(event) => {
+              setPreExistingCondition(event.target.checked);
+              if (!event.target.checked) setDisclosedAtPurchase(false);
+            }}
+          />
+          Claim involves a pre-existing condition
+        </label>
+
+        {preExistingCondition ? (
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={disclosedAtPurchase}
+              onChange={(event) => setDisclosedAtPurchase(event.target.checked)}
+            />
+            Condition was disclosed when the policy was purchased
+          </label>
+        ) : null}
 
         <div className="card">
           <h3>Document Privacy</h3>

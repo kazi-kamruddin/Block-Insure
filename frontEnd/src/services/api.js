@@ -74,6 +74,19 @@ export async function getRiskPremiumQuote(packageId, payload) {
   return response.data;
 }
 
+export async function getRealisticPolicyScenarios() {
+  const response = await api.get("/api/policy-packages/realistic-scenarios");
+  return response.data;
+}
+
+export async function simulateHistoricalPolicyEligibility(packageId, payload) {
+  const response = await api.post(
+    `/api/policy-packages/${packageId}/eligibility-preview`,
+    payload
+  );
+  return response.data;
+}
+
 export async function createPolicyPackage(payload) {
   const response = await api.post("/api/admin/policy-packages", payload);
   return response.data;
@@ -156,6 +169,14 @@ export async function uploadClaimDocument({
 
 export async function getMyClaims(params = {}) {
   const response = await api.get("/api/claims/my", { params });
+  return response.data;
+}
+
+export async function previewPurchasedPolicyEligibility(policyId, payload) {
+  const response = await api.post(
+    `/api/policies/${policyId}/eligibility-preview`,
+    payload
+  );
   return response.data;
 }
 

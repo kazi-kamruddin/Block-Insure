@@ -2,6 +2,11 @@ const { ethers } = require("ethers");
 const { getReadOnlyContract } = require("../services/contractService");
 const { quoteRiskAdjustedPremium } = require("../services/pricingService");
 const {
+  evaluatePolicyEligibility,
+  getPolicyTerms,
+  getRealisticClaimScenarios,
+} = require("../services/policyRuleService");
+const {
   getActivePolicyPackageIds,
   getPolicyIdsByWallet,
   paginate,
@@ -22,6 +27,7 @@ const formatPolicyPackage = (policyPackage) => {
     durationDays: policyPackage.durationDays.toString(),
     requiredDocumentType: policyPackage.requiredDocumentType,
     isActive: policyPackage.isActive,
+    policyTerms: getPolicyTerms(policyPackage),
   };
 };
 
@@ -75,6 +81,56 @@ const formatPolicy = (
     totalPremiumPaidWei: totalPremiumPaid.toString(),
     totalPremiumPaidEth: ethers.formatEther(totalPremiumPaid),
     installmentsPaid: policy.installmentsPaid?.toString?.() || "0",
+    policyTerms: policyPackage ? getPolicyTerms(policyPackage) : null,
+  };
+};
+
+const resolveClaimAmountWei = (body) => {
+  if (body.claimAmountWei !== undefined && body.claimAmountWei !== "") {
+    return String(body.claimAmountWei);
+  }
+
+  if (body.claimAmountEth !== undefined && body.claimAmountEth !== "") {
+    try {
+      return ethers.parseEther(String(body.claimAmountEth)).toString();
+    } catch {
+      const error = new Error("claimAmountEth must be a valid non-negative amount");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  const error = new Error("claimAmountWei or claimAmountEth is required");
+  error.statusCode = 400;
+  throw error;
+};
+
+const buildEligibilityInput = ({
+  policy,
+  policyPackage,
+  body = {},
+  historical = false,
+}) => {
+  const startDate = historical ? body.policyStartDate : policy.startDate.toString();
+  const durationSeconds = Number(policyPackage.durationDays) * 24 * 60 * 60;
+  const parsedStart = /^\d+$/.test(String(startDate || ""))
+    ? Number(startDate)
+    : Math.floor(Date.parse(startDate) / 1000);
+
+  return {
+    terms: getPolicyTerms(policyPackage),
+    policyStartDate: startDate,
+    policyEndDate: historical
+      ? body.policyEndDate || parsedStart + durationSeconds
+      : policy.endDate.toString(),
+    incidentDate: body.incidentDate,
+    claimType: body.claimType,
+    claimAmountWei: resolveClaimAmountWei(body),
+    coverageAmountWei: historical
+      ? body.coverageAmountWei || policyPackage.coverageAmount.toString()
+      : policy.coverageAmount.toString(),
+    preExistingCondition: body.preExistingCondition === true,
+    disclosedAtPurchase: body.disclosedAtPurchase === true,
   };
 };
 
@@ -133,6 +189,57 @@ const getRiskPremiumQuote = async (req, res, next) => {
         basePremiumEth: ethers.formatEther(quote.basePremiumWei),
         finalPremiumEth: ethers.formatEther(quote.finalPremiumWei),
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getPolicyRuleCatalog = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const packageIds = await getActivePolicyPackageIds(contract);
+    const packages = await Promise.all(
+      packageIds.map(async (packageId) =>
+        formatPolicyPackage(await contract.getPolicyPackage(packageId))
+      )
+    );
+
+    res.status(200).json({
+      success: true,
+      notice:
+        "Policy profiles are an explainable thesis layer; issued on-chain terms remain authoritative.",
+      packages,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getRealisticScenarios = (req, res) => {
+  res.status(200).json({
+    success: true,
+    synthetic: true,
+    scenarios: getRealisticClaimScenarios(),
+  });
+};
+
+const simulateHistoricalPolicyEligibility = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const policyPackage = await contract.getPolicyPackage(req.params.packageId);
+    const evaluation = evaluatePolicyEligibility(
+      buildEligibilityInput({
+        policyPackage,
+        body: req.body,
+        historical: true,
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      package: formatPolicyPackage(policyPackage),
+      evaluation,
     });
   } catch (error) {
     next(error);
@@ -205,9 +312,40 @@ const getPolicyById = async (req, res, next) => {
   }
 };
 
+const previewPurchasedPolicyEligibility = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const policy = await contract.getPolicy(req.params.policyId);
+
+    if (!canReadPolicy(req, policy)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: policy does not belong to this wallet",
+      });
+    }
+
+    const policyPackage = await contract.getPolicyPackage(policy.packageId);
+    const evaluation = evaluatePolicyEligibility(
+      buildEligibilityInput({ policy, policyPackage, body: req.body })
+    );
+
+    res.status(200).json({
+      success: true,
+      policy: formatPolicy(policy, policy.status, policyPackage),
+      evaluation,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getActivePolicyPackages,
+  getPolicyRuleCatalog,
+  getRealisticScenarios,
   getRiskPremiumQuote,
   getMyPolicies,
   getPolicyById,
+  previewPurchasedPolicyEligibility,
+  simulateHistoricalPolicyEligibility,
 };
