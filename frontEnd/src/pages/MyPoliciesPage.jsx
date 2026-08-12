@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { getMyPolicies } from "../services/api";
 import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
+import PolicyBenefitsPanel from "../components/PolicyBenefitsPanel";
 import { useWallet } from "../context/useWallet";
 import { showToast } from "../services/toast";
 import {
@@ -188,6 +189,7 @@ export default function MyPoliciesPage() {
                 Reinstate
               </button> : null}
             </div>
+            <PolicyBenefitsPanel policy={policy} onPolicyChanged={refetch} />
             <details className="technical-details">
               <summary>Technical policy details</summary>
               <p>Package ID: {policy.packageId}</p>

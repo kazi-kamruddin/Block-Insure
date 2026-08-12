@@ -1,0 +1,12 @@
+.page-admin-benefits {
+  display: grid;
+  gap: 16px;
+}
+
+.page-admin-benefits > .form-grid {
+  max-width: 820px;
+}
+
+.page-admin-benefits .card p {
+  overflow-wrap: anywhere;
+}

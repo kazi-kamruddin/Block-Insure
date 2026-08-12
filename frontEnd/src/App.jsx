@@ -52,6 +52,8 @@ const ThesisResultsDashboardPage = lazy(
   () => import("./pages/ThesisResultsDashboardPage")
 );
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const BenefitClaimPage = lazy(() => import("./pages/BenefitClaimPage"));
+const AdminBenefitsPage = lazy(() => import("./pages/AdminBenefitsPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 import "./App.css";
@@ -90,6 +92,7 @@ export default function App() {
                 <Route path="policies/buy" element={<PolicyListPage />} />
                 <Route path="claims" element={<MyClaimsPage />} />
                 <Route path="claims/new" element={<SubmitClaimPage />} />
+                <Route path="benefits" element={<BenefitClaimPage />} />
                 <Route path="claims/:id" element={<ClaimDetailPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
               </Route>
@@ -98,6 +101,7 @@ export default function App() {
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard" element={<AdminDashboardPage />} />
                 <Route path="policy-packages" element={<AdminPolicyPackagesPage />} />
+                <Route path="benefits" element={<AdminBenefitsPage />} />
                 <Route
                   path="policy-packages/new"
                   element={<AdminCreatePolicyPackagePage />}

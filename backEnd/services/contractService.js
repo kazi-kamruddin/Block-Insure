@@ -77,4 +77,5 @@ module.exports = {
   getRegistrySnapshot,
   getReadOnlyContract,
   getAdminContract,
+  getAdminWallet,
 };

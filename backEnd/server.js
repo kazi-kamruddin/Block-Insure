@@ -139,6 +139,7 @@ app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/documents", require("./routes/documentRoutes"));
 app.use("/api/policy-packages", require("./routes/policyRoutes"));
 app.use("/api/policies", require("./routes/policiesRoutes"));
+app.use("/api/policy-benefits", require("./routes/policyBenefitsRoutes"));
 app.use("/api/claims", require("./routes/claimRoutes"));
 app.use("/api/appeals", require("./routes/appealRoutes"));
 app.use("/api/votes", require("./routes/votingRoutes"));

@@ -25,6 +25,6 @@ The preview is intentionally advisory. The deployed contract, policy status, ora
 
 Historical previews accept a manual `policyStartDate`, `policyEndDate`, `incidentDate`, `claimType`, `claimAmountEth` or `claimAmountWei`, and disclosure flags. Purchased-policy previews obtain authoritative dates and coverage directly from the contract.
 
-## Phase 2 Boundary
+## Phase 2 Completion
 
-Phase 2 should cover beneficiary management, death benefits, surrender or premature termination values, maturity behavior, admin-managed rule publication, policy-document generation, and any separately deployed on-chain enforcement module. These changes require explicit product formulas and a contract migration strategy.
+Phase 2 now covers beneficiary management, death benefits, surrender or premature termination values, optional maturity behavior, administrator-managed rule publication, generated policy documents, and separately deployed on-chain enforcement. See `POLICY_BENEFITS_PHASE_2.md`.

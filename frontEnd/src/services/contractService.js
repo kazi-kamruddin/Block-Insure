@@ -1,7 +1,9 @@
 import { ethers } from "ethers";
 import InsuranceManagerArtifact from "../abi/InsuranceManager.json";
+import policyBenefitsAbi from "../abi/policyBenefitsAbi";
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
+const POLICY_BENEFITS_ADDRESS = import.meta.env.VITE_POLICY_BENEFITS_ADDRESS;
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
 
 export const REQUIRED_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337);
@@ -136,6 +138,43 @@ export function toUnixSecondsFromDateInput(dateValue) {
   }
 
   return Math.floor(milliseconds / 1000);
+}
+
+function requirePolicyBenefitsAddress() {
+  if (!POLICY_BENEFITS_ADDRESS) {
+    throw new Error(
+      "Policy benefits module is not configured. Run the local deployment workflow."
+    );
+  }
+  return POLICY_BENEFITS_ADDRESS;
+}
+
+export async function getPolicyBenefitsWalletContract() {
+  const signer = await getSigner();
+  return new ethers.Contract(
+    requirePolicyBenefitsAddress(),
+    policyBenefitsAbi,
+    signer
+  );
+}
+
+export async function setPolicyBeneficiaries(policyId, beneficiaries) {
+  const contract = await getPolicyBenefitsWalletContract();
+  return contract.setBeneficiaries(
+    policyId,
+    beneficiaries.map((beneficiary) => beneficiary.account),
+    beneficiaries.map((beneficiary) => Math.round(beneficiary.sharePercent * 100))
+  );
+}
+
+export async function requestPolicyBenefit(policyId, benefitType, evidenceHash) {
+  const contract = await getPolicyBenefitsWalletContract();
+  return contract.requestBenefit(policyId, benefitType, evidenceHash);
+}
+
+export async function cancelPolicy(policyId) {
+  const contract = await getWalletContract();
+  return contract.cancelPolicy(policyId);
 }
 
 export function getStatusLabel(statusValue) {

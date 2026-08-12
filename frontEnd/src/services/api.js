@@ -172,6 +172,61 @@ export async function getMyClaims(params = {}) {
   return response.data;
 }
 
+export async function getPolicyBenefits(policyId) {
+  const response = await api.get(`/api/policy-benefits/policies/${policyId}`);
+  return response.data;
+}
+
+export async function downloadPolicyTerms(policyId) {
+  const response = await api.get(
+    `/api/policy-benefits/policies/${policyId}/document`,
+    { responseType: "blob" }
+  );
+  const url = URL.createObjectURL(response.data);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `policy-${policyId}-terms.md`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function getBenefitRequests() {
+  const response = await api.get("/api/admin/benefit-requests");
+  return response.data;
+}
+
+export async function publishBenefitTerms(packageId, payload) {
+  const response = await api.put(
+    `/api/admin/policy-packages/${packageId}/benefit-terms`,
+    payload
+  );
+  return response.data;
+}
+
+export async function approveBenefitRequest(requestId) {
+  const response = await api.post(
+    `/api/admin/benefit-requests/${requestId}/approve`
+  );
+  return response.data;
+}
+
+export async function rejectBenefitRequest(requestId, reason) {
+  const response = await api.post(
+    `/api/admin/benefit-requests/${requestId}/reject`,
+    { reason }
+  );
+  return response.data;
+}
+
+export async function settleBenefitRequest(requestId) {
+  const response = await api.post(
+    `/api/admin/benefit-requests/${requestId}/settle`
+  );
+  return response.data;
+}
+
 export async function previewPurchasedPolicyEligibility(policyId, payload) {
   const response = await api.post(
     `/api/policies/${policyId}/eligibility-preview`,

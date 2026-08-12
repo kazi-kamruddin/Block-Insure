@@ -19,7 +19,12 @@ function updateEnvValue(filePath, key, value) {
   console.log(`Updated ${path.relative(process.cwd(), filePath)} (${key})`);
 }
 
-function syncLocalContractDeployment(contractAddress, deploymentBlock) {
+function syncLocalContractDeployment(
+  contractAddress,
+  deploymentBlock,
+  benefitsAddress,
+  benefitsDeploymentBlock
+) {
   const projectRoot = path.resolve(__dirname, "..", "..");
   const targets = [
     { file: path.join(projectRoot, "backEnd", ".env"), key: "VITE_CONTRACT_ADDRESS" },
@@ -29,6 +34,11 @@ function syncLocalContractDeployment(contractAddress, deploymentBlock) {
   ];
 
   targets.forEach(({ file, key }) => updateEnvValue(file, key, contractAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "POLICY_BENEFITS_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_POLICY_BENEFITS_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, benefitsAddress));
 
   [
     {
@@ -48,6 +58,17 @@ function syncLocalContractDeployment(contractAddress, deploymentBlock) {
       key: "ORACLE_START_BLOCK",
     },
   ].forEach(({ file, key }) => updateEnvValue(file, key, deploymentBlock));
+
+  [
+    {
+      file: path.join(projectRoot, "backEnd", ".env"),
+      key: "POLICY_BENEFITS_DEPLOYMENT_BLOCK",
+    },
+    {
+      file: path.join(projectRoot, "frontEnd", ".env"),
+      key: "VITE_POLICY_BENEFITS_DEPLOYMENT_BLOCK",
+    },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, benefitsDeploymentBlock));
 }
 
 function syncContractAbi() {
@@ -134,12 +155,64 @@ async function main() {
   await tx.wait();
 
   console.log("Health Basic policy package created");
+
+  const PolicyBenefitsManager = await hre.ethers.getContractFactory(
+    "PolicyBenefitsManager",
+    adminWallet
+  );
+  const benefitsManager = await PolicyBenefitsManager.deploy(
+    contractAddress,
+    adminWallet.address
+  );
+  await benefitsManager.waitForDeployment();
+  const benefitsAddress = await benefitsManager.getAddress();
+  const benefitsReceipt = await benefitsManager.deploymentTransaction().wait();
+  const benefitsDeploymentBlock = benefitsReceipt.blockNumber;
+  const defaultTermsDocument = JSON.stringify({
+    packageId: 1,
+    version: 1,
+    deathBenefitEnabled: true,
+    surrenderEnabled: true,
+    maturityEnabled: false,
+    deathBenefitBps: 10000,
+    surrenderValueBps: 5000,
+    maturityBonusBps: 0,
+    minimumSurrenderInstallments: 6,
+  });
+  await (
+    await benefitsManager.publishBenefitTerms(
+      1,
+      true,
+      true,
+      false,
+      10000,
+      5000,
+      0,
+      6,
+      1,
+      hre.ethers.keccak256(hre.ethers.toUtf8Bytes(defaultTermsDocument))
+    )
+  ).wait();
+  await (
+    await adminWallet.sendTransaction({
+      to: benefitsAddress,
+      value: hre.ethers.parseEther("2"),
+    })
+  ).wait();
+
+  console.log("PolicyBenefitsManager deployed to:", benefitsAddress);
   syncContractAbi();
-  syncLocalContractDeployment(contractAddress, deploymentBlock);
+  syncLocalContractDeployment(
+    contractAddress,
+    deploymentBlock,
+    benefitsAddress,
+    benefitsDeploymentBlock
+  );
   console.log("");
   console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
   console.log("");
   console.log("CONTRACT_ADDRESS =", contractAddress);
+  console.log("POLICY_BENEFITS_ADDRESS =", benefitsAddress);
 }
 
 main().catch((error) => {

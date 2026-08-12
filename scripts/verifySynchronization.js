@@ -38,6 +38,9 @@ function main() {
   const artifact = readJson(
     "contracts/artifacts/contracts/InsuranceManager.sol/InsuranceManager.json"
   );
+  const benefitsArtifact = readJson(
+    "contracts/artifacts/contracts/PolicyBenefitsManager.sol/PolicyBenefitsManager.json"
+  );
   const abiTargets = [
     "backEnd/abi/InsuranceManager.json",
     "frontEnd/src/abi/InsuranceManager.json",
@@ -74,6 +77,27 @@ function main() {
     );
   }
 
+  const requiredBenefitFunctions = [
+    "publishBenefitTerms",
+    "setBeneficiaries",
+    "requestBenefit",
+    "approveBenefit",
+    "rejectBenefit",
+    "settleBenefit",
+  ];
+  const benefitFunctionNames = new Set(
+    benefitsArtifact.abi
+      .filter((entry) => entry.type === "function")
+      .map((entry) => entry.name)
+  );
+  for (const functionName of requiredBenefitFunctions) {
+    assert(
+      benefitFunctionNames.has(functionName),
+      `PolicyBenefitsManager ABI is missing ${functionName}`,
+      failures
+    );
+  }
+
   const deployedBytes = Math.max(
     (String(artifact.deployedBytecode || "0x").length - 2) / 2,
     0
@@ -103,6 +127,15 @@ function main() {
       `InsuranceManager has only ${24_576 - deployedBytes} bytes of EIP-170 headroom`
     );
   }
+  const benefitsDeployedBytes = Math.max(
+    (String(benefitsArtifact.deployedBytecode || "0x").length - 2) / 2,
+    0
+  );
+  assert(
+    benefitsDeployedBytes <= 24_576,
+    `PolicyBenefitsManager deployed bytecode is ${benefitsDeployedBytes} bytes (EIP-170 maximum 24576)`,
+    failures
+  );
 
   const environments = [
     ["backend", readEnv("backEnd/.env"), "VITE_CONTRACT_ADDRESS"],
@@ -126,8 +159,31 @@ function main() {
   }
 
   const backendEnv = environments[0][1];
+  const frontendEnv = environments[1][1];
   const oracleOneEnv = environments[2][1];
   const oracleTwoEnv = environments[3][1];
+  const benefitAddresses = [
+    normalize(backendEnv.POLICY_BENEFITS_ADDRESS),
+    normalize(frontendEnv.VITE_POLICY_BENEFITS_ADDRESS),
+  ].filter(Boolean);
+  if (benefitAddresses.length === 0) {
+    warnings.push(
+      "PolicyBenefitsManager is not deployed in the current local environment; run setup:local before using Phase 2"
+    );
+  } else {
+    assert(
+      benefitAddresses.length === 2 && new Set(benefitAddresses).size === 1,
+      "Backend and frontend policy-benefits addresses are not synchronized",
+      failures
+    );
+    benefitAddresses.forEach((address) =>
+      assert(
+        /^0x[a-f0-9]{40}$/.test(address) && !/^0x0{40}$/.test(address),
+        "A policy-benefits address is invalid",
+        failures
+      )
+    );
+  }
   assert(
     backendEnv.ORACLE_PRIVATE_KEY &&
       backendEnv.ORACLE_PRIVATE_KEY_2 &&
@@ -175,7 +231,7 @@ function main() {
 
   warnings.forEach((warning) => console.warn(`Configuration warning: ${warning}`));
   console.log(
-    `Synchronization/integrity verification passed: 3 ABI copies match, 4 service addresses match, contract size is ${deployedBytes}/24576 bytes, and Oracle authentication/RPC settings are synchronized.`
+    `Synchronization/integrity verification passed: 3 core ABI copies match, 4 core service addresses match, contract sizes are ${deployedBytes}/24576 and ${benefitsDeployedBytes}/24576 bytes, and Oracle authentication/RPC settings are synchronized.`
   );
 }
 

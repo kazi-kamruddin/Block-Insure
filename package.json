@@ -6,6 +6,7 @@
     "preflight": "node scripts/preflight.js",
     "dev:all": "node scripts/devAll.js",
     "dev:observe": "node scripts/devObservability.js",
+    "deploy:benefits:local": "npm --prefix contracts run deploy:benefits:local",
     "verify:all": "npm --prefix contracts test && npm --prefix backEnd test && npm --prefix frontEnd run lint && npm --prefix frontEnd run build && npm --prefix oracle test",
     "verify:sync": "node scripts/verifySynchronization.js"
   }

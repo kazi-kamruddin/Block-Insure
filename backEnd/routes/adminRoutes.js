@@ -24,8 +24,46 @@ const {
 } = require("../controllers/evaluationController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
+const {
+  approveBenefitRequest,
+  listBenefitRequests,
+  publishBenefitTerms,
+  rejectBenefitRequest,
+  settleBenefitRequest,
+} = require("../controllers/policyBenefitsController");
 
 const router = express.Router();
+
+router.get(
+  "/benefit-requests",
+  authMiddleware,
+  requireRole("ADMIN"),
+  listBenefitRequests
+);
+router.put(
+  "/policy-packages/:packageId/benefit-terms",
+  authMiddleware,
+  requireRole("ADMIN"),
+  publishBenefitTerms
+);
+router.post(
+  "/benefit-requests/:requestId/approve",
+  authMiddleware,
+  requireRole("ADMIN"),
+  approveBenefitRequest
+);
+router.post(
+  "/benefit-requests/:requestId/reject",
+  authMiddleware,
+  requireRole("ADMIN"),
+  rejectBenefitRequest
+);
+router.post(
+  "/benefit-requests/:requestId/settle",
+  authMiddleware,
+  requireRole("ADMIN"),
+  settleBenefitRequest
+);
 
 router.get(
   "/policy-packages",
