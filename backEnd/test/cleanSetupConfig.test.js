@@ -44,3 +44,27 @@ test("clean role bootstrap creates quorum auditors without seeding reputation", 
   assert.equal(roleScript.includes("AUDITOR_WALLET_ADDRESS_2"), true);
   assert.equal(roleScript.includes("AUDITOR_REPUTATION"), false);
 });
+
+test("clean reset removes and verifies sensitive evidence-access history", () => {
+  const resetScript = fs.readFileSync(
+    path.join(projectRoot, "backEnd", "scripts", "resetLocalData.js"),
+    "utf8"
+  );
+  const verificationScript = fs.readFileSync(
+    path.join(projectRoot, "backEnd", "scripts", "verifyCleanStart.js"),
+    "utf8"
+  );
+
+  assert.equal(resetScript.includes('require("../models/EvidenceAccessLog")'), true);
+  assert.equal(resetScript.includes('"evidence access logs"'), true);
+  assert.equal(
+    verificationScript.includes('require("../models/EvidenceAccessLog")'),
+    true
+  );
+  assert.equal(verificationScript.includes('"evidence access logs"'), true);
+});
+
+test("gas comparison uses an isolated in-memory Hardhat network", () => {
+  const contractsPackage = require(path.join(projectRoot, "contracts", "package.json"));
+  assert.equal(contractsPackage.scripts["gas:compare"].includes("--network localhost"), false);
+});

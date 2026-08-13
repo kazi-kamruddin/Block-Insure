@@ -27,7 +27,7 @@ const { requireRole } = require("../middleware/roleMiddleware");
 const {
   approveBenefitRequest,
   listBenefitRequests,
-  publishBenefitTerms,
+  confirmPublishedBenefitTerms,
   rejectBenefitRequest,
   settleBenefitRequest,
 } = require("../controllers/policyBenefitsController");
@@ -40,11 +40,11 @@ router.get(
   requireRole("ADMIN"),
   listBenefitRequests
 );
-router.put(
-  "/policy-packages/:packageId/benefit-terms",
+router.post(
+  "/policy-packages/:packageId/benefit-terms/confirm",
   authMiddleware,
   requireRole("ADMIN"),
-  publishBenefitTerms
+  confirmPublishedBenefitTerms
 );
 router.post(
   "/benefit-requests/:requestId/approve",

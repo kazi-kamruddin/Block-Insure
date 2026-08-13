@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -37,9 +36,11 @@ interface IInsurancePolicySource {
 
     function getPolicy(uint256 policyId) external view returns (Policy memory);
     function getEffectivePolicyStatus(uint256 policyId) external view returns (PolicyStatus);
+    function hasRole(bytes32 role, address account) external view returns (bool);
+    function packageCounter() external view returns (uint256);
 }
 
-contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
+contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint256 public constant MAX_BENEFICIARIES = 3;
     uint256 public constant BPS_DENOMINATOR = 10_000;
@@ -55,7 +56,7 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
         REQUESTED,
         APPROVED,
         REJECTED,
-        PAID
+        ALLOCATED
     }
 
     struct BenefitTerms {
@@ -89,22 +90,31 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
         uint32 termsVersion;
         uint256 requestedAt;
         uint256 resolvedAt;
-        uint256 paidAt;
+        uint256 allocatedAt;
     }
 
     IInsurancePolicySource public immutable insuranceManager;
     uint256 public requestCounter = 1;
     uint256 public totalReservedLiabilityWei;
 
-    mapping(uint256 => BenefitTerms) private benefitTermsByPackage;
+    mapping(uint256 => uint32) public latestTermsVersionByPackage;
+    mapping(uint256 => mapping(uint32 => BenefitTerms)) private benefitTermsByVersion;
+    mapping(uint256 => uint32) public acceptedTermsVersionByPolicy;
     mapping(uint256 => Beneficiary[]) private beneficiariesByPolicy;
     mapping(uint256 => BenefitRequest) private benefitRequests;
     mapping(uint256 => mapping(BenefitType => uint256)) public requestByPolicyAndType;
+    mapping(address => uint256) public claimableBenefitWei;
 
     event BenefitTermsPublished(
         uint256 indexed packageId,
         uint32 indexed version,
         bytes32 indexed termsHash
+    );
+    event PolicyBenefitTermsAccepted(
+        uint256 indexed policyId,
+        uint256 indexed packageId,
+        uint32 indexed version,
+        address holder
     );
     event BeneficiariesUpdated(uint256 indexed policyId, address indexed holder);
     event BenefitRequested(
@@ -116,17 +126,23 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
     );
     event BenefitApproved(uint256 indexed requestId, uint256 amount);
     event BenefitRejected(uint256 indexed requestId, bytes32 reasonHash);
-    event BenefitPaid(uint256 indexed requestId, uint256 amount);
+    event BenefitAllocated(uint256 indexed requestId, uint256 amount);
+    event BenefitWithdrawn(address indexed recipient, uint256 amount);
     event BenefitsFunded(address indexed sender, uint256 amount);
     event ExcessBenefitsWithdrawn(address indexed recipient, uint256 amount);
 
-    constructor(address insuranceManagerAddress, address initialAdmin) {
-        require(insuranceManagerAddress != address(0), "Invalid insurance manager");
-        require(initialAdmin != address(0), "Invalid admin");
+    modifier onlyInsuranceAdmin() {
+        require(
+            insuranceManager.hasRole(ADMIN_ROLE, msg.sender),
+            "Caller is not insurance admin"
+        );
+        _;
+    }
 
+    constructor(address insuranceManagerAddress) {
+        require(insuranceManagerAddress != address(0), "Invalid insurance manager");
+        require(insuranceManagerAddress.code.length > 0, "Insurance manager has no code");
         insuranceManager = IInsurancePolicySource(insuranceManagerAddress);
-        _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
-        _grantRole(ADMIN_ROLE, initialAdmin);
     }
 
     function publishBenefitTerms(
@@ -140,20 +156,21 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
         uint16 minimumSurrenderInstallments,
         uint32 version,
         bytes32 termsHash
-    ) external onlyRole(ADMIN_ROLE) {
+    ) external onlyInsuranceAdmin {
         require(packageId > 0, "Invalid package");
+        require(packageId < insuranceManager.packageCounter(), "Package does not exist");
         require(version > 0, "Version required");
         require(termsHash != bytes32(0), "Terms hash required");
         require(deathBenefitBps <= BPS_DENOMINATOR, "Invalid death benefit");
         require(surrenderValueBps <= BPS_DENOMINATOR, "Invalid surrender value");
         require(maturityBonusBps <= BPS_DENOMINATOR, "Invalid maturity bonus");
 
-        BenefitTerms memory currentTerms = benefitTermsByPackage[packageId];
-        require(!currentTerms.configured || version > currentTerms.version, "Version must increase");
+        uint32 currentVersion = latestTermsVersionByPackage[packageId];
+        require(version > currentVersion, "Version must increase");
         require(!deathBenefitEnabled || deathBenefitBps > 0, "Death rate required");
         require(!surrenderEnabled || surrenderValueBps > 0, "Surrender rate required");
 
-        benefitTermsByPackage[packageId] = BenefitTerms({
+        benefitTermsByVersion[packageId][version] = BenefitTerms({
             configured: true,
             deathBenefitEnabled: deathBenefitEnabled,
             surrenderEnabled: surrenderEnabled,
@@ -165,6 +182,7 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
             version: version,
             termsHash: termsHash
         });
+        latestTermsVersionByPackage[packageId] = version;
 
         emit BenefitTermsPublished(packageId, version, termsHash);
     }
@@ -176,6 +194,7 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
     ) external whenNotPaused {
         IInsurancePolicySource.Policy memory policy = insuranceManager.getPolicy(policyId);
         require(policy.holderWallet == msg.sender, "Caller is not policy holder");
+        _acceptLatestTerms(policy);
         uint256 deathRequestId = requestByPolicyAndType[policyId][BenefitType.DEATH];
         require(
             deathRequestId == 0 ||
@@ -207,6 +226,12 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
         emit BeneficiariesUpdated(policyId, msg.sender);
     }
 
+    function acceptLatestBenefitTerms(uint256 policyId) external whenNotPaused {
+        IInsurancePolicySource.Policy memory policy = insuranceManager.getPolicy(policyId);
+        require(policy.holderWallet == msg.sender, "Caller is not policy holder");
+        _acceptLatestTerms(policy);
+    }
+
     function requestBenefit(
         uint256 policyId,
         BenefitType benefitType,
@@ -221,12 +246,21 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
 
         IInsurancePolicySource.Policy memory policy = insuranceManager.getPolicy(policyId);
         IInsurancePolicySource.PolicyStatus effectiveStatus = insuranceManager.getEffectivePolicyStatus(policyId);
-        BenefitTerms memory terms = benefitTermsByPackage[policy.packageId];
-        require(terms.configured, "Benefit terms not configured");
+        uint32 acceptedVersion = acceptedTermsVersionByPolicy[policyId];
+        if (acceptedVersion == 0) {
+            require(policy.holderWallet == msg.sender, "Policy terms not accepted");
+            _acceptLatestTerms(policy);
+            acceptedVersion = acceptedTermsVersionByPolicy[policyId];
+        }
+        BenefitTerms memory terms = benefitTermsByVersion[policy.packageId][acceptedVersion];
 
         uint256 amount;
         if (benefitType == BenefitType.DEATH) {
             require(terms.deathBenefitEnabled, "Death benefit disabled");
+            require(
+                effectiveStatus == IInsurancePolicySource.PolicyStatus.ACTIVE,
+                "Policy is not active for death cover"
+            );
             require(evidenceHash != bytes32(0), "Death evidence required");
             require(_isBeneficiary(policyId, msg.sender), "Caller is not a beneficiary");
             require(beneficiariesByPolicy[policyId].length > 0, "Beneficiaries not configured");
@@ -261,7 +295,7 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
             termsVersion: terms.version,
             requestedAt: block.timestamp,
             resolvedAt: 0,
-            paidAt: 0
+            allocatedAt: 0
         });
         requestByPolicyAndType[policyId][benefitType] = requestId;
 
@@ -269,7 +303,7 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
         return requestId;
     }
 
-    function approveBenefit(uint256 requestId) external onlyRole(ADMIN_ROLE) whenNotPaused {
+    function approveBenefit(uint256 requestId) external onlyInsuranceAdmin whenNotPaused {
         BenefitRequest storage benefitRequest = _getBenefitRequest(requestId);
         require(benefitRequest.status == BenefitStatus.REQUESTED, "Benefit is not pending");
         require(address(this).balance >= totalReservedLiabilityWei + benefitRequest.amount, "Insufficient benefit reserve");
@@ -280,10 +314,18 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
         emit BenefitApproved(requestId, benefitRequest.amount);
     }
 
-    function rejectBenefit(uint256 requestId, bytes32 reasonHash) external onlyRole(ADMIN_ROLE) {
+    function rejectBenefit(uint256 requestId, bytes32 reasonHash) external onlyInsuranceAdmin {
         BenefitRequest storage benefitRequest = _getBenefitRequest(requestId);
-        require(benefitRequest.status == BenefitStatus.REQUESTED, "Benefit is not pending");
+        require(
+            benefitRequest.status == BenefitStatus.REQUESTED ||
+                benefitRequest.status == BenefitStatus.APPROVED,
+            "Benefit cannot be rejected"
+        );
         require(reasonHash != bytes32(0), "Reason required");
+
+        if (benefitRequest.status == BenefitStatus.APPROVED) {
+            totalReservedLiabilityWei -= benefitRequest.amount;
+        }
 
         benefitRequest.status = BenefitStatus.REJECTED;
         benefitRequest.decisionReasonHash = reasonHash;
@@ -291,13 +333,12 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
         emit BenefitRejected(requestId, reasonHash);
     }
 
-    function settleBenefit(uint256 requestId) external onlyRole(ADMIN_ROLE) whenNotPaused nonReentrant {
+    function settleBenefit(uint256 requestId) external onlyInsuranceAdmin whenNotPaused {
         BenefitRequest storage benefitRequest = _getBenefitRequest(requestId);
         require(benefitRequest.status == BenefitStatus.APPROVED, "Benefit is not approved");
 
-        benefitRequest.status = BenefitStatus.PAID;
-        benefitRequest.paidAt = block.timestamp;
-        totalReservedLiabilityWei -= benefitRequest.amount;
+        benefitRequest.status = BenefitStatus.ALLOCATED;
+        benefitRequest.allocatedAt = block.timestamp;
 
         if (benefitRequest.benefitType == BenefitType.DEATH) {
             Beneficiary[] memory beneficiaries = beneficiariesByPolicy[benefitRequest.policyId];
@@ -307,33 +348,61 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
                     ? benefitRequest.amount - distributed
                     : (benefitRequest.amount * beneficiaries[i].shareBps) / BPS_DENOMINATOR;
                 distributed += payment;
-                _sendValue(beneficiaries[i].account, payment);
+                claimableBenefitWei[beneficiaries[i].account] += payment;
             }
         } else {
             IInsurancePolicySource.Policy memory policy = insuranceManager.getPolicy(benefitRequest.policyId);
-            _sendValue(policy.holderWallet, benefitRequest.amount);
+            claimableBenefitWei[policy.holderWallet] += benefitRequest.amount;
         }
 
-        emit BenefitPaid(requestId, benefitRequest.amount);
+        emit BenefitAllocated(requestId, benefitRequest.amount);
     }
 
-    function withdrawExcess(address payable recipient, uint256 amount) external onlyRole(ADMIN_ROLE) nonReentrant {
+    function withdrawBenefit() external whenNotPaused nonReentrant {
+        uint256 amount = claimableBenefitWei[msg.sender];
+        require(amount > 0, "No benefit available");
+
+        claimableBenefitWei[msg.sender] = 0;
+        totalReservedLiabilityWei -= amount;
+        _sendValue(msg.sender, amount);
+        emit BenefitWithdrawn(msg.sender, amount);
+    }
+
+    function withdrawExcess(address payable recipient, uint256 amount) external onlyInsuranceAdmin nonReentrant {
         require(recipient != address(0), "Invalid recipient");
         require(address(this).balance >= totalReservedLiabilityWei + amount, "Amount exceeds excess reserve");
         _sendValue(recipient, amount);
         emit ExcessBenefitsWithdrawn(recipient, amount);
     }
 
-    function pause() external onlyRole(ADMIN_ROLE) {
+    function pause() external onlyInsuranceAdmin {
         _pause();
     }
 
-    function unpause() external onlyRole(ADMIN_ROLE) {
+    function unpause() external onlyInsuranceAdmin {
         _unpause();
     }
 
     function getBenefitTerms(uint256 packageId) external view returns (BenefitTerms memory) {
-        return benefitTermsByPackage[packageId];
+        return benefitTermsByVersion[packageId][latestTermsVersionByPackage[packageId]];
+    }
+
+    function getBenefitTermsVersion(
+        uint256 packageId,
+        uint32 version
+    ) external view returns (BenefitTerms memory) {
+        return benefitTermsByVersion[packageId][version];
+    }
+
+    function getAcceptedBenefitTerms(
+        uint256 policyId
+    ) external view returns (BenefitTerms memory) {
+        IInsurancePolicySource.Policy memory policy = insuranceManager.getPolicy(policyId);
+        uint32 version = acceptedTermsVersionByPolicy[policyId];
+        if (version == 0) {
+            version = latestTermsVersionByPackage[policy.packageId];
+        }
+        return benefitTermsByVersion[policy.packageId][version];
     }
 
     function getBeneficiaries(uint256 policyId) external view returns (Beneficiary[] memory) {
@@ -346,7 +415,9 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
 
     function calculateBenefit(uint256 policyId, BenefitType benefitType) external view returns (uint256) {
         IInsurancePolicySource.Policy memory policy = insuranceManager.getPolicy(policyId);
-        BenefitTerms memory terms = benefitTermsByPackage[policy.packageId];
+        uint32 version = acceptedTermsVersionByPolicy[policyId];
+        if (version == 0) version = latestTermsVersionByPackage[policy.packageId];
+        BenefitTerms memory terms = benefitTermsByVersion[policy.packageId][version];
         if (!terms.configured) return 0;
         if (benefitType == BenefitType.DEATH && terms.deathBenefitEnabled) {
             return (policy.coverageAmount * terms.deathBenefitBps) / BPS_DENOMINATOR;
@@ -364,6 +435,22 @@ contract PolicyBenefitsManager is AccessControl, Pausable, ReentrancyGuard {
 
     function availableReserveWei() external view returns (uint256) {
         return address(this).balance - totalReservedLiabilityWei;
+    }
+
+    function _acceptLatestTerms(
+        IInsurancePolicySource.Policy memory policy
+    ) internal {
+        if (acceptedTermsVersionByPolicy[policy.policyId] != 0) return;
+
+        uint32 version = latestTermsVersionByPackage[policy.packageId];
+        require(version > 0, "Benefit terms not configured");
+        acceptedTermsVersionByPolicy[policy.policyId] = version;
+        emit PolicyBenefitTermsAccepted(
+            policy.policyId,
+            policy.packageId,
+            version,
+            policy.holderWallet
+        );
     }
 
     function _getBenefitRequest(uint256 requestId) internal view returns (BenefitRequest storage) {

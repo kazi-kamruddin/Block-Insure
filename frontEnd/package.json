@@ -13,11 +13,9 @@
   "dependencies": {
     "@tanstack/react-query": "^5.100.14",
     "axios": "^1.16.1",
-    "block-insure-local-workflow": "file:..",
     "ethers": "^6.16.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-hook-form": "^7.76.1",
     "react-router-dom": "^7.15.1"
   },
   "devDependencies": {

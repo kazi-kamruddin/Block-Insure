@@ -172,6 +172,11 @@ export async function requestPolicyBenefit(policyId, benefitType, evidenceHash) 
   return contract.requestBenefit(policyId, benefitType, evidenceHash);
 }
 
+export async function withdrawPolicyBenefit() {
+  const contract = await getPolicyBenefitsWalletContract();
+  return contract.withdrawBenefit();
+}
+
 export async function cancelPolicy(policyId) {
   const contract = await getWalletContract();
   return contract.cancelPolicy(policyId);

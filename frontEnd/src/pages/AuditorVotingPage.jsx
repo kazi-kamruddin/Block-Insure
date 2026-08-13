@@ -5,6 +5,7 @@ import { useState } from "react";
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import EvidenceField from "../components/EvidenceField";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
+import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
 import TransactionLink from "../components/TransactionLink";
 import {
   getClaimById,
@@ -236,6 +237,10 @@ export default function AuditorVotingPage() {
                 : `${formatValue(bayesianFraudPercent)}%`}
             </p>
           </div>
+          <PolicyEligibilityResult
+            evaluation={claim.policyEligibility?.evaluation}
+            title="Submission-time policy assessment"
+          />
           <EvidenceField label="Invoice hash" value={claim.invoiceHash} />
           <EvidenceField label="Document hash" value={claim.documentHash} />
         </div>

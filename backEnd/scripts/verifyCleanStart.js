@@ -7,6 +7,7 @@ const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
+const EvidenceAccessLog = require("../models/EvidenceAccessLog");
 const File = require("../models/File");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
@@ -148,6 +149,7 @@ async function main() {
       ["appeals", Appeal],
       ["claim submission attempts", ClaimSubmissionAttempt],
       ["documents", File],
+      ["evidence access logs", EvidenceAccessLog],
       ["notifications", Notification],
       ["oracle health records", OracleHealth],
       ["oracle logs", OracleLog],

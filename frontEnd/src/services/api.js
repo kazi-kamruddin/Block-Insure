@@ -1,7 +1,10 @@
 import axios from "axios";
 import { ethers } from "ethers";
 
-import { getWalletContract } from "./contractService";
+import {
+  getPolicyBenefitsWalletContract,
+  getWalletContract,
+} from "./contractService";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -177,6 +180,13 @@ export async function getPolicyBenefits(policyId) {
   return response.data;
 }
 
+export async function getPackageBenefitTerms(packageId) {
+  const response = await api.get(
+    `/api/policy-benefits/packages/${packageId}/terms`
+  );
+  return response.data;
+}
+
 export async function downloadPolicyTerms(policyId) {
   const response = await api.get(
     `/api/policy-benefits/policies/${policyId}/document`,
@@ -197,34 +207,126 @@ export async function getBenefitRequests() {
   return response.data;
 }
 
-export async function publishBenefitTerms(packageId, payload) {
-  const response = await api.put(
-    `/api/admin/policy-packages/${packageId}/benefit-terms`,
-    payload
+async function executeBenefitAdminAction({
+  action,
+  targetId,
+  confirmUrl,
+  sendTransaction,
+}) {
+  const tx = await sendTransaction();
+  await tx.wait();
+  const pendingKey = "blockinsure:pending-benefit-admin-confirmations";
+  const pending = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+  const confirmation = { action, targetId: String(targetId), confirmUrl, transactionHash: tx.hash };
+  localStorage.setItem(
+    pendingKey,
+    JSON.stringify([
+      ...pending.filter((item) => item.transactionHash !== tx.hash),
+      confirmation,
+    ])
   );
-  return response.data;
+
+  try {
+    const response = await api.post(confirmUrl, { transactionHash: tx.hash });
+    localStorage.setItem(
+      pendingKey,
+      JSON.stringify(
+        JSON.parse(localStorage.getItem(pendingKey) || "[]").filter(
+          (item) => item.transactionHash !== tx.hash
+        )
+      )
+    );
+    return response.data;
+  } catch (error) {
+    error.message =
+      `The on-chain benefit action succeeded (${tx.hash}), but backend audit confirmation is pending. ` +
+      (error.message || "");
+    throw error;
+  }
+}
+
+export async function reconcilePendingBenefitAdminTransactions() {
+  const pendingKey = "blockinsure:pending-benefit-admin-confirmations";
+  const pending = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+  const remaining = [];
+  let confirmed = 0;
+  for (const item of pending) {
+    try {
+      await api.post(item.confirmUrl, { transactionHash: item.transactionHash });
+      confirmed += 1;
+    } catch {
+      remaining.push(item);
+    }
+  }
+  localStorage.setItem(pendingKey, JSON.stringify(remaining));
+  return { confirmed, remaining: remaining.length };
+}
+
+export async function publishBenefitTerms(packageId, payload) {
+  const contract = await getPolicyBenefitsWalletContract();
+  const termsDocument = {
+    packageId: String(packageId),
+    version: Number(payload.version),
+    deathBenefitEnabled: payload.deathBenefitEnabled === true,
+    surrenderEnabled: payload.surrenderEnabled === true,
+    maturityEnabled: payload.maturityEnabled === true,
+    deathBenefitBps: Math.round(Number(payload.deathBenefitPercent) * 100),
+    surrenderValueBps: Math.round(Number(payload.surrenderValuePercent) * 100),
+    maturityBonusBps: Math.round(Number(payload.maturityBonusPercent) * 100),
+    minimumSurrenderInstallments: Number(payload.minimumSurrenderInstallments),
+  };
+  const termsHash = ethers.keccak256(
+    ethers.toUtf8Bytes(JSON.stringify(termsDocument))
+  );
+  return executeBenefitAdminAction({
+    action: "PUBLISH_BENEFIT_TERMS",
+    targetId: packageId,
+    confirmUrl: `/api/admin/policy-packages/${packageId}/benefit-terms/confirm`,
+    sendTransaction: () =>
+      contract.publishBenefitTerms(
+        packageId,
+        termsDocument.deathBenefitEnabled,
+        termsDocument.surrenderEnabled,
+        termsDocument.maturityEnabled,
+        termsDocument.deathBenefitBps,
+        termsDocument.surrenderValueBps,
+        termsDocument.maturityBonusBps,
+        termsDocument.minimumSurrenderInstallments,
+        termsDocument.version,
+        termsHash
+      ),
+  });
 }
 
 export async function approveBenefitRequest(requestId) {
-  const response = await api.post(
-    `/api/admin/benefit-requests/${requestId}/approve`
-  );
-  return response.data;
+  const contract = await getPolicyBenefitsWalletContract();
+  return executeBenefitAdminAction({
+    action: "APPROVE_BENEFIT_REQUEST",
+    targetId: requestId,
+    confirmUrl: `/api/admin/benefit-requests/${requestId}/approve`,
+    sendTransaction: () => contract.approveBenefit(requestId),
+  });
 }
 
 export async function rejectBenefitRequest(requestId, reason) {
-  const response = await api.post(
-    `/api/admin/benefit-requests/${requestId}/reject`,
-    { reason }
-  );
-  return response.data;
+  const contract = await getPolicyBenefitsWalletContract();
+  const reasonHash = ethers.keccak256(ethers.toUtf8Bytes(reason));
+  return executeBenefitAdminAction({
+    action: "REJECT_BENEFIT_REQUEST",
+    targetId: requestId,
+    confirmUrl: `/api/admin/benefit-requests/${requestId}/reject`,
+    sendTransaction: () => contract.rejectBenefit(requestId, reasonHash),
+  });
 }
 
 export async function settleBenefitRequest(requestId) {
-  const response = await api.post(
-    `/api/admin/benefit-requests/${requestId}/settle`
-  );
-  return response.data;
+  const contract = await getPolicyBenefitsWalletContract();
+  return executeBenefitAdminAction({
+    action: "SETTLE_BENEFIT_REQUEST",
+    targetId: requestId,
+    confirmUrl: `/api/admin/benefit-requests/${requestId}/settle`,
+    sendTransaction: () => contract.settleBenefit(requestId),
+  });
 }
 
 export async function previewPurchasedPolicyEligibility(policyId, payload) {
@@ -257,8 +359,11 @@ export async function getClaimById(claimId) {
   return response.data;
 }
 
-export async function authorizeClaimSubmission(policyId) {
-  const response = await api.post("/api/claims/submission-check", { policyId });
+export async function authorizeClaimSubmission(policyId, facts = {}) {
+  const response = await api.post("/api/claims/submission-check", {
+    policyId,
+    ...facts,
+  });
   return response.data;
 }
 

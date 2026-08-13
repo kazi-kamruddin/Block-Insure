@@ -5,6 +5,7 @@ import { downloadPolicyTerms, getPolicyBenefits } from "../services/api";
 import {
   parseTransactionError,
   requestPolicyBenefit,
+  withdrawPolicyBenefit,
 } from "../services/contractService";
 import { showToast } from "../services/toast";
 import "../styles/pages/BenefitClaimPage.css";
@@ -57,6 +58,21 @@ export default function BenefitClaimPage() {
     }
   }
 
+  async function handleWithdraw() {
+    setError("");
+    setIsSubmitting(true);
+    try {
+      const tx = await withdrawPolicyBenefit();
+      await tx.wait();
+      showToast("Allocated benefit withdrawn successfully.");
+      setSnapshot(await getPolicyBenefits(policyId));
+    } catch (withdrawError) {
+      setError(parseTransactionError(withdrawError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   const deathRequest = snapshot?.requests?.find(
     (request) => request.benefitType.label === "DEATH"
   );
@@ -90,7 +106,12 @@ export default function BenefitClaimPage() {
           <h3>{snapshot.policy.packageName}</h3>
           <p>Policy #{snapshot.policy.policyId}</p>
           <p>Projected death benefit: {snapshot.projections.death.eth} ETH</p>
-          <p>Published terms version: {snapshot.terms.version}</p>
+          <p>Accepted terms version: {snapshot.acceptedTermsVersion}</p>
+          {BigInt(snapshot.claimable?.wei || "0") > 0n ? (
+            <button type="button" onClick={handleWithdraw} disabled={isSubmitting}>
+              Withdraw {snapshot.claimable.eth} ETH Benefit
+            </button>
+          ) : null}
           {deathRequest ? (
             <p>
               Existing request: <strong>{deathRequest.status.label}</strong> ·{" "}

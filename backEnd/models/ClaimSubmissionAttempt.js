@@ -25,6 +25,17 @@ const claimSubmissionAttemptSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    submittedFacts: {
+      incidentDate: { type: String, default: "" },
+      claimType: { type: String, default: "" },
+      claimAmountWei: { type: String, default: "" },
+      preExistingCondition: { type: Boolean, default: false },
+      disclosedAtPurchase: { type: Boolean, default: false },
+    },
+    policyEligibility: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     status: {
       type: String,
       enum: [
@@ -56,7 +67,7 @@ const claimSubmissionAttemptSchema = new mongoose.Schema(
     },
     expiresAt: {
       type: Date,
-      required: true,
+      default: null,
       index: { expires: 0 },
     },
   },

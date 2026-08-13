@@ -7,6 +7,7 @@ import EvidenceChainPanel from "../components/EvidenceChainPanel";
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
+import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
 import TransactionLink from "../components/TransactionLink";
 import { showToast } from "../services/toast";
 import {
@@ -513,6 +514,10 @@ export default function AdminClaimDetailPage() {
             Higher is cleaner in the contract’s duplicate-check model. Oracle
             fraud probability is reported separately below.
           </p>
+          <PolicyEligibilityResult
+            evaluation={claim.policyEligibility?.evaluation}
+            title="Submitted policy-rule assessment"
+          />
 
           <h3>Evidence</h3>
           <EvidenceField label="Invoice hash" value={claim.invoiceHash} />

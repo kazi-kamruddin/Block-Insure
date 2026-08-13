@@ -38,7 +38,7 @@ async function main() {
     "PolicyBenefitsManager",
     adminWallet
   );
-  const benefits = await Benefits.deploy(managerAddress, adminWallet.address);
+  const benefits = await Benefits.deploy(managerAddress);
   await benefits.waitForDeployment();
   const address = await benefits.getAddress();
   const deploymentReceipt = await benefits.deploymentTransaction().wait();

@@ -8,6 +8,7 @@ import {
   parseTransactionError,
   requestPolicyBenefit,
   setPolicyBeneficiaries,
+  withdrawPolicyBenefit,
 } from "../services/contractService";
 import { showToast } from "../services/toast";
 import "../styles/components/PolicyBenefitsPanel.css";
@@ -116,6 +117,21 @@ export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
     }
   }
 
+  async function handleWithdrawBenefit() {
+    setError("");
+    setIsActing(true);
+    try {
+      const tx = await withdrawPolicyBenefit();
+      await tx.wait();
+      showToast("Allocated benefit withdrawn successfully.");
+      await refetch();
+    } catch (actionError) {
+      setError(parseTransactionError(actionError));
+    } finally {
+      setIsActing(false);
+    }
+  }
+
   if (loadError) {
     return (
       <details className="policy-benefits-panel">
@@ -145,7 +161,8 @@ export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
       ) : (
         <>
           <p>
-            Published schedule v{terms.version} · commitment {terms.termsHash.slice(0, 12)}…
+            {data.termsAcceptanceRequired ? "Latest schedule preview" : "Accepted schedule"}{" "}
+            v{terms.version} · commitment {terms.termsHash.slice(0, 12)}…
           </p>
           <div className="benefit-projection-grid">
             <div><span>Death</span><strong>{projections.death.eth} ETH</strong></div>
@@ -153,9 +170,15 @@ export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
             <div><span>Maturity</span><strong>{projections.maturity.eth} ETH</strong></div>
           </div>
           <p className="muted-text">
-            Projections use the published schedule and current policy values; they are
-            payable only after lifecycle checks and administrator approval.
+            Projections use this schedule and current policy values; they are payable
+            only after lifecycle checks and administrator approval.
           </p>
+          {data.termsAcceptanceRequired ? (
+            <p className="muted-text">
+              Saving beneficiaries or requesting a holder benefit accepts and binds
+              this version to the policy. Later versions will not apply retroactively.
+            </p>
+          ) : null}
         </>
       )}
 
@@ -202,6 +225,11 @@ export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
         <button type="button" onClick={() => downloadPolicyTerms(policy.policyId)}>
           Download Policy Terms
         </button>
+        {BigInt(data.claimable?.wei || "0") > 0n ? (
+          <button type="button" onClick={handleWithdrawBenefit} disabled={isActing}>
+            Withdraw {data.claimable.eth} ETH Benefit
+          </button>
+        ) : null}
         {terms.surrenderEnabled && !requestByType.SURRENDER &&
         surrenderInstallmentsMet &&
         ["ACTIVE", "GRACE_PERIOD", "LAPSED"].includes(statusLabel) ? (

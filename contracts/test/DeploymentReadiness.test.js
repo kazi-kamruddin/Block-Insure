@@ -1,7 +1,10 @@
 const { expect } = require("chai");
+const hre = require("hardhat");
 
 describe("InsuranceManager - Deployment Readiness", function () {
-  it("keeps deployed bytecode under the EIP-170 contract size limit", async function () {
+  const deploymentSizeTest = hre.__SOLIDITY_COVERAGE_RUNNING ? it.skip : it;
+
+  deploymentSizeTest("keeps deployed bytecode under the EIP-170 contract size limit", async function () {
     const artifact = require("../artifacts/contracts/InsuranceManager.sol/InsuranceManager.json");
     const deployedBytes = (artifact.deployedBytecode.length - 2) / 2;
 

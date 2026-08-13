@@ -54,10 +54,12 @@ The contract marks the request fulfilled with a failed result, changes the claim
 permanently stuck when the oracle quorum is unavailable. Late oracle submissions
 are rejected after timeout resolution.
 
-The admin claim-detail page exposes this operation through the backend route:
+The admin claim-detail page sends `resolveTimedOutOracle(claimId)` through the
+administrator's connected browser wallet. After confirmation, the backend verifies
+and audits that exact transaction through:
 
 ```text
-POST /api/admin/claims/:id/resolve-oracle-timeout
+POST /api/admin/claims/:id/confirm-transaction
 ```
 
 ## JWT Revocation

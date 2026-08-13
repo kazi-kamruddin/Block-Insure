@@ -4,7 +4,7 @@ const { getPolicyTerms } = require("../services/policyRuleService");
 const {
   formatBenefitRequest,
   formatTerms,
-  getAdminBenefitsContract,
+  getBenefitsAddress,
   getPolicyBenefitsSnapshot,
   getReadOnlyBenefitsContract,
 } = require("../services/policyBenefitsService");
@@ -29,18 +29,24 @@ const canReadBenefits = (req, policy, snapshot) => {
 
 const loadReadableSnapshot = async (req, policyId) => {
   const insurance = getReadOnlyContract();
-  const policy = await insurance.getPolicy(policyId);
-  const snapshot = await getPolicyBenefitsSnapshot(policy);
+  const [policy, effectiveStatus] = await Promise.all([
+    insurance.getPolicy(policyId),
+    insurance.getEffectivePolicyStatus(policyId),
+  ]);
+  const snapshot = await getPolicyBenefitsSnapshot(
+    policy,
+    req.user.walletAddress
+  );
   if (!canReadBenefits(req, policy, snapshot)) {
     throw createError("Access denied: wallet is not a policy party", 403);
   }
   const policyPackage = await insurance.getPolicyPackage(policy.packageId);
-  return { policy, policyPackage, snapshot };
+  return { policy, policyPackage, snapshot, effectiveStatus };
 };
 
 const getPolicyBenefits = async (req, res, next) => {
   try {
-    const { policy, policyPackage, snapshot } = await loadReadableSnapshot(
+    const { policy, policyPackage, snapshot, effectiveStatus } = await loadReadableSnapshot(
       req,
       req.params.policyId
     );
@@ -51,7 +57,7 @@ const getPolicyBenefits = async (req, res, next) => {
         packageId: policy.packageId.toString(),
         packageName: policyPackage.name,
         holderWallet: policy.holderWallet,
-        status: Number(policy.status),
+        status: Number(effectiveStatus),
         installmentsPaid: policy.installmentsPaid.toString(),
         totalPremiumPaidEth: ethers.formatEther(policy.totalPremiumPaid),
         coverageAmountEth: ethers.formatEther(policy.coverageAmount),
@@ -95,7 +101,8 @@ Coverage period: ${new Date(Number(policy.startDate) * 1000).toISOString()} to $
 
 ## Additional Benefits
 
-- Published benefit version: ${benefitTerms.version || "Not configured"}
+- Accepted benefit version: ${snapshot.acceptedTermsVersion || "Not yet accepted"}
+- Latest preview version: ${snapshot.termsAcceptanceRequired ? benefitTerms.version : "Same as accepted version"}
 - Terms commitment: ${benefitTerms.termsHash}
 - Death benefit: ${benefitTerms.deathBenefitEnabled ? `${benefitTerms.deathBenefitPercent}% of coverage` : "Disabled"}
 - Surrender value: ${benefitTerms.surrenderEnabled ? `${benefitTerms.surrenderValuePercent}% of premiums after ${benefitTerms.minimumSurrenderInstallments} installments and policy cancellation` : "Disabled"}
@@ -132,79 +139,74 @@ const downloadPolicyTerms = async (req, res, next) => {
   }
 };
 
-const parsePercentageBps = (value, field) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
-    throw createError(`${field} must be between 0 and 100`);
+const getConfirmedBenefitsTransaction = async (req, expectedFunction) => {
+  const transactionHash = String(req.body.transactionHash || "").trim();
+  if (!/^0x[a-f\d]{64}$/i.test(transactionHash)) {
+    throw createError("A valid transactionHash is required");
   }
-  return Math.round(numeric * 100);
+
+  const contract = getReadOnlyBenefitsContract();
+  const provider = contract.runner;
+  const [transaction, receipt] = await Promise.all([
+    provider.getTransaction(transactionHash),
+    provider.getTransactionReceipt(transactionHash),
+  ]);
+  if (!transaction || !receipt) {
+    throw createError("Benefit transaction is not confirmed", 409);
+  }
+  if (Number(receipt.status) !== 1) {
+    throw createError("Benefit transaction reverted", 409);
+  }
+  if (
+    transaction.to?.toLowerCase() !== getBenefitsAddress().toLowerCase() ||
+    transaction.from.toLowerCase() !== req.user.walletAddress.toLowerCase()
+  ) {
+    throw createError("Transaction sender or target does not match this request", 403);
+  }
+
+  const parsed = contract.interface.parseTransaction({
+    data: transaction.data,
+    value: transaction.value,
+  });
+  if (parsed?.name !== expectedFunction) {
+    throw createError(`Transaction does not execute ${expectedFunction}`, 409);
+  }
+
+  return { parsed, receipt, transactionHash };
 };
 
-const publishBenefitTerms = async (req, res, next) => {
+const confirmPublishedBenefitTerms = async (req, res, next) => {
   try {
     const packageId = String(req.params.packageId);
-    const input = {
-      packageId,
-      deathBenefitEnabled: req.body.deathBenefitEnabled === true,
-      surrenderEnabled: req.body.surrenderEnabled === true,
-      maturityEnabled: req.body.maturityEnabled === true,
-      deathBenefitBps: parsePercentageBps(
-        req.body.deathBenefitPercent,
-        "deathBenefitPercent"
-      ),
-      surrenderValueBps: parsePercentageBps(
-        req.body.surrenderValuePercent,
-        "surrenderValuePercent"
-      ),
-      maturityBonusBps: parsePercentageBps(
-        req.body.maturityBonusPercent,
-        "maturityBonusPercent"
-      ),
-      minimumSurrenderInstallments: Number(
-        req.body.minimumSurrenderInstallments
-      ),
-      version: Number(req.body.version),
-    };
-    if (
-      !Number.isInteger(input.version) ||
-      input.version < 1 ||
-      !Number.isInteger(input.minimumSurrenderInstallments) ||
-      input.minimumSurrenderInstallments < 0
-    ) {
-      throw createError("Version and minimum installments must be valid integers");
+    const { parsed, receipt, transactionHash } =
+      await getConfirmedBenefitsTransaction(req, "publishBenefitTerms");
+    if (parsed.args.packageId.toString() !== packageId) {
+      throw createError("Confirmed transaction targets another policy package", 409);
     }
-    const termsHash = ethers.keccak256(
-      ethers.toUtf8Bytes(JSON.stringify(input))
-    );
-    const contract = getAdminBenefitsContract();
-    const tx = await contract.publishBenefitTerms(
-      packageId,
-      input.deathBenefitEnabled,
-      input.surrenderEnabled,
-      input.maturityEnabled,
-      input.deathBenefitBps,
-      input.surrenderValueBps,
-      input.maturityBonusBps,
-      input.minimumSurrenderInstallments,
-      input.version,
-      termsHash
-    );
-    const receipt = await tx.wait();
     await logAdminAction({
       req,
       action: "PUBLISH_BENEFIT_TERMS",
       targetType: "POLICY_PACKAGE",
       targetId: packageId,
-      tx,
+      tx: { hash: transactionHash },
       receipt,
-      metadata: { ...input, termsHash },
+      metadata: {
+        deathBenefitEnabled: parsed.args.deathBenefitEnabled,
+        surrenderEnabled: parsed.args.surrenderEnabled,
+        maturityEnabled: parsed.args.maturityEnabled,
+        deathBenefitBps: parsed.args.deathBenefitBps,
+        surrenderValueBps: parsed.args.surrenderValueBps,
+        maturityBonusBps: parsed.args.maturityBonusBps,
+        minimumSurrenderInstallments: parsed.args.minimumSurrenderInstallments,
+        version: parsed.args.version,
+        termsHash: parsed.args.termsHash,
+      },
     });
     res.status(200).json({
       success: true,
-      message: "Benefit terms published on-chain",
-      transactionHash: tx.hash,
-      termsHash,
-      terms: input,
+      message: "Benefit terms transaction verified and audited",
+      transactionHash,
+      termsHash: parsed.args.termsHash,
     });
   } catch (error) {
     next(error);
@@ -240,35 +242,34 @@ const listBenefitRequests = async (req, res, next) => {
 
 const resolveBenefitRequest = (action) => async (req, res, next) => {
   try {
-    const contract = getAdminBenefitsContract();
-    let tx;
-    if (action === "REJECT") {
-      const reason = String(req.body.reason || "").trim();
-      if (!reason) throw createError("Rejection reason is required");
-      tx = await contract.rejectBenefit(
-        req.params.requestId,
-        ethers.keccak256(ethers.toUtf8Bytes(reason))
-      );
-    } else if (action === "APPROVE") {
-      tx = await contract.approveBenefit(req.params.requestId);
-    } else {
-      tx = await contract.settleBenefit(req.params.requestId);
+    const functionName = {
+      APPROVE: "approveBenefit",
+      REJECT: "rejectBenefit",
+      SETTLE: "settleBenefit",
+    }[action];
+    const { parsed, receipt, transactionHash } =
+      await getConfirmedBenefitsTransaction(req, functionName);
+    if (parsed.args.requestId.toString() !== String(req.params.requestId)) {
+      throw createError("Confirmed transaction targets another benefit request", 409);
     }
-    const receipt = await tx.wait();
     await logAdminAction({
       req,
       action: `${action}_BENEFIT_REQUEST`,
       targetType: "BENEFIT_REQUEST",
       targetId: req.params.requestId,
-      tx,
+      tx: { hash: transactionHash },
       receipt,
+      metadata:
+        action === "REJECT"
+          ? { decisionReasonHash: parsed.args.reasonHash }
+          : {},
     });
     res.status(200).json({
       success: true,
       message: `Benefit request ${
-        { APPROVE: "approved", REJECT: "rejected", SETTLE: "settled" }[action]
+        { APPROVE: "approved", REJECT: "rejected", SETTLE: "allocated" }[action]
       } successfully`,
-      transactionHash: tx.hash,
+      transactionHash,
     });
   } catch (error) {
     next(error);
@@ -281,7 +282,7 @@ module.exports = {
   getPackageBenefitTerms,
   getPolicyBenefits,
   listBenefitRequests,
-  publishBenefitTerms,
+  confirmPublishedBenefitTerms,
   rejectBenefitRequest: resolveBenefitRequest("REJECT"),
   settleBenefitRequest: resolveBenefitRequest("SETTLE"),
 };

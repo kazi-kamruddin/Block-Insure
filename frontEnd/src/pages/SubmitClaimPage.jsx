@@ -341,7 +341,13 @@ export default function SubmitClaimPage() {
 
       setIsSubmitting(true);
 
-      const authorization = await authorizeClaimSubmission(policyId);
+      const authorization = await authorizeClaimSubmission(policyId, {
+        incidentDate: incidentSeconds,
+        claimType,
+        claimAmountEth: claimAmount,
+        preExistingCondition,
+        disclosedAtPurchase,
+      });
       const attemptId = authorization?.attemptId || authorization?.data?.attemptId || "";
       activeAttemptId = attemptId;
       const encryptedEvidence = await encryptEvidenceFile(file);

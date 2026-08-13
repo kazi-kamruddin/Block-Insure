@@ -29,8 +29,8 @@ real-world fraud-model generalization.
 \hline
 \textbf{RQ} & \textbf{Principal Finding} & \textbf{Interpretation} \\
 \hline
-RQ1 & 139 contract tests passed; statement, function, and line coverage exceeded
-98\%, while branch coverage was 77.21\% & Strong evidence of conformance to the
+RQ1 & 152 contract tests passed; statement, function, and line coverage exceeded
+90\%, while branch coverage was 72.73\% & Strong evidence of conformance to the
 specified test suite, but not a security audit \\
 \hline
 RQ2 & Merkle-root storage saved 82.41\%--99.62\% gas across tested registry
@@ -102,10 +102,10 @@ verified below the EIP-170 contract-size limit \\
 \hline
 \textbf{Check or Study} & \textbf{Status} & \textbf{Observed Result} \\
 \hline
-Hardhat smart-contract tests & Complete & 139 passing, 0 failing \\
+Hardhat smart-contract tests & Complete & 152 passing, 0 failing \\
 \hline
-Solidity coverage artifact & Complete & 98.64\% statements; 77.21\% branches;
-100\% functions; 98.91\% lines \\
+Solidity coverage artifact & Complete & 95.67\% statements; 72.73\% branches;
+94.74\% functions; 95.23\% lines \\
 \hline
 Backend analytics tests & Complete & Passed \\
 \hline
@@ -136,7 +136,8 @@ sessions \\
 
 The Hardhat suite exercised successful operations, invalid inputs, unauthorized
 calls, duplicate detection, oracle quorum, timeout behavior, appeals, voting,
-settlement, closure, and emergency controls. All 139 tests passed.
+settlement, closure, emergency controls, and optional benefit lifecycles. All
+152 tests passed.
 
 \begin{table}[htbp]
 \centering
@@ -146,7 +147,7 @@ settlement, closure, and emergency controls. All 139 tests passed.
 \hline
 \textbf{Test Category} & \textbf{Passing Tests} & \textbf{Result} \\
 \hline
-Admin decision and settlement & 20 & Passed \\
+Admin decision and settlement & 23 & Passed \\
 \hline
 Claim appeal workflow & 5 & Passed \\
 \hline
@@ -156,7 +157,7 @@ Fraud and duplicate detection & 7 & Passed \\
 \hline
 Roles, pause, and voting & 22 & Passed \\
 \hline
-Oracle contract logic & 16 & Passed \\
+Oracle contract logic & 17 & Passed \\
 \hline
 Policy package management & 7 & Passed \\
 \hline
@@ -168,7 +169,17 @@ On-chain risk score & 5 & Passed \\
 \hline
 System-design hardening & 8 & Passed \\
 \hline
-\textbf{Total} & \textbf{139} & \textbf{Passed} \\
+Defense regression edges & 5 & Passed \\
+\hline
+Fast invariant checks & 4 & Passed \\
+\hline
+Deployment-size readiness & 1 & Passed \\
+\hline
+Premium lifecycle & 8 & Passed \\
+\hline
+Optional policy benefits & 13 & Passed \\
+\hline
+\textbf{Total} & \textbf{152} & \textbf{Passed} \\
 \hline
 \end{tabular}
 \end{table}
@@ -193,19 +204,19 @@ than empirical fraud-risk discrimination.
 \textbf{Coverage Type} & \textbf{Covered} & \textbf{Total} &
 \textbf{Coverage (\%)} \\
 \hline
-Statements & 217 & 220 & 98.64 \\
+Statements & 442 & 462 & 95.67 \\
 \hline
-Branches & 210 & 272 & 77.21 \\
+Branches & 448 & 616 & 72.73 \\
 \hline
-Functions & 50 & 50 & 100.00 \\
+Functions & 90 & 95 & 94.74 \\
 \hline
-Lines & 273 & 276 & 98.91 \\
+Lines & 579 & 608 & 95.23 \\
 \hline
 \end{tabular}
 \end{table}
 
 Statement, function, and line coverage are high. Branch coverage is materially
-lower at 77.21\%, indicating that some combinations of conditions and revert
+lower at 72.73\%, indicating that some combinations of conditions and revert
 paths remain unexecuted. The branch result is therefore a more informative
 remaining testing gap than the overall passing-test count.
 
@@ -223,6 +234,8 @@ Creation bytecode & 24,888 \\
 \hline
 Deployed runtime bytecode & 24,340 \\
 \hline
+PolicyBenefitsManager runtime bytecode & 9,981 \\
+\hline
 EIP-170 deployed-bytecode limit & 24,576 \\
 \hline
 Remaining margin below limit & 236 \\
@@ -236,6 +249,8 @@ The optimized contract is deployable on an EIP-170-enforcing EVM network.
 Hardhat's unlimited-size bypass is disabled, and a regression test enforces the
 24,576-byte boundary. The small remaining margin means future additions must
 replace existing code or use governed modules rather than growing the monolith.
+The bytecode guard runs against normal optimized artifacts and is deliberately
+skipped during coverage because source instrumentation inflates runtime code.
 
 \section{Gas-Efficiency Study}
 \label{sec:gas_results}
@@ -269,17 +284,17 @@ Saving(\%)=
 \textbf{Records} & \textbf{Individual Gas} & \textbf{Root Gas} &
 \textbf{Gas Saved} & \textbf{Saving (\%)} \\
 \hline
-10 & 249,300 & 43,852 & 205,448 & 82.41 \\
+10 & 249,268 & 43,851 & 205,417 & 82.41 \\
 \hline
-25 & 590,754 & 43,852 & 546,902 & 92.58 \\
+25 & 590,677 & 43,851 & 546,826 & 92.58 \\
 \hline
-50 & 1,159,916 & 43,852 & 1,116,064 & 96.22 \\
+50 & 1,159,764 & 43,851 & 1,115,913 & 96.22 \\
 \hline
-100 & 2,298,072 & 43,852 & 2,254,220 & 98.09 \\
+100 & 2,297,770 & 43,851 & 2,253,919 & 98.09 \\
 \hline
-200 & 4,574,588 & 43,852 & 4,530,736 & 99.04 \\
+200 & 4,573,986 & 43,851 & 4,530,135 & 99.04 \\
 \hline
-500 & 11,403,692 & 43,852 & 11,359,840 & 99.62 \\
+500 & 11,402,190 & 43,851 & 11,358,339 & 99.62 \\
 \hline
 \end{tabular}
 \end{table}
@@ -289,7 +304,7 @@ is approximately
 \begin{equation}
 Gas_{\mathrm{individual}}(N)\approx21,686+22,764N,
 \end{equation}
-whereas first-write root storage remained 43,852 gas. The result supports RQ2:
+whereas first-write root storage remained 43,851 gas. The result supports RQ2:
 compact commitment is substantially more scalable for anchoring a registry
 snapshot. It does not include off-chain tree-construction cost, proof-generation
 cost, or the gas cost of verifying inclusion proofs on-chain because the current
@@ -657,8 +672,8 @@ withdrawals, and use multisignature administration \\
 \hline
 \textbf{Objective} & \textbf{Evidence} & \textbf{Assessment} \\
 \hline
-Enforce auditable lifecycle and role boundaries & 139 passing contract tests;
-98.64\% statement and 98.91\% line coverage & Demonstrated within tested scope \\
+Enforce auditable lifecycle and role boundaries & 152 passing contract tests;
+95.67\% statement and 95.23\% line coverage & Demonstrated within tested scope \\
 \hline
 Detect exact duplicate claims & Passing document-hash, invoice-hash, and
 wallet/date/type duplicate tests & Demonstrated for exact duplicates \\

@@ -15,6 +15,8 @@ test("policy benefits ABI exposes every backend operation", () => {
     "getBeneficiaries",
     "getBenefitRequest",
     "calculateBenefit",
+    "getAcceptedBenefitTerms",
+    "claimableBenefitWei",
     "publishBenefitTerms",
     "approveBenefit",
     "rejectBenefit",
@@ -50,7 +52,7 @@ test("formats benefit terms and requests without losing integer precision", () =
     termsVersion: 2n,
     requestedAt: 100n,
     resolvedAt: 200n,
-    paidAt: 0n,
+    allocatedAt: 0n,
   });
 
   assert.equal(terms.surrenderValuePercent, 50);

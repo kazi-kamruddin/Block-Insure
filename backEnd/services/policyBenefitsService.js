@@ -1,12 +1,15 @@
 const { ethers } = require("ethers");
 const policyBenefitsAbi = require("../abi/policyBenefitsAbi");
-const {
-  getAdminWallet,
-  getProvider,
-} = require("./contractService");
+const { getProvider } = require("./contractService");
 
 const BENEFIT_TYPES = ["DEATH", "SURRENDER", "MATURITY"];
-const BENEFIT_STATUSES = ["NONE", "REQUESTED", "APPROVED", "REJECTED", "PAID"];
+const BENEFIT_STATUSES = [
+  "NONE",
+  "REQUESTED",
+  "APPROVED",
+  "REJECTED",
+  "ALLOCATED",
+];
 
 const getBenefitsAddress = () => {
   const address = String(process.env.POLICY_BENEFITS_ADDRESS || "").trim();
@@ -22,9 +25,6 @@ const getBenefitsAddress = () => {
 
 const getReadOnlyBenefitsContract = () =>
   new ethers.Contract(getBenefitsAddress(), policyBenefitsAbi, getProvider());
-
-const getAdminBenefitsContract = () =>
-  new ethers.Contract(getBenefitsAddress(), policyBenefitsAbi, getAdminWallet());
 
 const formatTerms = (terms) => ({
   configured: terms.configured,
@@ -62,21 +62,25 @@ const formatBenefitRequest = (request) => ({
   termsVersion: Number(request.termsVersion),
   requestedAt: request.requestedAt.toString(),
   resolvedAt: request.resolvedAt.toString(),
-  paidAt: request.paidAt.toString(),
+  allocatedAt: request.allocatedAt.toString(),
 });
 
-const getPolicyBenefitsSnapshot = async (policy) => {
+const getPolicyBenefitsSnapshot = async (policy, walletAddress = "") => {
   const contract = getReadOnlyBenefitsContract();
   const policyId = policy.policyId.toString();
   const packageId = policy.packageId.toString();
-  const [rawTerms, rawBeneficiaries, deathAmount, surrenderAmount, maturityAmount] =
+  const [rawTerms, acceptedVersion, rawBeneficiaries, deathAmount, surrenderAmount, maturityAmount] =
     await Promise.all([
-      contract.getBenefitTerms(packageId),
+      contract.getAcceptedBenefitTerms(policyId),
+      contract.acceptedTermsVersionByPolicy(policyId),
       contract.getBeneficiaries(policyId),
       contract.calculateBenefit(policyId, 0),
       contract.calculateBenefit(policyId, 1),
       contract.calculateBenefit(policyId, 2),
     ]);
+  const claimableAmount = walletAddress
+    ? await contract.claimableBenefitWei(walletAddress)
+    : 0n;
   const requestIds = await Promise.all(
     [0, 1, 2].map((benefitType) =>
       contract.requestByPolicyAndType(policyId, benefitType)
@@ -92,6 +96,8 @@ const getPolicyBenefitsSnapshot = async (policy) => {
 
   return {
     contractAddress: getBenefitsAddress(),
+    acceptedTermsVersion: Number(acceptedVersion),
+    termsAcceptanceRequired: Number(acceptedVersion) === 0,
     terms: formatTerms(rawTerms),
     beneficiaries: rawBeneficiaries.map((beneficiary) => ({
       account: beneficiary.account,
@@ -109,6 +115,10 @@ const getPolicyBenefitsSnapshot = async (policy) => {
         eth: ethers.formatEther(maturityAmount),
       },
     },
+    claimable: {
+      wei: claimableAmount.toString(),
+      eth: ethers.formatEther(claimableAmount),
+    },
     requests,
   };
 };
@@ -118,7 +128,6 @@ module.exports = {
   BENEFIT_TYPES,
   formatBenefitRequest,
   formatTerms,
-  getAdminBenefitsContract,
   getBenefitsAddress,
   getPolicyBenefitsSnapshot,
   getReadOnlyBenefitsContract,

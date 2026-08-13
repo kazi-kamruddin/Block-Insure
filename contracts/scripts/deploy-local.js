@@ -161,8 +161,7 @@ async function main() {
     adminWallet
   );
   const benefitsManager = await PolicyBenefitsManager.deploy(
-    contractAddress,
-    adminWallet.address
+    contractAddress
   );
   await benefitsManager.waitForDeployment();
   const benefitsAddress = await benefitsManager.getAddress();

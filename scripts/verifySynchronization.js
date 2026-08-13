@@ -81,9 +81,12 @@ function main() {
     "publishBenefitTerms",
     "setBeneficiaries",
     "requestBenefit",
+    "acceptLatestBenefitTerms",
     "approveBenefit",
     "rejectBenefit",
     "settleBenefit",
+    "withdrawBenefit",
+    "getAcceptedBenefitTerms",
   ];
   const benefitFunctionNames = new Set(
     benefitsArtifact.abi

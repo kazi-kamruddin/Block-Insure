@@ -6,30 +6,32 @@ Phase 2 adds optional beneficiary, death, surrender, and maturity workflows thro
 
 ## Benefit Lifecycle
 
-1. An administrator publishes a strictly increasing benefit schedule version and its document hash.
-2. A policyholder registers one to three beneficiary wallets whose shares total 100%.
+1. An administrator signs a strictly increasing benefit schedule version with the connected browser wallet; the backend verifies and audits the confirmed transaction.
+2. A policyholder accepts the current schedule when first enrolling, then registers one to three beneficiary wallets whose shares total 100%. Later package versions do not change that policy retroactively.
 3. A beneficiary may request a death benefit with a hashed evidence reference. Beneficiaries are locked after the request.
 4. A policyholder may request surrender only after cancelling the base policy and satisfying the minimum installment rule.
 5. A policyholder may request maturity only after the base policy expires and only when maturity is enabled.
 6. An administrator approves or rejects a request. Approval reserves the complete liability.
-7. An administrator settles an approved request. Death benefits are split by registered shares; other benefits return to the holder.
+7. An administrator allocates an approved request. Each recipient withdraws independently, so one incompatible recipient cannot block another.
 
 ## Security Properties
 
 - Separate deployment avoids increasing the nearly full `InsuranceManager` runtime.
-- Policy ownership and effective status are read from the base contract.
-- Concurrent or already-paid duplicate requests are prohibited; rejected requests may be corrected and resubmitted.
+- Policy ownership, effective status, and administrator authority are read from the base contract; there is no second admin registry that can become ownerless or drift out of sync.
+- Concurrent or already-allocated duplicate requests are prohibited; rejected requests may be corrected and resubmitted.
+- An administrator may revoke an approval before allocation; the reserved liability is released atomically.
 - Benefit calculations and the applicable terms version are snapshotted at request time.
-- Approved liabilities cannot be withdrawn as excess funds.
-- Checks-effects-interactions and reentrancy protection cover settlement and withdrawal.
+- Approved and allocated-but-unclaimed liabilities cannot be withdrawn as excess funds.
+- Pull-based withdrawals, checks-effects-interactions, and reentrancy protection isolate recipient failures.
 - Beneficiary shares, duplicate addresses, zero addresses, and self-beneficiaries are rejected.
 - Private evidence is not stored on-chain; only a cryptographic reference is recorded.
+- For death requests, the administrator UI hashes the privately received reference locally and enables approval only when it matches the on-chain commitment.
 
 ## Interfaces
 
 - Policyholders manage beneficiaries, projections, surrender, maturity, and downloadable Markdown terms under **My Policies**.
 - Beneficiaries submit evidence-backed death requests under **Beneficiary Benefits**.
-- Administrators publish schedules and resolve requests under **Benefits**.
+- Administrators publish schedules and resolve requests under **Benefits** using their connected wallets; the backend never signs these benefit transactions.
 
 ## Local Deployment
 

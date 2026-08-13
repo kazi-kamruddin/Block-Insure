@@ -13,6 +13,19 @@ const {
   paginate,
   parsePagination,
 } = require("../services/contractQueryService");
+const {
+  evaluatePolicyEligibility,
+  getPolicyTerms,
+} = require("../services/policyRuleService");
+const {
+  claimMatchesSubmittedFacts,
+} = require("../services/claimSubmissionIntegrityService");
+
+const createError = (message, statusCode = 400) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -100,6 +113,7 @@ const formatEnrichedClaim = async (
   let policyPackageName = "";
   let fraudReason = "";
   let closure = null;
+  let policyEligibility = null;
 
   try {
     const policy = await contract.getPolicy(claim.policyId);
@@ -153,6 +167,25 @@ const formatEnrichedClaim = async (
     }
   }
 
+  try {
+    const attempt = await ClaimSubmissionAttempt.findOne({
+      claimId: formatted.claimId,
+      policyId: formatted.policyId,
+      walletAddress: formatted.claimantWallet.toLowerCase(),
+      status: "COMPLETED",
+    })
+      .select("policyEligibility submittedFacts")
+      .lean();
+    if (attempt) {
+      policyEligibility = {
+        evaluation: attempt.policyEligibility,
+        submittedFacts: attempt.submittedFacts,
+      };
+    }
+  } catch {
+    // On-chain claims remain readable if optional advisory metadata is unavailable.
+  }
+
   return {
     ...formatted,
     policyPackageName,
@@ -162,6 +195,7 @@ const formatEnrichedClaim = async (
     fraudReason,
     riskScoreAvailable: formatted.status.label !== "FRAUD_FLAGGED",
     closure,
+    policyEligibility,
   };
 };
 
@@ -412,9 +446,67 @@ const authorizeClaimSubmission = async (req, res, next) => {
       });
     }
 
+    if (
+      req.body.incidentDate === undefined ||
+      !String(req.body.claimType || "").trim() ||
+      (req.body.claimAmountWei === undefined && req.body.claimAmountEth === undefined)
+    ) {
+      throw createError(
+        "incidentDate, claimType, and claimAmount are required for the auditable eligibility snapshot"
+      );
+    }
+
+    const policyPackage = await contract.getPolicyPackage(policy.packageId);
+    let claimAmountWei;
+    try {
+      claimAmountWei =
+        req.body.claimAmountWei !== undefined
+          ? BigInt(String(req.body.claimAmountWei)).toString()
+          : ethers.parseEther(String(req.body.claimAmountEth)).toString();
+      if (BigInt(claimAmountWei) <= 0n) throw new Error("non-positive");
+    } catch {
+      throw createError("Claim amount must be greater than zero", 400);
+    }
+    const submittedFacts = {
+      incidentDate: String(req.body.incidentDate),
+      claimType: String(req.body.claimType).trim(),
+      claimAmountWei,
+      preExistingCondition: req.body.preExistingCondition === true,
+      disclosedAtPurchase: req.body.disclosedAtPurchase === true,
+    };
+    const policyEligibility = evaluatePolicyEligibility({
+      terms: getPolicyTerms(policyPackage),
+      policyStartDate: policy.startDate.toString(),
+      policyEndDate: policy.endDate.toString(),
+      incidentDate: submittedFacts.incidentDate,
+      claimType: submittedFacts.claimType,
+      claimAmountWei: submittedFacts.claimAmountWei,
+      coverageAmountWei: policy.coverageAmount.toString(),
+      preExistingCondition: submittedFacts.preExistingCondition,
+      disclosedAtPurchase: submittedFacts.disclosedAtPurchase,
+    });
+    const canonicalIncidentDate = Math.floor(
+      Date.parse(policyEligibility.dates.incidentDate) / 1000
+    );
+    if (
+      canonicalIncidentDate < Number(policy.startDate) ||
+      canonicalIncidentDate > Number(policy.endDate)
+    ) {
+      throw createError("Incident date is outside the policy coverage period");
+    }
+    if (canonicalIncidentDate > Math.floor(Date.now() / 1000)) {
+      throw createError("Incident date cannot be in the future");
+    }
+    if (BigInt(claimAmountWei) > policy.coverageAmount) {
+      throw createError("Claim amount cannot exceed policy coverage");
+    }
+    submittedFacts.incidentDate = String(canonicalIncidentDate);
+
     const attempt = await ClaimSubmissionAttempt.create({
       walletAddress: req.user.walletAddress,
       policyId,
+      submittedFacts,
+      policyEligibility,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
 
@@ -427,6 +519,7 @@ const authorizeClaimSubmission = async (req, res, next) => {
           ? Math.max(maximumPerDay - recentAttempts - 1, 0)
           : null,
       policyStatus: { code: statusCode, label: statusLabel },
+      policyEligibility,
     });
   } catch (error) {
     next(error);
@@ -586,6 +679,13 @@ const reconcileClaimSubmission = async (req, res, next) => {
       throw createError("Confirmed claim does not match the authorized attempt", 409);
     }
 
+    if (!claimMatchesSubmittedFacts(claim, attempt.submittedFacts)) {
+      throw createError(
+        "Confirmed claim facts do not match the eligibility snapshot",
+        409
+      );
+    }
+
     const expectedDocumentHash = `0x${fileRecord.sha256Hash}`.toLowerCase();
 
     if (
@@ -600,6 +700,7 @@ const reconcileClaimSubmission = async (req, res, next) => {
     attempt.claimId = claimId;
     attempt.status = "COMPLETED";
     attempt.completedAt = new Date();
+    attempt.expiresAt = null;
     attempt.failureReason = "";
     await attempt.save();
 

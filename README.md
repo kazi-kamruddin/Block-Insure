@@ -4,6 +4,12 @@ Block-Insure is a thesis prototype for blockchain-backed insurance claims,
 multi-oracle verification, fraud-risk scoring, auditor voting, and on-chain
 settlement.
 
+The base `InsuranceManager` contract is paired with a deployable
+`PolicyBenefitsManager` extension for beneficiary designation, death benefits,
+surrender values, maturity benefits, versioned terms, and separately funded
+benefit settlement. The normal local deployment installs and synchronizes both
+modules.
+
 ## Project Layout
 
 - `contracts`: Solidity contract, deployment scripts, and Hardhat tests.

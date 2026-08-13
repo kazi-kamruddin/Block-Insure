@@ -7,6 +7,7 @@ import EvidenceChainPanel from "../components/EvidenceChainPanel";
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
+import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
 import TransactionLink from "../components/TransactionLink";
 import {
   getAppealByClaim,
@@ -283,6 +284,10 @@ export default function ClaimDetailPage() {
               <strong>Flag reason:</strong> {claim.fraudReason}
             </p>
           ) : null}
+          <PolicyEligibilityResult
+            evaluation={claim.policyEligibility?.evaluation}
+            title="Submission-time policy assessment"
+          />
 
           <details className="technical-details">
             <summary>Policy and wallet identifiers</summary>

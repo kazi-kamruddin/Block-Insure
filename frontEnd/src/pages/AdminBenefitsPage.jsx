@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ethers } from "ethers";
 
 import {
   approveBenefitRequest,
   getAdminPolicyPackages,
   getBenefitRequests,
+  getPackageBenefitTerms,
   publishBenefitTerms,
+  reconcilePendingBenefitAdminTransactions,
   rejectBenefitRequest,
   settleBenefitRequest,
 } from "../services/api";
@@ -30,10 +33,14 @@ export default function AdminBenefitsPage() {
   const [actingId, setActingId] = useState("");
   const [error, setError] = useState("");
   const [transactionHash, setTransactionHash] = useState("");
+  const [evidenceReferences, setEvidenceReferences] = useState({});
 
   const { data: requestsData, refetch: refetchRequests } = useQuery({
     queryKey: ["adminBenefitRequests"],
-    queryFn: getBenefitRequests,
+    queryFn: async () => {
+      await reconcilePendingBenefitAdminTransactions();
+      return getBenefitRequests();
+    },
   });
   const { data: packageData } = useQuery({
     queryKey: ["adminPolicyPackagesForBenefits"],
@@ -44,6 +51,18 @@ export default function AdminBenefitsPage() {
 
   function updateTerms(field, value) {
     setTerms((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handlePackageChange(packageId) {
+    updateTerms("packageId", packageId);
+    if (!packageId) return;
+
+    try {
+      const current = await getPackageBenefitTerms(packageId);
+      updateTerms("version", String(Number(current.terms?.version || 0) + 1));
+    } catch {
+      // The publish transaction still provides authoritative validation.
+    }
   }
 
   async function handlePublish(event) {
@@ -94,6 +113,15 @@ export default function AdminBenefitsPage() {
     }
   }
 
+  function evidenceMatches(request) {
+    const reference = evidenceReferences[request.requestId]?.trim();
+    return Boolean(
+      reference &&
+        ethers.keccak256(ethers.toUtf8Bytes(reference)).toLowerCase() ===
+          request.evidenceHash.toLowerCase()
+    );
+  }
+
   return (
     <section className="page-container page-admin-benefits">
       <h2>Policy Benefits Administration</h2>
@@ -106,7 +134,7 @@ export default function AdminBenefitsPage() {
         <h3>Publish Benefit Schedule</h3>
         <label>
           Policy package
-          <select value={terms.packageId} onChange={(event) => updateTerms("packageId", event.target.value)} required>
+          <select value={terms.packageId} onChange={(event) => handlePackageChange(event.target.value)} required>
             <option value="">Select package</option>
             {packages.map((policyPackage) => (
               <option key={policyPackage.packageId} value={policyPackage.packageId}>
@@ -166,17 +194,56 @@ export default function AdminBenefitsPage() {
             <p>Status: <strong>{request.status.label}</strong></p>
             <p>Terms version: {request.termsVersion}</p>
             {request.benefitType.label === "DEATH" ? (
-              <p>Evidence hash: {request.evidenceHash}</p>
+              <>
+                <p>Evidence hash: {request.evidenceHash}</p>
+                {request.status.label === "REQUESTED" ? (
+                  <label>
+                    Verify secure evidence reference
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={evidenceReferences[request.requestId] || ""}
+                      onChange={(event) =>
+                        setEvidenceReferences((current) => ({
+                          ...current,
+                          [request.requestId]: event.target.value,
+                        }))
+                      }
+                      placeholder="Enter the privately received reference"
+                    />
+                    <small>
+                      {evidenceReferences[request.requestId]
+                        ? evidenceMatches(request)
+                          ? "Reference matches the on-chain commitment."
+                          : "Reference does not match the on-chain commitment."
+                        : "The reference is hashed locally and is never sent to the backend."}
+                    </small>
+                  </label>
+                ) : null}
+              </>
             ) : null}
             <div className="action-row">
               {request.status.label === "REQUESTED" ? (
                 <>
-                  <button type="button" onClick={() => runRequestAction(request, "approve")} disabled={actingId === request.requestId}>Approve</button>
+                  <button
+                    type="button"
+                    onClick={() => runRequestAction(request, "approve")}
+                    disabled={
+                      actingId === request.requestId ||
+                      (request.benefitType.label === "DEATH" &&
+                        !evidenceMatches(request))
+                    }
+                  >
+                    Approve
+                  </button>
                   <button type="button" onClick={() => runRequestAction(request, "reject")} disabled={actingId === request.requestId}>Reject</button>
                 </>
               ) : null}
               {request.status.label === "APPROVED" ? (
-                <button type="button" onClick={() => runRequestAction(request, "settle")} disabled={actingId === request.requestId}>Settle Benefit</button>
+                <>
+                  <button type="button" onClick={() => runRequestAction(request, "settle")} disabled={actingId === request.requestId}>Allocate Benefit</button>
+                  <button type="button" onClick={() => runRequestAction(request, "reject")} disabled={actingId === request.requestId}>Revoke Approval</button>
+                </>
               ) : null}
             </div>
           </article>

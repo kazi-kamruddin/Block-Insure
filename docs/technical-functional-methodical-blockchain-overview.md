@@ -630,7 +630,7 @@ The research contribution can be framed around:
 
 Recent verification results:
 
-- Contract tests: `139 passing`, including the EIP-170 deployment-size guard at `24,340` bytes
+- Contract tests: `152 passing`, including EIP-170 deployment-size guards for the `24,340`-byte core and `PolicyBenefitsManager` extension
 - Backend analytics and pagination tests: passed
 - Oracle syntax and independent Merkle-proof tests: passed
 - Frontend lint: passed
