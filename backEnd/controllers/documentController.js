@@ -3,7 +3,10 @@ const {
   assignEvidenceChainLink,
   normalizeClaimId,
 } = require("../services/evidenceChainService");
-const { getReadOnlyContract } = require("../services/contractService");
+const {
+  getClaimAdjudicator,
+  getReadOnlyContract,
+} = require("../services/contractService");
 const { calculateSHA256 } = require("../services/hashService");
 const { unpinFromPinata, uploadToPinata } = require("../services/ipfsService");
 const { notifyAdmins } = require("../services/notificationService");
@@ -34,6 +37,15 @@ const formatDocumentRecord = (fileRecord) => ({
   evidenceChainIndex: fileRecord.evidenceChainIndex,
   uploadedAt: fileRecord.createdAt,
 });
+
+const isAssignedReviewer = async (fileRecord, user) => {
+  if (user.role === "ADMIN") return true;
+  if (user.role !== "AUDITOR" || !fileRecord.claimId) return false;
+  const contract = getReadOnlyContract();
+  const adjudicator = await getClaimAdjudicator(contract);
+  const version = await contract.claimVersion(fileRecord.claimId);
+  return adjudicator.isAssigned(fileRecord.claimId, version, user.walletAddress);
+};
 
 const getEncryptionPublicKey = async (_req, res, next) => {
   try {
@@ -243,7 +255,7 @@ const verifyDocument = async (req, res, next) => {
 
     const isOwner =
       fileRecord.uploaderWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
-    const canAudit = req.user.role === "ADMIN" || req.user.role === "AUDITOR";
+    const canAudit = await isAssignedReviewer(fileRecord, req.user);
 
     if (!isOwner && !canAudit) {
       return res.status(403).json({
@@ -277,8 +289,7 @@ const getDecryptionKey = async (req, res, next) => {
     const isOwner =
       fileRecord.uploaderWallet.toLowerCase() ===
       req.user.walletAddress.toLowerCase();
-    const isAuthorizedReviewer =
-      req.user.role === "ADMIN" || req.user.role === "AUDITOR";
+    const isAuthorizedReviewer = await isAssignedReviewer(fileRecord, req.user);
 
     if (!isOwner && !isAuthorizedReviewer) {
       return res.status(403).json({

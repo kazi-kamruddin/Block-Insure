@@ -42,6 +42,7 @@ test("clean role bootstrap creates quorum auditors without seeding reputation", 
 
   assert.equal(roleScript.includes("updateAuditorReputation"), false);
   assert.equal(roleScript.includes("AUDITOR_WALLET_ADDRESS_2"), true);
+  assert.equal(roleScript.includes("auditorWalletAddresses.length !== 4"), true);
   assert.equal(roleScript.includes("AUDITOR_REPUTATION"), false);
 });
 

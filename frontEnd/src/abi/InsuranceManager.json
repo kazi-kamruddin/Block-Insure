@@ -158,6 +158,19 @@
       "inputs": [
         {
           "indexed": true,
+          "internalType": "address",
+          "name": "adjudicator",
+          "type": "address"
+        }
+      ],
+      "name": "ClaimAdjudicatorConfigured",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
           "internalType": "uint256",
           "name": "claimId",
           "type": "uint256"
@@ -269,10 +282,34 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
-          "name": "claimClosureWindowSeconds",
+          "name": "claimId",
           "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "claimVersion",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "approved",
+          "type": "bool"
+        },
+        {
+          "indexed": false,
+          "internalType": "enum InsuranceManager.RejectionReason",
+          "name": "rejectionReason",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "decisionHash",
+          "type": "bytes32"
         },
         {
           "indexed": false,
@@ -281,7 +318,7 @@
           "type": "uint256"
         }
       ],
-      "name": "ClaimClosureWindowUpdated",
+      "name": "ClaimDecisionRecorded",
       "type": "event"
     },
     {
@@ -301,6 +338,56 @@
         }
       ],
       "name": "ClaimFlagged",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "activatedBy",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "ClaimFundingActivated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "shortfall",
+          "type": "uint256"
+        }
+      ],
+      "name": "ClaimFundingRequired",
       "type": "event"
     },
     {
@@ -551,81 +638,13 @@
           "type": "uint256"
         },
         {
-          "indexed": true,
-          "internalType": "address",
-          "name": "approvedBy",
-          "type": "address"
-        },
-        {
           "indexed": false,
           "internalType": "uint256",
-          "name": "insurerPays",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "thresholdWei",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "timestamp",
+          "name": "eligibleAt",
           "type": "uint256"
         }
       ],
-      "name": "HighValueSettlementApproved",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "claimId",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "insurerPays",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "thresholdWei",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "timestamp",
-          "type": "uint256"
-        }
-      ],
-      "name": "HighValueSettlementBlocked",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "maxClaimsPerPolicy",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "timestamp",
-          "type": "uint256"
-        }
-      ],
-      "name": "MaxClaimsPerPolicyUpdated",
+      "name": "ManualReviewEligibilitySet",
       "type": "event"
     },
     {
@@ -739,6 +758,37 @@
         }
       ],
       "name": "Paused",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "claimant",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "funded",
+          "type": "bool"
+        }
+      ],
+      "name": "PayoutAllocated",
       "type": "event"
     },
     {
@@ -975,44 +1025,6 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "currentReserveWei",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "thresholdWei",
-          "type": "uint256"
-        }
-      ],
-      "name": "ReserveLowWarning",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "thresholdWei",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "timestamp",
-          "type": "uint256"
-        }
-      ],
-      "name": "ReserveWarningThresholdUpdated",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
           "indexed": true,
           "internalType": "bytes32",
           "name": "role",
@@ -1156,6 +1168,37 @@
       "anonymous": false,
       "inputs": [
         {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "claimant",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "SettlementWithdrawn",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
           "indexed": false,
           "internalType": "address",
           "name": "account",
@@ -1258,19 +1301,6 @@
     },
     {
       "inputs": [],
-      "name": "VOTE_NEEDS_MORE",
-      "outputs": [
-        {
-          "internalType": "uint8",
-          "name": "",
-          "type": "uint8"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "VOTE_VALID",
       "outputs": [
         {
@@ -1290,160 +1320,9 @@
           "type": "uint256"
         }
       ],
-      "name": "approveClaim",
+      "name": "activateFundedClaim",
       "outputs": [],
       "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "claimId",
-          "type": "uint256"
-        }
-      ],
-      "name": "approveHighValueSettlement",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "approvedClaimLiabilityWei",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "auditorFailedOutcomes",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "",
-          "type": "bytes32"
-        }
-      ],
-      "name": "auditorOutcomeRecorded",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "auditorReputation",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "auditorSuccessfulOutcomes",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "auditorTotalVotes",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "auditorVotes",
-      "outputs": [
-        {
-          "internalType": "uint8",
-          "name": "",
-          "type": "uint8"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -1517,51 +1396,13 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "claimAppealFinalized",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "claimAppealed",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [],
-      "name": "claimClosureWindowSeconds",
+      "name": "claimAdjudicator",
       "outputs": [
         {
-          "internalType": "uint256",
+          "internalType": "contract IClaimAdjudicator",
           "name": "",
-          "type": "uint256"
+          "type": "address"
         }
       ],
       "stateMutability": "view",
@@ -1640,36 +1481,12 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "claimVoters",
-      "outputs": [
-        {
           "internalType": "address",
-          "name": "",
+          "name": "adjudicator",
           "type": "address"
         }
       ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "claimId",
-          "type": "uint256"
-        }
-      ],
-      "name": "closeClaim",
+      "name": "configureClaimAdjudicator",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1774,6 +1591,47 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        }
+      ],
+      "name": "finalizeExpiredManualReview",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "version",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bool",
+          "name": "approved",
+          "type": "bool"
+        },
+        {
+          "internalType": "uint8",
+          "name": "reasonCode",
+          "type": "uint8"
+        }
+      ],
+      "name": "finalizeManualReview",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
           "name": "requestId",
           "type": "uint256"
         },
@@ -1789,7 +1647,7 @@
         },
         {
           "internalType": "bytes32",
-          "name": "",
+          "name": "resultHash",
           "type": "bytes32"
         },
         {
@@ -1799,19 +1657,6 @@
         }
       ],
       "name": "finalizeOracleResult",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "claimId",
-          "type": "uint256"
-        }
-      ],
-      "name": "finalizeRejectedAppeal",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1958,35 +1803,6 @@
           "internalType": "struct InsuranceManager.ClaimDocument[]",
           "name": "",
           "type": "tuple[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "claimId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getClaimVotes",
-      "outputs": [
-        {
-          "internalType": "address[]",
-          "name": "voters",
-          "type": "address[]"
-        },
-        {
-          "internalType": "uint8[]",
-          "name": "votes",
-          "type": "uint8[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "reputations",
-          "type": "uint256[]"
         }
       ],
       "stateMutability": "view",
@@ -2294,57 +2110,6 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "highValueSettlementApproved",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "highValueSettlementApprover",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "highValueSettlementThresholdWei",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [],
       "name": "insurerShareBps",
       "outputs": [
@@ -2371,6 +2136,25 @@
           "internalType": "bool",
           "name": "",
           "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "manualReviewEligibleAt",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -2509,34 +2293,6 @@
     {
       "inputs": [
         {
-          "internalType": "bytes32",
-          "name": "observationId",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "address",
-          "name": "auditor",
-          "type": "address"
-        },
-        {
-          "internalType": "bool",
-          "name": "successful",
-          "type": "bool"
-        },
-        {
-          "internalType": "bytes32",
-          "name": "groundTruthHash",
-          "type": "bytes32"
-        }
-      ],
-      "name": "recordAuditorOutcome",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "uint256",
           "name": "policyId",
           "type": "uint256"
@@ -2570,18 +2326,19 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "claimId",
+          "name": "",
           "type": "uint256"
-        },
-        {
-          "internalType": "bytes32",
-          "name": "reasonHash",
-          "type": "bytes32"
         }
       ],
-      "name": "rejectClaim",
-      "outputs": [],
-      "stateMutability": "nonpayable",
+      "name": "rejectionReason",
+      "outputs": [
+        {
+          "internalType": "enum InsuranceManager.RejectionReason",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -2610,19 +2367,6 @@
           "type": "uint256"
         }
       ],
-      "name": "reopenClaimAfterAppeal",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "claimId",
-          "type": "uint256"
-        }
-      ],
       "name": "requestOracleVerification",
       "outputs": [
         {
@@ -2632,19 +2376,6 @@
         }
       ],
       "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "reserveWarningThresholdWei",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -2702,9 +2433,14 @@
           "internalType": "uint256",
           "name": "claimId",
           "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "appealReasonHash",
+          "type": "string"
         }
       ],
-      "name": "settleClaim",
+      "name": "submitAppeal",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -2720,9 +2456,19 @@
           "internalType": "string",
           "name": "appealReasonHash",
           "type": "string"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "evidenceHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "string",
+          "name": "evidenceCID",
+          "type": "string"
         }
       ],
-      "name": "submitAppeal",
+      "name": "submitAppealWithEvidence",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -2802,46 +2548,7 @@
     },
     {
       "inputs": [],
-      "name": "totalReservedLiabilityWei",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "unpause",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "newWindowSeconds",
-          "type": "uint256"
-        }
-      ],
-      "name": "updateClaimClosureWindow",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "newMaximum",
-          "type": "uint256"
-        }
-      ],
-      "name": "updateMaxClaimsPerPolicy",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -2906,19 +2613,6 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "newThresholdWei",
-          "type": "uint256"
-        }
-      ],
-      "name": "updateReserveWarningThreshold",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
           "name": "_deductibleRateBps",
           "type": "uint256"
         },
@@ -2947,6 +2641,19 @@
         }
       ],
       "name": "withdrawExcess",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawSettlement",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

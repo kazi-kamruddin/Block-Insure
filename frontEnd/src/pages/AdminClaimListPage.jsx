@@ -78,7 +78,8 @@ export default function AdminClaimListPage() {
             <option value="ORACLE_FAILED">Oracle failed</option>
             <option value="FRAUD_FLAGGED">Fraud flagged</option>
             <option value="MANUAL_REVIEW">Manual review</option>
-            <option value="APPROVED">Approved</option>
+            <option value="PAYOUT_READY">Payout ready</option>
+            <option value="FUNDING_REQUIRED">Funding required</option>
             <option value="REJECTED">Rejected</option>
             <option value="SETTLED">Settled</option>
             <option value="CLOSED">Closed</option>

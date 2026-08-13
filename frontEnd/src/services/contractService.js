@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import InsuranceManagerArtifact from "../abi/InsuranceManager.json";
 import OracleCoordinatorArtifact from "../abi/OracleCoordinator.json";
+import ClaimAdjudicatorArtifact from "../abi/ClaimAdjudicator.json";
 import policyBenefitsAbi from "../abi/policyBenefitsAbi";
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
@@ -12,6 +13,8 @@ export const REQUIRED_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337);
 const ABI = InsuranceManagerArtifact.abi || InsuranceManagerArtifact;
 const ORACLE_COORDINATOR_ABI =
   OracleCoordinatorArtifact.abi || OracleCoordinatorArtifact;
+const CLAIM_ADJUDICATOR_ABI =
+  ClaimAdjudicatorArtifact.abi || ClaimAdjudicatorArtifact;
 
 export const CLAIM_STATUS = {
   0: "SUBMITTED",
@@ -21,10 +24,12 @@ export const CLAIM_STATUS = {
   4: "ORACLE_VERIFIED",
   5: "ORACLE_FAILED",
   6: "MANUAL_REVIEW",
-  7: "APPROVED",
+  7: "PAYOUT_READY",
   8: "REJECTED",
   9: "SETTLED",
   10: "CLOSED",
+  11: "FUNDING_REQUIRED",
+  12: "APPEALED",
 };
 
 export const POLICY_STATUS = {
@@ -62,6 +67,15 @@ export async function getReadOnlyOracleCoordinator() {
   return new ethers.Contract(
     await manager.oracleCoordinator(),
     ORACLE_COORDINATOR_ABI,
+    manager.runner
+  );
+}
+
+export async function getReadOnlyClaimAdjudicator() {
+  const manager = getReadOnlyContract();
+  return new ethers.Contract(
+    await manager.claimAdjudicator(),
+    CLAIM_ADJUDICATOR_ABI,
     manager.runner
   );
 }
@@ -157,6 +171,15 @@ export async function getWalletOracleCoordinator() {
   return new ethers.Contract(
     await manager.oracleCoordinator(),
     ORACLE_COORDINATOR_ABI,
+    manager.runner
+  );
+}
+
+export async function getWalletClaimAdjudicator() {
+  const manager = await getWalletContract();
+  return new ethers.Contract(
+    await manager.claimAdjudicator(),
+    CLAIM_ADJUDICATOR_ABI,
     manager.runner
   );
 }

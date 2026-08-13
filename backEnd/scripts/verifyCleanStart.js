@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
+const ClaimAdjudicatorArtifact = require("../abi/ClaimAdjudicator.json");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
@@ -60,6 +61,11 @@ async function main() {
     OracleCoordinatorArtifact.abi,
     provider
   );
+  const adjudicator = new ethers.Contract(
+    await contract.claimAdjudicator(),
+    ClaimAdjudicatorArtifact.abi,
+    provider
+  );
 
   const [packageIds, policyCounter, claimCounter, reserveWei] = await Promise.all([
     getPolicyPackageIds(contract),
@@ -83,16 +89,19 @@ async function main() {
     requireEnv("ADMIN_PRIVATE_KEY")
   ).address.toLowerCase();
   const expectedAuditors = [
-    ethers.getAddress(requireEnv("AUDITOR_WALLET_ADDRESS")).toLowerCase(),
-    ethers
-      .getAddress(
-        process.env.AUDITOR_WALLET_ADDRESS_2 ||
-          (process.env.DEMO_AUDITOR_PRIVATE_KEY_2
-            ? new ethers.Wallet(process.env.DEMO_AUDITOR_PRIVATE_KEY_2).address
-            : requireEnv("AUDITOR_WALLET_ADDRESS_2"))
-      )
-      .toLowerCase(),
-  ].sort();
+    requireEnv("AUDITOR_WALLET_ADDRESS"),
+    process.env.AUDITOR_WALLET_ADDRESS_2,
+    process.env.AUDITOR_WALLET_ADDRESS_3,
+    process.env.AUDITOR_WALLET_ADDRESS_4,
+    "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+    "0x23618e81E3f5CDf7f54C3d65f7fBfB5d82f842fB",
+    "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  ]
+    .filter(Boolean)
+    .map((address) => ethers.getAddress(address).toLowerCase())
+    .filter((address, index, all) => all.indexOf(address) === index)
+    .slice(0, 4)
+    .sort();
   const expectedOracles = [
     new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY")).address.toLowerCase(),
     new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY_2")).address.toLowerCase(),
@@ -135,8 +144,8 @@ async function main() {
 
   for (const auditor of expectedAuditors) {
     const [auditorReputation, auditorVotes] = await Promise.all([
-      contract.auditorReputation(auditor),
-      contract.auditorTotalVotes(auditor),
+      adjudicator.auditorReputation(auditor),
+      adjudicator.auditorTotalVotes(auditor),
     ]);
     if (auditorReputation !== 0n) {
       failures.push(
@@ -202,7 +211,7 @@ async function main() {
     throw new Error(`Clean-start verification failed: ${failures.join("; ")}`);
   }
 
-  console.log("Clean-start verification passed: one Admin, two uninitialized Auditors, two Oracles, one package, zero policies/claims/votes, funded settlement reserve, no prior runtime activity, and a published healthcare registry baseline.");
+  console.log("Clean-start verification passed: one Admin, four uninitialized Auditors, two Oracles, one package, zero policies/claims/votes, funded settlement reserve, no prior runtime activity, and a published healthcare registry baseline.");
 }
 
 main().catch((error) => {

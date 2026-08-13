@@ -1,5 +1,9 @@
 const { ethers } = require("ethers");
-const { getContractBalance, getReadOnlyContract } = require("./contractService");
+const {
+  getClaimAdjudicator,
+  getContractBalance,
+  getReadOnlyContract,
+} = require("./contractService");
 
 const CLAIM_STATUS = [
   "SUBMITTED",
@@ -9,20 +13,21 @@ const CLAIM_STATUS = [
   "ORACLE_VERIFIED",
   "ORACLE_FAILED",
   "MANUAL_REVIEW",
-  "APPROVED",
+  "PAYOUT_READY",
   "REJECTED",
   "SETTLED",
   "CLOSED",
+  "FUNDING_REQUIRED",
+  "APPEALED",
 ];
 
-const SETTLE_READY_STATUSES = new Set(["APPROVED"]);
+const SETTLE_READY_STATUSES = new Set(["PAYOUT_READY", "FUNDING_REQUIRED"]);
 const OPEN_EXPOSURE_STATUSES = new Set([
   "SUBMITTED",
   "DUPLICATE_CHECKED",
   "ORACLE_PENDING",
   "ORACLE_VERIFIED",
   "MANUAL_REVIEW",
-  "APPROVED",
 ]);
 const REVIEW_EXPOSURE_STATUSES = new Set([
   "FRAUD_FLAGGED",
@@ -67,7 +72,7 @@ const getSolvencyStatus = ({ reserveWei, approvedLiabilityWei, openExposureWei }
 const formatSettlementModel = (settlement, params) => {
   return {
     model: "on_chain_deductible_coinsurance",
-    note: "Settlement math is enforced by InsuranceManager.calculateSettlement and settleClaim transfers only insurerPays.",
+    note: "Settlement math is enforced by InsuranceManager.calculateSettlement; the adjudicator vault pays only insurerPays through claimant withdrawal.",
     deductibleRateBps: params.deductibleRateBps.toString(),
     deductibleRate: toBpsRate(params.deductibleRateBps),
     deductibleCapWei: params.deductibleCapWei.toString(),
@@ -201,27 +206,30 @@ const buildStatusBreakdown = (claims) => {
 
 const buildReserveIntelligence = async () => {
   const contract = getReadOnlyContract();
+  const adjudicator = await getClaimAdjudicator(contract);
+  const managerReserveWei = await getContractBalance();
   const [
-    reserveWei,
     claims,
     policies,
     deductibleRateBps,
     deductibleCapWei,
     insurerShareBps,
-    reserveWarningThresholdWei,
-    highValueSettlementThresholdWei,
     enforcedReservedLiabilityWei,
+    unfundedLiabilityWei,
+    payoutVaultBalanceWei,
   ] = await Promise.all([
-    getContractBalance(),
     getAllClaims(contract),
     getAllPolicies(contract),
     contract.deductibleRateBps(),
     contract.deductibleCapWei(),
     contract.insurerShareBps(),
-    contract.reserveWarningThresholdWei(),
-    contract.highValueSettlementThresholdWei().catch(() => 0n),
-    contract.totalReservedLiabilityWei().catch(() => 0n),
+    adjudicator.totalOutstandingLiabilityWei(),
+    adjudicator.totalUnfundedLiabilityWei(),
+    contract.runner.provider.getBalance(adjudicator.target),
   ]);
+  const reserveWei = managerReserveWei + payoutVaultBalanceWei;
+  const reserveWarningThresholdWei = 0n;
+  const highValueSettlementThresholdWei = 0n;
   const settlementParams = {
     deductibleRateBps,
     deductibleCapWei,
@@ -307,7 +315,7 @@ const buildReserveIntelligence = async () => {
     generatedAt: new Date().toISOString(),
     assumptions: {
       settlementModel:
-        "On-chain deductible/co-insurance formula enforced by InsuranceManager.settleClaim.",
+        "On-chain deductible/co-insurance formula with automatic vault allocation and claimant withdrawal.",
       openExposureStatuses: Array.from(OPEN_EXPOSURE_STATUSES),
       reviewExposureStatuses: Array.from(REVIEW_EXPOSURE_STATUSES),
       settlementReadyStatuses: Array.from(SETTLE_READY_STATUSES),
@@ -328,12 +336,12 @@ const buildReserveIntelligence = async () => {
       enforcedReservedLiabilityWei: enforcedReservedLiabilityWei.toString(),
       enforcedReservedLiabilityEth: toEth(enforcedReservedLiabilityWei),
       withdrawableExcessWei:
-        reserveWei > enforcedReservedLiabilityWei
-          ? (reserveWei - enforcedReservedLiabilityWei).toString()
+        managerReserveWei > unfundedLiabilityWei
+          ? (managerReserveWei - unfundedLiabilityWei).toString()
           : "0",
       withdrawableExcessEth: toEth(
-        reserveWei > enforcedReservedLiabilityWei
-          ? reserveWei - enforcedReservedLiabilityWei
+        managerReserveWei > unfundedLiabilityWei
+          ? managerReserveWei - unfundedLiabilityWei
           : 0n
       ),
     },

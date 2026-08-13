@@ -4,7 +4,10 @@ Block-Insure is a thesis prototype for blockchain-backed insurance claims,
 multi-oracle verification, fraud-risk scoring, auditor voting, and on-chain
 settlement.
 
-The base `InsuranceManager` contract is paired with a deployable
+The base `InsuranceManager` contract is paired with a dedicated
+`ClaimAdjudicator` that snapshots four auditors, enforces fixed quorum rules,
+stores versioned decisions, and holds pull-payment settlement allocations. It
+is also paired with a deployable
 `PolicyBenefitsManager` extension for beneficiary designation, death benefits,
 surrender values, maturity benefits, versioned terms, and separately funded
 benefit settlement. The normal local deployment installs and synchronizes both
@@ -25,19 +28,19 @@ modules.
 Use this workflow for a fresh simulation. It deliberately removes only
 Block-Insure runtime data from the configured MongoDB database, deploys a new
 local contract, creates **one** `Health Basic` package, funds the configured
-local role accounts, and assigns the configured Admin, two Auditors, and Oracle
+local role accounts, and assigns the configured Admin, four Auditors, and Oracle
 roles. It also funds a 1 ETH local settlement reserve. It creates **no
 policies, claims, appeals, evidence, oracle logs, or
 synthetic user activity**. It does rebuild the synthetic healthcare registry
 baseline and commits its Merkle root on the fresh local chain, so newly created
 claims can be verified by the oracle from the first run.
 
-The clean role baseline is exactly one Admin, two Auditors, and two Oracle
-wallets. Auditor reputation is not seeded; it remains uninitialized until an
-Auditor casts a real vote. Two distinct votes are required before an
-administrator can finalize a manual-review decision. Configure the second
-wallet with `AUDITOR_WALLET_ADDRESS_2` (or
-`DEMO_AUDITOR_PRIVATE_KEY_2`) before running clean setup. The two oracle workers use separate registry
+The clean role baseline is exactly one Admin, four Auditors, and two Oracle
+wallets. Auditor reputation is not seeded; it is derived automatically from
+finalized review outcomes. Every manual review snapshots exactly four active
+auditors. Three approvals allocate payout automatically; two rejections reject
+immediately, and an expired review rejects for insufficient quorum. Local
+Hardhat auditor accounts fill any unconfigured third/fourth slots. The two oracle workers use separate registry
 collections, but clean setup gives both the same committed baseline so valid
 claims can reach quorum. Research scripts may deliberately introduce divergent
 data, but the clean workflow never does.
@@ -100,17 +103,19 @@ other funded Hardhat account for the policyholder profile; its first login is
 created as a normal `USER`. Do not run `demo:populate` or
 `loadtest:claims` when you want an empty simulation.
 
-Admin claim decisions are signed by the connected Admin browser wallet. The
-backend verifies the confirmed transaction and records the same initiating
-wallet in its audit log. High-value settlements retain a separate explicit
-approval step, but the single configured Admin can approve and execute them in
-the local thesis workflow.
+Administrators cannot approve, reject, settle, close, or decide appeals. Exact
+oracle success allocates a payout automatically. Oracle failure can be routed
+to manual review immediately by an operator and becomes permissionlessly
+routable after the SLA. A valid underfunded claim enters `FUNDING_REQUIRED`
+instead of being rejected; once funded, anyone can activate the allocation and
+the claimant withdraws it.
 
 Claim and appeal evidence is encrypted in the browser with AES-256-GCM before
 upload. Pinata, MongoDB, and the blockchain receive only encrypted bytes and
 their hash/CID. The browser also wraps the AES key with the application's
 RSA-3072 public key. The backend may unwrap that key only for the policyholder
-who owns the claim or an authenticated Admin/Auditor, and every unwrap is
+who owns the claim, an authenticated Admin, or an auditor assigned to that
+claim's snapshotted review, and every unwrap is
 recorded in the evidence-access log. This makes authorized recovery work from
 another browser while keeping the raw AES key out of IPFS and the blockchain.
 For local development, the RSA key pair is generated under

@@ -11,20 +11,13 @@ import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
 import TransactionLink from "../components/TransactionLink";
 import { showToast } from "../services/toast";
 import {
-  approveClaim,
-  approveHighValueSettlement,
-  closeClaim,
-  finalizeClaimVoting,
   getAppealByClaim,
   getClaimById,
   getClaimVoteSummary,
   getOracleResults,
-  rejectClaim,
   resolveOracleTimeout,
-  reviewAppeal,
   requestOracleVerification,
   sendClaimToManualReview,
-  settleClaim,
 } from "../services/api";
 import {
   getContractBalance,
@@ -100,20 +93,12 @@ async function getSettlementBreakdown(claimId) {
     deductibleRateBps,
     deductibleCapWei,
     insurerShareBps,
-    reserveWarningThresholdWei,
-    highValueSettlementThresholdWei,
-    highValueSettlementApproved,
-    highValueSettlementApprover,
   ] =
     await Promise.all([
       contract.calculateSettlement(claimId),
       contract.deductibleRateBps(),
       contract.deductibleCapWei(),
       contract.insurerShareBps(),
-      contract.reserveWarningThresholdWei(),
-      contract.highValueSettlementThresholdWei(),
-      contract.highValueSettlementApproved(claimId),
-      contract.highValueSettlementApprover(claimId),
     ]);
   const reserveWei = await getContractBalance();
   const reserveAfterWei =
@@ -135,15 +120,7 @@ async function getSettlementBreakdown(claimId) {
       reserveEth: formatEth(reserveWei),
       reserveAfterWei: reserveAfterWei.toString(),
       reserveAfterEth: formatEth(reserveAfterWei),
-      warningThresholdWei: reserveWarningThresholdWei.toString(),
-      warningThresholdEth: formatEth(reserveWarningThresholdWei),
-      belowWarningThreshold: reserveAfterWei < reserveWarningThresholdWei,
-      highValueThresholdWei: highValueSettlementThresholdWei.toString(),
-      highValueThresholdEth: formatEth(highValueSettlementThresholdWei),
-      highValueApprovalRequired:
-        settlement.insurerPays > highValueSettlementThresholdWei,
-      highValueSettlementApproved: Boolean(highValueSettlementApproved),
-      highValueSettlementApprover,
+      funded: reserveWei >= settlement.insurerPays,
     },
     params: {
       deductibleRateBps: deductibleRateBps.toString(),
@@ -180,10 +157,6 @@ export default function AdminClaimDetailPage() {
   const [actionMessage, setActionMessage] = useState("");
   const [actionTxHash, setActionTxHash] = useState("");
   const [isActing, setIsActing] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [appealAdminNote, setAppealAdminNote] = useState("");
-  const [appealAuditorRecommendation, setAppealAuditorRecommendation] = useState("");
-  const [appealFinalRejectionReason, setAppealFinalRejectionReason] = useState("");
 
   const {
     data: claimData,
@@ -284,8 +257,6 @@ export default function AdminClaimDetailPage() {
 
   const appeal = appealData?.appeal || null;
   const voteSummary = extractVoteSummary(voteData);
-  const appealIsFinal =
-    appeal?.status === "APPROVED" || appeal?.status === "REJECTED";
 
   const getAdminRule = (action, extra = {}) =>
     getClaimActionRule({
@@ -300,29 +271,10 @@ export default function AdminClaimDetailPage() {
     statusName === "FRAUD_FLAGGED"
       ? { allowed: true, reason: "" }
       : getAdminRule(CLAIM_ACTIONS.MANUAL_REVIEW);
-  const manualGovernance = {
-    auditorVotingFinalized: Boolean(voteSummary?.finalized),
-    auditorConsensusCode:
-      voteSummary?.finalization?.consensusCode || voteSummary?.consensusCode,
-  };
-  const approveRule = getAdminRule(CLAIM_ACTIONS.APPROVE, manualGovernance);
-  const rejectRule = getAdminRule(CLAIM_ACTIONS.REJECT, manualGovernance);
-  const settleRule = getAdminRule(CLAIM_ACTIONS.SETTLE);
-  const baseCloseRule = getAdminRule(CLAIM_ACTIONS.CLOSE);
-  const closeRule =
-    baseCloseRule.allowed &&
-    statusName === "REJECTED" &&
-    claim?.closure &&
-    !claim.closure.canClose
-      ? {
-          allowed: false,
-          reason: "The appeal window is still open",
-        }
-      : baseCloseRule;
   const resolveTimeoutRule = getAdminRule(CLAIM_ACTIONS.RESOLVE_ORACLE_TIMEOUT, {
     oracleQuorumReached: true,
   });
-  const canSettle = settleRule.allowed;
+  const canSettle = ["PAYOUT_READY", "FUNDING_REQUIRED", "SETTLED"].includes(statusName);
   const canShowVoting =
     statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
   const isAwaitingOracleQuorum =
@@ -382,78 +334,10 @@ export default function AdminClaimDetailPage() {
     );
   }
 
-  function handleApprove() {
-    runAdminAction(() => approveClaim(id), "Claim approved successfully.");
-  }
-
-  function handleReject() {
-    if (!rejectReason.trim()) {
-      setActionError("Enter a rejection reason first.");
-      return;
-    }
-
-    runAdminAction(
-      () => rejectClaim(id, rejectReason.trim()),
-      "Claim rejected successfully."
-    );
-  }
-
-  function handleSettle() {
-    const confirmed = window.confirm(
-      `Settle this claim now? This will transfer ${
-        settlementBreakdown?.insurerPaysEth || "the calculated payout"
-      } ETH from the contract reserve to the claimant.`
-    );
-
-    if (!confirmed) return;
-
-    runAdminAction(() => settleClaim(id), "Claim settled successfully.");
-  }
-
-  function handleApproveHighValueSettlement() {
-    runAdminAction(
-      () => approveHighValueSettlement(id),
-      "High-value settlement approved successfully."
-    );
-  }
-
   function handleResolveOracleTimeout() {
     runAdminAction(
       () => resolveOracleTimeout(id),
       "Timed-out oracle request resolved successfully."
-    );
-  }
-
-  function handleClose() {
-    const confirmed = window.confirm(
-      "Close this claim lifecycle? Closed claims cannot return to an active workflow."
-    );
-
-    if (!confirmed) return;
-
-    runAdminAction(() => closeClaim(id), "Claim closed successfully.");
-  }
-
-  function handleReviewAppeal(status) {
-    if (!appeal?.id) return;
-
-    runAdminAction(
-      () =>
-        reviewAppeal(appeal.id, {
-          status,
-          claimId: id,
-          adminNote: appealAdminNote.trim(),
-          auditorRecommendation: appealAuditorRecommendation.trim(),
-          finalRejectionReason: appealFinalRejectionReason.trim(),
-        }),
-      `Appeal marked ${status.toLowerCase().replace("_", " ")} successfully.`
-    );
-  }
-
-  function handleFinalizeVoting() {
-    runAdminAction(
-      () => finalizeClaimVoting(id),
-      "Voting finalized and auditor reputations updated successfully."
     );
   }
 
@@ -575,56 +459,14 @@ export default function AdminClaimDetailPage() {
 
               <div className="settlement-breakdown-grid">
                 <div>
-                  <span>Reserve After Settlement</span>
+                  <span>Manager Reserve After Allocation</span>
                   <strong>{settlementBreakdown.reserveGate.reserveAfterEth} ETH</strong>
                 </div>
                 <div>
-                  <span>Safe Threshold</span>
-                  <strong>{settlementBreakdown.reserveGate.warningThresholdEth} ETH</strong>
-                </div>
-                <div>
-                  <span>Reserve Ratio Gate</span>
-                  <strong>
-                    {settlementBreakdown.reserveGate.belowWarningThreshold
-                      ? "Warning"
-                      : "Pass"}
-                  </strong>
-                </div>
-                <div>
-                  <span>High-Value Control</span>
-                  <strong>
-                    {settlementBreakdown.reserveGate.highValueApprovalRequired
-                      ? settlementBreakdown.reserveGate.highValueSettlementApproved
-                        ? "Approved"
-                        : "Approval Required"
-                      : "Not Required"}
-                  </strong>
+                  <span>Funding Gate</span>
+                  <strong>{settlementBreakdown.reserveGate.funded ? "Funded" : "Funding Required"}</strong>
                 </div>
               </div>
-
-              {settlementBreakdown.reserveGate.highValueApprovalRequired &&
-              !settlementBreakdown.reserveGate.highValueSettlementApproved ? (
-                <p className="error-text">
-                  Settlement is blocked until the Admin records explicit
-                  high-value approval.
-                </p>
-              ) : null}
-
-              {settlementBreakdown.reserveGate.highValueSettlementApproved ? (
-                <p className="muted-text">
-                  High-value approver:{" "}
-                  {settlementBreakdown.reserveGate.highValueSettlementApprover}.
-                  The approved settlement can now be executed.
-                </p>
-              ) : null}
-
-              {settlementBreakdown.reserveGate.belowWarningThreshold ? (
-                <p className="error-text">
-                  Reserve warning: this payout would leave the reserve below the
-                  configured threshold. This is advisory unless the contract gate
-                  rejects the transaction for another reason.
-                </p>
-              ) : null}
             </>
           ) : null}
         </div>
@@ -673,122 +515,12 @@ export default function AdminClaimDetailPage() {
           </button>
           ) : null}
 
-          {["ORACLE_VERIFIED", "MANUAL_REVIEW"].includes(statusName) ? (
-          <button
-            type="button"
-            onClick={handleApprove}
-            disabled={!approveRule.allowed || isActing}
-            title={approveRule.reason}
-          >
-            Approve Claim
-          </button>
-          ) : null}
-
-          {statusName === "APPROVED" &&
-          settlementBreakdown?.reserveGate?.highValueApprovalRequired ? (
-          <button
-            type="button"
-            onClick={handleApproveHighValueSettlement}
-            disabled={
-              isActing ||
-              !settleRule.allowed ||
-              !settlementBreakdown?.reserveGate?.highValueApprovalRequired ||
-              settlementBreakdown?.reserveGate?.highValueSettlementApproved
-            }
-            title={
-              settlementBreakdown?.reserveGate?.highValueApprovalRequired
-                ? ""
-                : "Settlement is below high-value threshold"
-            }
-          >
-            Approve High-Value Settlement
-          </button>
-          ) : null}
-
-          {statusName === "APPROVED" ? (
-          <button
-            type="button"
-            onClick={handleSettle}
-            disabled={
-              !settleRule.allowed ||
-              isActing ||
-              (settlementBreakdown?.reserveGate?.highValueApprovalRequired &&
-                !settlementBreakdown?.reserveGate?.highValueSettlementApproved)
-            }
-            title={
-              settlementBreakdown?.reserveGate?.highValueApprovalRequired &&
-              !settlementBreakdown?.reserveGate?.highValueSettlementApproved
-                ? "High-value approval required"
-                : settleRule.reason
-            }
-          >
-            Settle Claim
-          </button>
-          ) : null}
-
-          {["SETTLED", "REJECTED"].includes(statusName) ? (
-          <>
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={!closeRule.allowed || isActing}
-            title={closeRule.reason}
-          >
-            Close Claim
-          </button>
-          {statusName === "REJECTED" && claim?.closure && !claim.closure.canClose ? (
-            <p className="muted-text">
-              Closure is locked while the appeal window is open. Earliest
-              closure: {formatValue(claim.closure.closureEligibleAt?.iso)}.
-            </p>
-          ) : null}
-          </>
-          ) : null}
         </div>
-
-        {[
-          "DUPLICATE_CHECKED",
-          "ORACLE_PENDING",
-          "ORACLE_VERIFIED",
-          "ORACLE_FAILED",
-          "MANUAL_REVIEW",
-        ].includes(statusName) ? (
-        <div className="form-grid">
-          <label>
-            Rejection reason
-            <input
-              type="text"
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              placeholder="Example: Duplicate invoice/document evidence detected"
-            />
-          </label>
-
-          <button
-            type="button"
-            onClick={handleReject}
-            disabled={!rejectRule.allowed || isActing}
-            title={rejectRule.reason}
-          >
-            Reject Claim
-          </button>
-        </div>
-        ) : null}
-
-        {![
-          "DUPLICATE_CHECKED",
-          "ORACLE_PENDING",
-          "ORACLE_VERIFIED",
-          "ORACLE_FAILED",
-          "MANUAL_REVIEW",
-          "APPROVED",
-          "SETTLED",
-          "REJECTED",
-        ].includes(statusName) ? (
-          <p className="muted-text">
-            No administrator action is available for the current lifecycle state.
-          </p>
-        ) : null}
+        <p className="muted-text">
+          Approval, rejection, payout allocation, appeal decisions, and settlement are
+          protocol-controlled. Administrators can only start operations or route an
+          oracle failure to the snapshotted auditor panel.
+        </p>
       </div>
 
       {statusName === "ORACLE_PENDING" ? (
@@ -886,24 +618,10 @@ export default function AdminClaimDetailPage() {
                 <p>No auditor votes have been cast yet.</p>
               )}
 
-              <button
-                type="button"
-                onClick={handleFinalizeVoting}
-                disabled={
-                  isActing ||
-                  !voteSummary.totalVoters ||
-                  !voteSummary.quorumReached ||
-                  voteSummary.isTie ||
-                  !voteSummary.consensusCode ||
-                  voteSummary.finalized
-                }
-              >
-                Finalize Voting & Update Reputations
-              </button>
               <p className={voteSummary.quorumReached ? "success-text" : "muted-text"}>
                 {voteSummary.finalized
-                  ? "Voting is finalized and closed."
-                  : `${voteSummary.totalVoters || 0} of ${voteSummary.minimumVoters || 2} required auditor votes recorded.`}
+                  ? "Voting was finalized automatically on-chain."
+                  : `${voteSummary.totalVoters || 0} votes recorded. Three approvals allocate payout; two rejections reject immediately.`}
               </p>
             </>
           ) : null}
@@ -973,59 +691,10 @@ export default function AdminClaimDetailPage() {
             ) : null}
             </details>
 
-            <div className="form-grid">
-              <label>
-                Admin note
-                <input
-                  type="text"
-                  value={appealAdminNote}
-                  onChange={(event) => setAppealAdminNote(event.target.value)}
-                  placeholder={appeal.adminNote || "Optional appeal review note"}
-                />
-              </label>
-              <label>
-                Auditor recommendation
-                <input
-                  type="text"
-                  value={appealAuditorRecommendation}
-                  onChange={(event) => setAppealAuditorRecommendation(event.target.value)}
-                  placeholder={appeal.auditorRecommendation || "Optional recommendation summary"}
-                />
-              </label>
-              <label>
-                Final rejection reason
-                <input
-                  type="text"
-                  value={appealFinalRejectionReason}
-                  onChange={(event) => setAppealFinalRejectionReason(event.target.value)}
-                  placeholder={appeal.finalRejectionReason || "Required when rejecting final appeal"}
-                />
-              </label>
-            </div>
-
-            <div className="action-row">
-              <button
-                type="button"
-                onClick={() => handleReviewAppeal("UNDER_REVIEW")}
-                disabled={isActing || appealIsFinal || appeal.status === "UNDER_REVIEW"}
-              >
-                Mark Under Review
-              </button>
-              <button
-                type="button"
-                onClick={() => handleReviewAppeal("APPROVED")}
-                disabled={isActing || appealIsFinal}
-              >
-                Approve Appeal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleReviewAppeal("REJECTED")}
-                disabled={isActing || appealIsFinal}
-              >
-                Reject Appeal
-              </button>
-            </div>
+            <p className="muted-text">
+              Appeals automatically open a new claim version and oracle request. The
+              administrator cannot approve or reject an appeal.
+            </p>
           </>
         ) : null}
 

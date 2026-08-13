@@ -28,10 +28,12 @@ const claimStatuses = [
   "ORACLE_VERIFIED",
   "ORACLE_FAILED",
   "MANUAL_REVIEW",
-  "APPROVED",
+  "PAYOUT_READY",
   "REJECTED",
   "SETTLED",
   "CLOSED",
+  "FUNDING_REQUIRED",
+  "APPEALED",
 ];
 
 const policyStatuses = [
@@ -228,7 +230,7 @@ async function main() {
   if (nextClaimId > 1) pass("Demo claims found");
   else fail("No demo claims found");
 
-  const keyStatuses = ["DUPLICATE_CHECKED", "ORACLE_PENDING", "ORACLE_VERIFIED", "ORACLE_FAILED", "MANUAL_REVIEW", "SETTLED", "CLOSED"];
+  const keyStatuses = ["DUPLICATE_CHECKED", "ORACLE_PENDING", "ORACLE_FAILED", "MANUAL_REVIEW", "PAYOUT_READY", "REJECTED", "SETTLED"];
   const missingStatuses = keyStatuses.filter((status) => !claimCounts[status]);
 
   if (missingStatuses.length === 0) {

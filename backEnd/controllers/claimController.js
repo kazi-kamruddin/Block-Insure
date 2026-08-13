@@ -1,5 +1,8 @@
 const { ethers } = require("ethers");
-const { getReadOnlyContract } = require("../services/contractService");
+const {
+  getClaimAdjudicator,
+  getReadOnlyContract,
+} = require("../services/contractService");
 const { getEvidenceChainForClaim } = require("../services/evidenceChainService");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 const File = require("../models/File");
@@ -37,10 +40,12 @@ const CLAIM_STATUS = [
   "ORACLE_VERIFIED",
   "ORACLE_FAILED",
   "MANUAL_REVIEW",
-  "APPROVED",
+  "PAYOUT_READY",
   "REJECTED",
   "SETTLED",
   "CLOSED",
+  "FUNDING_REQUIRED",
+  "APPEALED",
 ];
 
 const POLICY_STATUS = [
@@ -53,11 +58,13 @@ const POLICY_STATUS = [
   "RENEWED",
 ];
 
-const canReadClaim = (req, claim) => {
-  if (req.user.role === "ADMIN" || req.user.role === "AUDITOR") {
-    return true;
+const canReadClaim = async (req, contract, claim) => {
+  if (req.user.role === "ADMIN") return true;
+  if (req.user.role === "AUDITOR") {
+    const adjudicator = await getClaimAdjudicator(contract);
+    const version = await contract.claimVersion(claim.claimId);
+    return adjudicator.isAssigned(claim.claimId, version, req.user.walletAddress);
   }
-
   return claim.claimantWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
 };
 
@@ -138,29 +145,24 @@ const formatEnrichedClaim = async (
 
   if (includeLifecycle) {
     try {
-      const [resolvedAt, closureWindow, appealed, appealFinalized] =
+      const adjudicator = await getClaimAdjudicator(contract);
+      const [resolvedAt, round, appealFinalized, allocation, withdrawn] =
         await Promise.all([
           contract.claimResolvedAt(claim.claimId),
-          contract.claimClosureWindowSeconds(),
-          contract.claimAppealed(claim.claimId),
-          contract.claimAppealFinalized(claim.claimId),
+          adjudicator.appealRound(claim.claimId),
+          adjudicator.appealFinalized(claim.claimId),
+          adjudicator.allocatedSettlementWei(claim.claimId),
+          adjudicator.withdrawnSettlementWei(claim.claimId),
         ]);
-      const resolvedAtSeconds = Number(resolvedAt);
-      const closureEligibleAtSeconds = resolvedAtSeconds
-        ? resolvedAtSeconds + Number(closureWindow)
-        : 0;
       closure = {
         resolvedAt: formatTimestamp(resolvedAt),
-        closureWindowSeconds: Number(closureWindow),
-        closureEligibleAt: formatTimestamp(closureEligibleAtSeconds),
-        appealed: Boolean(appealed),
+        appealed: Number(round) > 0,
+        appealRound: Number(round),
         appealFinalized: Boolean(appealFinalized),
-        canClose:
-          formatted.status.label === "SETTLED" ||
-          (formatted.status.label === "REJECTED" &&
-            (Boolean(appealFinalized) ||
-              (closureEligibleAtSeconds > 0 &&
-                Math.floor(Date.now() / 1000) >= closureEligibleAtSeconds))),
+        canClose: false,
+        lifecycleControlledByProtocol: true,
+        allocatedSettlementWei: allocation.toString(),
+        withdrawnSettlementWei: withdrawn.toString(),
       };
     } catch {
       // Older deployments can still return the core claim record.
@@ -283,7 +285,7 @@ const getClaimById = async (req, res, next) => {
 
     const claim = await contract.getClaim(req.params.claimId);
 
-    if (!canReadClaim(req, claim)) {
+    if (!(await canReadClaim(req, contract, claim))) {
       return res.status(403).json({
         success: false,
         message: "Access denied: claim does not belong to this wallet",
@@ -318,6 +320,9 @@ const getClaimDocumentHash = async (req, res, next) => {
     const contract = getReadOnlyContract();
     const claimId = BigInt(req.params.claimId);
     const claim = await contract.getClaim(claimId);
+    if (!(await canReadClaim(req, contract, claim))) {
+      throw createError("Access denied: auditor is not assigned to this claim", 403);
+    }
     const linkedDocuments = await File.find({
       claimId: claimId.toString(),
       status: "PINNED",

@@ -51,6 +51,8 @@ function getAccountsToFund() {
     "claimOfficerAccount",
     process.env.CLAIM_OFFICER_WALLET_ADDRESS
   );
+  addAccount(accounts, seen, "auditorThreeAccount", process.env.AUDITOR_WALLET_ADDRESS_3 || "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955");
+  addAccount(accounts, seen, "auditorFourAccount", process.env.AUDITOR_WALLET_ADDRESS_4 || "0x23618e81E3f5CDf7f54C3d65f7fBfB5d82f842fB");
 
   addAccount(
     accounts,

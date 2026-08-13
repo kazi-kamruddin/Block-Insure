@@ -41,6 +41,9 @@ function main() {
   const coordinatorArtifact = readJson(
     "contracts/artifacts/contracts/OracleCoordinator.sol/OracleCoordinator.json"
   );
+  const adjudicatorArtifact = readJson(
+    "contracts/artifacts/contracts/ClaimAdjudicator.sol/ClaimAdjudicator.json"
+  );
   const benefitsArtifact = readJson(
     "contracts/artifacts/contracts/PolicyBenefitsManager.sol/PolicyBenefitsManager.json"
   );
@@ -70,13 +73,26 @@ function main() {
       failures
     );
   }
+  for (const target of [
+    "backEnd/abi/ClaimAdjudicator.json",
+    "frontEnd/src/abi/ClaimAdjudicator.json",
+    "oracle/abi/ClaimAdjudicator.json",
+  ]) {
+    const targetAbi = readJson(target).abi;
+    assert(
+      JSON.stringify(targetAbi) === JSON.stringify(adjudicatorArtifact.abi),
+      `${target} ABI does not match the compiled adjudicator artifact`,
+      failures
+    );
+  }
 
   const requiredFunctions = [
     "submitClaim",
     "requestOracleVerification",
     "castVote",
-    "settleClaim",
+    "withdrawSettlement",
     "submitAppeal",
+    "claimAdjudicator",
   ];
   const functionNames = new Set(
     artifact.abi
@@ -87,6 +103,24 @@ function main() {
     assert(
       functionNames.has(functionName),
       `Compiled ABI is missing ${functionName}`,
+      failures
+    );
+  }
+  const adjudicatorFunctionNames = new Set(
+    adjudicatorArtifact.abi
+      .filter((entry) => entry.type === "function")
+      .map((entry) => entry.name)
+  );
+  for (const functionName of [
+    "startReview",
+    "castVote",
+    "allocatePayout",
+    "withdrawPayout",
+    "getReview",
+  ]) {
+    assert(
+      adjudicatorFunctionNames.has(functionName),
+      `Compiled adjudicator ABI is missing ${functionName}`,
       failures
     );
   }
@@ -147,6 +181,15 @@ function main() {
   assert(
     coordinatorDeployedBytes <= 24_576,
     `OracleCoordinator deployed bytecode is ${coordinatorDeployedBytes} bytes (EIP-170 maximum 24576)`,
+    failures
+  );
+  const adjudicatorDeployedBytes = Math.max(
+    (String(adjudicatorArtifact.deployedBytecode || "0x").length - 2) / 2,
+    0
+  );
+  assert(
+    adjudicatorDeployedBytes <= 24_576,
+    `ClaimAdjudicator deployed bytecode is ${adjudicatorDeployedBytes} bytes (EIP-170 maximum 24576)`,
     failures
   );
   const configuredSizeBudget = Number(
@@ -233,20 +276,6 @@ function main() {
     "Two distinct oracle signing keys are required",
     failures
   );
-  if (
-    !backendEnv.AUDITOR_WALLET_ADDRESS ||
-    (!backendEnv.AUDITOR_WALLET_ADDRESS_2 &&
-      !backendEnv.DEMO_AUDITOR_PRIVATE_KEY_2)
-  ) {
-    warnings.push(
-      "Set AUDITOR_WALLET_ADDRESS_2 (or DEMO_AUDITOR_PRIVATE_KEY_2) before the next clean setup so the two-vote quorum can be exercised"
-    );
-  }
-  assert(
-    Number(backendEnv.MINIMUM_AUDITOR_VOTES || 2) >= 2,
-    "MINIMUM_AUDITOR_VOTES must be at least 2",
-    failures
-  );
   assert(
     normalize(oracleOneEnv.RPC_URL) === normalize(oracleTwoEnv.RPC_URL),
     "Oracle RPC endpoints are not synchronized",
@@ -273,7 +302,7 @@ function main() {
 
   warnings.forEach((warning) => console.warn(`Configuration warning: ${warning}`));
   console.log(
-    `Synchronization/integrity verification passed: manager/coordinator ABI copies match, 4 core service addresses match, contract sizes are ${deployedBytes}/24576 (manager), ${coordinatorDeployedBytes}/24576 (coordinator), and ${benefitsDeployedBytes}/24576 (benefits), and Oracle authentication/RPC settings are synchronized.`
+    `Synchronization/integrity verification passed: contract ABI copies match, 4 core service addresses match, contract sizes are ${deployedBytes}/24576 (manager), ${coordinatorDeployedBytes}/24576 (coordinator), ${adjudicatorDeployedBytes}/24576 (adjudicator), and ${benefitsDeployedBytes}/24576 (benefits), and Oracle authentication/RPC settings are synchronized.`
   );
 }
 

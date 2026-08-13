@@ -73,15 +73,26 @@ async function main() {
     const contractAddress = requireEnv("VITE_CONTRACT_ADDRESS");
     const adminPrivateKey = requireEnv("ADMIN_PRIVATE_KEY");
     const oraclePrivateKey = requireEnv("ORACLE_PRIVATE_KEY");
-    const auditorWalletAddress = ethers.getAddress(
-      requireEnv("AUDITOR_WALLET_ADDRESS")
-    );
-    const secondAuditorWalletAddress = ethers.getAddress(
-      process.env.AUDITOR_WALLET_ADDRESS_2 ||
-        (process.env.DEMO_AUDITOR_PRIVATE_KEY_2
-          ? new ethers.Wallet(process.env.DEMO_AUDITOR_PRIVATE_KEY_2).address
-          : requireEnv("AUDITOR_WALLET_ADDRESS_2"))
-    );
+    const auditorCandidates = [
+      requireEnv("AUDITOR_WALLET_ADDRESS"),
+      process.env.AUDITOR_WALLET_ADDRESS_2,
+      process.env.AUDITOR_WALLET_ADDRESS_3,
+      process.env.AUDITOR_WALLET_ADDRESS_4,
+      "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+      "0x23618e81E3f5CDf7f54C3d65f7fBfB5d82f842fB",
+      "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+    ].filter(Boolean);
+    const auditorWalletAddresses = [
+      ...new Map(
+        auditorCandidates.map((address) => {
+          const normalized = ethers.getAddress(address);
+          return [normalized.toLowerCase(), normalized];
+        })
+      ).values(),
+    ].slice(0, 4);
+    if (auditorWalletAddresses.length !== 4) {
+      throw new Error("Four distinct auditor wallet addresses are required");
+    }
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const adminWallet = new ethers.Wallet(adminPrivateKey, provider);
@@ -110,8 +121,7 @@ async function main() {
       "Second oracle wallet:",
       secondOracleWallet ? secondOracleWallet.address : "not configured"
     );
-    console.log("Auditor wallet:", auditorWalletAddress);
-    console.log("Second auditor wallet:", secondAuditorWalletAddress);
+    console.log("Auditor wallets:", auditorWalletAddresses.join(", "));
     console.log("Claim officer wallet:", claimOfficerWalletAddress);
     console.log("");
 
@@ -166,20 +176,15 @@ async function main() {
       );
     }
 
-    await grantRoleIfMissing(
-      contract,
-      "AUDITOR_ROLE",
-      auditorRole,
-      auditorWalletAddress,
-      nonceState
-    );
-    await grantRoleIfMissing(
-      contract,
-      "AUDITOR_ROLE",
-      auditorRole,
-      secondAuditorWalletAddress,
-      nonceState
-    );
+    for (const auditorAddress of auditorWalletAddresses) {
+      await grantRoleIfMissing(
+        contract,
+        "AUDITOR_ROLE",
+        auditorRole,
+        auditorAddress,
+        nonceState
+      );
+    }
 
     if (process.env.MONGODB_URI) {
       await mongoose.connect(process.env.MONGODB_URI);
@@ -192,8 +197,9 @@ async function main() {
         await syncMongoRole(secondOracleWallet.address, "ORACLE");
       }
 
-      await syncMongoRole(auditorWalletAddress, "AUDITOR");
-      await syncMongoRole(secondAuditorWalletAddress, "AUDITOR");
+      for (const auditorAddress of auditorWalletAddresses) {
+        await syncMongoRole(auditorAddress, "AUDITOR");
+      }
 
       await mongoose.connection.close();
     } else {

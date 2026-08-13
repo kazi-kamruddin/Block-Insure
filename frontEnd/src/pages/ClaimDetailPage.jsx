@@ -16,7 +16,11 @@ import {
   submitAppeal,
   uploadClaimDocument,
 } from "../services/api";
-import { getWalletContract, parseTransactionError } from "../services/contractService";
+import {
+  getWalletContract,
+  parseTransactionError,
+  toBytes32FromBackendSha256,
+} from "../services/contractService";
 import {
   encryptEvidenceFile,
   storeEvidenceKey,
@@ -76,6 +80,7 @@ export default function ClaimDetailPage() {
   const [appealMessage, setAppealMessage] = useState("");
   const [appealTxHash, setAppealTxHash] = useState("");
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const {
     data: claimData,
@@ -177,7 +182,14 @@ export default function ClaimDetailPage() {
       }
 
       const contract = await getWalletContract();
-      const tx = await contract.submitAppeal(id, appealReasonHash);
+      const tx = additionalDocumentHash
+        ? await contract.submitAppealWithEvidence(
+            id,
+            appealReasonHash,
+            toBytes32FromBackendSha256(additionalDocumentHash),
+            additionalDocumentCID
+          )
+        : await contract.submitAppeal(id, appealReasonHash);
 
       setAppealTxHash(tx.hash);
 
@@ -218,6 +230,21 @@ export default function ClaimDetailPage() {
       showToast(message, { tone: "error", title: "Appeal failed" });
     } finally {
       setIsSubmittingAppeal(false);
+    }
+  }
+
+  async function handleWithdrawSettlement() {
+    try {
+      setIsWithdrawing(true);
+      const contract = await getWalletContract();
+      const tx = await contract.withdrawSettlement(id);
+      await tx.wait();
+      showToast(`Settlement for claim #${id} withdrawn.`, { title: "Payment received" });
+      await refetch();
+    } catch (error) {
+      showToast(parseTransactionError(error), { tone: "error", title: "Withdrawal failed" });
+    } finally {
+      setIsWithdrawing(false);
     }
   }
 
@@ -316,6 +343,23 @@ export default function ClaimDetailPage() {
             </p>
           </details>
           <EvidenceChainPanel evidenceChain={evidenceChain} />
+        </div>
+      ) : null}
+
+      {statusName === "PAYOUT_READY" ? (
+        <div className="card">
+          <h3>Payment ready</h3>
+          <p>Your settlement is allocated in the protocol payout vault.</p>
+          <button type="button" onClick={handleWithdrawSettlement} disabled={isWithdrawing}>
+            {isWithdrawing ? "Withdrawing..." : "Withdraw Payment"}
+          </button>
+        </div>
+      ) : null}
+
+      {statusName === "FUNDING_REQUIRED" ? (
+        <div className="card">
+          <h3>Funding required</h3>
+          <p>This claim is valid. It is waiting for treasury backing and has not been rejected.</p>
         </div>
       ) : null}
 

@@ -10,7 +10,7 @@ import { useWallet } from "../context/useWallet";
 import { getClaimStatusName, getStatusExplanation } from "../utils/claimStatus";
 import "../styles/pages/AuditorClaimLookupPage.css";
 
-const VOTE_OPEN_STATUSES = new Set(["MANUAL_REVIEW", "ORACLE_FAILED"]);
+const VOTE_OPEN_STATUSES = new Set(["MANUAL_REVIEW"]);
 
 function extractClaims(data) {
   if (Array.isArray(data)) return data;
@@ -66,7 +66,9 @@ async function loadVoteQueue(fallbackWallet) {
     })
   );
 
-  return enrichedClaims.filter((claim) => !claim.hasCurrentUserVoted);
+  return enrichedClaims.filter(
+    (claim) => claim.voteSummary && !claim.hasCurrentUserVoted
+  );
 }
 
 export default function AuditorVoteQueuePage() {
@@ -90,7 +92,7 @@ export default function AuditorVoteQueuePage() {
           <p>
             Auditors vote only when a claim is actually open for independent
             review. In this contract, that means claims in{" "}
-            <strong>MANUAL_REVIEW</strong> or <strong>ORACLE_FAILED</strong>.
+            <strong>MANUAL_REVIEW</strong> and assigned to your snapshotted panel.
           </p>
         </div>
         <button type="button" onClick={() => refetch()} disabled={isFetching}>
@@ -112,9 +114,8 @@ export default function AuditorVoteQueuePage() {
         <div className="card auditor-empty-state">
           <h3>No vote-ready claims</h3>
           <p>
-            There are no manual-review or oracle-failed claims waiting for your
-            auditor wallet right now, or your wallet has already voted on the
-            currently open ones.
+            There are no manual-review claims assigned to your auditor wallet,
+            or your wallet has already voted on its current assignments.
           </p>
           <Link to="/auditor/claims">View all claim timelines</Link>
         </div>

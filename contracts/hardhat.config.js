@@ -25,19 +25,32 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD).setAction(
 
 module.exports = {
   solidity: {
-    version: "0.8.26",
-    settings: {
-      evmVersion: "cancun",
-      optimizer: {
-        enabled: true,
-        runs: 1,
+    compilers: [{
+      version: "0.8.26",
+      settings: {
+        evmVersion: "cancun",
+        optimizer: {
+          enabled: true,
+          runs: 1,
+        },
+        viaIR: true,
+        debug: {
+          revertStrings: "strip",
+        },
+        metadata: {
+          bytecodeHash: "none",
+        },
       },
-      viaIR: true,
-      debug: {
-        revertStrings: "strip",
-      },
-      metadata: {
-        bytecodeHash: "none",
+    }],
+    overrides: {
+      "contracts/ClaimAdjudicator.sol": {
+        version: "0.8.26",
+        settings: {
+          evmVersion: "cancun",
+          optimizer: { enabled: true, runs: 1 },
+          viaIR: true,
+          metadata: { bytecodeHash: "none" },
+        },
       },
     },
   },

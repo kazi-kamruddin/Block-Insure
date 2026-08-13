@@ -1,7 +1,6 @@
 const { ethers } = require("ethers");
 const {
   getAdminContract,
-  getContractBalance,
   getOracleCoordinator,
   getRegistrySnapshot,
   getReadOnlyContract,
@@ -28,15 +27,7 @@ const CONFIRMABLE_ADMIN_ACTIONS = {
     event: "ClaimSentToManualReview",
     status: "MANUAL_REVIEW",
   },
-  APPROVE_CLAIM: { event: "ClaimApproved", status: "APPROVED" },
-  REJECT_CLAIM: { event: "ClaimRejected", status: "REJECTED" },
-  SETTLE_CLAIM: { event: "ClaimSettled", status: "SETTLED" },
-  APPROVE_HIGH_VALUE_SETTLEMENT: {
-    event: "HighValueSettlementApproved",
-    status: "",
-  },
   RESOLVE_ORACLE_TIMEOUT: { event: "OracleTimedOut", status: "ORACLE_FAILED" },
-  CLOSE_CLAIM: { event: "ClaimClosed", status: "CLOSED" },
 };
 
 /* ----------------------------- Status Map ------------------------------ */
@@ -49,10 +40,12 @@ const CLAIM_STATUS = [
   "ORACLE_VERIFIED",
   "ORACLE_FAILED",
   "MANUAL_REVIEW",
-  "APPROVED",
+  "PAYOUT_READY",
   "REJECTED",
   "SETTLED",
   "CLOSED",
+  "FUNDING_REQUIRED",
+  "APPEALED",
 ];
 
 /* ----------------------------- Utilities ------------------------------- */
@@ -112,15 +105,6 @@ const formatPolicyPackage = (policyPackage) => {
     durationDays: policyPackage.durationDays.toString(),
     requiredDocumentType: policyPackage.requiredDocumentType,
     isActive: policyPackage.isActive,
-  };
-};
-
-const formatContractBalance = async () => {
-  const balance = await getContractBalance();
-
-  return {
-    wei: balance.toString(),
-    eth: ethers.formatEther(balance),
   };
 };
 
@@ -757,227 +741,6 @@ const requestOracleForClaim = async (req, res, next) => {
   }
 };
 
-const approveClaim = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      throw createError("Claim id is required", 400);
-    }
-
-    const contract = getAdminContract();
-
-    const tx = await contract.approveClaim(id);
-    const receipt = await tx.wait();
-
-    let approvalEvent = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog && parsedLog.name === "ClaimApproved") {
-          approvalEvent = {
-            claimId: parsedLog.args.claimId.toString(),
-            approvedBy: parsedLog.args.approvedBy,
-            timestamp: parsedLog.args.timestamp.toString(),
-          };
-        }
-      } catch (_) {
-        // Ignore logs from other contracts.
-      }
-    }
-
-    const updatedClaim = await contract.getClaim(id);
-
-    await notifyClaimStatusChange({
-      claim: updatedClaim,
-      status: "APPROVED",
-      transactionHash: tx.hash,
-      source: "admin-approve",
-      message: `Claim #${id} was approved and is ready for settlement.`,
-    });
-
-    await logAdminAction({
-      req,
-      action: "APPROVE_CLAIM",
-      targetType: "CLAIM",
-      targetId: id,
-      tx,
-      receipt,
-      metadata: { approvalEvent },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Claim approved successfully",
-      transactionHash: tx.hash,
-      approvalEvent,
-      claim: formatClaim(updatedClaim),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const settleClaim = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      throw createError("Claim id is required", 400);
-    }
-
-    const contract = getAdminContract();
-
-    const balanceBefore = await formatContractBalance(contract);
-
-    const tx = await contract.settleClaim(id);
-    const receipt = await tx.wait();
-
-    let settlementEvent = null;
-    let settlementCalculation = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog && parsedLog.name === "SettlementCalculated") {
-          settlementCalculation = {
-            claimId: parsedLog.args.claimId.toString(),
-            claimAmountWei: parsedLog.args.claimAmount.toString(),
-            claimAmountEth: ethers.formatEther(parsedLog.args.claimAmount),
-            deductibleWei: parsedLog.args.deductible.toString(),
-            deductibleEth: ethers.formatEther(parsedLog.args.deductible),
-            insurerPaysWei: parsedLog.args.insurerPays.toString(),
-            insurerPaysEth: ethers.formatEther(parsedLog.args.insurerPays),
-            claimantResponsibilityWei:
-              parsedLog.args.claimantResponsibility.toString(),
-            claimantResponsibilityEth: ethers.formatEther(
-              parsedLog.args.claimantResponsibility
-            ),
-          };
-        }
-
-        if (parsedLog && parsedLog.name === "ClaimSettled") {
-          settlementEvent = {
-            claimId: parsedLog.args.claimId.toString(),
-            claimantWallet:
-              parsedLog.args.claimantWallet ||
-              parsedLog.args.recipient ||
-              parsedLog.args[1],
-            amountWei: parsedLog.args.amount.toString(),
-            amountEth: ethers.formatEther(parsedLog.args.amount),
-            timestamp: parsedLog.args.timestamp
-              ? parsedLog.args.timestamp.toString()
-              : null,
-          };
-        }
-      } catch (_) {
-        // Ignore logs from other contracts.
-      }
-    }
-
-    const updatedClaim = await contract.getClaim(id);
-    const balanceAfter = await formatContractBalance(contract);
-
-    await notifyClaimStatusChange({
-      claim: updatedClaim,
-      status: "SETTLED",
-      transactionHash: tx.hash,
-      source: "admin-settle",
-      message: `Claim #${id} was settled successfully.`,
-    });
-
-    await logAdminAction({
-      req,
-      action: "SETTLE_CLAIM",
-      targetType: "CLAIM",
-      targetId: id,
-      tx,
-      receipt,
-      metadata: {
-        settlementEvent,
-        settlementCalculation,
-        balanceBefore,
-        balanceAfter,
-      },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Claim settled successfully",
-      transactionHash: tx.hash,
-      settlementEvent,
-      settlementCalculation,
-      contractBalance: {
-        before: balanceBefore,
-        after: balanceAfter,
-      },
-      claim: formatClaim(updatedClaim),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const approveHighValueSettlement = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      throw createError("Claim id is required", 400);
-    }
-
-    const contract = getAdminContract();
-    const tx = await contract.approveHighValueSettlement(id);
-    const receipt = await tx.wait();
-    let approvalEvent = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog && parsedLog.name === "HighValueSettlementApproved") {
-          approvalEvent = {
-            claimId: parsedLog.args.claimId.toString(),
-            approvedBy: parsedLog.args.approvedBy,
-            insurerPaysWei: parsedLog.args.insurerPays.toString(),
-            insurerPaysEth: ethers.formatEther(parsedLog.args.insurerPays),
-            thresholdWei: parsedLog.args.thresholdWei.toString(),
-            thresholdEth: ethers.formatEther(parsedLog.args.thresholdWei),
-            timestamp: parsedLog.args.timestamp.toString(),
-          };
-        }
-      } catch (_) {
-        // Ignore logs from other contracts.
-      }
-    }
-
-    await logAdminAction({
-      req,
-      action: "APPROVE_HIGH_VALUE_SETTLEMENT",
-      targetType: "CLAIM",
-      targetId: id.toString(),
-      tx,
-      receipt,
-      metadata: approvalEvent || {},
-    });
-
-    const updatedClaim = await contract.getClaim(id);
-
-    res.status(200).json({
-      success: true,
-      message: "High-value settlement approved successfully",
-      transactionHash: tx.hash,
-      approvalEvent,
-      claim: formatClaim(updatedClaim),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
 const resolveTimedOutOracle = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -1033,135 +796,6 @@ const resolveTimedOutOracle = async (req, res, next) => {
       message: "Timed-out oracle request resolved successfully",
       transactionHash: tx.hash,
       timeoutEvent,
-      claim: formatClaim(updatedClaim),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const closeClaim = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      throw createError("Claim id is required", 400);
-    }
-
-    const contract = getAdminContract();
-    const tx = await contract.closeClaim(id);
-    const receipt = await tx.wait();
-    let closureEvent = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog && parsedLog.name === "ClaimClosed") {
-          closureEvent = {
-            claimId: parsedLog.args.claimId.toString(),
-            closedBy: parsedLog.args.closedBy,
-            timestamp: parsedLog.args.timestamp.toString(),
-          };
-        }
-      } catch (_) {
-        // Ignore logs from other contracts.
-      }
-    }
-
-    const updatedClaim = await contract.getClaim(id);
-
-    await notifyClaimStatusChange({
-      claim: updatedClaim,
-      status: "CLOSED",
-      transactionHash: tx.hash,
-      source: "admin-close",
-      message: `Claim #${id} lifecycle was closed.`,
-    });
-
-    await logAdminAction({
-      req,
-      action: "CLOSE_CLAIM",
-      targetType: "CLAIM",
-      targetId: id,
-      tx,
-      receipt,
-      metadata: { closureEvent },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Claim closed successfully",
-      transactionHash: tx.hash,
-      closureEvent,
-      claim: formatClaim(updatedClaim),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const rejectClaim = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { reason = "Claim rejected by admin" } = req.body;
-
-    if (!id) {
-      throw createError("Claim id is required", 400);
-    }
-
-    const contract = getAdminContract();
-
-    const reasonHash = ethers.keccak256(ethers.toUtf8Bytes(reason));
-
-    const tx = await contract.rejectClaim(id, reasonHash);
-    const receipt = await tx.wait();
-
-    let rejectionEvent = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog && parsedLog.name === "ClaimRejected") {
-          rejectionEvent = {
-            claimId: parsedLog.args.claimId.toString(),
-            rejectedBy: parsedLog.args.rejectedBy,
-            reasonHash: parsedLog.args.reasonHash,
-          };
-        }
-      } catch (_) {
-        // Ignore logs from other contracts.
-      }
-    }
-
-    const updatedClaim = await contract.getClaim(id);
-
-    await notifyClaimStatusChange({
-      claim: updatedClaim,
-      status: "REJECTED",
-      transactionHash: tx.hash,
-      source: "admin-reject",
-      message: `Claim #${id} was rejected. You may submit one appeal.`,
-    });
-
-    await logAdminAction({
-      req,
-      action: "REJECT_CLAIM",
-      targetType: "CLAIM",
-      targetId: id,
-      tx,
-      receipt,
-      metadata: { rejectionEvent, reasonHash },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Claim rejected successfully",
-      transactionHash: tx.hash,
-      rejectionEvent,
-      rejectionReason: reason,
-      reasonHash,
       claim: formatClaim(updatedClaim),
     });
   } catch (error) {
@@ -1389,11 +1023,6 @@ module.exports = {
   getAdminClaims,
   requestOracleForClaim,
   resolveTimedOutOracle,
-  approveClaim,
-  rejectClaim,
-  settleClaim,
-  approveHighValueSettlement,
-  closeClaim,
   confirmAdminClaimTransaction,
   sendClaimToManualReview,
 };

@@ -88,7 +88,8 @@ export default function MyClaimsPage() {
             <option value="ORACLE_VERIFIED">Oracle verified</option>
             <option value="ORACLE_FAILED">Oracle failed</option>
             <option value="MANUAL_REVIEW">Manual review</option>
-            <option value="APPROVED">Approved</option>
+            <option value="PAYOUT_READY">Payout ready</option>
+            <option value="FUNDING_REQUIRED">Funding required</option>
             <option value="REJECTED">Rejected</option>
             <option value="SETTLED">Settled</option>
             <option value="CLOSED">Closed</option>

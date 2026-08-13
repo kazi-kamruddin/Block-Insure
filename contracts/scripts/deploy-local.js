@@ -22,6 +22,7 @@ function updateEnvValue(filePath, key, value) {
 function syncLocalContractDeployment(
   contractAddress,
   deploymentBlock,
+  adjudicatorAddress,
   benefitsAddress,
   benefitsDeploymentBlock
 ) {
@@ -34,6 +35,11 @@ function syncLocalContractDeployment(
   ];
 
   targets.forEach(({ file, key }) => updateEnvValue(file, key, contractAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "CLAIM_ADJUDICATOR_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_CLAIM_ADJUDICATOR_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, adjudicatorAddress));
 
   [
     { file: path.join(projectRoot, "backEnd", ".env"), key: "POLICY_BENEFITS_ADDRESS" },
@@ -73,7 +79,7 @@ function syncLocalContractDeployment(
 
 function syncContractAbi() {
   const projectRoot = path.resolve(__dirname, "..", "..");
-  ["InsuranceManager", "OracleCoordinator"].forEach((contractName) => {
+  ["InsuranceManager", "OracleCoordinator", "ClaimAdjudicator"].forEach((contractName) => {
     const artifactPath = path.join(
       projectRoot,
       "contracts",
@@ -135,6 +141,16 @@ async function main() {
   console.log("InsuranceManager deployed to:", contractAddress);
   console.log("InsuranceManager deployment block:", deploymentBlock);
   console.log("OracleCoordinator deployed to:", await insuranceManager.oracleCoordinator());
+
+  const ClaimAdjudicator = await hre.ethers.getContractFactory(
+    "ClaimAdjudicator",
+    adminWallet
+  );
+  const claimAdjudicator = await ClaimAdjudicator.deploy(contractAddress);
+  await claimAdjudicator.waitForDeployment();
+  const adjudicatorAddress = await claimAdjudicator.getAddress();
+  await (await insuranceManager.configureClaimAdjudicator(adjudicatorAddress)).wait();
+  console.log("ClaimAdjudicator deployed to:", adjudicatorAddress);
 
   const premiumAmount = hre.ethers.parseEther("0.01");
   const coverageAmount = hre.ethers.parseEther("1");
@@ -200,6 +216,7 @@ async function main() {
   syncLocalContractDeployment(
     contractAddress,
     deploymentBlock,
+    adjudicatorAddress,
     benefitsAddress,
     benefitsDeploymentBlock
   );
@@ -207,6 +224,7 @@ async function main() {
   console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
   console.log("");
   console.log("CONTRACT_ADDRESS =", contractAddress);
+  console.log("CLAIM_ADJUDICATOR_ADDRESS =", adjudicatorAddress);
   console.log("POLICY_BENEFITS_ADDRESS =", benefitsAddress);
 }
 

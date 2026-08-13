@@ -448,63 +448,10 @@ export async function getAppealByClaim(claimId) {
   return response.data;
 }
 
-export async function reviewAppeal(appealId, payload) {
-  const normalizedStatus = String(payload.status || "").toUpperCase();
-
-  if (!["APPROVED", "REJECTED"].includes(normalizedStatus)) {
-    const response = await api.patch(`/api/appeals/${appealId}/review`, payload);
-    return response.data;
-  }
-
-  const pendingKey = "block-insure:pending-appeal-decisions";
-  const pending = JSON.parse(localStorage.getItem(pendingKey) || "[]");
-  let decision = pending.find(
-    (item) => item.appealId === appealId && item.status === normalizedStatus
-  );
-
-  if (!decision) {
-    const contract = await getWalletContract();
-    const tx =
-      normalizedStatus === "APPROVED"
-        ? await contract.reopenClaimAfterAppeal(payload.claimId)
-        : await contract.finalizeRejectedAppeal(payload.claimId);
-
-    await tx.wait();
-    decision = {
-      appealId,
-      claimId: String(payload.claimId),
-      status: normalizedStatus,
-      transactionHash: tx.hash,
-    };
-    localStorage.setItem(
-      pendingKey,
-      JSON.stringify([
-        ...pending.filter((item) => item.appealId !== appealId),
-        decision,
-      ])
-    );
-  }
-
-  const response = await api.patch(`/api/appeals/${appealId}/review`, {
-    ...payload,
-    transactionHash: decision.transactionHash,
-  });
-  const remaining = JSON.parse(localStorage.getItem(pendingKey) || "[]").filter(
-    (item) => item.appealId !== appealId
-  );
-  localStorage.setItem(pendingKey, JSON.stringify(remaining));
-  return response.data;
-}
-
 export async function getClaimVoteSummary(claimId, voterAddress = "") {
   const response = await api.get(`/api/votes/claim/${claimId}`, {
     params: voterAddress ? { voterAddress } : undefined,
   });
-  return response.data;
-}
-
-export async function finalizeClaimVoting(claimId) {
-  const response = await api.post(`/api/votes/finalize/${claimId}`);
   return response.data;
 }
 
@@ -645,58 +592,12 @@ export async function sendClaimToManualReview(claimId) {
   );
 }
 
-export async function approveClaim(claimId) {
-  const contract = await getWalletContract();
-  return executeAdminWalletAction(
-    "APPROVE_CLAIM",
-    claimId,
-    () => contract.approveClaim(claimId)
-  );
-}
-
-export async function rejectClaim(claimId, reason) {
-  const contract = await getWalletContract();
-  const reasonHash = ethers.keccak256(ethers.toUtf8Bytes(reason));
-  return executeAdminWalletAction(
-    "REJECT_CLAIM",
-    claimId,
-    () => contract.rejectClaim(claimId, reasonHash)
-  );
-}
-
-export async function settleClaim(claimId) {
-  const contract = await getWalletContract();
-  return executeAdminWalletAction(
-    "SETTLE_CLAIM",
-    claimId,
-    () => contract.settleClaim(claimId)
-  );
-}
-
-export async function approveHighValueSettlement(claimId) {
-  const contract = await getWalletContract();
-  return executeAdminWalletAction(
-    "APPROVE_HIGH_VALUE_SETTLEMENT",
-    claimId,
-    () => contract.approveHighValueSettlement(claimId)
-  );
-}
-
 export async function resolveOracleTimeout(claimId) {
   const coordinator = await getWalletOracleCoordinator();
   return executeAdminWalletAction(
     "RESOLVE_ORACLE_TIMEOUT",
     claimId,
     () => coordinator.resolveTimedOutRequest(claimId)
-  );
-}
-
-export async function closeClaim(claimId) {
-  const contract = await getWalletContract();
-  return executeAdminWalletAction(
-    "CLOSE_CLAIM",
-    claimId,
-    () => contract.closeClaim(claimId)
   );
 }
 

@@ -21,6 +21,11 @@ async function configureOracleFixture(
   oracles,
   { threshold = 2, commitBlocks = 20, revealBlocks = 20 } = {}
 ) {
+  if ((await insuranceManager.claimAdjudicator()) === ethers.ZeroAddress) {
+    const Adjudicator = await ethers.getContractFactory("ClaimAdjudicator", admin);
+    const adjudicator = await Adjudicator.deploy(await insuranceManager.getAddress());
+    await insuranceManager.connect(admin).configureClaimAdjudicator(await adjudicator.getAddress());
+  }
   const coordinator = await getOracleCoordinator(insuranceManager, admin);
   const oracleRole = await insuranceManager.ORACLE_ROLE();
 

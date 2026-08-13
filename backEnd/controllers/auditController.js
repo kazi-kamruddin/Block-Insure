@@ -1,6 +1,7 @@
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
+const ClaimAdjudicatorArtifact = require("../abi/ClaimAdjudicator.json");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const OracleLog = require("../models/OracleLog");
@@ -8,6 +9,7 @@ const {
   getProvider,
   getContractAddress,
   getOracleCoordinator,
+  getClaimAdjudicator,
   getReadOnlyContract,
 } = require("../services/contractService");
 
@@ -32,6 +34,19 @@ const CLAIM_EVENT_NAMES = new Set([
   "SettlementCalculated",
   "ClaimSettled",
   "ClaimClosed",
+  "ManualReviewOpened",
+  "ManualReviewFinalized",
+  "PayoutRecorded",
+  "PayoutFunded",
+  "PayoutWithdrawn",
+  "DecisionRecorded",
+  "AppealStarted",
+  "AuditorReputationObserved",
+  "PayoutAllocated",
+  "ClaimFundingRequired",
+  "ClaimFundingActivated",
+  "SettlementWithdrawn",
+  "ClaimDecisionRecorded",
 ]);
 
 const serializeValue = (value) => {
@@ -67,14 +82,17 @@ const buildClaimTimeline = async (id) => {
   const contractAddress = getContractAddress();
   const contract = getReadOnlyContract();
   const coordinator = await getOracleCoordinator(contract);
+  const adjudicator = await getClaimAdjudicator(contract);
   const coordinatorAddress = await coordinator.getAddress();
+  const adjudicatorAddress = await adjudicator.getAddress();
   const interfaces = new Map([
     [contractAddress.toLowerCase(), new ethers.Interface(InsuranceManagerArtifact.abi)],
     [coordinatorAddress.toLowerCase(), new ethers.Interface(OracleCoordinatorArtifact.abi)],
+    [adjudicatorAddress.toLowerCase(), new ethers.Interface(ClaimAdjudicatorArtifact.abi)],
   ]);
   const latestBlock = await provider.getBlockNumber();
   const logs = await provider.getLogs({
-    address: [contractAddress, coordinatorAddress],
+    address: [contractAddress, coordinatorAddress, adjudicatorAddress],
     fromBlock: 0,
     toBlock: latestBlock,
   });

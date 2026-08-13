@@ -22,7 +22,6 @@ import { showToast } from "../services/toast";
 const VOTE_OPTIONS = [
   { code: 1, label: "Valid Claim", tone: "valid" },
   { code: 2, label: "Invalid Claim", tone: "invalid" },
-  { code: 3, label: "Needs More Evidence", tone: "needs-more" },
 ];
 
 function extractClaim(data) {

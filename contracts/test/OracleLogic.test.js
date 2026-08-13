@@ -102,7 +102,7 @@ describe("OracleCoordinator - Exact Consensus and Commit-Reveal", function () {
       .to.emit(fixture.coordinator, "OracleRequestFinalized")
       .withArgs(1, 1, true, resultHash, 1);
 
-    expect((await fixture.insuranceManager.getClaim(1)).status).to.equal(4);
+    expect((await fixture.insuranceManager.getClaim(1)).status).to.equal(11); // FUNDING_REQUIRED
     expect((await fixture.coordinator.getRequest(1)).resultHash).to.equal(resultHash);
   });
 
@@ -332,6 +332,6 @@ describe("OracleCoordinator - Exact Consensus and Commit-Reveal", function () {
       true,
       resultHash
     );
-    expect((await fixture.insuranceManager.getClaim(1)).status).to.equal(4);
+    expect((await fixture.insuranceManager.getClaim(1)).status).to.equal(11); // FUNDING_REQUIRED
   });
 });

@@ -71,17 +71,19 @@ const notifyClaimStatusChange = ({
     ORACLE_PENDING:
       "Independent oracle nodes are checking the submitted hospital record.",
     ORACLE_VERIFIED:
-      "The oracle quorum verified the hospital record. The claim is ready for an admin decision.",
+      "The oracle quorum verified the hospital record and the protocol allocated the settlement automatically.",
     ORACLE_FAILED:
-      "The oracle quorum could not verify the hospital record. The claim can be sent to auditor review.",
+      "The oracle quorum could not verify the hospital record. Manual review becomes publicly routable after the SLA.",
     MANUAL_REVIEW:
-      "The claim is open for auditor voting. A final admin decision follows the voting result.",
-    APPROVED:
-      "The claim was approved and is ready for on-chain settlement.",
+      "Four assigned auditors are voting. Three approvals allocate payout; two rejections reject automatically.",
+    PAYOUT_READY:
+      "The settlement is allocated. Open the claim and withdraw your payment.",
+    FUNDING_REQUIRED:
+      "The claim is valid but awaits treasury backing. It has not been rejected.",
     REJECTED:
       "The claim was rejected. Open the claim to view the reason and appeal options.",
     SETTLED:
-      "The insurer payout was transferred on-chain. Open the claim for the settlement breakdown.",
+      "You withdrew the insurer payout on-chain.",
     CLOSED:
       "The claim lifecycle is complete. No further processing is available.",
   };
