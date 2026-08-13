@@ -1,10 +1,14 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { mine } = require("@nomicfoundation/hardhat-network-helpers");
+const {
+  configureOracleFixture,
+  finalizeExactResult,
+} = require("./helpers/oracleCoordinator");
 
 describe("InsuranceManager - Fast Invariant Checks", function () {
   async function deployFixture() {
-    const [admin, user, oracle, auditor, secondAdmin] = await ethers.getSigners();
+    const [admin, user, oracle, auditor, secondAdmin, secondOracle] = await ethers.getSigners();
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
     const insuranceManager = await InsuranceManager.deploy();
     const premium = ethers.parseEther("0.01");
@@ -20,16 +24,16 @@ describe("InsuranceManager - Fast Invariant Checks", function () {
     await insuranceManager.connect(user).purchasePolicy(1, { value: premium });
 
     await insuranceManager.grantProjectRole(
-      await insuranceManager.ORACLE_ROLE(),
-      oracle.address
-    );
-    await insuranceManager.grantProjectRole(
       await insuranceManager.AUDITOR_ROLE(),
       auditor.address
     );
-    await insuranceManager.updateQuorumThreshold(1);
+    const coordinator = await configureOracleFixture(
+      insuranceManager,
+      admin,
+      [oracle, secondOracle]
+    );
 
-    return { insuranceManager, admin, user, oracle, auditor, secondAdmin };
+    return { insuranceManager, coordinator, admin, user, oracle, secondOracle, auditor, secondAdmin };
   }
 
   const hashText = (value) => ethers.keccak256(ethers.toUtf8Bytes(value));
@@ -54,17 +58,17 @@ describe("InsuranceManager - Fast Invariant Checks", function () {
   }
 
   async function approveClaim(fixture, suffix) {
-    const { insuranceManager, oracle } = fixture;
+    const { insuranceManager, coordinator, oracle, secondOracle } = fixture;
     const claimId = await submitClaim(fixture, suffix);
 
     await insuranceManager.requestOracleVerification(claimId);
-    const request = await insuranceManager.getOracleRequestByClaimId(claimId);
-    await insuranceManager.connect(oracle).submitOracleResult(
+    const request = await coordinator.getRequestByClaimId(claimId);
+    await finalizeExactResult(
+      coordinator,
       request.requestId,
+      [oracle, secondOracle],
       true,
-      hashText(`oracle-${suffix}`),
-      "LOW",
-      "Hospital record matched"
+      hashText(`oracle-${suffix}`)
     );
     await insuranceManager.approveClaim(claimId);
 
@@ -89,17 +93,17 @@ describe("InsuranceManager - Fast Invariant Checks", function () {
 
   it("never allows duplicate auditor votes or votes after closure", async function () {
     const fixture = await deployFixture();
-    const { insuranceManager, auditor, oracle, user } = fixture;
+    const { insuranceManager, coordinator, auditor, oracle, secondOracle, user } = fixture;
     const claimId = await submitClaim(fixture, "auditor-invariant");
 
     await insuranceManager.requestOracleVerification(claimId);
-    const request = await insuranceManager.getOracleRequestByClaimId(claimId);
-    await insuranceManager.connect(oracle).submitOracleResult(
+    const request = await coordinator.getRequestByClaimId(claimId);
+    await finalizeExactResult(
+      coordinator,
       request.requestId,
+      [oracle, secondOracle],
       false,
-      hashText("oracle-failed-auditor-invariant"),
-      "HIGH",
-      "Hospital record mismatch"
+      hashText("oracle-failed-auditor-invariant")
     );
 
     await insuranceManager.connect(auditor).castVote(claimId, 1);
@@ -119,25 +123,22 @@ describe("InsuranceManager - Fast Invariant Checks", function () {
 
   it("never accepts oracle confirmations after timeout finalization", async function () {
     const fixture = await deployFixture();
-    const { insuranceManager, oracle } = fixture;
+    const { insuranceManager, coordinator, oracle } = fixture;
     const claimId = await submitClaim(fixture, "oracle-timeout");
 
-    await insuranceManager.updateOracleTimeoutBlocks(1);
+    await coordinator.updateConsensusConfig(2, 1, 1);
     await insuranceManager.requestOracleVerification(claimId);
-    const request = await insuranceManager.getOracleRequestByClaimId(claimId);
+    const request = await coordinator.getRequestByClaimId(claimId);
 
-    await mine(2);
-    await insuranceManager.resolveTimedOutOracle(claimId);
+    await mine(3);
+    await coordinator.resolveTimedOutRequest(claimId);
 
     const failedClaim = await insuranceManager.getClaim(claimId);
     expect(failedClaim.status).to.equal(5);
     await expect(
-      insuranceManager.connect(oracle).submitOracleResult(
+      coordinator.connect(oracle).commitOracleResult(
         request.requestId,
-        true,
-        hashText("late-oracle"),
-        "LOW",
-        "Late oracle response"
+        hashText("late-oracle")
       )
     ).to.be.reverted;
   });

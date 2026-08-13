@@ -47,6 +47,61 @@
       "inputs": [
         {
           "indexed": true,
+          "internalType": "bytes32",
+          "name": "observationId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "auditor",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "successful",
+          "type": "bool"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "groundTruthHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "successfulOutcomes",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "failedOutcomes",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "betaMeanScore",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "AuditorOutcomeObserved",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
           "internalType": "address",
           "name": "auditor",
           "type": "address"
@@ -578,36 +633,18 @@
       "inputs": [
         {
           "indexed": true,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "claimId",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "oracle",
-          "type": "address"
+          "internalType": "bytes32",
+          "name": "modelVersion",
+          "type": "bytes32"
         },
         {
           "indexed": false,
-          "internalType": "bool",
-          "name": "verified",
-          "type": "bool"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "confirmationCount",
-          "type": "uint8"
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
         }
       ],
-      "name": "OracleConfirmationReceived",
+      "name": "OracleModelVersionUpdated",
       "type": "event"
     },
     {
@@ -689,25 +726,6 @@
         }
       ],
       "name": "OracleTimedOut",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "timeoutBlocks",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "timestamp",
-          "type": "uint256"
-        }
-      ],
-      "name": "OracleTimeoutBlocksUpdated",
       "type": "event"
     },
     {
@@ -951,37 +969,6 @@
         }
       ],
       "name": "PremiumPaid",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "bytes32",
-          "name": "newRoot",
-          "type": "bytes32"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "timestamp",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "blockNumber",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "updatedBy",
-          "type": "address"
-        }
-      ],
-      "name": "RegistryRootUpdated",
       "type": "event"
     },
     {
@@ -1348,7 +1335,64 @@
           "type": "address"
         }
       ],
+      "name": "auditorFailedOutcomes",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "auditorOutcomeRecorded",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
       "name": "auditorReputation",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "auditorSuccessfulOutcomes",
       "outputs": [
         {
           "internalType": "uint256",
@@ -1580,6 +1624,25 @@
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
+        }
+      ],
+      "name": "claimVersion",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         },
         {
           "internalType": "uint256",
@@ -1711,6 +1774,39 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "requestId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "verified",
+          "type": "bool"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint8",
+          "name": "finalizationCode",
+          "type": "uint8"
+        }
+      ],
+      "name": "finalizeOracleResult",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
           "name": "claimId",
           "type": "uint256"
         }
@@ -1725,6 +1821,19 @@
       "name": "fundContract",
       "outputs": [],
       "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getActiveOracles",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -1897,158 +2006,6 @@
           "internalType": "enum InsuranceManager.PolicyStatus",
           "name": "",
           "type": "uint8"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getOracleRequest",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "uint256",
-              "name": "requestId",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "claimId",
-              "type": "uint256"
-            },
-            {
-              "internalType": "string",
-              "name": "oracleType",
-              "type": "string"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "queryHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint256",
-              "name": "requestedAt",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "requestBlock",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bool",
-              "name": "isFulfilled",
-              "type": "bool"
-            },
-            {
-              "internalType": "bool",
-              "name": "verifiedResult",
-              "type": "bool"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "resultHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "string",
-              "name": "riskLevel",
-              "type": "string"
-            },
-            {
-              "internalType": "string",
-              "name": "remarks",
-              "type": "string"
-            }
-          ],
-          "internalType": "struct InsuranceManager.OracleRequest",
-          "name": "",
-          "type": "tuple"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "claimId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getOracleRequestByClaimId",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "uint256",
-              "name": "requestId",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "claimId",
-              "type": "uint256"
-            },
-            {
-              "internalType": "string",
-              "name": "oracleType",
-              "type": "string"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "queryHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint256",
-              "name": "requestedAt",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "requestBlock",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bool",
-              "name": "isFulfilled",
-              "type": "bool"
-            },
-            {
-              "internalType": "bool",
-              "name": "verifiedResult",
-              "type": "bool"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "resultHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "string",
-              "name": "riskLevel",
-              "type": "string"
-            },
-            {
-              "internalType": "string",
-              "name": "remarks",
-              "type": "string"
-            }
-          ],
-          "internalType": "struct InsuranceManager.OracleRequest",
-          "name": "",
-          "type": "tuple"
         }
       ],
       "stateMutability": "view",
@@ -2401,6 +2358,25 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        }
+      ],
+      "name": "isOracleRequestProcessable",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "maxClaimsPerPolicy",
       "outputs": [
@@ -2414,106 +2390,26 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "oracleConfirmationCount",
+      "inputs": [],
+      "name": "oracleCoordinator",
       "outputs": [
         {
-          "internalType": "uint8",
-          "name": "",
-          "type": "uint8"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "oracleConfirmationResults",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "internalType": "address",
+          "internalType": "contract OracleCoordinator",
           "name": "",
           "type": "address"
         }
       ],
-      "name": "oracleHasConfirmed",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
       "stateMutability": "view",
       "type": "function"
     },
     {
       "inputs": [],
-      "name": "oracleQuorumThreshold",
+      "name": "oracleModelVersion",
       "outputs": [
         {
-          "internalType": "uint8",
+          "internalType": "bytes32",
           "name": "",
-          "type": "uint8"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "oracleRequestCounter",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "oracleTimeoutBlocks",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
+          "type": "bytes32"
         }
       ],
       "stateMutability": "view",
@@ -2613,6 +2509,34 @@
     {
       "inputs": [
         {
+          "internalType": "bytes32",
+          "name": "observationId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "auditor",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "successful",
+          "type": "bool"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "groundTruthHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "recordAuditorOutcome",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint256",
           "name": "policyId",
           "type": "uint256"
@@ -2627,45 +2551,6 @@
         }
       ],
       "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "registryMerkleRoot",
-      "outputs": [
-        {
-          "internalType": "bytes32",
-          "name": "",
-          "type": "bytes32"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "registrySnapshotBlock",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "registrySnapshotTimestamp",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -2760,19 +2645,6 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "claimId",
-          "type": "uint256"
-        }
-      ],
-      "name": "resolveTimedOutOracle",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -2912,39 +2784,6 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
-        },
-        {
-          "internalType": "bool",
-          "name": "verified",
-          "type": "bool"
-        },
-        {
-          "internalType": "bytes32",
-          "name": "resultHash",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "string",
-          "name": "riskLevel",
-          "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "remarks",
-          "type": "string"
-        }
-      ],
-      "name": "submitOracleResult",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "bytes4",
           "name": "interfaceId",
           "type": "bytes4"
@@ -2984,24 +2823,6 @@
     {
       "inputs": [
         {
-          "internalType": "address",
-          "name": "auditor",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "newScore",
-          "type": "uint256"
-        }
-      ],
-      "name": "updateAuditorReputation",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "uint256",
           "name": "newWindowSeconds",
           "type": "uint256"
@@ -3028,12 +2849,12 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "timeoutBlocks",
-          "type": "uint256"
+          "internalType": "bytes32",
+          "name": "modelVersion",
+          "type": "bytes32"
         }
       ],
-      "name": "updateOracleTimeoutBlocks",
+      "name": "updateOracleModelVersion",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -3077,32 +2898,6 @@
         }
       ],
       "name": "updatePolicyPackage",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint8",
-          "name": "threshold",
-          "type": "uint8"
-        }
-      ],
-      "name": "updateQuorumThreshold",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "_root",
-          "type": "bytes32"
-        }
-      ],
-      "name": "updateRegistryMerkleRoot",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

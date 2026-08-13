@@ -73,31 +73,26 @@ function syncLocalContractDeployment(
 
 function syncContractAbi() {
   const projectRoot = path.resolve(__dirname, "..", "..");
-  const artifactPath = path.join(
-    projectRoot,
-    "contracts",
-    "artifacts",
-    "contracts",
-    "InsuranceManager.sol",
-    "InsuranceManager.json"
-  );
-  const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
-  const abiDocument = JSON.stringify(
-    {
-      contractName: "InsuranceManager",
-      abi: artifact.abi,
-    },
-    null,
-    2
-  );
+  ["InsuranceManager", "OracleCoordinator"].forEach((contractName) => {
+    const artifactPath = path.join(
+      projectRoot,
+      "contracts",
+      "artifacts",
+      "contracts",
+      `${contractName}.sol`,
+      `${contractName}.json`
+    );
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+    const abiDocument = JSON.stringify({ contractName, abi: artifact.abi }, null, 2);
 
-  [
-    path.join(projectRoot, "backEnd", "abi", "InsuranceManager.json"),
-    path.join(projectRoot, "frontEnd", "src", "abi", "InsuranceManager.json"),
-    path.join(projectRoot, "oracle", "abi", "InsuranceManager.json"),
-  ].forEach((target) => {
-    fs.writeFileSync(target, `${abiDocument}\n`, "utf8");
-    console.log(`Updated ${path.relative(projectRoot, target)}`);
+    [
+      path.join(projectRoot, "backEnd", "abi", `${contractName}.json`),
+      path.join(projectRoot, "frontEnd", "src", "abi", `${contractName}.json`),
+      path.join(projectRoot, "oracle", "abi", `${contractName}.json`),
+    ].forEach((target) => {
+      fs.writeFileSync(target, `${abiDocument}\n`, "utf8");
+      console.log(`Updated ${path.relative(projectRoot, target)}`);
+    });
   });
 }
 
@@ -139,6 +134,7 @@ async function main() {
 
   console.log("InsuranceManager deployed to:", contractAddress);
   console.log("InsuranceManager deployment block:", deploymentBlock);
+  console.log("OracleCoordinator deployed to:", await insuranceManager.oracleCoordinator());
 
   const premiumAmount = hre.ethers.parseEther("0.01");
   const coverageAmount = hre.ethers.parseEther("1");

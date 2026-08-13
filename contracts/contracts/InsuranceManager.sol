@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "./OracleCoordinator.sol";
 
 contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     // =============================================================
@@ -100,20 +101,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         string documentType;
     }
 
-    struct OracleRequest {
-        uint256 requestId;
-        uint256 claimId;
-        string oracleType;
-        bytes32 queryHash;
-        uint256 requestedAt;
-        uint256 requestBlock;
-        bool isFulfilled;
-        bool verifiedResult;
-        bytes32 resultHash;
-        string riskLevel;
-        string remarks;
-    }
-
     struct SettlementRecord {
         uint256 claimId;
         address recipient;
@@ -137,6 +124,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => Claim) private claims;
     mapping(uint256 => ClaimDocument[]) private claimDocuments;
     mapping(uint256 => uint256) private claimBaseRiskScore;
+    mapping(uint256 => uint64) public claimVersion;
     mapping(uint256 => uint256) public claimCountPerPolicy;
     mapping(uint256 => uint256) public claimResolvedAt;
 
@@ -147,15 +135,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(bytes32 => bool) private usedInvoiceHashes;
     mapping(address => mapping(uint256 => mapping(bytes32 => bool))) private userDateClaimTypeUsed;
 
-    uint256 public oracleRequestCounter = 1;
-    uint8 public oracleQuorumThreshold = 2;
-    uint256 public oracleTimeoutBlocks = 50;
-
-    mapping(uint256 => OracleRequest) private oracleRequests;
     mapping(uint256 => uint256) private oracleRequestByClaimId;
-    mapping(uint256 => uint8) public oracleConfirmationCount;
-    mapping(uint256 => mapping(address => bool)) public oracleHasConfirmed;
-    mapping(uint256 => bool[]) public oracleConfirmationResults;
+    OracleCoordinator public oracleCoordinator;
 
     mapping(uint256 => SettlementRecord) private settlementRecords;
     mapping(uint256 => bool) public highValueSettlementApproved;
@@ -170,9 +151,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(address => uint256) public auditorReputation;
     mapping(address => uint256) public auditorTotalVotes;
     mapping(address => bool) private auditorReputationInitialized;
-    bytes32 public registryMerkleRoot;
-    uint256 public registrySnapshotTimestamp;
-    uint256 public registrySnapshotBlock;
+    mapping(address => uint256) public auditorSuccessfulOutcomes;
+    mapping(address => uint256) public auditorFailedOutcomes;
+    mapping(bytes32 => bool) public auditorOutcomeRecorded;
+    bytes32 public oracleModelVersion;
 
     uint256 public deductibleRateBps = 1000;
     uint256 public deductibleCapWei = 0.02 ether;
@@ -269,15 +251,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 resolvedAtBlock
     );
 
-    event OracleTimeoutBlocksUpdated(uint256 timeoutBlocks, uint256 timestamp);
-
-    event OracleConfirmationReceived(
-        uint256 indexed requestId,
-        uint256 indexed claimId,
-        address indexed oracle,
-        bool verified,
-        uint8 confirmationCount
-    );
+    event OracleModelVersionUpdated(bytes32 indexed modelVersion, uint256 timestamp);
 
     event ClaimApproved(
         uint256 indexed claimId,
@@ -386,11 +360,15 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 amount
     );
 
-    event RegistryRootUpdated(
-        bytes32 indexed newRoot,
-        uint256 timestamp,
-        uint256 blockNumber,
-        address updatedBy
+    event AuditorOutcomeObserved(
+        bytes32 indexed observationId,
+        address indexed auditor,
+        bool successful,
+        bytes32 indexed groundTruthHash,
+        uint256 successfulOutcomes,
+        uint256 failedOutcomes,
+        uint256 betaMeanScore,
+        uint256 timestamp
     );
 
     // =============================================================
@@ -400,6 +378,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
+        oracleModelVersion = keccak256("BLOCK_INSURE_FRAUD_MODEL_V1");
+        oracleCoordinator = new OracleCoordinator(address(this));
     }
 
     modifier onlyAdminOrEmergency() {
@@ -439,6 +419,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             adminRoleMemberCount--;
         }
 
+        if (role == ORACLE_ROLE) {
+            oracleCoordinator.setOracle(callerConfirmation, false);
+        }
+
         _revokeRole(role, callerConfirmation);
     }
 
@@ -448,6 +432,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         if (role == ADMIN_ROLE && !hasRole(ADMIN_ROLE, account)) {
             adminRoleMemberCount++;
+        }
+
+        if (role == ORACLE_ROLE && !hasRole(ORACLE_ROLE, account)) {
+            oracleCoordinator.setOracle(account, true);
         }
 
         _grantRole(role, account);
@@ -463,7 +451,15 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             adminRoleMemberCount--;
         }
 
+        if (role == ORACLE_ROLE && hasRole(ORACLE_ROLE, account)) {
+            oracleCoordinator.setOracle(account, false);
+        }
+
         _revokeRole(role, account);
+    }
+
+    function getActiveOracles() external view returns (address[] memory) {
+        return oracleCoordinator.getActiveOracles();
     }
 
     // =============================================================
@@ -728,19 +724,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     // Registry Merkle Commitment
     // =============================================================
 
-    function updateRegistryMerkleRoot(bytes32 _root) external onlyRole(ADMIN_ROLE) {
-        registryMerkleRoot = _root;
-        registrySnapshotTimestamp = block.timestamp;
-        registrySnapshotBlock = block.number;
-
-        emit RegistryRootUpdated(
-            _root,
-            block.timestamp,
-            block.number,
-            msg.sender
-        );
-    }
-
     receive() external payable {
         emit ContractFunded(msg.sender, msg.value);
     }
@@ -806,6 +789,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             riskScore: 0,
             submittedAt: block.timestamp
         });
+        claimVersion[newClaimId] = 1;
 
         claimDocuments[newClaimId].push(
             ClaimDocument({
@@ -962,111 +946,58 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         Claim memory selectedClaim = claims[claimId];
 
-        string memory oracleType = "HOSPITAL";
-
         bytes32 queryHash = keccak256(
-            abi.encodePacked(
+            abi.encode(
                 selectedClaim.claimId,
                 selectedClaim.policyId,
                 selectedClaim.claimantWallet,
-                selectedClaim.hospitalId,
+                selectedClaim.claimAmount,
+                selectedClaim.incidentDate,
+                keccak256(bytes(selectedClaim.claimType)),
+                keccak256(bytes(selectedClaim.hospitalId)),
                 selectedClaim.invoiceHash,
-                selectedClaim.documentHash
+                selectedClaim.documentHash,
+                claimVersion[claimId],
+                oracleModelVersion
             )
         );
 
-        uint256 newRequestId = oracleRequestCounter;
-
-        oracleRequests[newRequestId] = OracleRequest({
-            requestId: newRequestId,
-            claimId: claimId,
-            oracleType: oracleType,
-            queryHash: queryHash,
-            requestedAt: block.timestamp,
-            requestBlock: block.number,
-            isFulfilled: false,
-            verifiedResult: false,
-            resultHash: bytes32(0),
-            riskLevel: "",
-            remarks: ""
-        });
+        uint256 newRequestId = oracleCoordinator.createRequest(
+            claimId,
+            queryHash,
+            claimVersion[claimId],
+            oracleModelVersion
+        );
 
         oracleRequestByClaimId[claimId] = newRequestId;
-        oracleRequestCounter++;
-
         claims[claimId].status = ClaimStatus.ORACLE_PENDING;
 
-        emit OracleRequested(newRequestId, claimId, oracleType);
+        emit OracleRequested(newRequestId, claimId, "HOSPITAL");
 
         return newRequestId;
     }
 
-    function submitOracleResult(
+    function isOracleRequestProcessable(uint256 claimId) external view returns (bool) {
+        return
+            msg.sender == address(oracleCoordinator) &&
+            !paused() &&
+            _claimExists(claimId) &&
+            claims[claimId].status == ClaimStatus.ORACLE_PENDING;
+    }
+
+    function finalizeOracleResult(
         uint256 requestId,
+        uint256 claimId,
         bool verified,
-        bytes32 resultHash,
-        string memory riskLevel,
-        string memory remarks
-    ) external whenNotPaused onlyRole(ORACLE_ROLE) {
-        require(_oracleRequestExists(requestId), "Oracle request does not exist");
-        require(!oracleHasConfirmed[requestId][msg.sender], "Oracle already confirmed");
-        require(!oracleRequests[requestId].isFulfilled, "Oracle request already fulfilled");
-        require(resultHash != bytes32(0), "Result hash required");
-        require(bytes(riskLevel).length > 0, "Risk level required");
-        require(bytes(remarks).length > 0, "Remarks required");
+        bytes32,
+        uint8 finalizationCode
+    ) external {
+        require(msg.sender == address(oracleCoordinator), "Caller is not oracle coordinator");
+        require(_claimExists(claimId), "Claim does not exist");
+        require(oracleRequestByClaimId[claimId] == requestId, "Oracle request mismatch");
+        require(claims[claimId].status == ClaimStatus.ORACLE_PENDING, "Claim is not oracle pending");
 
-        OracleRequest storage requestData = oracleRequests[requestId];
-
-        uint256 claimId = requestData.claimId;
-
-        require(
-            block.number <= requestData.requestBlock + oracleTimeoutBlocks,
-            "Oracle request timed out"
-        );
-
-        require(
-            claims[claimId].status == ClaimStatus.ORACLE_PENDING,
-            "Claim is not oracle pending"
-        );
-
-        oracleHasConfirmed[requestId][msg.sender] = true;
-        oracleConfirmationResults[requestId].push(verified);
-        oracleConfirmationCount[requestId]++;
-
-        requestData.resultHash = resultHash;
-        requestData.riskLevel = riskLevel;
-        requestData.remarks = remarks;
-
-        emit OracleConfirmationReceived(
-            requestId,
-            claimId,
-            msg.sender,
-            verified,
-            oracleConfirmationCount[requestId]
-        );
-
-        if (oracleConfirmationCount[requestId] < oracleQuorumThreshold) {
-            return;
-        }
-
-        uint256 verifiedCount = 0;
-        uint256 failedCount = 0;
-        bool[] storage confirmations = oracleConfirmationResults[requestId];
-
-        for (uint256 i = 0; i < confirmations.length; i++) {
-            if (confirmations[i]) {
-                verifiedCount++;
-            } else {
-                failedCount++;
-            }
-        }
-
-        bool finalVerified = verifiedCount > failedCount;
-
-        requestData.isFulfilled = true;
-        requestData.verifiedResult = finalVerified;
-
-        if (finalVerified) {
+        if (verified) {
             claims[claimId].status = ClaimStatus.ORACLE_VERIFIED;
             _addOracleVerificationScore(claimId);
         } else {
@@ -1076,48 +1007,19 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         emit OracleResultSubmitted(
             requestId,
             claimId,
-            finalVerified,
-            riskLevel
-        );
-    }
-
-    function updateQuorumThreshold(uint8 threshold) external onlyRole(ADMIN_ROLE) {
-        require(threshold >= 1, "Quorum threshold must be at least 1");
-
-        oracleQuorumThreshold = threshold;
-    }
-
-    function updateOracleTimeoutBlocks(uint256 timeoutBlocks) external onlyRole(ADMIN_ROLE) {
-        require(timeoutBlocks > 0, "Oracle timeout must be greater than zero");
-
-        oracleTimeoutBlocks = timeoutBlocks;
-
-        emit OracleTimeoutBlocksUpdated(timeoutBlocks, block.timestamp);
-    }
-
-    function resolveTimedOutOracle(uint256 claimId) external onlyRole(ADMIN_ROLE) {
-        require(_claimExists(claimId), "Claim does not exist");
-        require(claims[claimId].status == ClaimStatus.ORACLE_PENDING, "Claim is not oracle pending");
-
-        uint256 requestId = oracleRequestByClaimId[claimId];
-
-        require(requestId != 0, "Oracle request does not exist");
-
-        OracleRequest storage requestData = oracleRequests[requestId];
-
-        require(!requestData.isFulfilled, "Oracle request already fulfilled");
-        require(
-            block.number > requestData.requestBlock + oracleTimeoutBlocks,
-            "Oracle request has not timed out"
+            verified,
+            verified ? "LOW" : "HIGH"
         );
 
-        requestData.isFulfilled = true;
-        requestData.verifiedResult = false;
-        requestData.riskLevel = "ORACLE_FAILED";
-        requestData.remarks = "Oracle quorum timed out";
-        claims[claimId].status = ClaimStatus.ORACLE_FAILED;
+        if (finalizationCode == 3) {
+            emit OracleTimedOut(requestId, claimId, block.number);
+        }
+    }
 
-        emit OracleTimedOut(requestId, claimId, block.number);
+    function updateOracleModelVersion(bytes32 modelVersion) external onlyRole(ADMIN_ROLE) {
+        require(modelVersion != bytes32(0), "Model version required");
+        oracleModelVersion = modelVersion;
+        emit OracleModelVersionUpdated(modelVersion, block.timestamp);
     }
 
     function updateMaxClaimsPerPolicy(uint256 newMaximum) external onlyRole(ADMIN_ROLE) {
@@ -1164,21 +1066,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             highValueSettlementThresholdWei,
             block.timestamp
         );
-    }
-
-    function getOracleRequest(uint256 requestId) external view returns (OracleRequest memory) {
-        require(_oracleRequestExists(requestId), "Oracle request does not exist");
-        return oracleRequests[requestId];
-    }
-
-    function getOracleRequestByClaimId(uint256 claimId) external view returns (OracleRequest memory) {
-        require(_claimExists(claimId), "Claim does not exist");
-
-        uint256 requestId = oracleRequestByClaimId[claimId];
-
-        require(requestId != 0, "Oracle request does not exist");
-
-        return oracleRequests[requestId];
     }
 
     // =============================================================
@@ -1254,6 +1141,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         delete claimVoters[claimId];
         delete claimResolvedAt[claimId];
         oracleRequestByClaimId[claimId] = 0;
+        claimVersion[claimId]++;
         claims[claimId].riskScore = claimBaseRiskScore[claimId];
         claims[claimId].status = ClaimStatus.DUPLICATE_CHECKED;
         claimAppealFinalized[claimId] = true;
@@ -1300,14 +1188,44 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         emit AuditorVoteCast(claimId, msg.sender, vote, block.timestamp);
     }
 
-    function updateAuditorReputation(address auditor, uint256 newScore) external onlyRole(ADMIN_ROLE) {
+    function recordAuditorOutcome(
+        bytes32 observationId,
+        address auditor,
+        bool successful,
+        bytes32 groundTruthHash
+    ) external onlyRole(ADMIN_ROLE) {
+        require(observationId != bytes32(0), "Observation ID required");
         require(auditor != address(0), "Invalid auditor");
-        require(newScore <= 100, "Reputation exceeds maximum");
+        require(hasRole(AUDITOR_ROLE, auditor), "Account is not an auditor");
+        require(groundTruthHash != bytes32(0), "Ground truth hash required");
+        require(!auditorOutcomeRecorded[observationId], "Outcome already recorded");
 
-        auditorReputation[auditor] = newScore;
+        auditorOutcomeRecorded[observationId] = true;
+        if (successful) {
+            auditorSuccessfulOutcomes[auditor]++;
+        } else {
+            auditorFailedOutcomes[auditor]++;
+        }
+
+        uint256 successfulOutcomes = auditorSuccessfulOutcomes[auditor];
+        uint256 failedOutcomes = auditorFailedOutcomes[auditor];
+        uint256 betaMeanScore = ((successfulOutcomes + 1) * 100) /
+            (successfulOutcomes + failedOutcomes + 2);
+
+        auditorReputation[auditor] = betaMeanScore;
         auditorReputationInitialized[auditor] = true;
 
-        emit AuditorReputationUpdated(auditor, newScore, block.timestamp);
+        emit AuditorReputationUpdated(auditor, betaMeanScore, block.timestamp);
+        emit AuditorOutcomeObserved(
+            observationId,
+            auditor,
+            successful,
+            groundTruthHash,
+            successfulOutcomes,
+            failedOutcomes,
+            betaMeanScore,
+            block.timestamp
+        );
     }
 
     function getClaimVotes(uint256 claimId)
@@ -1528,10 +1446,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     function _claimExists(uint256 claimId) internal view returns (bool) {
         return claims[claimId].claimId != 0;
-    }
-
-    function _oracleRequestExists(uint256 requestId) internal view returns (bool) {
-        return oracleRequests[requestId].requestId != 0;
     }
 
     function _nextDueDate(uint256 fromTimestamp, uint256 endDate) internal pure returns (uint256) {

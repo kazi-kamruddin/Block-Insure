@@ -1,7 +1,10 @@
 const OracleLog = require("../models/OracleLog");
 const OracleHealth = require("../models/OracleHealth");
 const { ethers } = require("ethers");
-const { getReadOnlyContract } = require("../services/contractService");
+const {
+  getOracleCoordinator,
+  getReadOnlyContract,
+} = require("../services/contractService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
 
 const CLAIM_STATUS = [
@@ -28,6 +31,7 @@ const normalizeHash = (value) => String(value || "").trim().toLowerCase();
 
 const verifyOracleSubmission = async ({
   contract,
+  coordinator,
   submittedTxHash,
   requestId,
   claimId,
@@ -53,13 +57,13 @@ const verifyOracleSubmission = async ({
   if (Number(receipt.status) !== 1) {
     throw createError("Oracle submission transaction failed", 409);
   }
-  if (normalizeHash(receipt.to) !== normalizeHash(contract.target)) {
-    throw createError("Transaction does not target the configured contract", 400);
+  if (normalizeHash(receipt.to) !== normalizeHash(coordinator.target)) {
+    throw createError("Transaction does not target the oracle coordinator", 400);
   }
 
   let decoded;
   try {
-    decoded = contract.interface.parseTransaction({
+    decoded = coordinator.interface.parseTransaction({
       data: transaction.data,
       value: transaction.value,
     });
@@ -67,47 +71,43 @@ const verifyOracleSubmission = async ({
     throw createError("Transaction calldata is not a contract oracle submission", 400);
   }
 
-  if (!decoded || decoded.name !== "submitOracleResult") {
-    throw createError("Transaction is not submitOracleResult", 400);
+  if (!decoded || decoded.name !== "revealOracleResult") {
+    throw createError("Transaction is not revealOracleResult", 400);
   }
 
-  const [txRequestId, txVerified, txResultHash, txRiskLevel, txRemarks] =
-    decoded.args;
+  const [txRequestId, txVerified, txResultHash] = decoded.args;
   if (
     txRequestId.toString() !== requestId.toString() ||
     Boolean(txVerified) !== Boolean(verified) ||
-    normalizeHash(txResultHash) !== normalizeHash(resultHash) ||
-    String(txRiskLevel) !== String(riskLevel) ||
-    String(txRemarks) !== String(remarks)
+    normalizeHash(txResultHash) !== normalizeHash(resultHash)
   ) {
     throw createError("Oracle log does not match transaction calldata", 400);
   }
 
   const confirmation = receipt.logs
-    .filter((log) => normalizeHash(log.address) === normalizeHash(contract.target))
+    .filter((log) => normalizeHash(log.address) === normalizeHash(coordinator.target))
     .map((log) => {
       try {
-        return contract.interface.parseLog(log);
+        return coordinator.interface.parseLog(log);
       } catch {
         return null;
       }
     })
-    .find((entry) => entry?.name === "OracleConfirmationReceived");
+    .find((entry) => entry?.name === "OracleResultRevealed");
 
   if (
     !confirmation ||
     confirmation.args.requestId.toString() !== requestId.toString() ||
-    confirmation.args.claimId.toString() !== claimId.toString() ||
     Boolean(confirmation.args.verified) !== Boolean(verified) ||
     normalizeHash(confirmation.args.oracle) !== normalizeHash(transaction.from)
   ) {
     throw createError("Oracle confirmation event does not match the log payload", 400);
   }
 
-  const oracleRequest = await contract.getOracleRequest(requestId);
+  const oracleRequest = await coordinator.getRequest(requestId);
   if (
     oracleRequest.claimId.toString() !== claimId.toString() ||
-    String(oracleRequest.oracleType) !== String(oracleType)
+    String(oracleType) !== "HOSPITAL"
   ) {
     throw createError("Oracle log does not match the on-chain request", 400);
   }
@@ -116,13 +116,8 @@ const verifyOracleSubmission = async ({
     throw createError("Oracle wallet does not match the transaction signer", 400);
   }
 
-  const oracleRole = await contract.ORACLE_ROLE();
-  if (
-    !(await contract.hasRole(oracleRole, transaction.from, {
-      blockTag: receipt.blockNumber,
-    }))
-  ) {
-    throw createError("Transaction signer lacked the oracle role", 403);
+  if (!(await coordinator.eligibleForRequest(requestId, transaction.from))) {
+    throw createError("Transaction signer was not eligible for this request", 403);
   }
 
   return ethers.getAddress(transaction.from).toLowerCase();
@@ -298,30 +293,29 @@ const upsertOracleHealth = async ({
   );
 };
 
-const buildQuorumSummary = async ({ contract, claimId, logs }) => {
+const buildQuorumSummary = async ({ contract, coordinator, claimId, logs }) => {
   const verifiedCount = logs.filter((log) => log.verified === true).length;
   const failedCount = logs.filter((log) => log.verified === false).length;
-  const requiredQuorum = Number(await contract.oracleQuorumThreshold());
+  let requiredQuorum = Number(await coordinator.quorumThreshold());
   let confirmationsReceived = logs.length;
   let oracleRequest = null;
   let statusLabel = "NO_REQUEST";
   let timedOut = false;
 
   try {
-    oracleRequest = await contract.getOracleRequestByClaimId(claimId);
-    const [claim, currentBlock, timeoutBlocks, confirmationCount] = await Promise.all([
+    oracleRequest = await coordinator.getRequestByClaimId(claimId);
+    const [claim, currentBlock, confirmationCount] = await Promise.all([
       contract.getClaim(claimId),
       contract.runner.getBlockNumber(),
-      contract.oracleTimeoutBlocks(),
-      contract.oracleConfirmationCount(oracleRequest.requestId),
+      coordinator.revealCount(oracleRequest.requestId),
     ]);
-    const requestBlock = Number(oracleRequest.requestBlock);
 
+    requiredQuorum = Number(oracleRequest.requiredConfirmations);
     confirmationsReceived = Number(confirmationCount);
     statusLabel = CLAIM_STATUS[Number(claim.status)] || "UNKNOWN";
     timedOut =
       !oracleRequest.isFulfilled &&
-      currentBlock > requestBlock + Number(timeoutBlocks);
+      currentBlock > Number(oracleRequest.revealDeadlineBlock);
   } catch {
     // Claims may legitimately have no oracle request yet.
   }
@@ -393,16 +387,15 @@ const createOracleLog = async (req, res, next) => {
       });
     }
 
-    const calculatedResultHash = ethers.keccak256(
-      ethers.toUtf8Bytes(JSON.stringify(responseData))
-    );
-    if (normalizeHash(calculatedResultHash) !== normalizeHash(resultHash)) {
-      throw createError("Oracle response data does not match its result hash", 400);
+    if (normalizeHash(responseData.resultHash) !== normalizeHash(resultHash)) {
+      throw createError("Oracle response metadata does not identify its result hash", 400);
     }
 
     const contract = getReadOnlyContract();
+    const coordinator = await getOracleCoordinator(contract);
     const verifiedOracleWallet = await verifyOracleSubmission({
       contract,
+      coordinator,
       submittedTxHash,
       requestId,
       claimId,
@@ -463,7 +456,7 @@ const createOracleLog = async (req, res, next) => {
       configIdentity: responseData.configIdentity || "",
     });
 
-    const request = await contract.getOracleRequest(requestId);
+    const request = await coordinator.getRequest(requestId);
 
     if (request.isFulfilled) {
       const claim = await contract.getClaim(claimId);
@@ -503,9 +496,11 @@ const getOracleLogsByClaim = async (req, res, next) => {
       claimId: req.params.claimId.toString(),
     }).sort({ createdAt: 1 }).lean();
     const contract = getReadOnlyContract();
+    const coordinator = await getOracleCoordinator(contract);
     const logs = rawLogs.map(formatOracleLog);
     const quorumSummary = await buildQuorumSummary({
       contract,
+      coordinator,
       claimId: req.params.claimId,
       logs,
     });

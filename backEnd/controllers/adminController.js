@@ -2,6 +2,7 @@ const { ethers } = require("ethers");
 const {
   getAdminContract,
   getContractBalance,
+  getOracleCoordinator,
   getRegistrySnapshot,
   getReadOnlyContract,
 } = require("../services/contractService");
@@ -12,7 +13,7 @@ const {
   paginate,
   parsePagination,
 } = require("../services/contractQueryService");
-const { exportMerkleRoot } = require("../services/merkleRegistryService");
+const { buildRegistryMerkleRoot } = require("../services/merkleRegistryService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
 const { logAdminAction } = require("../services/adminActionLogService");
 const AdminActionLog = require("../models/AdminActionLog");
@@ -130,7 +131,10 @@ const formatRegistrySnapshot = (snapshot) => {
   const timestampValue = Number(timestamp);
 
   return {
+    version: (snapshot.version || 0n).toString(),
     root,
+    treeVersionHash: snapshot.treeVersionHash || ethers.ZeroHash,
+    leafCount: (snapshot.leafCount || 0n).toString(),
     timestamp: {
       unix: timestamp.toString(),
       iso: timestampValue ? new Date(timestampValue * 1000).toISOString() : null,
@@ -461,10 +465,19 @@ const getRegistryMerkleRoot = async (req, res, next) => {
 
 const pushRegistryMerkleRoot = async (req, res, next) => {
   try {
-    const root = await exportMerkleRoot();
+    const merkleRoot = await buildRegistryMerkleRoot();
+    const root = merkleRoot.rootHash || ethers.ZeroHash;
     const contract = getAdminContract();
+    const coordinator = await getOracleCoordinator(contract);
+    const treeVersionHash = ethers.keccak256(
+      ethers.toUtf8Bytes(merkleRoot.treeVersion)
+    );
 
-    const tx = await contract.updateRegistryMerkleRoot(root);
+    const tx = await coordinator.publishRegistrySnapshot(
+      root,
+      merkleRoot.leafCount,
+      treeVersionHash
+    );
     const receipt = await tx.wait();
     const snapshot = await getRegistrySnapshot(contract);
 
@@ -475,7 +488,12 @@ const pushRegistryMerkleRoot = async (req, res, next) => {
       targetId: root,
       tx,
       receipt,
-      metadata: { root },
+      metadata: {
+        root,
+        leafCount: merkleRoot.leafCount,
+        treeVersion: merkleRoot.treeVersion,
+        treeVersionHash,
+      },
     });
 
     res.status(200).json({
@@ -969,7 +987,8 @@ const resolveTimedOutOracle = async (req, res, next) => {
     }
 
     const contract = getAdminContract();
-    const tx = await contract.resolveTimedOutOracle(id);
+    const coordinator = await getOracleCoordinator(contract);
+    const tx = await coordinator.resolveTimedOutRequest(id);
     const receipt = await tx.wait();
     let timeoutEvent = null;
 
@@ -1253,6 +1272,10 @@ const confirmAdminClaimTransaction = async (req, res, next) => {
     }
 
     const contract = getReadOnlyContract();
+    const expectedTarget =
+      action === "RESOLVE_ORACLE_TIMEOUT"
+        ? await (await getOracleCoordinator(contract)).getAddress()
+        : String(contract.target);
     const [receipt, transaction] = await Promise.all([
       contract.runner.getTransactionReceipt(transactionHash),
       contract.runner.getTransaction(transactionHash),
@@ -1271,9 +1294,9 @@ const confirmAdminClaimTransaction = async (req, res, next) => {
     }
 
     if (
-      transaction.to?.toLowerCase() !== String(contract.target).toLowerCase()
+      transaction.to?.toLowerCase() !== expectedTarget.toLowerCase()
     ) {
-      throw createError("Transaction does not target InsuranceManager", 409);
+      throw createError("Transaction does not target the expected contract", 409);
     }
 
     if (

@@ -1,5 +1,6 @@
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
+const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
 
 const getRequiredEnv = (key) => {
   const value = process.env[key];
@@ -38,14 +39,44 @@ const getContractBalance = async () => {
   return provider.getBalance(getContractAddress());
 };
 
+const getOracleCoordinator = async (contract = getReadOnlyContract()) => {
+  const coordinatorAddress = await contract.oracleCoordinator();
+  return new ethers.Contract(
+    coordinatorAddress,
+    OracleCoordinatorArtifact.abi,
+    contract.runner
+  );
+};
+
 const getRegistrySnapshot = async (contract = getReadOnlyContract()) => {
-  const [root, timestamp, blockNumber] = await Promise.all([
-    contract.registryMerkleRoot(),
-    contract.registrySnapshotTimestamp(),
-    contract.registrySnapshotBlock(),
+  const coordinator = await getOracleCoordinator(contract);
+  const [version, root, timestamp, blockNumber] = await Promise.all([
+    coordinator.currentRegistryVersion(),
+    coordinator.currentRegistryRoot(),
+    coordinator.currentRegistryTimestamp(),
+    coordinator.currentRegistryBlock(),
   ]);
 
-  return { root, timestamp, blockNumber };
+  if (version === 0n) {
+    return {
+      version,
+      root,
+      timestamp,
+      blockNumber,
+      treeVersionHash: ethers.ZeroHash,
+      leafCount: 0n,
+    };
+  }
+
+  const snapshot = await coordinator.getRegistrySnapshot(version);
+  return {
+    version,
+    root,
+    timestamp,
+    blockNumber,
+    treeVersionHash: snapshot.treeVersionHash,
+    leafCount: snapshot.leafCount,
+  };
 };
 
 const getAdminWallet = () => {
@@ -74,6 +105,7 @@ module.exports = {
   getProvider,
   getContractAddress,
   getContractBalance,
+  getOracleCoordinator,
   getRegistrySnapshot,
   getReadOnlyContract,
   getAdminContract,

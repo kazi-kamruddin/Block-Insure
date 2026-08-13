@@ -4,6 +4,7 @@ const dns = require("dns");
 const mongoose = require("mongoose");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
+const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
@@ -54,6 +55,11 @@ async function main() {
     InsuranceManagerArtifact.abi,
     provider
   );
+  const coordinator = new ethers.Contract(
+    await contract.oracleCoordinator(),
+    OracleCoordinatorArtifact.abi,
+    provider
+  );
 
   const [packageIds, policyCounter, claimCounter, reserveWei] = await Promise.all([
     getPolicyPackageIds(contract),
@@ -70,7 +76,7 @@ async function main() {
     failures.push(`expected at least 1 ETH settlement reserve, found ${ethers.formatEther(reserveWei)} ETH`);
   }
 
-  const registryRoot = await contract.registryMerkleRoot();
+  const registryRoot = await coordinator.currentRegistryRoot();
   if (registryRoot === ethers.ZeroHash) failures.push("expected a published healthcare registry Merkle root");
 
   const expectedAdmin = new ethers.Wallet(

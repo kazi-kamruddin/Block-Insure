@@ -9,7 +9,13 @@ const axios = require("axios");
 const path = require("node:path");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("./abi/InsuranceManager.json");
+const OracleCoordinatorArtifact = require("./abi/OracleCoordinator.json");
 const { verifyRegistryProof } = require("./merkleProof");
+const {
+  buildCommitment,
+  buildResultHash,
+  buildSalt,
+} = require("./protocol");
 const { loadCursorState, persistCursorState } = require("./cursorState");
 const { writeEvent } = require("../scripts/observability");
 
@@ -25,40 +31,25 @@ for (const [method, level] of [["log", "info"], ["warn", "warn"], ["error", "err
   };
 }
 
-/* ----------------------------- Config ---------------------------------- */
-
 const getRequiredEnv = (key) => {
   const value = process.env[key];
-
-  if (!value) {
-    throw new Error(`${key} is missing in .env`);
-  }
-
+  if (!value) throw new Error(`${key} is missing in ${envFile}`);
   return value;
 };
 
 const RPC_URL = getRequiredEnv("RPC_URL");
 const CONTRACT_ADDRESS = getRequiredEnv("CONTRACT_ADDRESS");
 const ORACLE_INSTANCE_ID = process.env.ORACLE_INSTANCE_ID || instanceFromEnvironment;
-// Simulates network propagation variance between geographically distributed nodes.
-const oracle2SimulatedNetworkDelayMs =
-  ORACLE_INSTANCE_ID === "2"
-    ? Number(process.env.ORACLE2_SIMULATED_NETWORK_DELAY_MS || 3000)
-    : 0;
 const ORACLE_PRIVATE_KEY =
   ORACLE_INSTANCE_ID === "2" && process.env.ORACLE_PRIVATE_KEY_2
     ? process.env.ORACLE_PRIVATE_KEY_2
     : getRequiredEnv("ORACLE_PRIVATE_KEY");
-
 const BACKEND_API_URL = process.env.BACKEND_API_URL || "http://localhost:5000";
 const MOCK_HOSPITAL_API_URL =
   process.env.MOCK_HOSPITAL_API_URL ||
   "http://localhost:5000/mock/hospital/verify";
-
 const ORACLE_START_BLOCK = Number(process.env.ORACLE_START_BLOCK || 0);
-const ORACLE_POLL_INTERVAL_MS = Number(
-  process.env.ORACLE_POLL_INTERVAL_MS || 5000
-);
+const ORACLE_POLL_INTERVAL_MS = Number(process.env.ORACLE_POLL_INTERVAL_MS || 5000);
 const ORACLE_HEARTBEAT_INTERVAL_MS = Number(
   process.env.ORACLE_HEARTBEAT_INTERVAL_MS || 30000
 );
@@ -81,72 +72,59 @@ const ORACLE_REGISTRY_SNAPSHOT =
 const ORACLE_CURSOR_FILE =
   process.env.ORACLE_CURSOR_FILE ||
   path.join(__dirname, ".oracle-state", `cursor-${ORACLE_INSTANCE_ID}.json`);
-
-/* ----------------------------- Setup ----------------------------------- */
+const simulatedNetworkDelayMs =
+  ORACLE_INSTANCE_ID === "2"
+    ? Number(process.env.ORACLE2_SIMULATED_NETWORK_DELAY_MS || 3000)
+    : 0;
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const oracleWallet = new ethers.Wallet(ORACLE_PRIVATE_KEY, provider);
-
-const contract = new ethers.Contract(
+const manager = new ethers.Contract(
   CONTRACT_ADDRESS,
   InsuranceManagerArtifact.abi,
   oracleWallet
 );
-
-const processingRequests = new Set();
+let coordinator;
+let coordinatorAddress;
 let nextOracleScanBlock = ORACLE_START_BLOCK;
 let isPolling = false;
 let cachedRegistryRoot = ethers.ZeroHash;
 let lastHeartbeatSentAt = 0;
-
-/* ----------------------------- Helpers --------------------------------- */
-
-const buildResultHash = (oracleResponse) => {
-  return ethers.keccak256(ethers.toUtf8Bytes(JSON.stringify(oracleResponse)));
-};
+const processingRequests = new Set();
 
 const normalizeHash = (value) => String(value || "").trim().toLowerCase();
 const sleep = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-const buildHeartbeatMessage = ({
-  timestamp,
-  lastProcessedRequestId,
-  lastProcessedClaimId,
-  lastTxHash,
-}) =>
-  [
-    "Block-Insure oracle heartbeat",
-    ORACLE_INSTANCE_ID,
-    oracleWallet.address.toLowerCase(),
-    timestamp,
-    lastProcessedRequestId,
-    lastProcessedClaimId,
-    String(lastTxHash || "").toLowerCase(),
-  ].join(":");
+const retryTransaction = async (label, operation) => {
+  let lastError;
+  for (let attempt = 1; attempt <= ORACLE_SUBMIT_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt === ORACLE_SUBMIT_MAX_ATTEMPTS) break;
+      const delay = ORACLE_SUBMIT_RETRY_DELAY_MS * attempt;
+      console.warn(
+        `[Oracle ${ORACLE_INSTANCE_ID}] ${label} attempt ${attempt} failed; retrying in ${delay}ms`
+      );
+      await sleep(delay);
+    }
+  }
+  throw lastError;
+};
 
 const loadPersistedCursor = async () => {
-  try {
-    const network = await provider.getNetwork();
-    const cursor = loadCursorState({
-      filePath: ORACLE_CURSOR_FILE,
-      chainId: network.chainId.toString(),
-      contractAddress: CONTRACT_ADDRESS,
-      oracleInstanceId: ORACLE_INSTANCE_ID,
-      startBlock: ORACLE_START_BLOCK,
-    });
-    nextOracleScanBlock = cursor.nextBlock;
-
-    if (cursor.found && !cursor.matched) {
-      console.warn(
-        `[Oracle ${ORACLE_INSTANCE_ID}] Ignoring cursor state from a different deployment`
-      );
-    }
-  } catch (error) {
-    console.warn(
-      `[Oracle ${ORACLE_INSTANCE_ID}] Could not load cursor state:`,
-      error.message
-    );
+  const network = await provider.getNetwork();
+  const cursor = loadCursorState({
+    filePath: ORACLE_CURSOR_FILE,
+    chainId: network.chainId.toString(),
+    contractAddress: coordinatorAddress,
+    oracleInstanceId: ORACLE_INSTANCE_ID,
+    startBlock: ORACLE_START_BLOCK,
+  });
+  nextOracleScanBlock = cursor.nextBlock;
+  if (cursor.found && !cursor.matched) {
+    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Ignoring cursor from another deployment`);
   }
 };
 
@@ -155,76 +133,29 @@ const persistCursor = async () => {
   persistCursorState({
     filePath: ORACLE_CURSOR_FILE,
     chainId: network.chainId.toString(),
-    contractAddress: CONTRACT_ADDRESS,
+    contractAddress: coordinatorAddress,
     oracleInstanceId: ORACLE_INSTANCE_ID,
     nextBlock: nextOracleScanBlock,
   });
 };
 
-const saveOracleLog = async ({
-  requestId,
-  claimId,
-  oracleType,
-  queryData,
-  responseData,
-  resultHash,
-  verified,
-  riskLevel,
-  remarks,
-  submittedTxHash,
-  responseTimeMs,
-}) => {
+const heartbeatMessage = ({ timestamp, requestId, claimId, txHash }) =>
+  [
+    "Block-Insure oracle heartbeat",
+    ORACLE_INSTANCE_ID,
+    oracleWallet.address.toLowerCase(),
+    timestamp,
+    requestId || "",
+    claimId || "",
+    String(txHash || "").toLowerCase(),
+  ].join(":");
+
+const sendHeartbeat = async ({ requestId = "", claimId = "", txHash = "", force = false } = {}) => {
+  if (!force && Date.now() - lastHeartbeatSentAt < ORACLE_HEARTBEAT_INTERVAL_MS) return;
   try {
-    await axios.post(
-      `${BACKEND_API_URL}/api/oracle/logs`,
-      {
-        requestId,
-        claimId,
-        oracleType,
-        queryData,
-        responseData,
-        resultHash,
-        verified,
-        riskLevel,
-        remarks,
-        submittedTxHash,
-        responseTimeMs,
-        oracleWallet: oracleWallet.address,
-        oracleInstanceId: ORACLE_INSTANCE_ID,
-      },
-      {
-        headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
-      }
-    );
-
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle log saved to backend`);
-  } catch (error) {
-    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle log save failed:`, error.message);
-  }
-};
-
-const sendHeartbeat = async ({
-  lastProcessedRequestId = "",
-  lastProcessedClaimId = "",
-  lastTxHash = "",
-  force = false,
-} = {}) => {
-  if (
-    !force &&
-    Date.now() - lastHeartbeatSentAt < ORACLE_HEARTBEAT_INTERVAL_MS
-  ) {
-    return;
-  }
-
-  try {
-    const heartbeatTimestamp = new Date().toISOString();
+    const timestamp = new Date().toISOString();
     const heartbeatSignature = await oracleWallet.signMessage(
-      buildHeartbeatMessage({
-        timestamp: heartbeatTimestamp,
-        lastProcessedRequestId,
-        lastProcessedClaimId,
-        lastTxHash,
-      })
+      heartbeatMessage({ timestamp, requestId, claimId, txHash })
     );
     await axios.post(
       `${BACKEND_API_URL}/api/oracle/heartbeat`,
@@ -234,16 +165,14 @@ const sendHeartbeat = async ({
         label: `Oracle ${ORACLE_INSTANCE_ID}`,
         registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
         registryRoot: cachedRegistryRoot,
-        lastProcessedRequestId,
-        lastProcessedClaimId,
-        lastTxHash,
+        lastProcessedRequestId: requestId,
+        lastProcessedClaimId: claimId,
+        lastTxHash: txHash,
         configIdentity: `snapshot:${ORACLE_REGISTRY_SNAPSHOT}`,
-        heartbeatTimestamp,
+        heartbeatTimestamp: timestamp,
         heartbeatSignature,
       },
-      {
-        headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
-      }
+      { headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {} }
     );
     lastHeartbeatSentAt = Date.now();
   } catch (error) {
@@ -251,347 +180,255 @@ const sendHeartbeat = async ({
   }
 };
 
-const submitWithRetry = async (
-  requestId,
-  verified,
-  resultHash,
-  riskLevel,
-  remarks
-) => {
-  let lastError;
-
-  for (let attempt = 1; attempt <= ORACLE_SUBMIT_MAX_ATTEMPTS; attempt += 1) {
-    try {
-      return await contract.submitOracleResult(
-        requestId,
-        verified,
-        resultHash,
-        riskLevel,
-        remarks
-      );
-    } catch (error) {
-      lastError = error;
-      if (attempt === ORACLE_SUBMIT_MAX_ATTEMPTS) break;
-
-      const delay = ORACLE_SUBMIT_RETRY_DELAY_MS * attempt;
-      console.warn(
-        `[Oracle ${ORACLE_INSTANCE_ID}] Submit attempt ${attempt} failed. Retrying in ${delay}ms...`
-      );
-      await sleep(delay);
-    }
+const saveOracleLog = async (payload) => {
+  try {
+    await axios.post(`${BACKEND_API_URL}/api/oracle/logs`, payload, {
+      headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
+    });
+  } catch (error) {
+    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle log save failed:`, error.message);
   }
-
-  throw lastError;
 };
 
-/* ----------------------------- Handler --------------------------------- */
+const classifyResponse = (request, claim, response) => {
+  const proof = response.merkleProof;
+  const localRoot = proof?.rootHash || "";
+  const proofValid = verifyRegistryProof(proof);
+  const rootMatches =
+    normalizeHash(localRoot) !== "" &&
+    normalizeHash(localRoot) === normalizeHash(request.registryRoot);
+  const snapshotMatches = response.registrySnapshot === ORACLE_REGISTRY_SNAPSHOT;
+  const recordMatchesClaim =
+    proofValid &&
+    normalizeHash(proof.canonicalRecord?.invoiceHash) === normalizeHash(claim.invoiceHash) &&
+    String(proof.canonicalRecord?.hospitalId || "") === String(claim.hospitalId);
+  const hospitalVerified = response.verified === true;
 
-const handleOracleRequested = async (requestId, claimId, oracleType) => {
-  const requestKey = requestId.toString();
+  let verificationCode = "VERIFIED";
+  if (!snapshotMatches) verificationCode = "SNAPSHOT_ID_MISMATCH";
+  else if (!proofValid) verificationCode = "INVALID_MERKLE_PROOF";
+  else if (!rootMatches) verificationCode = "REGISTRY_ROOT_MISMATCH";
+  else if (!recordMatchesClaim) verificationCode = "CLAIM_RECORD_MISMATCH";
+  else if (!hospitalVerified) verificationCode = "HOSPITAL_REJECTED";
 
-  if (processingRequests.has(requestKey)) {
-    return false;
+  const verified = verificationCode === "VERIFIED";
+  return {
+    verified,
+    verificationCode,
+    hospitalVerified,
+    snapshotMatches,
+    proofValid,
+    rootMatches,
+    recordMatchesClaim,
+    localRoot,
+    leafHash: proofValid ? proof.leafHash : ethers.ZeroHash,
+    riskLevel: verified ? response.riskLevel || "LOW" : "HIGH",
+    remarks: verified
+      ? response.message || "Hospital record and committed proof matched"
+      : verificationCode,
+  };
+};
+
+const waitForRevealPhase = async (requestId) => {
+  for (;;) {
+    const request = await coordinator.getRequest(requestId);
+    if (request.isFulfilled || (await coordinator.hasRevealed(requestId, oracleWallet.address))) {
+      return request;
+    }
+    const blockNumber = await provider.getBlockNumber();
+    const allCommitted =
+      Number(await coordinator.commitmentCount(requestId)) ===
+      Number(request.expectedResponses);
+    if (allCommitted || blockNumber > Number(request.commitDeadlineBlock)) return request;
+    if (blockNumber > Number(request.revealDeadlineBlock)) {
+      throw new Error(`Request ${requestId} reveal window expired`);
+    }
+    await sleep(Math.min(ORACLE_POLL_INTERVAL_MS, 2000));
   }
+};
 
+const handleOracleRequested = async (requestId, claimId) => {
+  const requestKey = requestId.toString();
+  if (processingRequests.has(requestKey)) return false;
   processingRequests.add(requestKey);
   const startedAt = Date.now();
 
   try {
-    const oracleRequest = await contract.getOracleRequest(requestId);
-
-    if (oracleRequest.isFulfilled) {
+    let request = await coordinator.getRequest(requestId);
+    if (request.isFulfilled || (await coordinator.hasRevealed(requestId, oracleWallet.address))) {
       return true;
     }
-
-    if (await contract.oracleHasConfirmed(requestId, oracleWallet.address)) {
-      console.log(
-        `[Oracle ${ORACLE_INSTANCE_ID}] Request ${requestKey} was already confirmed by this oracle`
-      );
+    if (!(await coordinator.eligibleForRequest(requestId, oracleWallet.address))) {
+      console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Not eligible for request ${requestKey}`);
       return true;
     }
+    if (simulatedNetworkDelayMs > 0) await sleep(simulatedNetworkDelayMs);
 
-    console.log(`\n[Oracle ${ORACLE_INSTANCE_ID}] OracleRequested event received`);
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Request ID:`, requestId.toString());
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Claim ID:`, claimId.toString());
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle Type:`, oracleType);
-
-    if (oracle2SimulatedNetworkDelayMs > 0) {
-      console.log(
-        `[Oracle ${ORACLE_INSTANCE_ID}] Simulating ${oracle2SimulatedNetworkDelayMs}ms of network propagation variance...`
-      );
-      await sleep(oracle2SimulatedNetworkDelayMs);
-
-      const refreshedRequest = await contract.getOracleRequest(requestId);
-
-      if (refreshedRequest.isFulfilled) {
-        console.log(
-          `[Oracle ${ORACLE_INSTANCE_ID}] Request already finalized while waiting`
-        );
-        return true;
-      }
-
-      if (await contract.oracleHasConfirmed(requestId, oracleWallet.address)) {
-        console.log(
-          `[Oracle ${ORACLE_INSTANCE_ID}] Request ${requestKey} was confirmed while waiting`
-        );
-        return true;
-      }
-    }
-
-    const claim = await contract.getClaim(claimId);
-
+    const claim = await manager.getClaim(claimId);
     const queryData = {
+      claimId: claim.claimId.toString(),
       hospitalId: claim.hospitalId,
       invoiceHash: claim.invoiceHash,
-      claimId: claim.claimId.toString(),
       claimAmountWei: claim.claimAmount.toString(),
       claimAmountEth: ethers.formatEther(claim.claimAmount),
       claimType: claim.claimType,
       incidentDate: claim.incidentDate.toString(),
+      claimVersion: request.claimVersion.toString(),
+      registryVersion: request.registryVersion.toString(),
+      registryRoot: request.registryRoot,
+      modelVersion: request.modelVersion,
     };
-
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Checking mock hospital API...`);
-    console.log(queryData);
-
     const hospitalResponse = await axios.get(MOCK_HOSPITAL_API_URL, {
-      params: {
-        hospitalId: claim.hospitalId,
-        invoiceHash: claim.invoiceHash,
-        claimAmountWei: claim.claimAmount.toString(),
-        claimAmountEth: ethers.formatEther(claim.claimAmount),
-        claimType: claim.claimType,
-        incidentDate: claim.incidentDate.toString(),
-        registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
-      },
-      headers: ORACLE_API_KEY
-        ? { "x-oracle-api-key": ORACLE_API_KEY }
-        : {},
+      params: { ...queryData, registrySnapshot: ORACLE_REGISTRY_SNAPSHOT },
+      headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
     });
+    const assessment = classifyResponse(request, claim, hospitalResponse.data);
+    const resultHash = buildResultHash({
+      request,
+      verified: assessment.verified,
+      verificationCode: assessment.verificationCode,
+      leafHash: assessment.leafHash,
+    });
+    const salt = buildSalt({
+      privateKey: ORACLE_PRIVATE_KEY,
+      requestId,
+      oracleAddress: oracleWallet.address,
+    });
+    const commitment = buildCommitment(request, assessment.verified, resultHash, salt);
+    const existingCommitment = await coordinator.commitments(requestId, oracleWallet.address);
 
-    const [registryRoot, registryTimestamp, registryBlock] = await Promise.all([
-      contract.registryMerkleRoot(),
-      contract.registrySnapshotTimestamp(),
-      contract.registrySnapshotBlock(),
-    ]);
-    const onChainSnapshot = {
-      root: registryRoot,
-      timestamp: registryTimestamp,
-      blockNumber: registryBlock,
-    };
-    const localMerkleRoot = hospitalResponse.data.merkleProof?.rootHash || "";
-    const onChainMerkleRoot = onChainSnapshot.root || onChainSnapshot[0];
-    const registrySnapshotTimestamp =
-      onChainSnapshot.timestamp || onChainSnapshot[1];
-    const registrySnapshotBlock =
-      onChainSnapshot.blockNumber || onChainSnapshot[2];
-    const merkleRootMatchesChain =
-      normalizeHash(localMerkleRoot) !== "" &&
-      normalizeHash(localMerkleRoot) === normalizeHash(onChainMerkleRoot);
-    const registrySnapshotMatches =
-      hospitalResponse.data.registrySnapshot === ORACLE_REGISTRY_SNAPSHOT;
-    const merkleProofVerifiedLocally = verifyRegistryProof(
-      hospitalResponse.data.merkleProof
+    if (existingCommitment === ethers.ZeroHash) {
+      const commitTx = await retryTransaction("Commit", () =>
+        coordinator.commitOracleResult(requestId, commitment)
+      );
+      await commitTx.wait();
+      console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Commitment sent: ${commitTx.hash}`);
+    } else if (normalizeHash(existingCommitment) !== normalizeHash(commitment)) {
+      throw new Error(`Stored commitment for request ${requestKey} differs from recomputed result`);
+    }
+
+    request = await waitForRevealPhase(requestId);
+    if (request.isFulfilled) return true;
+
+    const revealTx = await retryTransaction("Reveal", () =>
+      coordinator.revealOracleResult(
+        requestId,
+        assessment.verified,
+        resultHash,
+        request.claimVersion,
+        request.registryVersion,
+        request.modelVersion,
+        salt
+      )
     );
-    const hospitalVerified = hospitalResponse.data.verified === true;
-    const verified =
-      hospitalVerified &&
-      registrySnapshotMatches &&
-      merkleProofVerifiedLocally &&
-      merkleRootMatchesChain;
-    const riskLevel =
-      !registrySnapshotMatches ||
-      !merkleProofVerifiedLocally ||
-      !merkleRootMatchesChain
-        ? "HIGH"
-        : hospitalResponse.data.riskLevel || (verified ? "LOW" : "HIGH");
-
-    const remarks =
-      !registrySnapshotMatches
-        ? "Hospital registry snapshot identity mismatch"
-        : !merkleProofVerifiedLocally
-          ? "Hospital registry Merkle proof failed local verification"
-          : !merkleRootMatchesChain
-        ? "Hospital registry Merkle root mismatch"
-        : hospitalResponse.data.message ||
-          (verified ? "Hospital record matched" : "Hospital record mismatch");
+    await revealTx.wait();
 
     const oracleResponse = {
-      requestId: requestId.toString(),
+      protocol: "exact-result-commit-reveal-v1",
+      requestId: requestKey,
       claimId: claimId.toString(),
-      oracleType,
       queryData,
       hospitalVerification: hospitalResponse.data,
-      hospitalVerified,
-      registrySnapshotMatches,
-      merkleProofVerifiedLocally,
-      merkleRootMatchesChain,
-      registryCommitment: {
-        localRoot: localMerkleRoot,
-        onChainRoot: onChainMerkleRoot,
-        snapshotTimestamp: registrySnapshotTimestamp.toString(),
-        snapshotBlock: registrySnapshotBlock.toString(),
-      },
-      verified,
-      riskLevel,
-      remarks,
-      checkedAt: new Date().toISOString(),
-      oracleInstanceId: ORACLE_INSTANCE_ID,
-      oracleWallet: oracleWallet.address,
+      assessment,
+      resultHash,
+      commitment,
       registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
     };
-
-    const resultHash = buildResultHash(oracleResponse);
-
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Submitting oracle result...`);
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Verified:`, verified);
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Risk level:`, riskLevel);
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Merkle root matches chain:`, merkleRootMatchesChain);
-    console.log(
-      `[Oracle ${ORACLE_INSTANCE_ID}] Merkle proof verified locally:`,
-      merkleProofVerifiedLocally
-    );
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Result hash:`, resultHash);
-
-    const tx = await submitWithRetry(
-      requestId,
-      verified,
-      resultHash,
-      riskLevel,
-      remarks
-    );
-
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle tx sent:`, tx.hash);
-
-    await tx.wait();
-
-    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle confirmation recorded on-chain`);
-    const responseTimeMs = Date.now() - startedAt;
-
     await saveOracleLog({
-      requestId: requestId.toString(),
+      requestId: requestKey,
       claimId: claimId.toString(),
-      oracleType,
+      oracleType: "HOSPITAL",
       queryData,
       responseData: oracleResponse,
       resultHash,
-      verified,
-      riskLevel,
-      remarks,
-      submittedTxHash: tx.hash,
-      responseTimeMs,
+      verified: assessment.verified,
+      riskLevel: assessment.riskLevel,
+      remarks: assessment.remarks,
+      submittedTxHash: revealTx.hash,
+      responseTimeMs: Date.now() - startedAt,
+      oracleWallet: oracleWallet.address,
+      oracleInstanceId: ORACLE_INSTANCE_ID,
     });
-
     await sendHeartbeat({
-      lastProcessedRequestId: requestId.toString(),
-      lastProcessedClaimId: claimId.toString(),
-      lastTxHash: tx.hash,
+      requestId: requestKey,
+      claimId: claimId.toString(),
+      txHash: revealTx.hash,
       force: true,
     });
+    console.log(
+      `[Oracle ${ORACLE_INSTANCE_ID}] Revealed ${assessment.verificationCode}: ${revealTx.hash}`
+    );
     return true;
-  } catch (error) {
-    console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle handler failed:`, error.message);
-    throw error;
   } finally {
     processingRequests.delete(requestKey);
   }
 };
 
-/* ----------------------------- Polling --------------------------------- */
-
 const pollOracleRequests = async () => {
-  if (isPolling) {
-    return;
-  }
-
+  if (isPolling) return;
   isPolling = true;
-
   try {
     const latestBlock = await provider.getBlockNumber();
-
     if (nextOracleScanBlock > latestBlock) {
       await sendHeartbeat();
       return;
     }
-
-    const chunkEndBlock = Math.min(
+    const endBlock = Math.min(
       latestBlock,
       nextOracleScanBlock + ORACLE_EVENT_QUERY_CHUNK_SIZE - 1
     );
-    const [events, registryEvents] = await Promise.all([
-      contract.queryFilter(
-        contract.filters.OracleRequested(),
+    const [requestEvents, registryEvents] = await Promise.all([
+      coordinator.queryFilter(
+        coordinator.filters.OracleRequested(),
         nextOracleScanBlock,
-        chunkEndBlock
+        endBlock
       ),
-      contract.queryFilter(
-        contract.filters.RegistryRootUpdated(),
+      coordinator.queryFilter(
+        coordinator.filters.RegistrySnapshotPublished(),
         nextOracleScanBlock,
-        chunkEndBlock
+        endBlock
       ),
     ]);
-
     const latestRegistryEvent = registryEvents.at(-1);
-    if (latestRegistryEvent) {
-      cachedRegistryRoot = latestRegistryEvent.args.newRoot;
+    if (latestRegistryEvent) cachedRegistryRoot = latestRegistryEvent.args.root;
+
+    for (const event of requestEvents) {
+      await handleOracleRequested(event.args.requestId, event.args.claimId);
     }
-
-    for (const event of events) {
-      const { requestId, claimId, oracleType } = event.args;
-
-      await handleOracleRequested(requestId, claimId, oracleType);
-    }
-
-    nextOracleScanBlock = chunkEndBlock + 1;
+    nextOracleScanBlock = endBlock + 1;
     await persistCursor();
     await sendHeartbeat();
   } catch (error) {
-    console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle polling failed:`, error.message);
+    console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Polling failed:`, error.message);
   } finally {
     isPolling = false;
   }
 };
 
-/* ----------------------------- Startup --------------------------------- */
-
 const startOracle = async () => {
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle service starting...`);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Env file:`, envFile);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle wallet:`, oracleWallet.address);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Contract:`, CONTRACT_ADDRESS);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] RPC:`, RPC_URL);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Mock hospital API:`, MOCK_HOSPITAL_API_URL);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Registry snapshot:`, ORACLE_REGISTRY_SNAPSHOT);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Start block:`, ORACLE_START_BLOCK);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Poll interval:`, ORACLE_POLL_INTERVAL_MS, "ms");
-  console.log(
-    `[Oracle ${ORACLE_INSTANCE_ID}] Heartbeat interval:`,
-    ORACLE_HEARTBEAT_INTERVAL_MS,
-    "ms"
+  coordinatorAddress = await manager.oracleCoordinator();
+  coordinator = new ethers.Contract(
+    coordinatorAddress,
+    OracleCoordinatorArtifact.abi,
+    oracleWallet
   );
-  console.log(
-    `[Oracle ${ORACLE_INSTANCE_ID}] Simulated network delay:`,
-    oracle2SimulatedNetworkDelayMs,
-    "ms"
-  );
+  cachedRegistryRoot = await coordinator.currentRegistryRoot();
 
-  const oracleRole = await contract.ORACLE_ROLE();
-  const hasOracleRole = await contract.hasRole(oracleRole, oracleWallet.address);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Wallet: ${oracleWallet.address}`);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Manager: ${CONTRACT_ADDRESS}`);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Coordinator: ${coordinatorAddress}`);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Registry source: ${ORACLE_REGISTRY_SNAPSHOT}`);
 
-  if (!hasOracleRole) {
-    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Warning: oracle wallet does not have ORACLE_ROLE on contract.`);
-    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Run backend script: npm run grant:oracle`);
+  const oracleRole = await manager.ORACLE_ROLE();
+  if (!(await manager.hasRole(oracleRole, oracleWallet.address))) {
+    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Wallet does not have ORACLE_ROLE`);
   }
-
-  cachedRegistryRoot = await contract.registryMerkleRoot();
   await loadPersistedCursor();
   await pollOracleRequests();
-
   setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);
-
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle service polling for OracleRequested events...`);
 };
 
 startOracle().catch((error) => {
-  console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Oracle service failed to start:`, error.message);
+  console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Service failed:`, error.message);
   process.exit(1);
 });

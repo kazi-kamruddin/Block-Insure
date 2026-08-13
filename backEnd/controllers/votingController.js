@@ -268,16 +268,32 @@ const finalizeVoting = async (req, res, next) => {
 
       if (change.applied) continue;
 
-      const currentReputation = Number(
-        await contract.auditorReputation(change.auditorAddress)
+      const voterOutcome = finalization.voters.find(
+        (voter) =>
+          voter.auditorAddress.toLowerCase() ===
+          change.auditorAddress.toLowerCase()
+      );
+      const observationId = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(
+          ["uint256", "address"],
+          [claimId, change.auditorAddress]
+        )
+      );
+      const groundTruthHash = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(
+          ["uint256", "uint8"],
+          [claimId, finalization.consensusCode]
+        )
       );
       let transactionHash = change.transactionHash || "";
       let blockNumber = change.blockNumber || null;
 
-      if (currentReputation !== change.newReputation) {
-        const tx = await contract.updateAuditorReputation(
+      if (!(await contract.auditorOutcomeRecorded(observationId))) {
+        const tx = await contract.recordAuditorOutcome(
+          observationId,
           change.auditorAddress,
-          change.newReputation,
+          Boolean(voterOutcome?.votedWithConsensus),
+          groundTruthHash,
           { nonce: nextNonce }
         );
         nextNonce += 1;
@@ -287,11 +303,18 @@ const finalizeVoting = async (req, res, next) => {
         transactionHashes.push(tx.hash);
       }
 
+      const derivedReputation = Number(
+        await contract.auditorReputation(change.auditorAddress)
+      );
+
       await VotingFinalization.updateOne(
         { _id: finalization._id },
         {
           $set: {
             [`reputationChanges.${index}.applied`]: true,
+            [`reputationChanges.${index}.newReputation`]: derivedReputation,
+            [`reputationChanges.${index}.delta`]:
+              derivedReputation - Number(change.previousReputation || 0),
             [`reputationChanges.${index}.transactionHash`]: transactionHash,
             [`reputationChanges.${index}.blockNumber`]: blockNumber,
             lockExpiresAt: new Date(Date.now() + 2 * 60 * 1000),

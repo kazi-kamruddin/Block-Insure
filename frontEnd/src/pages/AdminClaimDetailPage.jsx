@@ -30,6 +30,7 @@ import {
   getContractBalance,
   formatEth,
   getReadOnlyContract,
+  getReadOnlyOracleCoordinator,
   parseTransactionError,
 } from "../services/contractService";
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
@@ -156,18 +157,19 @@ async function getSettlementBreakdown(claimId) {
 }
 
 async function getOracleQuorumStatus(claimId) {
-  const contract = getReadOnlyContract();
-  const oracleRequest = await contract.getOracleRequestByClaimId(claimId);
-  const [confirmations, required] = await Promise.all([
-    contract.oracleConfirmationCount(oracleRequest.requestId),
-    contract.oracleQuorumThreshold(),
-  ]);
+  const coordinator = await getReadOnlyOracleCoordinator();
+  const oracleRequest = await coordinator.getRequestByClaimId(claimId);
+  const confirmations = await coordinator.revealCount(oracleRequest.requestId);
 
   return {
     requestId: oracleRequest.requestId.toString(),
     confirmations: Number(confirmations),
-    required: Number(required),
+    required: Number(oracleRequest.requiredConfirmations),
     finalized: Boolean(oracleRequest.isFulfilled),
+    commitDeadlineBlock: oracleRequest.commitDeadlineBlock.toString(),
+    revealDeadlineBlock: oracleRequest.revealDeadlineBlock.toString(),
+    registryVersion: oracleRequest.registryVersion.toString(),
+    claimVersion: oracleRequest.claimVersion.toString(),
   };
 }
 

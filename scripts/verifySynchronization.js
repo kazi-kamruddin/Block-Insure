@@ -38,6 +38,9 @@ function main() {
   const artifact = readJson(
     "contracts/artifacts/contracts/InsuranceManager.sol/InsuranceManager.json"
   );
+  const coordinatorArtifact = readJson(
+    "contracts/artifacts/contracts/OracleCoordinator.sol/OracleCoordinator.json"
+  );
   const benefitsArtifact = readJson(
     "contracts/artifacts/contracts/PolicyBenefitsManager.sol/PolicyBenefitsManager.json"
   );
@@ -55,11 +58,22 @@ function main() {
       failures
     );
   }
+  for (const target of [
+    "backEnd/abi/OracleCoordinator.json",
+    "frontEnd/src/abi/OracleCoordinator.json",
+    "oracle/abi/OracleCoordinator.json",
+  ]) {
+    const targetAbi = readJson(target).abi;
+    assert(
+      JSON.stringify(targetAbi) === JSON.stringify(coordinatorArtifact.abi),
+      `${target} ABI does not match the compiled coordinator artifact`,
+      failures
+    );
+  }
 
   const requiredFunctions = [
     "submitClaim",
     "requestOracleVerification",
-    "submitOracleResult",
     "castVote",
     "settleClaim",
     "submitAppeal",
@@ -73,6 +87,22 @@ function main() {
     assert(
       functionNames.has(functionName),
       `Compiled ABI is missing ${functionName}`,
+      failures
+    );
+  }
+  const coordinatorFunctionNames = new Set(
+    coordinatorArtifact.abi
+      .filter((entry) => entry.type === "function")
+      .map((entry) => entry.name)
+  );
+  for (const functionName of [
+    "commitOracleResult",
+    "revealOracleResult",
+    "publishRegistrySnapshot",
+  ]) {
+    assert(
+      coordinatorFunctionNames.has(functionName),
+      `Compiled coordinator ABI is missing ${functionName}`,
       failures
     );
   }
@@ -108,6 +138,15 @@ function main() {
   assert(
     deployedBytes <= 24_576,
     `InsuranceManager deployed bytecode is ${deployedBytes} bytes (EIP-170 maximum 24576)`,
+    failures
+  );
+  const coordinatorDeployedBytes = Math.max(
+    (String(coordinatorArtifact.deployedBytecode || "0x").length - 2) / 2,
+    0
+  );
+  assert(
+    coordinatorDeployedBytes <= 24_576,
+    `OracleCoordinator deployed bytecode is ${coordinatorDeployedBytes} bytes (EIP-170 maximum 24576)`,
     failures
   );
   const configuredSizeBudget = Number(
@@ -234,7 +273,7 @@ function main() {
 
   warnings.forEach((warning) => console.warn(`Configuration warning: ${warning}`));
   console.log(
-    `Synchronization/integrity verification passed: 3 core ABI copies match, 4 core service addresses match, contract sizes are ${deployedBytes}/24576 and ${benefitsDeployedBytes}/24576 bytes, and Oracle authentication/RPC settings are synchronized.`
+    `Synchronization/integrity verification passed: manager/coordinator ABI copies match, 4 core service addresses match, contract sizes are ${deployedBytes}/24576 (manager), ${coordinatorDeployedBytes}/24576 (coordinator), and ${benefitsDeployedBytes}/24576 (benefits), and Oracle authentication/RPC settings are synchronized.`
   );
 }
 

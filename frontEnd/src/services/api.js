@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 import {
   getPolicyBenefitsWalletContract,
   getWalletContract,
+  getWalletOracleCoordinator,
 } from "./contractService";
 
 const API_BASE_URL =
@@ -682,11 +683,11 @@ export async function approveHighValueSettlement(claimId) {
 }
 
 export async function resolveOracleTimeout(claimId) {
-  const contract = await getWalletContract();
+  const coordinator = await getWalletOracleCoordinator();
   return executeAdminWalletAction(
     "RESOLVE_ORACLE_TIMEOUT",
     claimId,
-    () => contract.resolveTimedOutOracle(claimId)
+    () => coordinator.resolveTimedOutRequest(claimId)
   );
 }
 

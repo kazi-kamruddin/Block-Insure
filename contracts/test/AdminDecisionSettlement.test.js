@@ -1,23 +1,29 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
+const {
+  configureOracleFixture,
+  finalizeExactResult,
+} = require("./helpers/oracleCoordinator");
 
 describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function () {
   async function deployFixture() {
-    const [admin, claimOfficer, oracle, user, attacker, secondAdmin] =
+    const [admin, claimOfficer, oracle, user, attacker, secondAdmin, secondOracle] =
       await ethers.getSigners();
 
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
     const insuranceManager = await InsuranceManager.deploy();
 
     const CLAIM_OFFICER_ROLE = await insuranceManager.CLAIM_OFFICER_ROLE();
-    const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
     const ADMIN_ROLE = await insuranceManager.ADMIN_ROLE();
 
     await insuranceManager.grantProjectRole(CLAIM_OFFICER_ROLE, claimOfficer.address);
-    await insuranceManager.grantProjectRole(ORACLE_ROLE, oracle.address);
     await insuranceManager.grantProjectRole(ADMIN_ROLE, secondAdmin.address);
-    await insuranceManager.updateQuorumThreshold(1);
+    const coordinator = await configureOracleFixture(
+      insuranceManager,
+      admin,
+      [oracle, secondOracle]
+    );
 
     const PREMIUM = ethers.parseEther("0.01");
     const COVERAGE = ethers.parseEther("1");
@@ -41,6 +47,8 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
       admin,
       claimOfficer,
       oracle,
+      secondOracle,
+      coordinator,
       user,
       attacker,
       secondAdmin,
@@ -100,7 +108,7 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
   }
 
   async function createOracleVerifiedClaim(fixture) {
-    const { insuranceManager, oracle, user, policy, CLAIM_AMOUNT } = fixture;
+    const { insuranceManager, oracle, secondOracle, coordinator, user, policy, CLAIM_AMOUNT } = fixture;
 
     const claimId = await submitCleanClaim({
       insuranceManager,
@@ -112,21 +120,20 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
 
     await insuranceManager.requestOracleVerification(claimId);
 
-    const oracleRequest = await insuranceManager.getOracleRequestByClaimId(claimId);
-
-    await insuranceManager.connect(oracle).submitOracleResult(
+    const oracleRequest = await coordinator.getRequestByClaimId(claimId);
+    await finalizeExactResult(
+      coordinator,
       oracleRequest.requestId,
+      [oracle, secondOracle],
       true,
-      hashText("verified-oracle-result"),
-      "LOW",
-      "Hospital record matched"
+      hashText("verified-oracle-result")
     );
 
     return claimId;
   }
 
   async function createOracleFailedClaim(fixture) {
-    const { insuranceManager, oracle, user, policy, CLAIM_AMOUNT } = fixture;
+    const { insuranceManager, oracle, secondOracle, coordinator, user, policy, CLAIM_AMOUNT } = fixture;
 
     const claimId = await submitCleanClaim({
       insuranceManager,
@@ -138,14 +145,13 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
 
     await insuranceManager.requestOracleVerification(claimId);
 
-    const oracleRequest = await insuranceManager.getOracleRequestByClaimId(claimId);
-
-    await insuranceManager.connect(oracle).submitOracleResult(
+    const oracleRequest = await coordinator.getRequestByClaimId(claimId);
+    await finalizeExactResult(
+      coordinator,
       oracleRequest.requestId,
+      [oracle, secondOracle],
       false,
-      hashText("failed-oracle-result"),
-      "HIGH",
-      "Invoice mismatch found"
+      hashText("failed-oracle-result")
     );
 
     return claimId;
@@ -341,13 +347,13 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     });
 
     await insuranceManager.requestOracleVerification(claimId);
-    const oracleRequest = await insuranceManager.getOracleRequestByClaimId(claimId);
-    await insuranceManager.connect(fixture.oracle).submitOracleResult(
+    const oracleRequest = await fixture.coordinator.getRequestByClaimId(claimId);
+    await finalizeExactResult(
+      fixture.coordinator,
       oracleRequest.requestId,
+      [fixture.oracle, fixture.secondOracle],
       true,
-      hashText("high-value-blocked-oracle"),
-      "LOW",
-      "High-value claim verified"
+      hashText("high-value-blocked-oracle")
     );
     await insuranceManager.approveClaim(claimId);
     await insuranceManager.fundContract({ value: highValueClaimAmount });
@@ -367,13 +373,13 @@ describe("InsuranceManager - Phase 9 Admin Decision and Settlement", function ()
     const expectedSettlement = getExpectedDefaultSettlement(highValueClaimAmount);
 
     await insuranceManager.requestOracleVerification(claimId);
-    const oracleRequest = await insuranceManager.getOracleRequestByClaimId(claimId);
-    await insuranceManager.connect(fixture.oracle).submitOracleResult(
+    const oracleRequest = await fixture.coordinator.getRequestByClaimId(claimId);
+    await finalizeExactResult(
+      fixture.coordinator,
       oracleRequest.requestId,
+      [fixture.oracle, fixture.secondOracle],
       true,
-      hashText("high-value-approved-oracle"),
-      "LOW",
-      "High-value claim verified"
+      hashText("high-value-approved-oracle")
     );
     await insuranceManager.approveClaim(claimId);
     await insuranceManager.fundContract({ value: highValueClaimAmount });

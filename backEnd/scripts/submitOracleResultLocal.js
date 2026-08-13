@@ -2,80 +2,84 @@ require("dotenv").config();
 
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
+const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
+
+const requireEnv = (name) => {
+  if (!process.env[name]) throw new Error(`${name} is missing in .env`);
+  return process.env[name];
+};
 
 const submitOracleResultLocal = async () => {
   try {
-    if (!process.env.RPC_URL) {
-      throw new Error("RPC_URL is missing in .env");
-    }
-
-    if (!process.env.VITE_CONTRACT_ADDRESS) {
-      throw new Error("VITE_CONTRACT_ADDRESS is missing in .env");
-    }
-
-    if (!process.env.ORACLE_PRIVATE_KEY) {
-      throw new Error("ORACLE_PRIVATE_KEY is missing in .env");
-    }
-
-    const requestId = process.argv[2] || "1";
-    const verifiedInput = process.argv[3] || "true";
-
-    const verified = verifiedInput === "true";
-
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-    const oracleWallet = new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY, provider);
-
-    const contract = new ethers.Contract(
-      process.env.VITE_CONTRACT_ADDRESS,
+    const requestId = BigInt(process.argv[2] || "1");
+    const verified = (process.argv[3] || "true") === "true";
+    const provider = new ethers.JsonRpcProvider(requireEnv("RPC_URL"));
+    const manager = new ethers.Contract(
+      requireEnv("VITE_CONTRACT_ADDRESS"),
       InsuranceManagerArtifact.abi,
-      oracleWallet
+      provider
     );
-
-    const oracleRequest = await contract.getOracleRequest(requestId);
-
-    const oracleResponse = {
-      requestId: requestId.toString(),
-      claimId: oracleRequest.claimId.toString(),
-      verified,
-      riskLevel: verified ? "LOW" : "HIGH",
-      remarks: verified
-        ? "Hospital record matched in local oracle simulation"
-        : "Hospital record mismatch in local oracle simulation",
-      checkedAt: new Date().toISOString(),
-    };
-
+    const coordinatorAddress = await manager.oracleCoordinator();
+    const oracleWallets = [
+      new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY"), provider),
+      new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY_2"), provider),
+    ];
+    const request = await new ethers.Contract(
+      coordinatorAddress,
+      OracleCoordinatorArtifact.abi,
+      provider
+    ).getRequest(requestId);
     const resultHash = ethers.keccak256(
-      ethers.toUtf8Bytes(JSON.stringify(oracleResponse))
+      ethers.AbiCoder.defaultAbiCoder().encode(
+        ["string", "uint256", "uint256", "bool"],
+        ["BLOCK_INSURE_LOCAL_MANUAL_RESULT_V1", requestId, request.claimId, verified]
+      )
     );
+    const submissions = [];
 
-    console.log("Submitting oracle result as:", oracleWallet.address);
-    console.log("Request ID:", requestId);
-    console.log("Claim ID:", oracleRequest.claimId.toString());
-    console.log("Verified:", verified);
-    console.log("Result hash:", resultHash);
+    for (const wallet of oracleWallets) {
+      const coordinator = new ethers.Contract(
+        coordinatorAddress,
+        OracleCoordinatorArtifact.abi,
+        wallet
+      );
+      const salt = ethers.keccak256(
+        ethers.solidityPacked(
+          ["string", "uint256", "address"],
+          ["BLOCK_INSURE_LOCAL_SALT", requestId, wallet.address]
+        )
+      );
+      const commitment = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(
+          ["uint256", "uint64", "uint64", "bool", "bytes32", "bytes32", "bytes32"],
+          [requestId, request.claimVersion, request.registryVersion, verified, resultHash, request.modelVersion, salt]
+        )
+      );
+      await (await coordinator.commitOracleResult(requestId, commitment)).wait();
+      submissions.push({ coordinator, wallet, salt });
+    }
 
-    const tx = await contract.submitOracleResult(
-      requestId,
-      verified,
-      resultHash,
-      oracleResponse.riskLevel,
-      oracleResponse.remarks
-    );
+    for (const { coordinator, wallet, salt } of submissions) {
+      const tx = await coordinator.revealOracleResult(
+        requestId,
+        verified,
+        resultHash,
+        request.claimVersion,
+        request.registryVersion,
+        request.modelVersion,
+        salt
+      );
+      await tx.wait();
+      console.log(`Revealed request ${requestId} as ${wallet.address}: ${tx.hash}`);
+    }
 
-    console.log("Transaction sent:", tx.hash);
-
-    await tx.wait();
-
-    const updatedRequest = await contract.getOracleRequest(requestId);
-    const updatedClaim = await contract.getClaim(updatedRequest.claimId);
-
-    console.log("Oracle result submitted successfully");
-    console.log("Claim ID:", updatedClaim.claimId.toString());
-    console.log("Claim status code:", updatedClaim.status.toString());
-    console.log("Risk score:", updatedClaim.riskScore.toString());
+    const finalRequest = await submissions[0].coordinator.getRequest(requestId);
+    console.log("Finalized:", finalRequest.isFulfilled);
+    console.log("Verified:", finalRequest.verifiedResult);
+    console.log("Result hash:", finalRequest.resultHash);
   } catch (error) {
     console.error("Submit oracle result failed:", error.message);
-    process.exit(1);
+    process.exitCode = 1;
   }
 };
 

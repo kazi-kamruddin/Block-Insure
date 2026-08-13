@@ -1,6 +1,10 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { getActiveRoleMembers } = require("./helpers/contractQueries");
+const {
+  configureOracleFixture,
+  finalizeExactResult,
+} = require("./helpers/oracleCoordinator");
 
 describe("InsuranceManager - Phase 2 Smoke Test", function () {
   async function deployFixture() {
@@ -11,6 +15,7 @@ describe("InsuranceManager - Phase 2 Smoke Test", function () {
       secondAdmin,
       auditor,
       secondAuditor,
+      secondOracle,
     ] = await ethers.getSigners();
 
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
@@ -24,10 +29,11 @@ describe("InsuranceManager - Phase 2 Smoke Test", function () {
       secondAdmin,
       auditor,
       secondAuditor,
+      secondOracle,
     };
   }
 
-  async function createOracleFailedClaim(insuranceManager, deployer, oracle, user) {
+  async function createOracleFailedClaim(insuranceManager, deployer, oracle, secondOracle, user) {
     const premiumAmount = ethers.parseEther("0.01");
     const coverageAmount = ethers.parseEther("1");
 
@@ -58,17 +64,19 @@ describe("InsuranceManager - Phase 2 Smoke Test", function () {
       "ipfs://claim-document"
     );
 
-    const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
-    await insuranceManager.connect(deployer).grantProjectRole(ORACLE_ROLE, oracle.address);
-    await insuranceManager.connect(deployer).updateQuorumThreshold(1);
+    const coordinator = await configureOracleFixture(
+      insuranceManager,
+      deployer,
+      [oracle, secondOracle]
+    );
     await insuranceManager.connect(deployer).requestOracleVerification(1);
 
-    await insuranceManager.connect(oracle).submitOracleResult(
+    await finalizeExactResult(
+      coordinator,
       1,
+      [oracle, secondOracle],
       false,
-      ethers.keccak256(ethers.toUtf8Bytes("oracle-result")),
-      "ORACLE_FAILED",
-      "Hospital record could not be verified"
+      ethers.keccak256(ethers.toUtf8Bytes("oracle-result"))
     );
 
     return 1;
@@ -281,12 +289,13 @@ describe("InsuranceManager - Phase 2 Smoke Test", function () {
   });
 
   it("Auditor should cast one weighted vote on an oracle-failed claim", async function () {
-    const { insuranceManager, deployer, oracle, user, auditor } = await deployFixture();
+    const { insuranceManager, deployer, oracle, secondOracle, user, auditor } = await deployFixture();
 
     const claimId = await createOracleFailedClaim(
       insuranceManager,
       deployer,
       oracle,
+      secondOracle,
       user
     );
     const AUDITOR_ROLE = await insuranceManager.AUDITOR_ROLE();
@@ -308,12 +317,13 @@ describe("InsuranceManager - Phase 2 Smoke Test", function () {
   });
 
   it("Auditor should not vote twice on the same claim", async function () {
-    const { insuranceManager, deployer, oracle, user, auditor } = await deployFixture();
+    const { insuranceManager, deployer, oracle, secondOracle, user, auditor } = await deployFixture();
 
     const claimId = await createOracleFailedClaim(
       insuranceManager,
       deployer,
       oracle,
+      secondOracle,
       user
     );
     const AUDITOR_ROLE = await insuranceManager.AUDITOR_ROLE();
@@ -326,20 +336,37 @@ describe("InsuranceManager - Phase 2 Smoke Test", function () {
     ).to.be.reverted;
   });
 
-  it("Admin should update auditor reputation within the allowed range", async function () {
+  it("Derives auditor reputation from unique outcome observations", async function () {
     const { insuranceManager, auditor } = await deployFixture();
+    const observationId = ethers.keccak256(ethers.toUtf8Bytes("audit-outcome-1"));
+    const groundTruthHash = ethers.keccak256(ethers.toUtf8Bytes("settlement-outcome-1"));
+    await insuranceManager.grantProjectRole(
+      await insuranceManager.AUDITOR_ROLE(),
+      auditor.address
+    );
 
-    await insuranceManager.updateAuditorReputation(auditor.address, 88);
+    await insuranceManager.recordAuditorOutcome(
+      observationId,
+      auditor.address,
+      true,
+      groundTruthHash
+    );
 
-    expect(await insuranceManager.auditorReputation(auditor.address)).to.equal(88);
+    expect(await insuranceManager.auditorReputation(auditor.address)).to.equal(66);
+    expect(await insuranceManager.auditorSuccessfulOutcomes(auditor.address)).to.equal(1);
 
     await expect(
-      insuranceManager.updateAuditorReputation(auditor.address, 101)
+      insuranceManager.recordAuditorOutcome(
+        observationId,
+        auditor.address,
+        false,
+        groundTruthHash
+      )
     ).to.be.reverted;
   });
 
   it("Auditor voting should require a reviewable claim status and valid vote", async function () {
-    const { insuranceManager, user, auditor } = await deployFixture();
+    const { insuranceManager, deployer, oracle, secondOracle, user, auditor } = await deployFixture();
     const AUDITOR_ROLE = await insuranceManager.AUDITOR_ROLE();
     const premiumAmount = ethers.parseEther("0.01");
     const coverageAmount = ethers.parseEther("1");
@@ -374,6 +401,11 @@ describe("InsuranceManager - Phase 2 Smoke Test", function () {
       insuranceManager.connect(auditor).castVote(1, await insuranceManager.VOTE_VALID())
     ).to.be.reverted;
 
+    await configureOracleFixture(
+      insuranceManager,
+      deployer,
+      [oracle, secondOracle]
+    );
     await insuranceManager.requestOracleVerification(1);
 
     await expect(

@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import InsuranceManagerArtifact from "../abi/InsuranceManager.json";
+import OracleCoordinatorArtifact from "../abi/OracleCoordinator.json";
 import policyBenefitsAbi from "../abi/policyBenefitsAbi";
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
@@ -9,6 +10,8 @@ const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
 export const REQUIRED_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337);
 
 const ABI = InsuranceManagerArtifact.abi || InsuranceManagerArtifact;
+const ORACLE_COORDINATOR_ABI =
+  OracleCoordinatorArtifact.abi || OracleCoordinatorArtifact;
 
 export const CLAIM_STATUS = {
   0: "SUBMITTED",
@@ -52,6 +55,15 @@ export function getReadProvider() {
 
 export function getReadOnlyContract() {
   return new ethers.Contract(requireContractAddress(), ABI, getReadProvider());
+}
+
+export async function getReadOnlyOracleCoordinator() {
+  const manager = getReadOnlyContract();
+  return new ethers.Contract(
+    await manager.oracleCoordinator(),
+    ORACLE_COORDINATOR_ABI,
+    manager.runner
+  );
 }
 
 export async function getContractBalance() {
@@ -138,6 +150,15 @@ export function toUnixSecondsFromDateInput(dateValue) {
   }
 
   return Math.floor(milliseconds / 1000);
+}
+
+export async function getWalletOracleCoordinator() {
+  const manager = await getWalletContract();
+  return new ethers.Contract(
+    await manager.oracleCoordinator(),
+    ORACLE_COORDINATOR_ABI,
+    manager.runner
+  );
 }
 
 function requirePolicyBenefitsAddress() {

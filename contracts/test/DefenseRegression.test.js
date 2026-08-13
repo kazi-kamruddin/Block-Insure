@@ -1,10 +1,14 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { mine, time } = require("@nomicfoundation/hardhat-network-helpers");
+const {
+  configureOracleFixture,
+  finalizeExactResult,
+} = require("./helpers/oracleCoordinator");
 
 describe("InsuranceManager - Defense Regression Edges", function () {
   async function deployFixture() {
-    const [admin, user, otherUser, oracle, auditor] = await ethers.getSigners();
+    const [admin, user, otherUser, oracle, auditor, secondOracle] = await ethers.getSigners();
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
     const insuranceManager = await InsuranceManager.deploy();
     const premium = ethers.parseEther("0.01");
@@ -19,11 +23,14 @@ describe("InsuranceManager - Defense Regression Edges", function () {
       "Hospital Bill"
     );
     await insuranceManager.connect(user).purchasePolicy(1, { value: premium });
-    await insuranceManager.grantProjectRole(await insuranceManager.ORACLE_ROLE(), oracle.address);
     await insuranceManager.grantProjectRole(await insuranceManager.AUDITOR_ROLE(), auditor.address);
-    await insuranceManager.updateQuorumThreshold(1);
+    const coordinator = await configureOracleFixture(
+      insuranceManager,
+      admin,
+      [oracle, secondOracle]
+    );
 
-    return { insuranceManager, admin, user, otherUser, oracle, auditor, premium };
+    return { insuranceManager, coordinator, admin, user, otherUser, oracle, secondOracle, auditor, premium };
   }
 
   async function submitClaim(insuranceManager, user, seed = "regression", policyId = 1) {
@@ -52,7 +59,8 @@ describe("InsuranceManager - Defense Regression Edges", function () {
     return event.args.claimId;
   }
 
-  async function verifyClaim(insuranceManager, oracle, claimId, seed = "verified") {
+  async function verifyClaim(fixture, claimId, seed = "verified") {
+    const { insuranceManager, coordinator, oracle, secondOracle } = fixture;
     const requestTx = await insuranceManager.requestOracleVerification(claimId);
     const receipt = await requestTx.wait();
     const event = receipt.logs
@@ -65,18 +73,19 @@ describe("InsuranceManager - Defense Regression Edges", function () {
       })
       .find((log) => log?.name === "OracleRequested");
 
-    await insuranceManager.connect(oracle).submitOracleResult(
+    await finalizeExactResult(
+      coordinator,
       event.args.requestId,
+      [oracle, secondOracle],
       true,
-      ethers.keccak256(ethers.toUtf8Bytes(seed)),
-      "LOW",
-      "Verified"
+      ethers.keccak256(ethers.toUtf8Bytes(seed))
     );
 
     return event.args.requestId;
   }
 
-  async function failClaimOracle(insuranceManager, oracle, claimId, seed = "failed") {
+  async function failClaimOracle(fixture, claimId, seed = "failed") {
+    const { insuranceManager, coordinator, oracle, secondOracle } = fixture;
     const requestTx = await insuranceManager.requestOracleVerification(claimId);
     const receipt = await requestTx.wait();
     const event = receipt.logs
@@ -89,12 +98,12 @@ describe("InsuranceManager - Defense Regression Edges", function () {
       })
       .find((log) => log?.name === "OracleRequested");
 
-    await insuranceManager.connect(oracle).submitOracleResult(
+    await finalizeExactResult(
+      coordinator,
       event.args.requestId,
+      [oracle, secondOracle],
       false,
-      ethers.keccak256(ethers.toUtf8Bytes(seed)),
-      "HIGH",
-      "Failed"
+      ethers.keccak256(ethers.toUtf8Bytes(seed))
     );
   }
 
@@ -111,10 +120,11 @@ describe("InsuranceManager - Defense Regression Edges", function () {
   });
 
   it("blocks duplicate votes, duplicate appeals, and final admin removal", async function () {
-    const { insuranceManager, user, oracle, auditor, admin } = await deployFixture();
+    const fixture = await deployFixture();
+    const { insuranceManager, user, auditor, admin } = fixture;
     const claimId = await submitClaim(insuranceManager, user, "appeal-vote-edge");
 
-    await failClaimOracle(insuranceManager, oracle, claimId);
+    await failClaimOracle(fixture, claimId);
     await insuranceManager.connect(auditor).castVote(claimId, 1);
     await expect(insuranceManager.connect(auditor).castVote(claimId, 2)).to.be.reverted;
 
@@ -133,8 +143,9 @@ describe("InsuranceManager - Defense Regression Edges", function () {
   });
 
   it("blocks oracle submissions after timeout finalization", async function () {
-    const { insuranceManager, user, oracle } = await deployFixture();
+    const { insuranceManager, coordinator, user, oracle } = await deployFixture();
     const claimId = await submitClaim(insuranceManager, user, "oracle-timeout-edge");
+    await coordinator.updateConsensusConfig(2, 1, 1);
     const requestTx = await insuranceManager.requestOracleVerification(claimId);
     const receipt = await requestTx.wait();
     const requestEvent = receipt.logs
@@ -147,17 +158,13 @@ describe("InsuranceManager - Defense Regression Edges", function () {
       })
       .find((log) => log?.name === "OracleRequested");
 
-    await insuranceManager.updateOracleTimeoutBlocks(1);
     await mine(3);
-    await insuranceManager.resolveTimedOutOracle(claimId);
+    await coordinator.resolveTimedOutRequest(claimId);
 
     await expect(
-      insuranceManager.connect(oracle).submitOracleResult(
+      coordinator.connect(oracle).commitOracleResult(
         requestEvent.args.requestId,
-        true,
-        ethers.keccak256(ethers.toUtf8Bytes("late-result")),
-        "LOW",
-        "Late"
+        ethers.keccak256(ethers.toUtf8Bytes("late-result"))
       )
     ).to.be.reverted;
   });
@@ -187,14 +194,15 @@ describe("InsuranceManager - Defense Regression Edges", function () {
   });
 
   it("keeps premium lifecycle compatible with claim, oracle, approval, and settlement", async function () {
-    const { insuranceManager, user, oracle, premium } = await deployFixture();
+    const fixture = await deployFixture();
+    const { insuranceManager, user, premium } = fixture;
     const policy = await insuranceManager.getPolicy(1);
 
     await time.increaseTo(policy.nextPremiumDueDate - 1n);
     await insuranceManager.connect(user).payPremium(1, { value: premium });
 
     const claimId = await submitClaim(insuranceManager, user, "full-flow");
-    await verifyClaim(insuranceManager, oracle, claimId, "full-flow-result");
+    await verifyClaim(fixture, claimId, "full-flow-result");
     await insuranceManager.approveClaim(claimId);
 
     await expect(insuranceManager.settleClaim(claimId)).to.be.reverted;

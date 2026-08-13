@@ -1,16 +1,22 @@
 const { expect } = require("chai");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 const { ethers } = require("hardhat");
+const {
+  configureOracleFixture,
+  finalizeExactResult,
+} = require("./helpers/oracleCoordinator");
 
 describe("InsuranceManager - Claim Appeal Workflow", function () {
   async function deployFixture() {
-    const [admin, claimant, otherUser, oracle] = await ethers.getSigners();
+    const [admin, claimant, otherUser, oracle, secondOracle] = await ethers.getSigners();
 
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
     const insuranceManager = await InsuranceManager.deploy();
-    const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
-
-    await insuranceManager.grantProjectRole(ORACLE_ROLE, oracle.address);
+    const coordinator = await configureOracleFixture(
+      insuranceManager,
+      admin,
+      [oracle, secondOracle]
+    );
 
     await insuranceManager.createPolicyPackage(
       "Health Basic",
@@ -39,7 +45,7 @@ describe("InsuranceManager - Claim Appeal Workflow", function () {
       "ipfs://appeal-document"
     );
 
-    return { insuranceManager, admin, claimant, otherUser, oracle };
+    return { insuranceManager, coordinator, admin, claimant, otherUser, oracle, secondOracle };
   }
 
   it("Claimant can appeal a rejected claim once", async function () {
@@ -94,19 +100,18 @@ describe("InsuranceManager - Claim Appeal Workflow", function () {
   });
 
   it("Admin can reopen an appealed claim for a fresh oracle cycle", async function () {
-    const { insuranceManager, admin, claimant, oracle } = await deployFixture();
+    const { insuranceManager, coordinator, admin, claimant, oracle, secondOracle } = await deployFixture();
     const rejectionReason = ethers.keccak256(
       ethers.toUtf8Bytes("Rejected after first oracle cycle")
     );
 
-    await insuranceManager.updateQuorumThreshold(1);
     await insuranceManager.requestOracleVerification(1);
-    await insuranceManager.connect(oracle).submitOracleResult(
+    await finalizeExactResult(
+      coordinator,
       1,
+      [oracle, secondOracle],
       true,
-      ethers.keccak256(ethers.toUtf8Bytes("appeal-oracle-result")),
-      "LOW",
-      "Initial oracle verification passed"
+      ethers.keccak256(ethers.toUtf8Bytes("appeal-oracle-result"))
     );
 
     expect((await insuranceManager.getClaim(1)).riskScore).to.equal(100);
@@ -128,8 +133,9 @@ describe("InsuranceManager - Claim Appeal Workflow", function () {
 
     await insuranceManager.requestOracleVerification(1);
 
-    const replacementRequest = await insuranceManager.getOracleRequestByClaimId(1);
+    const replacementRequest = await coordinator.getRequestByClaimId(1);
     expect(replacementRequest.requestId).to.equal(2);
+    expect(replacementRequest.claimVersion).to.equal(2);
 
     await insuranceManager.rejectClaim(1, rejectionReason);
 

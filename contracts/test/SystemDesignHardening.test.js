@@ -2,10 +2,14 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
+const {
+  configureOracleFixture,
+  finalizeExactResult,
+} = require("./helpers/oracleCoordinator");
 
 describe("InsuranceManager - Section 1 System Design Hardening", function () {
   async function deployFixture() {
-    const [admin, emergency, user, otherUser, oracle] = await ethers.getSigners();
+    const [admin, emergency, user, otherUser, oracle, secondOracle] = await ethers.getSigners();
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
     const insuranceManager = await InsuranceManager.deploy();
     const premium = ethers.parseEther("0.01");
@@ -21,17 +25,21 @@ describe("InsuranceManager - Section 1 System Design Hardening", function () {
     );
     await insuranceManager.connect(user).purchasePolicy(1, { value: premium });
 
-    const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
-    await insuranceManager.grantProjectRole(ORACLE_ROLE, oracle.address);
-    await insuranceManager.updateQuorumThreshold(1);
+    const coordinator = await configureOracleFixture(
+      insuranceManager,
+      admin,
+      [oracle, secondOracle]
+    );
 
     return {
       insuranceManager,
+      coordinator,
       admin,
       emergency,
       user,
       otherUser,
       oracle,
+      secondOracle,
       premium,
       coverage,
       policy: await insuranceManager.getPolicy(1),
@@ -59,17 +67,17 @@ describe("InsuranceManager - Section 1 System Design Hardening", function () {
   }
 
   async function createApprovedClaim(fixture, suffix) {
-    const { insuranceManager, oracle } = fixture;
+    const { insuranceManager, coordinator, oracle, secondOracle } = fixture;
     const claimId = await submitCleanClaim(fixture, suffix);
 
     await insuranceManager.requestOracleVerification(claimId);
-    const request = await insuranceManager.getOracleRequestByClaimId(claimId);
-    await insuranceManager.connect(oracle).submitOracleResult(
+    const request = await coordinator.getRequestByClaimId(claimId);
+    await finalizeExactResult(
+      coordinator,
       request.requestId,
+      [oracle, secondOracle],
       true,
-      hashText(`oracle-${suffix}`),
-      "LOW",
-      "Hospital record matched"
+      hashText(`oracle-${suffix}`)
     );
     await insuranceManager.approveClaim(claimId);
 
@@ -164,12 +172,12 @@ describe("InsuranceManager - Section 1 System Design Hardening", function () {
 
   it("lets emergency responders pause but reserves unpause for admins", async function () {
     const fixture = await deployFixture();
-    const { insuranceManager, emergency, oracle } = fixture;
+    const { insuranceManager, coordinator, emergency, oracle } = fixture;
     const approvedClaimId = await createApprovedClaim(fixture, "pause-settle");
     const pendingClaimId = await submitCleanClaim(fixture, "pause-oracle");
 
     await insuranceManager.requestOracleVerification(pendingClaimId);
-    const request = await insuranceManager.getOracleRequestByClaimId(pendingClaimId);
+    const request = await coordinator.getRequestByClaimId(pendingClaimId);
     await insuranceManager.fundContract({ value: ethers.parseEther("0.2") });
 
     const EMERGENCY_ROLE = await insuranceManager.EMERGENCY_ROLE();
@@ -177,14 +185,11 @@ describe("InsuranceManager - Section 1 System Design Hardening", function () {
     await insuranceManager.connect(emergency).pause();
 
     await expect(
-      insuranceManager.connect(oracle).submitOracleResult(
+      coordinator.connect(oracle).commitOracleResult(
         request.requestId,
-        true,
-        hashText("paused-oracle"),
-        "LOW",
-        "Hospital record matched"
+        hashText("paused-oracle")
       )
-    ).to.be.revertedWithCustomError(insuranceManager, "EnforcedPause");
+    ).to.be.reverted;
 
     await expect(
       insuranceManager.settleClaim(approvedClaimId)

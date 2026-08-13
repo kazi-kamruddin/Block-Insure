@@ -4,6 +4,7 @@ const dns = require("dns");
 const mongoose = require("mongoose");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
+const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
 const File = require("../models/File");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
@@ -386,10 +387,15 @@ async function verifyAgainstRegistry({
       ? "HIGH"
       : "MEDIUM";
   const riskLevel = getHigherRiskLevel(comparisonRiskLevel, riskAssessment.riskLevel);
+  const coordinator = new ethers.Contract(
+    await contract.oracleCoordinator(),
+    OracleCoordinatorArtifact.abi,
+    contract.runner
+  );
   const [root, timestamp, blockNumber] = await Promise.all([
-    contract.registryMerkleRoot(),
-    contract.registrySnapshotTimestamp(),
-    contract.registrySnapshotBlock(),
+    coordinator.currentRegistryRoot(),
+    coordinator.currentRegistryTimestamp(),
+    coordinator.currentRegistryBlock(),
   ]);
   const snapshot = { root, timestamp, blockNumber };
 
@@ -465,17 +471,64 @@ async function submitOracleConfirmation({
     oracleWallet: oracleWallet.address,
     registrySnapshot,
   };
+  const coordinator = new ethers.Contract(
+    await oracleContract.oracleCoordinator(),
+    OracleCoordinatorArtifact.abi,
+    oracleWallet
+  );
+  const request = await coordinator.getRequest(requestId);
+  const verificationCode = oracleResponse.verified
+    ? "VERIFIED"
+    : "HOSPITAL_REJECTED";
   const resultHash = ethers.keccak256(
-    ethers.toUtf8Bytes(JSON.stringify(oracleResponse))
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      [
+        "uint256", "uint256", "bytes32", "uint64", "uint64",
+        "bytes32", "bytes32", "bool", "bytes32", "bytes32",
+      ],
+      [
+        request.requestId,
+        request.claimId,
+        request.queryHash,
+        request.claimVersion,
+        request.registryVersion,
+        request.registryRoot,
+        request.modelVersion,
+        oracleResponse.verified,
+        ethers.keccak256(ethers.toUtf8Bytes(verificationCode)),
+        hospitalVerification.merkleProof?.leafHash || ethers.ZeroHash,
+      ]
+    )
+  );
+  oracleResponse.resultHash = resultHash;
+  const salt = ethers.keccak256(
+    ethers.solidityPacked(
+      ["string", "uint256", "address"],
+      ["BLOCK_INSURE_DEMO_SALT", requestId, oracleWallet.address]
+    )
+  );
+  const commitment = ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ["uint256", "uint64", "uint64", "bool", "bytes32", "bytes32", "bytes32"],
+      [requestId, request.claimVersion, request.registryVersion, oracleResponse.verified, resultHash, request.modelVersion, salt]
+    )
   );
   const startedAt = Date.now();
+  await waitFor(coordinator.commitOracleResult(requestId, commitment));
+
+  return { coordinator, request, salt, oracleResponse, startedAt };
+}
+
+async function revealDemoOracle({ coordinator, request, salt, oracleResponse, startedAt }) {
   const receipt = await waitFor(
-    oracleContract.submitOracleResult(
-      requestId,
+    coordinator.revealOracleResult(
+      request.requestId,
       oracleResponse.verified,
-      resultHash,
-      oracleResponse.riskLevel,
-      oracleResponse.remarks
+      oracleResponse.resultHash,
+      request.claimVersion,
+      request.registryVersion,
+      request.modelVersion,
+      salt
     )
   );
 
@@ -485,7 +538,7 @@ async function submitOracleConfirmation({
     oracleType,
     queryData: oracleResponse.queryData,
     responseData: oracleResponse,
-    resultHash,
+    resultHash: oracleResponse.resultHash,
     verified: oracleResponse.verified,
     riskLevel: oracleResponse.riskLevel,
     submittedTxHash: receipt.hash,
@@ -510,8 +563,7 @@ async function runOracleQuorum({
   oracleWallets,
 }) {
   const requestId = await requestOracle(adminContract, claimId);
-
-  await submitOracleConfirmation({
+  const first = await submitOracleConfirmation({
     requestId,
     claimId,
     oracleWallet: oracleWallets[0],
@@ -522,7 +574,7 @@ async function runOracleQuorum({
     provider,
   });
 
-  await submitOracleConfirmation({
+  const second = await submitOracleConfirmation({
     requestId,
     claimId,
     oracleWallet: oracleWallets[1],
@@ -532,6 +584,9 @@ async function runOracleQuorum({
     contractAddress,
     provider,
   });
+
+  await revealDemoOracle(first);
+  await revealDemoOracle(second);
 
   return requestId;
 }
@@ -555,14 +610,23 @@ async function finalizeDemoVoting({ adminContract, claimId, finalizedBy }) {
   const transactionHashes = [];
 
   for (const voter of voteSummary.voters) {
-    const reputationChange = calculateReputationUpdate(
-      voter.auditorAddress,
-      claimId,
-      voteSummary
+    const observationId = ethers.keccak256(
+      ethers.AbiCoder.defaultAbiCoder().encode(
+        ["uint256", "address"],
+        [claimId, voter.auditorAddress]
+      )
     );
-    const tx = await adminContract.updateAuditorReputation(
-      reputationChange.auditorAddress,
-      reputationChange.newReputation
+    const groundTruthHash = ethers.keccak256(
+      ethers.AbiCoder.defaultAbiCoder().encode(
+        ["uint256", "uint8"],
+        [claimId, voteSummary.consensusCode]
+      )
+    );
+    const tx = await adminContract.recordAuditorOutcome(
+      observationId,
+      voter.auditorAddress,
+      voter.vote === voteSummary.consensusCode,
+      groundTruthHash
     );
     const receipt = await tx.wait();
 
@@ -754,14 +818,6 @@ async function main() {
       await grantRoleIfMissing(adminContract, auditorRole, auditor2Wallet.address, "AUDITOR_ROLE");
     }
 
-    if (auditorWallet) {
-      await waitFor(adminContract.updateAuditorReputation(auditorWallet.address, 80));
-    }
-
-    if (auditor2Wallet) {
-      await waitFor(adminContract.updateAuditorReputation(auditor2Wallet.address, 55));
-    }
-
     const contractBalance = await provider.getBalance(contractAddress);
 
     if (contractBalance < ethers.parseEther("1")) {
@@ -770,7 +826,18 @@ async function main() {
     }
 
     const merkleRoot = await exportMerkleRoot();
-    await waitFor(adminContract.updateRegistryMerkleRoot(merkleRoot));
+    const coordinator = new ethers.Contract(
+      await adminContract.oracleCoordinator(),
+      OracleCoordinatorArtifact.abi,
+      adminWallet
+    );
+    await waitFor(
+      coordinator.publishRegistrySnapshot(
+        merkleRoot,
+        records.length,
+        ethers.keccak256(ethers.toUtf8Bytes("phase-6-registry-merkle-v1"))
+      )
+    );
     console.log("Registry Merkle root pushed on-chain:", merkleRoot);
 
     const oracleWallets = [oracleWallet, oracle2Wallet];

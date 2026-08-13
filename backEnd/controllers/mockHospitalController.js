@@ -526,7 +526,10 @@ const getHospitalOnChainRegistryMerkleRoot = async (req, res, next) => {
     res.status(200).json({
       success: true,
       registrySnapshot: {
+        version: (snapshot.version || 0n).toString(),
         root,
+        treeVersionHash: snapshot.treeVersionHash || ethers.ZeroHash,
+        leafCount: (snapshot.leafCount || 0n).toString(),
         committed: root !== ethers.ZeroHash && Number(timestamp) > 0,
         timestamp: {
           unix: timestamp.toString(),

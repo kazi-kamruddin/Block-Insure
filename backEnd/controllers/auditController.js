@@ -1,11 +1,13 @@
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
+const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const OracleLog = require("../models/OracleLog");
 const {
   getProvider,
   getContractAddress,
+  getOracleCoordinator,
   getReadOnlyContract,
 } = require("../services/contractService");
 
@@ -17,6 +19,9 @@ const CLAIM_EVENT_NAMES = new Set([
   "OracleConfirmationReceived",
   "OracleResultSubmitted",
   "OracleTimedOut",
+  "OracleCommitmentSubmitted",
+  "OracleResultRevealed",
+  "OracleRequestFinalized",
   "ClaimApproved",
   "ClaimRejected",
   "ClaimAppealed",
@@ -60,10 +65,16 @@ const safeContractCall = async (callback, fallback = null) => {
 const buildClaimTimeline = async (id) => {
   const provider = getProvider();
   const contractAddress = getContractAddress();
-  const contractInterface = new ethers.Interface(InsuranceManagerArtifact.abi);
+  const contract = getReadOnlyContract();
+  const coordinator = await getOracleCoordinator(contract);
+  const coordinatorAddress = await coordinator.getAddress();
+  const interfaces = new Map([
+    [contractAddress.toLowerCase(), new ethers.Interface(InsuranceManagerArtifact.abi)],
+    [coordinatorAddress.toLowerCase(), new ethers.Interface(OracleCoordinatorArtifact.abi)],
+  ]);
   const latestBlock = await provider.getBlockNumber();
   const logs = await provider.getLogs({
-    address: contractAddress,
+    address: [contractAddress, coordinatorAddress],
     fromBlock: 0,
     toBlock: latestBlock,
   });
@@ -74,14 +85,20 @@ const buildClaimTimeline = async (id) => {
     let parsedLog;
 
     try {
-      parsedLog = contractInterface.parseLog(log);
+      parsedLog = interfaces.get(log.address.toLowerCase()).parseLog(log);
     } catch (_) {
       continue;
     }
 
     if (!parsedLog || !CLAIM_EVENT_NAMES.has(parsedLog.name)) continue;
 
-    const eventClaimId = getClaimIdFromParsedLog(parsedLog);
+    let eventClaimId = getClaimIdFromParsedLog(parsedLog);
+    if (eventClaimId === null && parsedLog.args.requestId !== undefined) {
+      const request = await safeContractCall(() =>
+        coordinator.getRequest(parsedLog.args.requestId)
+      );
+      eventClaimId = request?.claimId?.toString?.() || null;
+    }
 
     if (eventClaimId !== id.toString()) continue;
 

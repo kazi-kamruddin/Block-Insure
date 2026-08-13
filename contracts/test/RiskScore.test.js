@@ -1,5 +1,9 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const {
+  configureOracleFixture,
+  finalizeExactResult,
+} = require("./helpers/oracleCoordinator");
 
 function getRiskLevel(claim) {
   if (Number(claim.status) === 2) return "FRAUD_FLAGGED";
@@ -11,7 +15,7 @@ function getRiskLevel(claim) {
 
 describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
   async function deployFixture() {
-    const [admin, user] = await ethers.getSigners();
+    const [admin, user, oracle, secondOracle] = await ethers.getSigners();
 
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
     const insuranceManager = await InsuranceManager.deploy();
@@ -36,6 +40,8 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
       insuranceManager,
       admin,
       user,
+      oracle,
+      secondOracle,
       PREMIUM,
       COVERAGE,
       policy,
@@ -128,23 +134,23 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
   });
 
   it("Oracle-failed claim risk level returns ORACLE_FAILED", async function () {
-    const { insuranceManager, user, policy, admin } = await deployFixture();
-  
-    const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
-
-    await insuranceManager.grantProjectRole(ORACLE_ROLE, admin.address);
-    await insuranceManager.updateQuorumThreshold(1);
+    const { insuranceManager, user, policy, admin, oracle, secondOracle } = await deployFixture();
+    const coordinator = await configureOracleFixture(
+      insuranceManager,
+      admin,
+      [oracle, secondOracle]
+    );
 
     await submitClaim({ insuranceManager, user, policy });
 
     await insuranceManager.requestOracleVerification(1);
 
-    await insuranceManager.submitOracleResult(
+    await finalizeExactResult(
+      coordinator,
       1,
+      [oracle, secondOracle],
       false,
-      hashText("failed-oracle-risk-response"),
-      "HIGH",
-      "Oracle verification failed"
+      hashText("failed-oracle-risk-response")
     );
 
     const claim = await insuranceManager.getClaim(1);
