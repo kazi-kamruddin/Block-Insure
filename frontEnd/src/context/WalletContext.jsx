@@ -118,7 +118,7 @@ export function WalletProvider({ children }) {
       }
 
       const signature = await signer.signMessage(message);
-      const loginData = await loginWithWallet(selectedWallet, signature);
+      const loginData = await loginWithWallet(selectedWallet, message, signature);
 
       const token = getToken(loginData);
 

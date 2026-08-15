@@ -51,9 +51,10 @@ export async function getWalletNonce(walletAddress) {
   return response.data;
 }
 
-export async function loginWithWallet(walletAddress, signature) {
+export async function loginWithWallet(walletAddress, message, signature) {
   const response = await api.post("/api/auth/wallet-login", {
     walletAddress,
+    message,
     signature,
   });
 
@@ -158,8 +159,12 @@ export async function uploadClaimDocument({
     formData.append("encryptionAlgorithm", encryption.algorithm);
     formData.append("originalMimeType", encryption.originalMimeType);
     formData.append("originalName", encryption.originalName);
-    formData.append("wrappedEvidenceKey", encryption.wrappedEvidenceKey);
-    formData.append("keyId", encryption.keyId);
+    formData.append("keyCapsule", encryption.keyCapsule);
+    formData.append("associatedData", encryption.associatedData);
+    formData.append(
+      "encryptionIdentityVersion",
+      String(encryption.encryptionIdentityVersion)
+    );
   }
 
   const response = await api.post("/api/documents/upload", formData, {
@@ -350,6 +355,36 @@ export async function getEvidenceDecryptionKey(documentId) {
   return response.data;
 }
 
+export async function registerEvidenceEncryptionIdentity(identity) {
+  const response = await api.post("/api/documents/encryption-key", identity);
+  return response.data;
+}
+
+export async function getRecipientEncryptionIdentity(walletAddress, claimId) {
+  const response = await api.get(
+    `/api/documents/encryption-identities/${walletAddress}`,
+    { params: { claimId } }
+  );
+  return response.data;
+}
+
+export async function grantDocumentAccess(documentId, payload) {
+  const response = await api.post(`/api/documents/${documentId}/grants`, payload);
+  return response.data;
+}
+
+export async function revokeDocumentAccess(documentId, granteeWallet) {
+  const response = await api.delete(`/api/documents/${documentId}/grants`, {
+    data: { granteeWallet },
+  });
+  return response.data;
+}
+
+export async function getEvidenceReceipt(documentId) {
+  const response = await api.get(`/api/documents/${documentId}/receipt`);
+  return response.data;
+}
+
 export async function getAllReadableClaims(params = {}) {
   const response = await api.get("/api/claims/all", { params });
   return response.data;
@@ -472,6 +507,11 @@ export async function getAdminRoleSyncHealth() {
 
 export async function getReserveIntelligence() {
   const response = await api.get("/api/admin/reserve-intelligence");
+  return response.data;
+}
+
+export async function getIndexedEvents(params = {}) {
+  const response = await api.get("/api/indexer/events", { params });
   return response.data;
 }
 

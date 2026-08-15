@@ -1,6 +1,7 @@
 const { ethers } = require("ethers");
 const {
   getAdminContract,
+  getPolicyEconomics,
   getOracleCoordinator,
   getRegistrySnapshot,
   getReadOnlyContract,
@@ -136,6 +137,63 @@ const ROLE_KEYS = {
   ORACLE: "ORACLE_ROLE",
 };
 
+const asServiceCode = (value) =>
+  ethers.keccak256(ethers.toUtf8Bytes(String(value || "").trim().toUpperCase()));
+
+const publishEconomicRules = async ({ contract, packageId, economicRules }) => {
+  const economics = await getPolicyEconomics(contract);
+  const currentVersion = await economics.currentPackageRuleVersion(packageId);
+  const allowedServices = (economicRules.allowedClaimTypes || []).map(asServiceCode);
+  const excludedServices = (economicRules.excludedClaimTypes || []).map(asServiceCode);
+  if (allowedServices.length === 0) {
+    throw createError("At least one allowed claim type is required", 400);
+  }
+  const requiredDocuments = (economicRules.requiredDocumentTypes || []).map(asServiceCode);
+  const exclusionsRoot = excludedServices.length
+    ? ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32[]"], [excludedServices]))
+    : ethers.ZeroHash;
+  const requiredDocumentsRoot = requiredDocuments.length
+    ? ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32[]"], [requiredDocuments]))
+    : ethers.ZeroHash;
+  const normalizedRules = {
+    waitingPeriod: Number(economicRules.waitingPeriodDays || 0) * 86400,
+    reinstatementWaitingPeriod:
+      Number(economicRules.reinstatementWaitingPeriodDays || 0) * 86400,
+    claimDeadline: Number(economicRules.claimDeadlineDays || 365) * 86400,
+    minimumDocumentCommitments: Number(economicRules.minimumDocumentCommitments || 1),
+    deductibleRateBps: Number(economicRules.deductibleRateBps || 0),
+    insurerShareBps: Number(economicRules.insurerShareBps || 10000),
+    deductibleCapWei: ethers.parseEther(String(economicRules.deductibleCapEth || "0")),
+    maximumClaimWei: ethers.parseEther(String(economicRules.maximumClaimEth || "0")),
+    exclusionsRoot,
+    requiredDocumentsRoot,
+  };
+  const formulaName = economicRules.settlementFormulaVersion || "BLOCK_INSURE_SETTLEMENT_V1";
+  const ruleDocument = JSON.stringify({
+    packageId: String(packageId),
+    version: (currentVersion + 1n).toString(),
+    ...Object.fromEntries(
+      Object.entries(normalizedRules).map(([key, value]) => [key, value.toString()])
+    ),
+    allowedServices,
+    excludedServices,
+    requiredDocuments,
+  });
+  const transaction = await economics.publishPackageRules(
+    packageId,
+    {
+      version: currentVersion + 1n,
+      ...normalizedRules,
+      settlementFormulaVersion: ethers.keccak256(ethers.toUtf8Bytes(formulaName)),
+      policyRuleVersion: ethers.keccak256(ethers.toUtf8Bytes(ruleDocument)),
+    },
+    allowedServices,
+    excludedServices
+  );
+  const receipt = await transaction.wait();
+  return { transaction, receipt, version: currentVersion + 1n, ruleDocument };
+};
+
 const getRoleBytes = async (contract, roleKey) => contract[ROLE_KEYS[roleKey]]();
 
 const getConfiguredRoleWallets = () => {
@@ -242,6 +300,15 @@ const createPolicyPackage = async (req, res, next) => {
       }
     }
 
+    let economicsPublication = null;
+    if (req.body.economicRules) {
+      economicsPublication = await publishEconomicRules({
+        contract,
+        packageId,
+        economicRules: req.body.economicRules,
+      });
+    }
+
     await logAdminAction({
       req,
       action: "CREATE_POLICY_PACKAGE",
@@ -255,6 +322,7 @@ const createPolicyPackage = async (req, res, next) => {
         premiumAmountWei: premiumAmountWei.toString(),
         coverageAmountWei: coverageAmountWei.toString(),
         durationDays: Number(durationDays),
+        economicRuleVersion: economicsPublication?.version?.toString() || "0",
       },
     });
 
@@ -341,7 +409,41 @@ const updatePolicyPackage = async (req, res, next) => {
       success: true,
       message: "Policy package updated successfully",
       transactionHash: tx.hash,
+      economicsTransactionHash:
+        economicsPublication?.transaction?.hash || "",
+      economicRuleVersion: economicsPublication?.version?.toString() || "0",
       package: formatPolicyPackage(updatedPackage),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const publishPolicyPackageEconomicRules = async (req, res, next) => {
+  try {
+    const contract = getAdminContract();
+    const result = await publishEconomicRules({
+      contract,
+      packageId: req.params.id,
+      economicRules: req.body,
+    });
+    await logAdminAction({
+      req,
+      action: "PUBLISH_POLICY_ECONOMIC_RULES",
+      targetType: "POLICY_PACKAGE",
+      targetId: req.params.id,
+      tx: result.transaction,
+      receipt: result.receipt,
+      metadata: {
+        version: result.version.toString(),
+        ruleDocument: result.ruleDocument,
+      },
+    });
+    res.status(200).json({
+      success: true,
+      message: "Immutable policy economic rules published",
+      version: result.version.toString(),
+      transactionHash: result.transaction.hash,
     });
   } catch (error) {
     next(error);
@@ -1025,4 +1127,5 @@ module.exports = {
   resolveTimedOutOracle,
   confirmAdminClaimTransaction,
   sendClaimToManualReview,
+  publishPolicyPackageEconomicRules,
 };

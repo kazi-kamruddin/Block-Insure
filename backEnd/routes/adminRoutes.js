@@ -12,6 +12,7 @@ const {
   getRoleSyncHealth,
   getAdminClaims,
   confirmAdminClaimTransaction,
+  publishPolicyPackageEconomicRules,
 } = require("../controllers/adminController");
 const {
   getAuditorReputationAnalysis,
@@ -84,6 +85,13 @@ router.post(
   authMiddleware,
   requireRole("ADMIN"),
   createPolicyPackage
+);
+
+router.post(
+  "/policy-packages/:id/economic-rules",
+  authMiddleware,
+  requireRole("ADMIN"),
+  publishPolicyPackageEconomicRules
 );
 
 router.put(

@@ -2,10 +2,13 @@ import { ethers } from "ethers";
 import InsuranceManagerArtifact from "../abi/InsuranceManager.json";
 import OracleCoordinatorArtifact from "../abi/OracleCoordinator.json";
 import ClaimAdjudicatorArtifact from "../abi/ClaimAdjudicator.json";
+import PolicyEconomicsArtifact from "../abi/PolicyEconomics.json";
+import EvidenceRegistryArtifact from "../abi/EvidenceRegistry.json";
 import policyBenefitsAbi from "../abi/policyBenefitsAbi";
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
 const POLICY_BENEFITS_ADDRESS = import.meta.env.VITE_POLICY_BENEFITS_ADDRESS;
+const EVIDENCE_REGISTRY_ADDRESS = import.meta.env.VITE_EVIDENCE_REGISTRY_ADDRESS;
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
 
 export const REQUIRED_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337);
@@ -15,6 +18,10 @@ const ORACLE_COORDINATOR_ABI =
   OracleCoordinatorArtifact.abi || OracleCoordinatorArtifact;
 const CLAIM_ADJUDICATOR_ABI =
   ClaimAdjudicatorArtifact.abi || ClaimAdjudicatorArtifact;
+const POLICY_ECONOMICS_ABI =
+  PolicyEconomicsArtifact.abi || PolicyEconomicsArtifact;
+const EVIDENCE_REGISTRY_ABI =
+  EvidenceRegistryArtifact.abi || EvidenceRegistryArtifact;
 
 export const CLAIM_STATUS = {
   0: "SUBMITTED",
@@ -77,6 +84,42 @@ export async function getReadOnlyClaimAdjudicator() {
     await manager.claimAdjudicator(),
     CLAIM_ADJUDICATOR_ABI,
     manager.runner
+  );
+}
+
+export async function getReadOnlyPolicyEconomics() {
+  const manager = getReadOnlyContract();
+  return new ethers.Contract(
+    await manager.policyEconomics(),
+    POLICY_ECONOMICS_ABI,
+    manager.runner
+  );
+}
+
+export async function fundTreasuryWithReference(reference, amountEth) {
+  if (!String(reference || "").trim()) {
+    throw new Error("A treasury funding reference is required");
+  }
+  const manager = await getWalletContract();
+  const economics = new ethers.Contract(
+    await manager.policyEconomics(),
+    POLICY_ECONOMICS_ABI,
+    manager.runner
+  );
+  return economics.fundTreasury(
+    ethers.keccak256(ethers.toUtf8Bytes(String(reference).trim())),
+    { value: ethers.parseEther(String(amountEth)) }
+  );
+}
+
+export async function getEvidenceRegistryWalletContract() {
+  if (!EVIDENCE_REGISTRY_ADDRESS) {
+    throw new Error("Evidence registry is not configured. Run the local deployment workflow.");
+  }
+  return new ethers.Contract(
+    EVIDENCE_REGISTRY_ADDRESS,
+    EVIDENCE_REGISTRY_ABI,
+    await getSigner()
   );
 }
 

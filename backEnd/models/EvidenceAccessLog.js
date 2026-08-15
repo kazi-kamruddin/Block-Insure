@@ -28,8 +28,8 @@ const evidenceAccessLogSchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: ["UNWRAP_KEY"],
-      default: "UNWRAP_KEY",
+      enum: ["RETRIEVE_CAPSULE", "PROXY_TRANSFORM", "GRANT", "REVOKE"],
+      default: "RETRIEVE_CAPSULE",
     },
     userAgent: {
       type: String,

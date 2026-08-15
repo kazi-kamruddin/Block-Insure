@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import {
@@ -8,6 +9,8 @@ import {
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import { getClaimStatusName, getStatusExplanation } from "../utils/claimStatus";
+import { ensureEvidenceIdentity } from "../services/evidenceEncryption";
+import { showToast } from "../services/toast";
 import "../styles/pages/AuditorClaimLookupPage.css";
 
 const VOTE_OPEN_STATUSES = new Set(["MANUAL_REVIEW"]);
@@ -73,6 +76,7 @@ async function loadVoteQueue(fallbackWallet) {
 
 export default function AuditorVoteQueuePage() {
   const { walletAddress } = useWallet();
+  const [isPreparingEvidenceKey, setIsPreparingEvidenceKey] = useState(false);
   const {
     data: claims = [],
     isLoading,
@@ -83,6 +87,23 @@ export default function AuditorVoteQueuePage() {
     queryKey: ["auditorVoteQueue", walletAddress],
     queryFn: () => loadVoteQueue(walletAddress),
   });
+
+  async function prepareEvidenceKey() {
+    try {
+      setIsPreparingEvidenceKey(true);
+      await ensureEvidenceIdentity(walletAddress);
+      showToast("Your client-side evidence identity is ready.", {
+        title: "Evidence access ready",
+      });
+    } catch (identityError) {
+      showToast(identityError.response?.data?.message || identityError.message, {
+        tone: "error",
+        title: "Identity setup failed",
+      });
+    } finally {
+      setIsPreparingEvidenceKey(false);
+    }
+  }
 
   return (
     <section className="page-container page-auditor-claim-lookup">
@@ -97,6 +118,15 @@ export default function AuditorVoteQueuePage() {
         </div>
         <button type="button" onClick={() => refetch()} disabled={isFetching}>
           {isFetching ? "Refreshing..." : "Refresh Queue"}
+        </button>
+        <button
+          type="button"
+          onClick={prepareEvidenceKey}
+          disabled={isPreparingEvidenceKey || !walletAddress}
+        >
+          {isPreparingEvidenceKey
+            ? "Preparing evidence key..."
+            : "Prepare encrypted evidence access"}
         </button>
       </div>
 

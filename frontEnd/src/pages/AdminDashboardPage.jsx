@@ -8,6 +8,11 @@ import {
   getReserveIntelligence,
   reconcilePendingAdminTransactions,
 } from "../services/api";
+import {
+  fundTreasuryWithReference,
+  parseTransactionError,
+} from "../services/contractService";
+import { showToast } from "../services/toast";
 import "../styles/pages/AdminDashboardPage.css";
 
 function extractReserveIntelligence(data) {
@@ -30,6 +35,9 @@ function getBreakdownCount(intelligence, status) {
 
 export default function AdminDashboardPage() {
   const [reconciliationMessage, setReconciliationMessage] = useState("");
+  const [fundingReference, setFundingReference] = useState("");
+  const [fundingAmountEth, setFundingAmountEth] = useState("");
+  const [isFunding, setIsFunding] = useState(false);
 
   useEffect(() => {
     reconcilePendingAdminTransactions()
@@ -74,6 +82,31 @@ export default function AdminDashboardPage() {
     refetch();
     roleHealthQuery.refetch();
     oracleHealthQuery.refetch();
+  }
+
+  async function fundTreasury(event) {
+    event.preventDefault();
+    try {
+      setIsFunding(true);
+      const transaction = await fundTreasuryWithReference(
+        fundingReference,
+        fundingAmountEth
+      );
+      await transaction.wait();
+      setFundingReference("");
+      setFundingAmountEth("");
+      showToast("Referenced ETH funding reached the protocol treasury.", {
+        title: "Treasury funded",
+      });
+      await refetch();
+    } catch (fundingError) {
+      showToast(parseTransactionError(fundingError), {
+        tone: "error",
+        title: "Funding failed",
+      });
+    } finally {
+      setIsFunding(false);
+    }
   }
 
   return (
@@ -139,6 +172,22 @@ export default function AdminDashboardPage() {
       ) : null}
 
       <div className="card-row">
+        <div className="card">
+          <h3>Referenced Treasury Funding</h3>
+          <form onSubmit={fundTreasury}>
+            <label>
+              Funding reference
+              <input value={fundingReference} onChange={(event) => setFundingReference(event.target.value)} required />
+            </label>
+            <label>
+              Amount (ETH)
+              <input type="number" min="0.000001" step="0.000001" value={fundingAmountEth} onChange={(event) => setFundingAmountEth(event.target.value)} required />
+            </label>
+            <button type="submit" disabled={isFunding}>
+              {isFunding ? "Funding..." : "Fund Treasury"}
+            </button>
+          </form>
+        </div>
         <div className="card">
           <h3>Contract Reserve</h3>
           <p className="metric-value">

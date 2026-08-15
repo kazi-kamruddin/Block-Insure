@@ -129,7 +129,7 @@ describe("InsuranceManager - Phase 6 Fraud and Duplicate Detection", function ()
     expect((await insuranceManager.getClaim(2)).status).to.equal(2);
   });
 
-  it("Duplicate invoice hash flags the second claim as FRAUD_FLAGGED", async function () {
+  it("Duplicate invoice hash is rejected by authoritative policy enforcement", async function () {
     const { insuranceManager, user, userPolicy } = await deployFixture();
 
     const duplicateInvoiceHash = hashText("same-invoice");
@@ -160,14 +160,8 @@ describe("InsuranceManager - Phase 6 Fraud and Duplicate Detection", function ()
         documentHash: hashText("document-002"),
         documentCID: "QmDocument002",
       })
-    )
-      .to.emit(insuranceManager, "ClaimFlagged")
-      .withArgs(2, "Duplicate invoice hash");
-
-    const secondClaim = await insuranceManager.getClaim(2);
-
-    expect(secondClaim.status).to.equal(2); // FRAUD_FLAGGED
-    expect((await insuranceManager.getClaim(2)).status).to.equal(2);
+    ).to.be.reverted;
+    expect(await insuranceManager.claimCounter()).to.equal(2);
   });
 
   it("Same user + same incident date + same claim type flags duplicate claim", async function () {
@@ -285,23 +279,20 @@ describe("InsuranceManager - Phase 6 Fraud and Duplicate Detection", function ()
     const fraudClaim = await insuranceManager.getClaim(2);
     expect(fraudClaim.status).to.equal(2); // FRAUD_FLAGGED
 
-    await submitBasicClaim({
-      insuranceManager,
-      signer: user,
-      policyId: 1,
-      claimAmount: ethers.parseEther("0.2"),
-      incidentDate: userPolicy.startDate,
-      claimType: "Accident Treatment",
-      hospitalId: "HOSP-001",
-      invoiceHash: newInvoiceUsedOnlyInFraudClaim,
-      documentHash: hashText("fresh-document-after-fraud"),
-      documentCID: "QmFreshDocumentAfterFraud",
-    });
-
-    const thirdClaim = await insuranceManager.getClaim(3);
-
-    expect(thirdClaim.status).to.equal(1); // DUPLICATE_CHECKED
-    expect((await insuranceManager.getClaim(3)).status).to.equal(1);
+    await expect(
+      submitBasicClaim({
+        insuranceManager,
+        signer: user,
+        policyId: 1,
+        claimAmount: ethers.parseEther("0.2"),
+        incidentDate: userPolicy.startDate,
+        claimType: "Accident Treatment",
+        hospitalId: "HOSP-001",
+        invoiceHash: newInvoiceUsedOnlyInFraudClaim,
+        documentHash: hashText("fresh-document-after-fraud"),
+        documentCID: "QmFreshDocumentAfterFraud",
+      })
+    ).to.be.reverted;
   });
 
   it("Rejects claim status for non-existing claim", async function () {

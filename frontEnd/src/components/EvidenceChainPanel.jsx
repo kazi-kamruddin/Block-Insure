@@ -1,5 +1,7 @@
+import { useState } from "react";
 import CopyableText from "./CopyableText";
 import IpfsLink from "./IpfsLink";
+import { getEvidenceReceipt } from "../services/api";
 
 function formatValue(value) {
   if (value === undefined || value === null || value === "") return "-";
@@ -14,8 +16,35 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
 }
 
-export default function EvidenceChainPanel({ evidenceChain }) {
+export default function EvidenceChainPanel({
+  evidenceChain,
+  assignedAuditors = [],
+  onGrantAccess,
+  onRevokeAccess,
+  delegationPending = "",
+}) {
   const documents = evidenceChain?.documents || [];
+  const [receiptError, setReceiptError] = useState("");
+
+  async function downloadReceipt(documentId) {
+    try {
+      setReceiptError("");
+      const response = await getEvidenceReceipt(documentId);
+      const blob = new Blob([JSON.stringify(response.receipt, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `block-insure-evidence-${documentId}-receipt.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setReceiptError(
+        error.response?.data?.message || error.message || "Receipt unavailable"
+      );
+    }
+  }
 
   if (!evidenceChain) {
     return null;
@@ -55,6 +84,7 @@ export default function EvidenceChainPanel({ evidenceChain }) {
 
       {documents.length > 0 ? (
         <div className="evidence-chain-list">
+          {receiptError ? <p className="error-text">{receiptError}</p> : null}
           {documents.map((document) => (
             <article
               className={`evidence-chain-item ${
@@ -86,6 +116,9 @@ export default function EvidenceChainPanel({ evidenceChain }) {
                   sha256Hash={document.sha256Hash}
                 />
               </p>
+              <button type="button" onClick={() => downloadReceipt(document.id)}>
+                Download transparency receipt
+              </button>
               <details className="technical-details">
                 <summary>Integrity and storage details</summary>
                 <p>Document type: {formatValue(document.documentType)}</p>
@@ -108,6 +141,37 @@ export default function EvidenceChainPanel({ evidenceChain }) {
                   />
                 </p>
               </details>
+              {assignedAuditors.length > 0 && onGrantAccess ? (
+                <details className="technical-details">
+                  <summary>Cryptographic auditor access</summary>
+                  {assignedAuditors.map((auditor) => {
+                    const operationKey = `${document.id}:${auditor}`;
+                    return (
+                      <div key={auditor} className="evidence-access-row">
+                        <CopyableText value={auditor} label="Copy auditor" />
+                        <button
+                          type="button"
+                          disabled={delegationPending === operationKey}
+                          onClick={() => onGrantAccess(document.id, auditor)}
+                        >
+                          {delegationPending === operationKey ? "Working..." : "Grant"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={delegationPending === operationKey}
+                          onClick={() => onRevokeAccess(document.id, auditor)}
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <p className="muted-text">
+                    Revocation blocks future proxy transformations; it cannot erase
+                    plaintext an auditor already downloaded.
+                  </p>
+                </details>
+              ) : null}
             </article>
           ))}
         </div>

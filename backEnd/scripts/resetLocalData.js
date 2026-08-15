@@ -6,6 +6,9 @@ const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 const EvidenceAccessLog = require("../models/EvidenceAccessLog");
+const EvidenceEvent = require("../models/EvidenceEvent");
+const EvidenceGrant = require("../models/EvidenceGrant");
+const EvidenceTreeHead = require("../models/EvidenceTreeHead");
 const File = require("../models/File");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
@@ -15,6 +18,9 @@ const OracleLog = require("../models/OracleLog");
 const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
 const VotingFinalization = require("../models/VotingFinalization");
+const IndexedBlock = require("../models/IndexedBlock");
+const IndexedBlockchainEvent = require("../models/IndexedBlockchainEvent");
+const IndexerCheckpoint = require("../models/IndexerCheckpoint");
 const {
   buildSyntheticRecords,
 } = require("./seedMockData");
@@ -31,6 +37,12 @@ const collections = [
   ["claim submission attempts", ClaimSubmissionAttempt],
   ["documents", File],
   ["evidence access logs", EvidenceAccessLog],
+  ["evidence events", EvidenceEvent],
+  ["evidence grants", EvidenceGrant],
+  ["evidence tree heads", EvidenceTreeHead],
+  ["indexed blocks", IndexedBlock],
+  ["indexed blockchain events", IndexedBlockchainEvent],
+  ["indexer checkpoints", IndexerCheckpoint],
   ["notifications", Notification],
   ["oracle health records", OracleHealth],
   ["oracle logs", OracleLog],

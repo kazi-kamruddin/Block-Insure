@@ -41,6 +41,18 @@ const fileSchema = new mongoose.Schema(
       trim: true,
       default: "CLAIM_DOCUMENT",
     },
+    claimVersion: {
+      type: Number,
+      min: 0,
+      default: 0,
+      index: true,
+    },
+    envelopeClaimId: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
     encrypted: {
       type: Boolean,
       default: false,
@@ -67,11 +79,39 @@ const fileSchema = new mongoose.Schema(
       default: "",
       index: true,
     },
-    wrappedEvidenceKey: {
+    encryptionSchemeVersion: {
+      type: String,
+      trim: true,
+      default: "RECRYPT-RS-0.15+A256GCM",
+    },
+    keyCapsule: {
       type: String,
       trim: true,
       default: "",
       select: false,
+    },
+    associatedDataHash: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
+    authenticatedAssociatedData: {
+      type: String,
+      trim: true,
+      default: "",
+      select: false,
+    },
+    encryptionIdentityVersion: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    evidenceEventIndex: {
+      type: Number,
+      min: 0,
+      default: null,
+      index: true,
     },
     previousEvidenceHash: {
       type: String,
@@ -107,6 +147,15 @@ fileSchema.index(
       claimId: { $gt: "" },
       evidenceChainIndex: { $type: "number" },
     },
+  }
+);
+
+fileSchema.index(
+  { associatedDataHash: 1 },
+  {
+    unique: true,
+    name: "unique_evidence_associated_data",
+    partialFilterExpression: { associatedDataHash: { $gt: "" } },
   }
 );
 

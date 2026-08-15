@@ -17,6 +17,9 @@ const buildEvidenceChainHash = ({
   ipfsCID,
   documentType,
   uploaderWallet,
+  claimVersion = 0,
+  associatedDataHash = "",
+  encryptionSchemeVersion = "",
 }) => {
   return calculateTextSHA256(
     JSON.stringify({
@@ -27,6 +30,9 @@ const buildEvidenceChainHash = ({
       ipfsCID,
       documentType,
       uploaderWallet: String(uploaderWallet || "").toLowerCase(),
+      claimVersion: Number(claimVersion || 0),
+      associatedDataHash,
+      encryptionSchemeVersion,
     })
   );
 };
@@ -40,6 +46,9 @@ const formatEvidenceDocument = (fileRecord, expectedHash = "") => {
     ipfsCID: fileRecord.ipfsCID,
     documentType: fileRecord.documentType,
     uploaderWallet: fileRecord.uploaderWallet,
+    claimVersion: fileRecord.claimVersion,
+    associatedDataHash: fileRecord.associatedDataHash,
+    encryptionSchemeVersion: fileRecord.encryptionSchemeVersion,
   });
 
   return {
@@ -57,7 +66,7 @@ const formatEvidenceDocument = (fileRecord, expectedHash = "") => {
     keyProvider: fileRecord.keyProvider || "",
     keyId: fileRecord.keyId || "",
     recoverableAcrossBrowsers: Boolean(
-      fileRecord.wrappedEvidenceKey && fileRecord.keyId
+      fileRecord.keyCapsule && fileRecord.encryptionIdentityVersion
     ),
     uploadedAt: fileRecord.createdAt,
     previousEvidenceHash: fileRecord.previousEvidenceHash || "",
@@ -105,6 +114,9 @@ const assignEvidenceChainLink = async (fileRecord, claimId) => {
       ipfsCID: fileRecord.ipfsCID,
       documentType: fileRecord.documentType,
       uploaderWallet: fileRecord.uploaderWallet,
+      claimVersion: fileRecord.claimVersion,
+      associatedDataHash: fileRecord.associatedDataHash,
+      encryptionSchemeVersion: fileRecord.encryptionSchemeVersion,
     });
 
     fileRecord.claimId = normalizedClaimId;
@@ -144,7 +156,7 @@ const getEvidenceChainForClaim = async (claimId) => {
   }
 
   const files = await File.find({ claimId: normalizedClaimId })
-    .select("+wrappedEvidenceKey")
+    .select("+keyCapsule")
     .sort({
       evidenceChainIndex: 1,
       createdAt: 1,
@@ -159,6 +171,9 @@ const getEvidenceChainForClaim = async (claimId) => {
       ipfsCID: fileRecord.ipfsCID,
       documentType: fileRecord.documentType,
       uploaderWallet: fileRecord.uploaderWallet,
+      claimVersion: fileRecord.claimVersion,
+      associatedDataHash: fileRecord.associatedDataHash,
+      encryptionSchemeVersion: fileRecord.encryptionSchemeVersion,
     });
     const document = formatEvidenceDocument(fileRecord, expectedHash);
     const expectedPreviousHash =

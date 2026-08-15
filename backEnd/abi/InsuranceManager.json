@@ -1137,37 +1137,6 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "deductibleRateBps",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "deductibleCapWei",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "insurerShareBps",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "timestamp",
-          "type": "uint256"
-        }
-      ],
-      "name": "SettlementParamsUpdated",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
           "indexed": true,
           "internalType": "uint256",
           "name": "claimId",
@@ -1562,32 +1531,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "deductibleCapWei",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "deductibleRateBps",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "uint256",
@@ -1666,19 +1609,6 @@
       "name": "fundContract",
       "outputs": [],
       "stateMutability": "payable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getActiveOracles",
-      "outputs": [
-        {
-          "internalType": "address[]",
-          "name": "",
-          "type": "address[]"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -2110,19 +2040,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "insurerShareBps",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "uint256",
@@ -2253,6 +2170,19 @@
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "policyEconomics",
+      "outputs": [
+        {
+          "internalType": "contract PolicyEconomics",
+          "name": "",
+          "type": "address"
         }
       ],
       "stateMutability": "view",
@@ -2605,29 +2535,6 @@
         }
       ],
       "name": "updatePolicyPackage",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_deductibleRateBps",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_deductibleCapWei",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_insurerShareBps",
-          "type": "uint256"
-        }
-      ],
-      "name": "updateSettlementParams",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

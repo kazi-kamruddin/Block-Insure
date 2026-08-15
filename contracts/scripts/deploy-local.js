@@ -24,7 +24,9 @@ function syncLocalContractDeployment(
   deploymentBlock,
   adjudicatorAddress,
   benefitsAddress,
-  benefitsDeploymentBlock
+  benefitsDeploymentBlock,
+  economicsAddress,
+  evidenceRegistryAddress
 ) {
   const projectRoot = path.resolve(__dirname, "..", "..");
   const targets = [
@@ -40,6 +42,16 @@ function syncLocalContractDeployment(
     { file: path.join(projectRoot, "backEnd", ".env"), key: "CLAIM_ADJUDICATOR_ADDRESS" },
     { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_CLAIM_ADJUDICATOR_ADDRESS" },
   ].forEach(({ file, key }) => updateEnvValue(file, key, adjudicatorAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "POLICY_ECONOMICS_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_POLICY_ECONOMICS_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, economicsAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "EVIDENCE_REGISTRY_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_EVIDENCE_REGISTRY_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, evidenceRegistryAddress));
 
   [
     { file: path.join(projectRoot, "backEnd", ".env"), key: "POLICY_BENEFITS_ADDRESS" },
@@ -79,7 +91,13 @@ function syncLocalContractDeployment(
 
 function syncContractAbi() {
   const projectRoot = path.resolve(__dirname, "..", "..");
-  ["InsuranceManager", "OracleCoordinator", "ClaimAdjudicator"].forEach((contractName) => {
+  [
+    "InsuranceManager",
+    "OracleCoordinator",
+    "ClaimAdjudicator",
+    "PolicyEconomics",
+    "EvidenceRegistry",
+  ].forEach((contractName) => {
     const artifactPath = path.join(
       projectRoot,
       "contracts",
@@ -151,6 +169,17 @@ async function main() {
   const adjudicatorAddress = await claimAdjudicator.getAddress();
   await (await insuranceManager.configureClaimAdjudicator(adjudicatorAddress)).wait();
   console.log("ClaimAdjudicator deployed to:", adjudicatorAddress);
+  const economicsAddress = await insuranceManager.policyEconomics();
+  console.log("PolicyEconomics deployed to:", economicsAddress);
+
+  const EvidenceRegistry = await hre.ethers.getContractFactory(
+    "EvidenceRegistry",
+    adminWallet
+  );
+  const evidenceRegistry = await EvidenceRegistry.deploy(contractAddress);
+  await evidenceRegistry.waitForDeployment();
+  const evidenceRegistryAddress = await evidenceRegistry.getAddress();
+  console.log("EvidenceRegistry deployed to:", evidenceRegistryAddress);
 
   const premiumAmount = hre.ethers.parseEther("0.01");
   const coverageAmount = hre.ethers.parseEther("1");
@@ -218,7 +247,9 @@ async function main() {
     deploymentBlock,
     adjudicatorAddress,
     benefitsAddress,
-    benefitsDeploymentBlock
+    benefitsDeploymentBlock,
+    economicsAddress,
+    evidenceRegistryAddress
   );
   console.log("");
   console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
@@ -226,6 +257,8 @@ async function main() {
   console.log("CONTRACT_ADDRESS =", contractAddress);
   console.log("CLAIM_ADJUDICATOR_ADDRESS =", adjudicatorAddress);
   console.log("POLICY_BENEFITS_ADDRESS =", benefitsAddress);
+  console.log("POLICY_ECONOMICS_ADDRESS =", economicsAddress);
+  console.log("EVIDENCE_REGISTRY_ADDRESS =", evidenceRegistryAddress);
 }
 
 main().catch((error) => {

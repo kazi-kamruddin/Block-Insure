@@ -113,7 +113,7 @@ describe("InsuranceManager - Premium Lifecycle", function () {
       .to.emit(insuranceManager, "ClaimSubmitted");
   });
 
-  it("blocks claims during grace period and lapsed status", async function () {
+  it("keeps prior covered incidents claimable but excludes grace and lapse incidents", async function () {
     const { insuranceManager, user } = await deployFixture();
 
     const policy = await insuranceManager.getPolicy(1);
@@ -124,8 +124,20 @@ describe("InsuranceManager - Premium Lifecycle", function () {
       POLICY_STATUS.GRACE_PERIOD
     );
 
+    await expect(submitValidClaim(insuranceManager, user, 1, "grace-covered"))
+      .to.emit(insuranceManager, "ClaimSubmitted");
+
     await expect(
-      submitValidClaim(insuranceManager, user, 1, "grace")
+      insuranceManager.connect(user).submitClaim(
+        1,
+        ethers.parseEther("0.2"),
+        policy.nextPremiumDueDate + 1n,
+        "Surgery",
+        "HOSP-001",
+        ethers.keccak256(ethers.toUtf8Bytes("grace-gap-invoice")),
+        ethers.keccak256(ethers.toUtf8Bytes("grace-gap-document")),
+        "QmGraceGapDocument"
+      )
     ).to.be.reverted;
 
     await time.increaseTo(policy.gracePeriodEnd + 1n);
@@ -135,11 +147,20 @@ describe("InsuranceManager - Premium Lifecycle", function () {
     );
 
     await expect(
-      submitValidClaim(insuranceManager, user, 1, "lapsed")
+      insuranceManager.connect(user).submitClaim(
+        1,
+        ethers.parseEther("0.2"),
+        policy.nextPremiumDueDate + 2n,
+        "Accident Treatment",
+        "HOSP-001",
+        ethers.keccak256(ethers.toUtf8Bytes("lapsed-gap-invoice")),
+        ethers.keccak256(ethers.toUtf8Bytes("lapsed-gap-document")),
+        "QmLapsedGapDocument"
+      )
     ).to.be.reverted;
   });
 
-  it("blocks claims for expired and cancelled policies", async function () {
+  it("keeps covered incidents claimable after cancellation or expiry", async function () {
     const { insuranceManager, user, premium } = await deployFixture();
 
     await insuranceManager.connect(user).purchasePolicy(1, { value: premium });
@@ -149,8 +170,21 @@ describe("InsuranceManager - Premium Lifecycle", function () {
       POLICY_STATUS.CANCELLED
     );
 
+    await expect(submitValidClaim(insuranceManager, user, 1, "cancelled-covered"))
+      .to.emit(insuranceManager, "ClaimSubmitted");
+
+    const cancelledAt = BigInt(await time.latest());
     await expect(
-      submitValidClaim(insuranceManager, user, 1, "cancelled")
+      insuranceManager.connect(user).submitClaim(
+        1,
+        ethers.parseEther("0.2"),
+        cancelledAt + 1n,
+        "Hospitalization",
+        "HOSP-001",
+        ethers.keccak256(ethers.toUtf8Bytes("cancelled-late-invoice")),
+        ethers.keccak256(ethers.toUtf8Bytes("cancelled-late-document")),
+        "QmCancelledLate"
+      )
     ).to.be.reverted;
 
     const secondPolicy = await insuranceManager.getPolicy(2);
@@ -162,8 +196,17 @@ describe("InsuranceManager - Premium Lifecycle", function () {
     );
 
     await expect(
-      submitValidClaim(insuranceManager, user, 2, "expired")
-    ).to.be.reverted;
+      insuranceManager.connect(user).submitClaim(
+        2,
+        ethers.parseEther("0.2"),
+        secondPolicy.nextPremiumDueDate - 1n,
+        "Hospitalization",
+        "HOSP-001",
+        ethers.keccak256(ethers.toUtf8Bytes("expired-covered-invoice")),
+        ethers.keccak256(ethers.toUtf8Bytes("expired-covered-document")),
+        "QmExpiredCovered"
+      )
+    ).to.emit(insuranceManager, "ClaimSubmitted");
   });
 
   it("does not allow an expired policy to be relabeled as cancelled", async function () {

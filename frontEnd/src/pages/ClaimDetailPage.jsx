@@ -15,14 +15,18 @@ import {
   getOracleResults,
   submitAppeal,
   uploadClaimDocument,
+  revokeDocumentAccess,
 } from "../services/api";
 import {
   getWalletContract,
+  getReadOnlyClaimAdjudicator,
+  getReadOnlyContract,
   parseTransactionError,
   toBytes32FromBackendSha256,
 } from "../services/contractService";
 import {
   encryptEvidenceFile,
+  createEvidenceDelegation,
   storeEvidenceKey,
 } from "../services/evidenceEncryption";
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
@@ -81,6 +85,7 @@ export default function ClaimDetailPage() {
   const [appealTxHash, setAppealTxHash] = useState("");
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [delegationPending, setDelegationPending] = useState("");
 
   const {
     data: claimData,
@@ -140,6 +145,57 @@ export default function ClaimDetailPage() {
   });
   const canAppeal = appealRule.allowed;
 
+  const { data: assignedAuditors = [] } = useQuery({
+    queryKey: ["claimAssignedAuditors", id],
+    queryFn: async () => {
+      const manager = getReadOnlyContract();
+      const version = await manager.claimVersion(id);
+      const adjudicator = await getReadOnlyClaimAdjudicator();
+      const review = await adjudicator.getReview(id, version);
+      return Array.from(review.auditors || []).filter(
+        (wallet) => wallet && !/^0x0{40}$/i.test(wallet)
+      );
+    },
+    enabled: Boolean(id && claim),
+    retry: false,
+  });
+
+  async function handleGrantAccess(documentId, auditor) {
+    const operationKey = `${documentId}:${auditor}`;
+    try {
+      setDelegationPending(operationKey);
+      await createEvidenceDelegation(documentId, auditor, id);
+      showToast("Future evidence access delegated to the assigned auditor.", {
+        title: "Access granted",
+      });
+    } catch (grantError) {
+      showToast(grantError.response?.data?.message || grantError.message, {
+        tone: "error",
+        title: "Delegation failed",
+      });
+    } finally {
+      setDelegationPending("");
+    }
+  }
+
+  async function handleRevokeAccess(documentId, auditor) {
+    const operationKey = `${documentId}:${auditor}`;
+    try {
+      setDelegationPending(operationKey);
+      await revokeDocumentAccess(documentId, auditor);
+      showToast("Future proxy transformations have been revoked.", {
+        title: "Access revoked",
+      });
+    } catch (revokeError) {
+      showToast(revokeError.response?.data?.message || revokeError.message, {
+        tone: "error",
+        title: "Revocation failed",
+      });
+    } finally {
+      setDelegationPending("");
+    }
+  }
+
   async function handleSubmitAppeal(event) {
     event.preventDefault();
     setAppealError("");
@@ -161,7 +217,14 @@ export default function ClaimDetailPage() {
       let additionalDocumentCID = "";
 
       if (appealFile) {
-        const encryptedAppealEvidence = await encryptEvidenceFile(appealFile);
+        const manager = await getWalletContract();
+        const currentVersion = Number(await manager.claimVersion(id));
+        const encryptedAppealEvidence = await encryptEvidenceFile(appealFile, {
+          claimId: id,
+          claimVersion: currentVersion + 1,
+          uploader: claim.claimantWallet,
+          evidenceType: "APPEAL_DOCUMENT",
+        });
         const uploadResult = await uploadClaimDocument({
           file: encryptedAppealEvidence.encryptedFile,
           documentType: "APPEAL_DOCUMENT",
@@ -171,8 +234,10 @@ export default function ClaimDetailPage() {
             algorithm: encryptedAppealEvidence.algorithm,
             originalMimeType: encryptedAppealEvidence.originalMimeType,
             originalName: encryptedAppealEvidence.originalName,
-            wrappedEvidenceKey: encryptedAppealEvidence.wrappedEvidenceKey,
-            keyId: encryptedAppealEvidence.keyId,
+            keyCapsule: encryptedAppealEvidence.keyCapsule,
+            associatedData: encryptedAppealEvidence.associatedData,
+            encryptionIdentityVersion:
+              encryptedAppealEvidence.encryptionIdentityVersion,
           },
         });
 
@@ -342,7 +407,13 @@ export default function ClaimDetailPage() {
               />
             </p>
           </details>
-          <EvidenceChainPanel evidenceChain={evidenceChain} />
+          <EvidenceChainPanel
+            evidenceChain={evidenceChain}
+            assignedAuditors={assignedAuditors}
+            onGrantAccess={handleGrantAccess}
+            onRevokeAccess={handleRevokeAccess}
+            delegationPending={delegationPending}
+          />
         </div>
       ) : null}
 

@@ -1,6 +1,9 @@
 const jwt = require("jsonwebtoken");
 const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
+const {
+  assertCurrentOnChainRole,
+} = require("../services/onChainAuthorizationService");
 const JWT_ISSUER = process.env.JWT_ISSUER || "block-insure-api";
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "block-insure-client";
 
@@ -30,6 +33,13 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
+    if (decoded.authMethod !== "SIWE") {
+      return res.status(401).json({
+        success: false,
+        message: "A current SIWE session is required",
+      });
+    }
+
     const revokedToken = await RevokedToken.findOne({ jti: decoded.jti })
       .select("_id")
       .lean();
@@ -49,6 +59,8 @@ const authMiddleware = async (req, res, next) => {
         message: "User no longer exists",
       });
     }
+
+    await assertCurrentOnChainRole(user.role, user.walletAddress);
 
     req.user = {
       walletAddress: user.walletAddress,

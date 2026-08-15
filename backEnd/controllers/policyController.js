@@ -1,5 +1,8 @@
 const { ethers } = require("ethers");
-const { getReadOnlyContract } = require("../services/contractService");
+const {
+  getPolicyEconomics,
+  getReadOnlyContract,
+} = require("../services/contractService");
 const { quoteRiskAdjustedPremium } = require("../services/pricingService");
 const {
   evaluatePolicyEligibility,
@@ -140,6 +143,19 @@ const canReadPolicy = (req, policy) => {
   }
 
   return policy.holderWallet.toLowerCase() === req.user.walletAddress.toLowerCase();
+};
+
+const formatEconomicValue = (value) => {
+  if (typeof value === "bigint") return value.toString();
+  if (Array.isArray(value)) return value.map(formatEconomicValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => Number.isNaN(Number(key)))
+        .map(([key, child]) => [key, formatEconomicValue(child)])
+    );
+  }
+  return value;
 };
 
 /* -------------------------- Policy Packages ---------------------------- */
@@ -292,12 +308,19 @@ const getPolicyById = async (req, res, next) => {
       contract.getEffectivePolicyStatus(req.params.policyId),
     ]);
 
-    if (!canReadPolicy(req, policy)) {
+      if (!canReadPolicy(req, policy)) {
       return res.status(403).json({
         success: false,
         message: "Access denied: policy does not belong to this wallet",
       });
-    }
+      }
+
+      const economics = await getPolicyEconomics(contract);
+      const [terms, coverageAccount, coverageIntervals] = await Promise.all([
+        economics.getPolicyTerms(req.params.policyId),
+        economics.getCoverageAccount(req.params.policyId),
+        economics.getCoverageIntervals(req.params.policyId),
+      ]);
 
     res.status(200).json({
       success: true,
@@ -305,8 +328,16 @@ const getPolicyById = async (req, res, next) => {
         policy,
         effectiveStatus,
         await contract.getPolicyPackage(policy.packageId)
-      ),
-    });
+        ),
+        economics: {
+          terms: formatEconomicValue(terms),
+          coverage: formatEconomicValue(coverageAccount),
+          intervals: formatEconomicValue(coverageIntervals),
+          remainingCoverageWei: (
+            await economics.remainingCoverage(req.params.policyId)
+          ).toString(),
+        },
+      });
   } catch (error) {
     next(error);
   }

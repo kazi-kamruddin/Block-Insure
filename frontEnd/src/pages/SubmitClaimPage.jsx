@@ -350,20 +350,29 @@ export default function SubmitClaimPage() {
       });
       const attemptId = authorization?.attemptId || authorization?.data?.attemptId || "";
       activeAttemptId = attemptId;
-      const encryptedEvidence = await encryptEvidenceFile(file);
+      const contract = await getWalletContract();
+      const predictedClaimId = (await contract.claimCounter()).toString();
+      const encryptedEvidence = await encryptEvidenceFile(file, {
+        claimId: predictedClaimId,
+        claimVersion: 1,
+        uploader: activeWallet,
+        evidenceType: "HOSPITAL_BILL",
+      });
 
       const uploadResponse = await uploadClaimDocument({
         file: encryptedEvidence.encryptedFile,
         documentType: "HOSPITAL_BILL",
         attemptId,
-          encryption: {
-            enabled: true,
-            algorithm: encryptedEvidence.algorithm,
-            originalMimeType: encryptedEvidence.originalMimeType,
-            originalName: encryptedEvidence.originalName,
-            wrappedEvidenceKey: encryptedEvidence.wrappedEvidenceKey,
-            keyId: encryptedEvidence.keyId,
-          },
+        encryption: {
+          enabled: true,
+          algorithm: encryptedEvidence.algorithm,
+          originalMimeType: encryptedEvidence.originalMimeType,
+          originalName: encryptedEvidence.originalName,
+          keyCapsule: encryptedEvidence.keyCapsule,
+          associatedData: encryptedEvidence.associatedData,
+          encryptionIdentityVersion:
+            encryptedEvidence.encryptionIdentityVersion,
+        },
       });
 
       const sha256Hash = getUploadedHash(uploadResponse);
@@ -387,14 +396,12 @@ export default function SubmitClaimPage() {
           enabled: true,
           status: `${encryptedEvidence.algorithm}; encrypted before upload.`,
           keyStorage:
-            "The decryption key is stored only in this browser. It is never sent to the backend, IPFS, or blockchain.",
+            "Your dedicated private encryption key remains in this browser; the backend receives only a transformable encrypted key capsule.",
         },
       });
 
       const documentHashBytes32 = toBytes32FromBackendSha256(sha256Hash);
       const invoiceHash = hashInvoiceNumber(invoiceNumber.trim());
-
-      const contract = await getWalletContract();
 
       const tx = await contract.submitClaim(
         BigInt(policyId),
@@ -720,11 +727,10 @@ export default function SubmitClaimPage() {
             Client-side encryption: enabled
           </p>
           <p className="muted-text">
-            Evidence is encrypted with AES-256-GCM before upload. Its AES key is
-            wrapped with the application RSA public key, so the policyholder and
-            authorized admins or auditors can recover it after signing in from
-            another browser. Neither the plaintext file nor AES key is written
-            on-chain.
+            Evidence is encrypted with AES-256-GCM and claim-bound authenticated
+            metadata before upload. Its AES key is protected by a dedicated
+            browser key and can be proxy-transformed only for an assigned auditor;
+            the backend cannot decrypt it.
           </p>
         </div>
 

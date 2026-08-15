@@ -3,7 +3,13 @@ const path = require("path");
 
 const projectRoot = path.resolve(__dirname, "..", "..");
 
-for (const contractName of ["InsuranceManager", "OracleCoordinator", "ClaimAdjudicator"]) {
+for (const contractName of [
+  "InsuranceManager",
+  "OracleCoordinator",
+  "ClaimAdjudicator",
+  "PolicyEconomics",
+  "EvidenceRegistry",
+]) {
   const artifactPath = path.join(
     projectRoot,
     "contracts",

@@ -11,6 +11,14 @@ const {
   stopBlockchainEventListener,
 } = require("./services/notificationService");
 const { writeEvent } = require("../scripts/observability");
+const {
+  startBlockchainIndexer,
+  stopBlockchainIndexer,
+} = require("./services/blockchainIndexerService");
+const {
+  startEvidenceAnchorScheduler,
+  stopEvidenceAnchorScheduler,
+} = require("./services/evidenceAnchorService");
 
 /* ----------------------------- DNS Config ----------------------------- */
 
@@ -118,7 +126,10 @@ app.get("/health", (req, res) => {
       database: databaseState,
       blockchainRpc: process.env.RPC_URL ? "configured" : "missing",
       contract: process.env.VITE_CONTRACT_ADDRESS ? "configured" : "missing",
-      evidenceKeyProvider: "local-rsa",
+      evidenceEncryption: "client-aes256gcm-with-recrypt-pre",
+      evidenceTransparency: process.env.EVIDENCE_REGISTRY_ADDRESS
+        ? "anchored"
+        : "registry-address-missing",
     },
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
@@ -148,6 +159,11 @@ app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/audit", require("./routes/auditRoutes"));
 app.use("/api/oracle", require("./routes/oracleRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/indexer", require("./routes/indexerRoutes"));
+app.use(
+  "/api/evidence-log",
+  require("./routes/evidenceTransparencyRoutes")
+);
 
 /* ----------------------------- Mock Routes ---------------------------- */
 
@@ -201,6 +217,8 @@ const connectDatabase = async () => {
 const startServer = async () => {
   try {
     await connectDatabase();
+    await startBlockchainIndexer();
+    startEvidenceAnchorScheduler();
     await startBlockchainEventListener();
 
     app.listen(PORT, "0.0.0.0", () => {
@@ -221,6 +239,8 @@ const shutdownServer = async (signal) => {
   try {
     console.log(`${signal} received. Closing MongoDB connection...`);
     await stopBlockchainEventListener();
+    stopBlockchainIndexer();
+    stopEvidenceAnchorScheduler();
     await mongoose.connection.close();
     console.log("MongoDB connection closed");
     process.exit(0);

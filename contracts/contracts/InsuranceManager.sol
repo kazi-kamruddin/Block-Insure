@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./OracleCoordinator.sol";
+import "./PolicyEconomics.sol";
 import "./interfaces/IClaimAdjudicator.sol";
 
 contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
@@ -143,12 +144,12 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     uint256 public maxClaimsPerPolicy = 5;
 
     mapping(bytes32 => bool) private usedDocumentHashes;
-    mapping(bytes32 => bool) private usedInvoiceHashes;
     mapping(address => mapping(uint256 => mapping(bytes32 => bool))) private userDateClaimTypeUsed;
 
     mapping(uint256 => uint256) private oracleRequestByClaimId;
     OracleCoordinator public oracleCoordinator;
     IClaimAdjudicator public claimAdjudicator;
+    PolicyEconomics public policyEconomics;
 
     mapping(uint256 => SettlementRecord) private settlementRecords;
     mapping(uint256 => uint256) public manualReviewEligibleAt;
@@ -156,9 +157,9 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     bytes32 public oracleModelVersion;
 
-    uint256 public deductibleRateBps = 1000;
-    uint256 public deductibleCapWei = 0.02 ether;
-    uint256 public insurerShareBps = 8000;
+    uint16 private constant DEFAULT_DEDUCTIBLE_RATE_BPS = 1000;
+    uint128 private constant DEFAULT_DEDUCTIBLE_CAP_WEI = 0.02 ether;
+    uint16 private constant DEFAULT_INSURER_SHARE_BPS = 8000;
     uint256 private constant DEFAULT_PREMIUM_INTERVAL_SECONDS = 30 days;
     uint256 private constant DEFAULT_GRACE_PERIOD_SECONDS = 7 days;
 
@@ -310,13 +311,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 claimantResponsibility
     );
 
-    event SettlementParamsUpdated(
-        uint256 deductibleRateBps,
-        uint256 deductibleCapWei,
-        uint256 insurerShareBps,
-        uint256 timestamp
-    );
-
     event ClaimSettled(
         uint256 indexed claimId,
         address indexed claimantWallet,
@@ -386,6 +380,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         _grantRole(ADMIN_ROLE, msg.sender);
         oracleModelVersion = keccak256("BLOCK_INSURE_FRAUD_MODEL_V1");
         oracleCoordinator = new OracleCoordinator(address(this));
+        policyEconomics = new PolicyEconomics(address(this));
     }
 
     function configureClaimAdjudicator(address adjudicator) external onlyRole(ADMIN_ROLE) {
@@ -490,10 +485,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         }
 
         _revokeRole(role, account);
-    }
-
-    function getActiveOracles() external view returns (address[] memory) {
-        return oracleCoordinator.getActiveOracles();
     }
 
     // =============================================================
@@ -651,6 +642,21 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             installmentsPaid: 1
         });
 
+        policyEconomics.recordPolicy(
+            newPolicyId,
+            packageId,
+            msg.sender,
+            uint64(startDate),
+            uint64(endDate),
+            uint64(nextPremiumDueDate),
+            selectedPackage.coverageAmount,
+            selectedPackage.premiumAmount,
+            keccak256(bytes(selectedPackage.requiredDocumentType)),
+            DEFAULT_DEDUCTIBLE_RATE_BPS,
+            DEFAULT_DEDUCTIBLE_CAP_WEI,
+            DEFAULT_INSURER_SHARE_BPS
+        );
+
         policyCounter++;
 
         emit PolicyPurchased(
@@ -705,7 +711,14 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(selectedPolicy.status == PolicyStatus.ACTIVE || selectedPolicy.status == PolicyStatus.GRACE_PERIOD, "Policy is not payable");
         require(msg.value == selectedPolicy.premiumAmount, "Incorrect premium amount");
 
+        uint256 previousPaidThrough = selectedPolicy.nextPremiumDueDate;
         _recordPremiumPayment(policyId, selectedPolicy, msg.value);
+        policyEconomics.recordPremium(
+            policyId,
+            uint64(previousPaidThrough),
+            uint64(block.timestamp),
+            uint64(selectedPolicy.nextPremiumDueDate)
+        );
     }
 
     function reinstatePolicy(uint256 policyId) external payable whenNotPaused {
@@ -720,7 +733,14 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(block.timestamp <= selectedPolicy.endDate, "Policy has expired");
         require(msg.value == selectedPolicy.premiumAmount, "Incorrect premium amount");
 
+        uint256 previousPaidThrough = selectedPolicy.nextPremiumDueDate;
         _recordPremiumPayment(policyId, selectedPolicy, msg.value);
+        policyEconomics.recordPremium(
+            policyId,
+            uint64(previousPaidThrough),
+            uint64(block.timestamp),
+            uint64(selectedPolicy.nextPremiumDueDate)
+        );
 
     }
 
@@ -740,6 +760,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         _setPolicyStatus(policyId, selectedPolicy, PolicyStatus.CANCELLED);
         selectedPolicy.isActive = false;
+        policyEconomics.closeCoverage(policyId, uint64(block.timestamp));
 
     }
 
@@ -782,11 +803,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         require(selectedPolicy.holderWallet == msg.sender, "Caller is not policy holder");
         _syncPolicyStatus(policyId, selectedPolicy);
-        require(selectedPolicy.status == PolicyStatus.ACTIVE, "Policy is not active");
-        require(incidentDate >= selectedPolicy.startDate && incidentDate <= selectedPolicy.endDate, "Incident date outside policy period");
         require(incidentDate <= block.timestamp, "Incident date cannot be in the future");
-        require(claimAmount > 0, "Claim amount must be greater than zero");
-        require(claimAmount <= selectedPolicy.coverageAmount, "Claim amount exceeds coverage");
         require(bytes(claimType).length > 0, "Claim type required");
         require(bytes(hospitalId).length > 0, "Hospital ID required");
         require(invoiceHash != bytes32(0), "Invoice hash required");
@@ -802,11 +819,21 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 newClaimId = claimCounter;
         bytes32 claimTypeHash = keccak256(bytes(claimType));
 
+        policyEconomics.validateAndReserveClaim(
+            newClaimId,
+            policyId,
+            msg.sender,
+            claimAmount,
+            uint64(incidentDate),
+            claimTypeHash,
+            invoiceHash,
+            1
+        );
+
         bool duplicateDocument = usedDocumentHashes[documentHash];
-        bool duplicateInvoice = usedInvoiceHashes[invoiceHash];
         bool duplicateUserDateType = userDateClaimTypeUsed[msg.sender][incidentDate][claimTypeHash];
 
-        bool isFraud = duplicateDocument || duplicateInvoice || duplicateUserDateType;
+        bool isFraud = duplicateDocument || duplicateUserDateType;
 
         claims[newClaimId] = Claim({
             claimId: newClaimId,
@@ -858,8 +885,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
             if (duplicateDocument) {
                 reason = "Duplicate document hash";
-            } else if (duplicateInvoice) {
-                reason = "Duplicate invoice hash";
             } else if (duplicateUserDateType) {
                 reason = "Duplicate user date claim type";
             }
@@ -874,7 +899,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         uint256 calculatedRiskScore = calculateRiskScore(newClaimId);
 
         usedDocumentHashes[documentHash] = true;
-        usedInvoiceHashes[invoiceHash] = true;
         userDateClaimTypeUsed[msg.sender][incidentDate][claimTypeHash] = true;
 
         claims[newClaimId].riskScore = calculatedRiskScore;
@@ -935,9 +959,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             score += 10;
         }
 
-        if (!usedInvoiceHashes[selectedClaim.invoiceHash]) {
-            score += 10;
-        }
+        // PolicyEconomics has already rejected a reused canonical invoice identity.
+        score += 10;
 
         bytes32 claimTypeHash = keccak256(bytes(selectedClaim.claimType));
 
@@ -1103,6 +1126,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(claims[claimId].status == ClaimStatus.REJECTED, "Claim is not rejected");
         require(bytes(appealReasonHash).length > 0, "Appeal reason hash required");
 
+        policyEconomics.reserveAppeal(claimId);
+
         if (evidenceHash != bytes32(0)) {
             claimDocuments[claimId].push(ClaimDocument({
                 documentHash: evidenceHash,
@@ -1192,44 +1217,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     {
         require(_claimExists(claimId), "Claim does not exist");
 
-        claimAmount = claims[claimId].claimAmount;
-
-        uint256 rateDeductible = (claimAmount * deductibleRateBps) / 10000;
-        deductible = rateDeductible < deductibleCapWei
-            ? rateDeductible
-            : deductibleCapWei;
-
-        if (deductible > claimAmount) {
-            deductible = claimAmount;
-        }
-
-        afterDeductible = claimAmount - deductible;
-        insurerPays = (afterDeductible * insurerShareBps) / 10000;
-        claimantResponsibility = claimAmount - insurerPays;
-    }
-
-    function updateSettlementParams(
-        uint256 _deductibleRateBps,
-        uint256 _deductibleCapWei,
-        uint256 _insurerShareBps
-    ) external onlyRole(ADMIN_ROLE) {
-        require(_deductibleRateBps <= 10000, "Deductible rate exceeds maximum");
-        require(_insurerShareBps <= 10000, "Insurer share exceeds maximum");
-        require(
-            claimAdjudicator.totalOutstandingLiabilityWei() == 0,
-            "Approved claim liabilities are active"
-        );
-
-        deductibleRateBps = _deductibleRateBps;
-        deductibleCapWei = _deductibleCapWei;
-        insurerShareBps = _insurerShareBps;
-
-        emit SettlementParamsUpdated(
-            _deductibleRateBps,
-            _deductibleCapWei,
-            _insurerShareBps,
-            block.timestamp
-        );
+        return policyEconomics.calculateSettlement(claimId);
     }
 
     function activateFundedClaim(uint256 claimId) external whenNotPaused {
@@ -1248,6 +1236,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(selectedClaim.claimantWallet == msg.sender, "Caller is not claimant");
         require(selectedClaim.status == ClaimStatus.PAYOUT_READY, "Settlement is not ready");
         uint256 amount = claimAdjudicator.withdrawPayout(claimId, payable(msg.sender));
+        policyEconomics.settleClaim(claimId);
 
         selectedClaim.status = ClaimStatus.SETTLED;
         claimResolvedAt[claimId] = block.timestamp;
@@ -1322,6 +1311,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         bytes32 decisionHash
     ) internal {
         claims[claimId].status = ClaimStatus.REJECTED;
+        policyEconomics.releaseClaim(claimId);
         rejectionReason[claimId] = reason;
         claimResolvedAt[claimId] = block.timestamp;
         claimAdjudicator.recordRejection(
@@ -1351,8 +1341,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(amount > 0, "Withdrawal amount required");
         require(address(this).balance >= amount, "Insufficient contract balance");
         require(
-            address(this).balance - amount >= claimAdjudicator.totalUnfundedLiabilityWei(),
-            "Withdrawal would consume approved claim reserves"
+            address(this).balance - amount >= policyEconomics.minimumTreasuryBalance(
+                claimAdjudicator.totalUnfundedLiabilityWei()
+            ),
+            "Withdrawal would violate solvency reserve"
         );
 
         (bool success, ) = payable(msg.sender).call{value: amount}("");

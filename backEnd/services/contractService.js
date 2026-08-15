@@ -2,6 +2,8 @@ const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
 const ClaimAdjudicatorArtifact = require("../abi/ClaimAdjudicator.json");
+const PolicyEconomicsArtifact = require("../abi/PolicyEconomics.json");
+const EvidenceRegistryArtifact = require("../abi/EvidenceRegistry.json");
 
 const getRequiredEnv = (key) => {
   const value = process.env[key];
@@ -57,6 +59,22 @@ const getClaimAdjudicator = async (contract = getReadOnlyContract()) => {
     contract.runner
   );
 };
+
+const getPolicyEconomics = async (contract = getReadOnlyContract()) => {
+  const economicsAddress = await contract.policyEconomics();
+  return new ethers.Contract(
+    economicsAddress,
+    PolicyEconomicsArtifact.abi,
+    contract.runner
+  );
+};
+
+const getEvidenceRegistry = (runner = getProvider()) =>
+  new ethers.Contract(
+    getRequiredEnv("EVIDENCE_REGISTRY_ADDRESS"),
+    EvidenceRegistryArtifact.abi,
+    runner
+  );
 
 const getRegistrySnapshot = async (contract = getReadOnlyContract()) => {
   const coordinator = await getOracleCoordinator(contract);
@@ -117,6 +135,8 @@ module.exports = {
   getContractBalance,
   getOracleCoordinator,
   getClaimAdjudicator,
+  getPolicyEconomics,
+  getEvidenceRegistry,
   getRegistrySnapshot,
   getReadOnlyContract,
   getAdminContract,

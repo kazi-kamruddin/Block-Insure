@@ -44,6 +44,12 @@ function main() {
   const adjudicatorArtifact = readJson(
     "contracts/artifacts/contracts/ClaimAdjudicator.sol/ClaimAdjudicator.json"
   );
+  const economicsArtifact = readJson(
+    "contracts/artifacts/contracts/PolicyEconomics.sol/PolicyEconomics.json"
+  );
+  const evidenceRegistryArtifact = readJson(
+    "contracts/artifacts/contracts/EvidenceRegistry.sol/EvidenceRegistry.json"
+  );
   const benefitsArtifact = readJson(
     "contracts/artifacts/contracts/PolicyBenefitsManager.sol/PolicyBenefitsManager.json"
   );
@@ -72,6 +78,23 @@ function main() {
       `${target} ABI does not match the compiled coordinator artifact`,
       failures
     );
+  }
+  for (const [contractName, contractArtifact] of [
+    ["PolicyEconomics", economicsArtifact],
+    ["EvidenceRegistry", evidenceRegistryArtifact],
+  ]) {
+    for (const target of [
+      `backEnd/abi/${contractName}.json`,
+      `frontEnd/src/abi/${contractName}.json`,
+      `oracle/abi/${contractName}.json`,
+    ]) {
+      const targetAbi = readJson(target).abi;
+      assert(
+        JSON.stringify(targetAbi) === JSON.stringify(contractArtifact.abi),
+        `${target} ABI does not match the compiled ${contractName} artifact`,
+        failures
+      );
+    }
   }
   for (const target of [
     "backEnd/abi/ClaimAdjudicator.json",
@@ -121,6 +144,42 @@ function main() {
     assert(
       adjudicatorFunctionNames.has(functionName),
       `Compiled adjudicator ABI is missing ${functionName}`,
+      failures
+    );
+  }
+  const economicsFunctions = new Set(
+    economicsArtifact.abi
+      .filter((entry) => entry.type === "function")
+      .map((entry) => entry.name)
+  );
+  for (const functionName of [
+    "publishPackageRules",
+    "validateAndReserveClaim",
+    "getCoverageIntervals",
+    "minimumTreasuryBalance",
+    "fundTreasury",
+  ]) {
+    assert(
+      economicsFunctions.has(functionName),
+      `Compiled PolicyEconomics ABI is missing ${functionName}`,
+      failures
+    );
+  }
+  const evidenceRegistryFunctions = new Set(
+    evidenceRegistryArtifact.abi
+      .filter((entry) => entry.type === "function")
+      .map((entry) => entry.name)
+  );
+  for (const functionName of [
+    "registerEncryptionIdentity",
+    "revokeEncryptionIdentity",
+    "anchorEvidenceTreeHead",
+    "getTreeHead",
+    "setTreeHeadSigner",
+  ]) {
+    assert(
+      evidenceRegistryFunctions.has(functionName),
+      `Compiled EvidenceRegistry ABI is missing ${functionName}`,
       failures
     );
   }
@@ -216,6 +275,24 @@ function main() {
     (String(benefitsArtifact.deployedBytecode || "0x").length - 2) / 2,
     0
   );
+  const economicsDeployedBytes = Math.max(
+    (String(economicsArtifact.deployedBytecode || "0x").length - 2) / 2,
+    0
+  );
+  const evidenceRegistryDeployedBytes = Math.max(
+    (String(evidenceRegistryArtifact.deployedBytecode || "0x").length - 2) / 2,
+    0
+  );
+  assert(
+    economicsDeployedBytes <= 24_576,
+    `PolicyEconomics deployed bytecode is ${economicsDeployedBytes} bytes (EIP-170 maximum 24576)`,
+    failures
+  );
+  assert(
+    evidenceRegistryDeployedBytes <= 24_576,
+    `EvidenceRegistry deployed bytecode is ${evidenceRegistryDeployedBytes} bytes (EIP-170 maximum 24576)`,
+    failures
+  );
   assert(
     benefitsDeployedBytes <= 24_576,
     `PolicyBenefitsManager deployed bytecode is ${benefitsDeployedBytes} bytes (EIP-170 maximum 24576)`,
@@ -269,6 +346,28 @@ function main() {
       )
     );
   }
+  const economicsAddresses = [
+    normalize(backendEnv.POLICY_ECONOMICS_ADDRESS),
+    normalize(frontendEnv.VITE_POLICY_ECONOMICS_ADDRESS),
+  ].filter(Boolean);
+  const evidenceRegistryAddresses = [
+    normalize(backendEnv.EVIDENCE_REGISTRY_ADDRESS),
+    normalize(frontendEnv.VITE_EVIDENCE_REGISTRY_ADDRESS),
+  ].filter(Boolean);
+  for (const [label, addresses] of [
+    ["PolicyEconomics", economicsAddresses],
+    ["EvidenceRegistry", evidenceRegistryAddresses],
+  ]) {
+    if (addresses.length === 0) {
+      warnings.push(`${label} is not deployed in the current local environment; run setup:local before using Phases 3-4`);
+    } else {
+      assert(
+        addresses.length === 2 && new Set(addresses).size === 1,
+        `Backend and frontend ${label} addresses are not synchronized`,
+        failures
+      );
+    }
+  }
   assert(
     backendEnv.ORACLE_PRIVATE_KEY &&
       backendEnv.ORACLE_PRIVATE_KEY_2 &&
@@ -302,7 +401,7 @@ function main() {
 
   warnings.forEach((warning) => console.warn(`Configuration warning: ${warning}`));
   console.log(
-    `Synchronization/integrity verification passed: contract ABI copies match, 4 core service addresses match, contract sizes are ${deployedBytes}/24576 (manager), ${coordinatorDeployedBytes}/24576 (coordinator), ${adjudicatorDeployedBytes}/24576 (adjudicator), and ${benefitsDeployedBytes}/24576 (benefits), and Oracle authentication/RPC settings are synchronized.`
+    `Synchronization/integrity verification passed: contract ABI copies match, 4 core service addresses match, contract sizes are ${deployedBytes}/24576 (manager), ${coordinatorDeployedBytes}/24576 (coordinator), ${adjudicatorDeployedBytes}/24576 (adjudicator), ${economicsDeployedBytes}/24576 (economics), ${evidenceRegistryDeployedBytes}/24576 (evidence registry), and ${benefitsDeployedBytes}/24576 (benefits), and Oracle authentication/RPC settings are synchronized.`
   );
 }
 

@@ -58,6 +58,16 @@ test("clean reset removes and verifies sensitive evidence-access history", () =>
 
   assert.equal(resetScript.includes('require("../models/EvidenceAccessLog")'), true);
   assert.equal(resetScript.includes('"evidence access logs"'), true);
+  for (const collection of [
+    "evidence events",
+    "evidence grants",
+    "evidence tree heads",
+    "indexed blockchain events",
+    "indexer checkpoints",
+  ]) {
+    assert.equal(resetScript.includes(`"${collection}"`), true);
+    assert.equal(verificationScript.includes(`"${collection}"`), true);
+  }
   assert.equal(
     verificationScript.includes('require("../models/EvidenceAccessLog")'),
     true
