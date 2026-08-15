@@ -21,10 +21,14 @@
     "verify:demo": "node scripts/verifyDemoSeed.js",
     "demo:check": "node scripts/demoCheck.js",
     "train:model": "node scripts/trainModel.js",
+    "freeze:model": "node scripts/freezeModelArtifact.js",
+    "generate:datasets": "node scripts/generateSyntheticDatasets.js",
+    "evaluate:phase5": "node scripts/evaluatePhase5.js",
+    "metrics:collect": "node scripts/collectResearchMetrics.js",
     "push:merkle": "node scripts/pushMerkleRoot.js",
     "backfill:evidence-chain": "node scripts/backfillEvidenceChains.js",
-    "evaluate:risk": "node scripts/evaluateRiskModel.js",
-    "evaluate:risk:synthetic": "node scripts/evaluateRiskModel.js --synthetic",
+    "evaluate:risk": "node scripts/evaluatePhase5.js",
+    "evaluate:risk:synthetic": "node scripts/evaluatePhase5.js",
     "charts:generate": "node scripts/generateEvaluationCharts.js",
     "analyze:auditors": "node scripts/analyzeAuditorReputation.js",
     "loadtest:claims": "node scripts/loadTestClaims.js",
@@ -52,6 +56,7 @@
     "siwe": "^3.0.0"
   },
   "devDependencies": {
+    "ml-naivebayes": "^4.0.0",
     "nodemon": "^3.1.14"
   }
 }

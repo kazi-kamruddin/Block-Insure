@@ -359,9 +359,9 @@ export default function ClaimDetailPage() {
           </p>
           <p>
             On-chain validation score:{" "}
-            {claim.riskScoreAvailable === false
+              {claim.verificationConfidenceAvailable === false
               ? "Not calculated"
-              : `${formatValue(claim.riskScore)}/100`}
+                : `${formatValue(claim.verificationConfidence)}/100`}
           </p>
           <p className="muted-text">
             Higher values mean the on-chain duplicate checks found fewer

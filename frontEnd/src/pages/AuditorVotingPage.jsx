@@ -58,10 +58,10 @@ function getLatestOracleLog(logs) {
 
 function getBayesianFraudPercent(log) {
   return (
-    log?.responseData?.hospitalVerification?.riskAssessment?.posteriorFraudPercent ??
-    log?.hospitalVerification?.riskAssessment?.posteriorFraudPercent ??
-    log?.responseData?.riskAssessment?.posteriorFraudPercent ??
-    log?.riskAssessment?.posteriorFraudPercent ??
+    log?.responseData?.hospitalVerification?.riskAssessment?.fraudProbabilityPercent ??
+    log?.hospitalVerification?.riskAssessment?.fraudProbabilityPercent ??
+    log?.responseData?.riskAssessment?.fraudProbabilityPercent ??
+    log?.riskAssessment?.fraudProbabilityPercent ??
     null
   );
 }
@@ -226,7 +226,7 @@ export default function AuditorVotingPage() {
               Status: <ClaimStatusBadge status={statusName} />
             </p>
             <p>
-              On-chain validation score: {formatValue(claim.riskScore)}/100
+          Verification confidence: {formatValue(claim.verificationConfidence)}/100
               <small> Higher means the deterministic submission checks passed.</small>
             </p>
             <p>

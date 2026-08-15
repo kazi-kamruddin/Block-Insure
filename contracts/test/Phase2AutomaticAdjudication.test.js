@@ -206,6 +206,17 @@ describe("Phase 2 - Automatic adjudication", function () {
       originalDecision.decisionHash
     );
     expect((await fixture.manager.getClaimDocuments(claimId)).length).to.equal(2);
+    const appealRequest = await fixture.coordinator.getRequestByClaimId(claimId);
+    await finalizeExactResult(
+      fixture.coordinator,
+      appealRequest.requestId,
+      [fixture.oracle1, fixture.oracle2],
+      true,
+      hash("appeal-success-result")
+    );
+    expect((await fixture.manager.getClaim(claimId)).status).to.equal(7);
+    await fixture.manager.connect(fixture.user).withdrawSettlement(claimId);
+    expect((await fixture.manager.getClaim(claimId)).status).to.equal(9);
   });
 
   it("a reverting claimant cannot block automatic finalization", async function () {

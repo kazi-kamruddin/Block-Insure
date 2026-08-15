@@ -633,7 +633,7 @@ export default function ThesisResultsDashboardPage() {
 
       <div className="thesis-section card">
         <div className="thesis-section-head">
-          <h3>Risk Score Distribution</h3>
+            <h3>Fraud Probability Distribution</h3>
           <span>{riskBuckets.reduce((sum, bucket) => sum + bucket.count, 0)} scored records</span>
         </div>
         <DataNotice data={riskQuery.data} fallback="Run npm run evaluate:risk first" />

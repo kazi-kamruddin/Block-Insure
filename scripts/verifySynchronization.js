@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { verifyModelArtifact } = require("../backEnd/services/modelArtifactService");
 
 const projectRoot = path.resolve(__dirname, "..");
 
@@ -50,8 +51,19 @@ function main() {
   const evidenceRegistryArtifact = readJson(
     "contracts/artifacts/contracts/EvidenceRegistry.sol/EvidenceRegistry.json"
   );
+  const deploymentRegistryArtifact = readJson(
+    "contracts/artifacts/contracts/ProtocolDeploymentRegistry.sol/ProtocolDeploymentRegistry.json"
+  );
   const benefitsArtifact = readJson(
     "contracts/artifacts/contracts/PolicyBenefitsManager.sol/PolicyBenefitsManager.json"
+  );
+  const modelArtifact = readJson("backEnd/model-params.json");
+  const modelVerification = verifyModelArtifact(modelArtifact);
+  assert(modelVerification.valid, `Frozen model artifact is invalid: ${modelVerification.errors.join("; ")}`, failures);
+  assert(
+    /^0x[a-fA-F0-9]{64}$/.test(modelArtifact.modelIdentityHash || ""),
+    "Frozen model identity is not an on-chain bytes32 value",
+    failures
   );
   const abiTargets = [
     "backEnd/abi/InsuranceManager.json",
@@ -82,6 +94,7 @@ function main() {
   for (const [contractName, contractArtifact] of [
     ["PolicyEconomics", economicsArtifact],
     ["EvidenceRegistry", evidenceRegistryArtifact],
+    ["ProtocolDeploymentRegistry", deploymentRegistryArtifact],
   ]) {
     for (const target of [
       `backEnd/abi/${contractName}.json`,
@@ -188,6 +201,18 @@ function main() {
       .filter((entry) => entry.type === "function")
       .map((entry) => entry.name)
   );
+  const deploymentRegistryFunctions = new Set(
+    deploymentRegistryArtifact.abi
+      .filter((entry) => entry.type === "function")
+      .map((entry) => entry.name)
+  );
+  for (const functionName of ["registerComponent", "getComponent", "commitMigrationManifest"]) {
+    assert(
+      deploymentRegistryFunctions.has(functionName),
+      `ProtocolDeploymentRegistry ABI is missing ${functionName}`,
+      failures
+    );
+  }
   for (const functionName of [
     "commitOracleResult",
     "revealOracleResult",
@@ -283,6 +308,10 @@ function main() {
     (String(evidenceRegistryArtifact.deployedBytecode || "0x").length - 2) / 2,
     0
   );
+  const deploymentRegistryDeployedBytes = Math.max(
+    (String(deploymentRegistryArtifact.deployedBytecode || "0x").length - 2) / 2,
+    0
+  );
   assert(
     economicsDeployedBytes <= 24_576,
     `PolicyEconomics deployed bytecode is ${economicsDeployedBytes} bytes (EIP-170 maximum 24576)`,
@@ -291,6 +320,11 @@ function main() {
   assert(
     evidenceRegistryDeployedBytes <= 24_576,
     `EvidenceRegistry deployed bytecode is ${evidenceRegistryDeployedBytes} bytes (EIP-170 maximum 24576)`,
+    failures
+  );
+  assert(
+    deploymentRegistryDeployedBytes <= 24_576,
+    `ProtocolDeploymentRegistry deployed bytecode is ${deploymentRegistryDeployedBytes} bytes (EIP-170 maximum 24576)`,
     failures
   );
   assert(
@@ -401,7 +435,7 @@ function main() {
 
   warnings.forEach((warning) => console.warn(`Configuration warning: ${warning}`));
   console.log(
-    `Synchronization/integrity verification passed: contract ABI copies match, 4 core service addresses match, contract sizes are ${deployedBytes}/24576 (manager), ${coordinatorDeployedBytes}/24576 (coordinator), ${adjudicatorDeployedBytes}/24576 (adjudicator), ${economicsDeployedBytes}/24576 (economics), ${evidenceRegistryDeployedBytes}/24576 (evidence registry), and ${benefitsDeployedBytes}/24576 (benefits), and Oracle authentication/RPC settings are synchronized.`
+    `Synchronization/integrity verification passed: contract ABI copies match, 4 core service addresses match, contract sizes are ${deployedBytes}/24576 (manager), ${coordinatorDeployedBytes}/24576 (coordinator), ${adjudicatorDeployedBytes}/24576 (adjudicator), ${economicsDeployedBytes}/24576 (economics), ${evidenceRegistryDeployedBytes}/24576 (evidence registry), ${deploymentRegistryDeployedBytes}/24576 (deployment registry), and ${benefitsDeployedBytes}/24576 (benefits), and Oracle authentication/RPC settings are synchronized.`
   );
 }
 

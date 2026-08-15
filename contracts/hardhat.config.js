@@ -55,7 +55,13 @@ module.exports = {
     },
   },
   networks: {
-    hardhat: {},
+    // Pin the execution hardfork to the compiler target. This also keeps
+    // coverage instrumentation from hitting Osaka's EIP-7825 transaction cap;
+    // deployability is enforced separately by the EIP-170 bytecode-size tests.
+    hardhat: {
+      hardfork: "cancun",
+      blockGasLimit: 100_000_000,
+    },
     sepolia: {
       url: RPC_URL || "",
       accounts: ADMIN_PRIVATE_KEY ? [ADMIN_PRIVATE_KEY] : [],

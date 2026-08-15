@@ -145,6 +145,10 @@ Or run individual checks:
 ```powershell
 cd contracts
 npm test
+npm run coverage
+npm run test:stateful
+# Optional: requires slither-analyzer to be installed separately
+npm run analyze:slither
 ```
 
 ```powershell
@@ -172,15 +176,20 @@ With MongoDB, the backend, and the local blockchain running:
 ```powershell
 cd backEnd
 npm run seed:mock
-npm run train:model
-npm run evaluate:risk
+npm run generate:datasets
+npm run freeze:model
+npm run evaluate:phase5
+npm run metrics:collect
 npm run loadtest:claims
 npm run analyze:auditors
 npm run charts:generate
 ```
 
-These commands intentionally generate synthetic data and/or test claims. They
-are separate from the clean local simulation workflow above.
+The Phase 5 commands generate four seeded synthetic registry profiles, freeze
+and hash the Bernoulli model artifact, run grouped/temporal evaluation, and
+write machine-readable research metrics. These commands intentionally generate
+synthetic data and/or test claims. They are separate from the clean local
+simulation workflow above.
 
 The admin **Thesis Results** dashboard reads generated artifacts from
 `backEnd/evaluation-results`.

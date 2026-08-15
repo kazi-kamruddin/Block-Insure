@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "seed": 202605,
+  "datasets": {
+    "normal": {
+      "file": "normal.jsonl",
+      "records": 600,
+      "fraudRecords": 61,
+      "sha256": "525a588d7cf3a5b205ba4f41639cf4353caaca822c9f7ab1993757825416ec8a"
+    },
+    "high_fraud_stress": {
+      "file": "high_fraud_stress.jsonl",
+      "records": 600,
+      "fraudRecords": 245,
+      "sha256": "334ae5be731bd6ff5a149a0d09f152650df7cfa1486dc898fed459e2b64be1d4"
+    },
+    "provider_compromise": {
+      "file": "provider_compromise.jsonl",
+      "records": 600,
+      "fraudRecords": 122,
+      "sha256": "1e8a3e87ab6766e51ad3ff44de5ca33c571433d2be8b018cffd9b22345212a26"
+    },
+    "temporal_distribution_shift": {
+      "file": "temporal_distribution_shift.jsonl",
+      "records": 600,
+      "fraudRecords": 118,
+      "sha256": "2cda9c4a0ef515a9d7afe67dbbb6793e246acf8b0543a9da58ee0067e6c530f9"
+    }
+  },
+  "manifestHash": "067e9d797936074bd483501e22cd769ececf0a674f13d4b4cdb58db55f1031e7"
+}

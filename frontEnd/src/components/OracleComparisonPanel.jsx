@@ -247,7 +247,7 @@ function OracleLogCard({ log }) {
               <p>{formatValue(riskAssessment.modelVersion)}</p>
             </div>
             <span className={`oracle-risk-score is-${String(riskAssessment.riskLevel || "low").toLowerCase()}`}>
-              {formatValue(riskAssessment.posteriorFraudPercent)}% fraud
+              {formatValue(riskAssessment.fraudProbabilityPercent)}% fraud probability
             </span>
           </div>
           {riskDrivers.length ? (

@@ -1,5 +1,6 @@
 const { ethers } = require("ethers");
 const { buildRiskAssessment } = require("../services/riskScoringService");
+const { analyzeDuplicateCandidate } = require("../services/duplicateIntelligenceService");
 const {
   getRegistryModel,
   normalizeRegistrySnapshot,
@@ -581,6 +582,8 @@ const verifyHospitalRecord = async (req, res, next) => {
       claimAmountWei,
       claimType,
       incidentDate,
+      modelVersion,
+      modelArtifactHash,
       registrySnapshot: requestedRegistrySnapshot,
     } = req.query;
     const claimId = String(req.query.claimId || "").trim();
@@ -654,12 +657,53 @@ const verifyHospitalRecord = async (req, res, next) => {
       claimId: claimId || null,
       source: verificationSource,
     };
+    const duplicateIntelligence = record
+      ? analyzeDuplicateCandidate(
+          {
+            claimantId: record.claimantId || record.patientHash,
+            providerSignedInvoiceId: record.invoiceHash,
+            claimType: claimType || record.treatmentType,
+            incidentDate: record.admissionDate,
+            invoiceNumber: record.invoiceNumber,
+            providerName: record.hospitalName,
+            documentText: `${record.diagnosisCode} ${record.treatmentType}`,
+            amount: claimAmountEth || record.billAmount,
+          },
+          modelRecords
+            .filter((item) => normalizeHash(item.invoiceHash) !== normalizedInvoiceHash)
+            .map((item) => ({
+              claimId: item.recordId || item.invoiceNumber,
+              claimantId: item.claimantId || item.patientHash,
+              providerSignedInvoiceId: item.invoiceHash,
+              claimType: item.treatmentType,
+              incidentDate: item.admissionDate,
+              invoiceNumber: item.invoiceNumber,
+              providerName: item.hospitalName,
+              documentText: `${item.diagnosisCode} ${item.treatmentType}`,
+              amount: item.billAmount,
+            }))
+        )
+      : null;
     const riskAssessment = await buildRiskAssessment({
       record,
       comparison,
       query: verificationQuery,
       records: modelRecords,
+      duplicateIntelligence,
     });
+    if (
+      (modelVersion && normalizeHash(modelVersion) !== normalizeHash(riskAssessment.modelIdentityHash)) ||
+      (modelArtifactHash && normalizeHash(modelArtifactHash) !== normalizeHash(riskAssessment.artifactHash))
+    ) {
+      return res.status(409).json({
+        success: false,
+        verified: false,
+        message: "Requested oracle model identity does not match the evaluated runtime artifact",
+        requestedModelVersion: modelVersion || null,
+        runtimeModelIdentityHash: riskAssessment.modelIdentityHash,
+        runtimeArtifactHash: riskAssessment.artifactHash,
+      });
+    }
 
     if (!record) {
       return res.status(200).json({
@@ -679,7 +723,7 @@ const verifyHospitalRecord = async (req, res, next) => {
     const comparisonVerified = comparison.blockingFailureCount === 0;
     const verified =
       comparisonVerified &&
-      riskAssessment.recommendation !== "REJECT_ORACLE_VERIFICATION";
+      riskAssessment.recommendation === "AUTO_VERIFY_RECOMMENDED";
 
     const comparisonRiskLevel = comparisonVerified
       ? comparison.warningFailureCount > 0
@@ -705,9 +749,12 @@ const verifyHospitalRecord = async (req, res, next) => {
           ? "Synthetic healthcare registry record matched with non-blocking warnings"
           : "Synthetic healthcare registry record matched"
         : comparisonVerified
-          ? "Bayesian risk engine rejected the claim for high fraud probability"
+          ? riskAssessment.recommendation === "MANUAL_REVIEW_RECOMMENDED"
+            ? "Fraud or duplicate intelligence requires manual review; it is not an automatic fraud rejection"
+            : "Bernoulli fraud model rejected oracle verification for high fraud probability"
           : `Registry verification failed: ${failureSummary || record.fraudLabel}`,
       comparison,
+      duplicateIntelligence,
       riskAssessment,
       merkleProof,
       query: verificationQuery,

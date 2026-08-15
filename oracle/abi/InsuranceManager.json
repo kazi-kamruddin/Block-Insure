@@ -1680,7 +1680,7 @@
             },
             {
               "internalType": "uint256",
-              "name": "riskScore",
+              "name": "verificationConfidence",
               "type": "uint256"
             },
             {

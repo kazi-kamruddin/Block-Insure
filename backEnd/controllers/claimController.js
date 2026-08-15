@@ -106,7 +106,7 @@ const formatClaim = (claim) => {
       code: statusNumber,
       label: CLAIM_STATUS[statusNumber] || "UNKNOWN",
     },
-    riskScore: claim.riskScore.toString(),
+    verificationConfidence: claim.verificationConfidence.toString(),
     submittedAt: formatTimestamp(claim.submittedAt),
   };
 };
@@ -195,7 +195,7 @@ const formatEnrichedClaim = async (
       formatted.hospitalId ? ` — ${formatted.hospitalId}` : ""
     }`,
     fraudReason,
-    riskScoreAvailable: formatted.status.label !== "FRAUD_FLAGGED",
+    verificationConfidenceAvailable: formatted.status.label !== "FRAUD_FLAGGED",
     closure,
     policyEligibility,
   };

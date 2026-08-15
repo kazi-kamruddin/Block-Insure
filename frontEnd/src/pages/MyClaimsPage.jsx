@@ -136,9 +136,9 @@ export default function MyClaimsPage() {
               <span><strong>{claim.hospitalId}</strong> provider</span>
               <span>
                 <strong>
-                  {claim.riskScoreAvailable === false
+                  {claim.verificationConfidenceAvailable === false
                     ? "Not calculated"
-                    : `${claim.riskScore ?? "-"}/100`}
+                    : `${claim.verificationConfidence ?? "-"}/100`}
                 </strong>{" "}
                 validation score
               </span>

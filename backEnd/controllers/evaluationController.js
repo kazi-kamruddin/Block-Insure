@@ -127,6 +127,7 @@ const readFirstExistingFile = async (paths) => {
 const getEvaluationSummary = async (req, res, next) => {
   try {
     const result = await readFirstExistingFile([
+      path.join(EVALUATION_RESULTS_DIR, "phase5-evaluation.json"),
       path.join(EVALUATION_RESULTS_DIR, "risk-model-summary.json"),
       path.join(LEGACY_SCRIPTS_DIR, "risk-model-summary.json"),
     ]);
@@ -134,7 +135,7 @@ const getEvaluationSummary = async (req, res, next) => {
     if (!result) {
       return res.status(200).json({
         success: false,
-        error: "Run npm run evaluate:risk first",
+        error: "Run npm run evaluate:phase5 first",
       });
     }
 
@@ -186,35 +187,21 @@ const getGasComparison = async (req, res, next) => {
 const getRiskDistribution = async (req, res, next) => {
   try {
     const result = await readFirstExistingFile([
-      path.join(EVALUATION_RESULTS_DIR, "risk-model-records.csv"),
-      path.join(LEGACY_SCRIPTS_DIR, "risk-model-records.csv"),
+      path.join(EVALUATION_RESULTS_DIR, "phase5-evaluation.json"),
     ]);
 
     if (!result) {
       return res.status(200).json({
         success: false,
-        error: "Run npm run evaluate:risk first",
+        error: "Run npm run evaluate:phase5 first",
       });
     }
-
-    const buckets = [
-      { range: "0-20", min: 0, max: 20, count: 0, label: "LOW" },
-      { range: "21-40", min: 21, max: 40, count: 0, label: "LOW-MEDIUM" },
-      { range: "41-60", min: 41, max: 60, count: 0, label: "MEDIUM" },
-      { range: "61-80", min: 61, max: 80, count: 0, label: "HIGH" },
-      { range: "81-100", min: 81, max: 100, count: 0, label: "CRITICAL" },
-    ];
-
-    parseCsv(result.contents).forEach((row) => {
-      const riskScore = normalizeNumber(row.riskScore);
-      const bucket = buckets.find(
-        (item) => riskScore >= item.min && riskScore <= item.max
-      );
-
-      if (bucket) {
-        bucket.count += 1;
-      }
-    });
+    const evaluation = JSON.parse(result.contents);
+    const labels = ["LOW", "LOW-MEDIUM", "MEDIUM", "HIGH", "CRITICAL"];
+    const buckets = (evaluation.fraudProbabilityDistribution || []).map((bucket, index) => ({
+      ...bucket,
+      label: labels[index] || "UNKNOWN",
+    }));
 
     res.status(200).json({
       success: true,
@@ -361,7 +348,7 @@ const getDefenseSummary = async (req, res, next) => {
       VotingFinalization.find({}).lean().catch(() => []),
       getContractBalance().catch(() => null),
       getRegistrySnapshot(contract).catch(() => null),
-      safeReadJson(path.join(EVALUATION_RESULTS_DIR, "risk-model-summary.json")),
+      safeReadJson(path.join(EVALUATION_RESULTS_DIR, "phase5-evaluation.json")),
     ]);
 
     const packages = await Promise.all(

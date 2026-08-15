@@ -93,7 +93,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         bytes32 documentHash;
         string documentCID;
         ClaimStatus status;
-        uint256 riskScore;
+        uint256 verificationConfidence;
         uint256 submittedAt;
     }
 
@@ -136,7 +136,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
     mapping(uint256 => Claim) private claims;
     mapping(uint256 => ClaimDocument[]) private claimDocuments;
-    mapping(uint256 => uint256) private claimBaseRiskScore;
+    mapping(uint256 => uint256) private claimBaseVerificationConfidence;
     mapping(uint256 => uint64) public claimVersion;
     mapping(uint256 => uint256) public claimCountPerPolicy;
     mapping(uint256 => uint256) public claimResolvedAt;
@@ -847,7 +847,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             documentHash: documentHash,
             documentCID: documentCID,
             status: ClaimStatus.SUBMITTED,
-            riskScore: 0,
+            verificationConfidence: 0,
             submittedAt: block.timestamp
         });
         claimVersion[newClaimId] = 1;
@@ -896,13 +896,13 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             return newClaimId;
         }
 
-        uint256 calculatedRiskScore = calculateRiskScore(newClaimId);
+        uint256 calculatedVerificationConfidence = _calculateVerificationConfidence(newClaimId);
 
         usedDocumentHashes[documentHash] = true;
         userDateClaimTypeUsed[msg.sender][incidentDate][claimTypeHash] = true;
 
-        claims[newClaimId].riskScore = calculatedRiskScore;
-        claimBaseRiskScore[newClaimId] = calculatedRiskScore;
+        claims[newClaimId].verificationConfidence = calculatedVerificationConfidence;
+        claimBaseVerificationConfidence[newClaimId] = calculatedVerificationConfidence;
         claims[newClaimId].status = ClaimStatus.DUPLICATE_CHECKED;
 
         claimCounter++;
@@ -921,10 +921,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     }
 
     // =============================================================
-    // Phase 7: Risk Score Logic
+    // Structural verification confidence (distinct from ML fraud probability)
     // =============================================================
 
-    function calculateRiskScore(uint256 claimId) internal view returns (uint256) {
+    function _calculateVerificationConfidence(uint256 claimId) internal view returns (uint256) {
         Claim memory selectedClaim = claims[claimId];
         Policy memory selectedPolicy = policies[selectedClaim.policyId];
 
@@ -976,14 +976,16 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             score += 10;
         }
 
-        return _capRiskScore(score);
+        return _capVerificationConfidence(score);
     }
 
     function _addOracleVerificationScore(uint256 claimId) internal {
-        claims[claimId].riskScore = _capRiskScore(claims[claimId].riskScore + 25);
+        claims[claimId].verificationConfidence = _capVerificationConfidence(
+            claims[claimId].verificationConfidence + 25
+        );
     }
 
-    function _capRiskScore(uint256 score) internal pure returns (uint256) {
+    function _capVerificationConfidence(uint256 score) internal pure returns (uint256) {
         if (score > 100) {
             return 100;
         }
@@ -1144,7 +1146,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         delete claimResolvedAt[claimId];
         delete rejectionReason[claimId];
         oracleRequestByClaimId[claimId] = 0;
-        claims[claimId].riskScore = claimBaseRiskScore[claimId];
+        claims[claimId].verificationConfidence = claimBaseVerificationConfidence[claimId];
         claims[claimId].status = ClaimStatus.APPEALED;
 
         emit ClaimAppealed(claimId, msg.sender, appealReasonHash, block.timestamp);

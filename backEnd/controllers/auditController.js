@@ -163,7 +163,7 @@ const formatClaimExport = (claim) => {
     documentHash: claim.documentHash,
     documentCID: claim.documentCID,
     statusCode: Number(claim.status),
-    riskScore: claim.riskScore.toString(),
+      verificationConfidence: claim.verificationConfidence.toString(),
     submittedAt: claim.submittedAt.toString(),
   };
 };

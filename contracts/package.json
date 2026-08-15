@@ -13,6 +13,8 @@
     "deploy:benefits:local": "node scripts/runHardhat.js run scripts/deploy-benefits-local.js --network localhost",
     "fund:accounts:local": "node scripts/runHardhat.js run scripts/fund-demo-accounts-local.js --network localhost",
     "gas:compare": "node scripts/runHardhat.js run scripts/gasComparison.js"
+    ,"test:stateful": "node scripts/runHardhat.js test test/Phase5StatefulInvariants.test.js"
+    ,"analyze:slither": "slither . --config-file slither.config.json"
   },
   "keywords": [],
   "author": "",

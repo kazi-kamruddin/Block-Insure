@@ -113,7 +113,7 @@ export default function HomePage() {
           <article>
             <span>03</span>
             <h3>Explainable fraud scoring</h3>
-            <p>Bayesian evidence factors and anomaly checks expose the reasons behind risk scores.</p>
+              <p>Bernoulli evidence factors expose fraud probability separately from verification confidence.</p>
           </article>
           <article>
             <span>04</span>

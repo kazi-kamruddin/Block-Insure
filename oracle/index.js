@@ -17,6 +17,10 @@ const {
   buildSalt,
 } = require("./protocol");
 const { loadCursorState, persistCursorState } = require("./cursorState");
+const {
+  assertRequestModelIdentity,
+  loadAndVerifyModelArtifact,
+} = require("./modelArtifact");
 const { writeEvent } = require("../scripts/observability");
 
 const originalConsole = {
@@ -76,6 +80,9 @@ const simulatedNetworkDelayMs =
   ORACLE_INSTANCE_ID === "2"
     ? Number(process.env.ORACLE2_SIMULATED_NETWORK_DELAY_MS || 3000)
     : 0;
+const runtimeModelArtifact = loadAndVerifyModelArtifact(
+  process.env.MODEL_ARTIFACT_PATH || undefined
+);
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const oracleWallet = new ethers.Wallet(ORACLE_PRIVATE_KEY, provider);
@@ -255,6 +262,7 @@ const handleOracleRequested = async (requestId, claimId) => {
 
   try {
     let request = await coordinator.getRequest(requestId);
+    assertRequestModelIdentity(request.modelVersion, runtimeModelArtifact);
     if (request.isFulfilled || (await coordinator.hasRevealed(requestId, oracleWallet.address))) {
       return true;
     }
@@ -277,6 +285,7 @@ const handleOracleRequested = async (requestId, claimId) => {
       registryVersion: request.registryVersion.toString(),
       registryRoot: request.registryRoot,
       modelVersion: request.modelVersion,
+      modelArtifactHash: runtimeModelArtifact.artifactHash,
     };
     const hospitalResponse = await axios.get(MOCK_HOSPITAL_API_URL, {
       params: { ...queryData, registrySnapshot: ORACLE_REGISTRY_SNAPSHOT },
@@ -325,6 +334,14 @@ const handleOracleRequested = async (requestId, claimId) => {
 
     const oracleResponse = {
       protocol: "exact-result-commit-reveal-v1",
+      modelIdentity: {
+        modelVersion: runtimeModelArtifact.modelVersion,
+        modelIdentityHash: runtimeModelArtifact.modelIdentityHash,
+        artifactHash: runtimeModelArtifact.artifactHash,
+        trainingDataHash: runtimeModelArtifact.trainingDataHash,
+        featureSchemaVersion: runtimeModelArtifact.featureSchemaVersion,
+        calibrationVersion: runtimeModelArtifact.calibration.version,
+      },
       requestId: requestKey,
       claimId: claimId.toString(),
       queryData,
@@ -418,6 +435,7 @@ const startOracle = async () => {
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Manager: ${CONTRACT_ADDRESS}`);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Coordinator: ${coordinatorAddress}`);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Registry source: ${ORACLE_REGISTRY_SNAPSHOT}`);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Frozen model: ${runtimeModelArtifact.modelIdentityHash}`);
 
   const oracleRole = await manager.ORACLE_ROLE();
   if (!(await manager.hasRole(oracleRole, oracleWallet.address))) {

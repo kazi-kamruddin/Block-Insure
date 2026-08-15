@@ -9,6 +9,7 @@ for (const contractName of [
   "ClaimAdjudicator",
   "PolicyEconomics",
   "EvidenceRegistry",
+  "ProtocolDeploymentRegistry",
 ]) {
   const artifactPath = path.join(
     projectRoot,

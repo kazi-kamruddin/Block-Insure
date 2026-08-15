@@ -2,6 +2,7 @@ require("dotenv").config();
 const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
+const { verifyModelArtifact } = require("../../backEnd/services/modelArtifactService");
 
 function updateEnvValue(filePath, key, value) {
   if (!fs.existsSync(filePath)) {
@@ -26,7 +27,8 @@ function syncLocalContractDeployment(
   benefitsAddress,
   benefitsDeploymentBlock,
   economicsAddress,
-  evidenceRegistryAddress
+  evidenceRegistryAddress,
+  deploymentRegistryAddress
 ) {
   const projectRoot = path.resolve(__dirname, "..", "..");
   const targets = [
@@ -52,6 +54,11 @@ function syncLocalContractDeployment(
     { file: path.join(projectRoot, "backEnd", ".env"), key: "EVIDENCE_REGISTRY_ADDRESS" },
     { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_EVIDENCE_REGISTRY_ADDRESS" },
   ].forEach(({ file, key }) => updateEnvValue(file, key, evidenceRegistryAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, deploymentRegistryAddress));
 
   [
     { file: path.join(projectRoot, "backEnd", ".env"), key: "POLICY_BENEFITS_ADDRESS" },
@@ -97,6 +104,7 @@ function syncContractAbi() {
     "ClaimAdjudicator",
     "PolicyEconomics",
     "EvidenceRegistry",
+    "ProtocolDeploymentRegistry",
   ].forEach((contractName) => {
     const artifactPath = path.join(
       projectRoot,
@@ -159,6 +167,14 @@ async function main() {
   console.log("InsuranceManager deployed to:", contractAddress);
   console.log("InsuranceManager deployment block:", deploymentBlock);
   console.log("OracleCoordinator deployed to:", await insuranceManager.oracleCoordinator());
+  const modelArtifactPath = path.resolve(__dirname, "..", "..", "backEnd", "model-params.json");
+  const modelArtifact = JSON.parse(fs.readFileSync(modelArtifactPath, "utf8"));
+  const modelVerification = verifyModelArtifact(modelArtifact);
+  if (!modelVerification.valid) {
+    throw new Error(`Frozen model artifact is invalid: ${modelVerification.errors.join("; ")}`);
+  }
+  await (await insuranceManager.updateOracleModelVersion(modelArtifact.modelIdentityHash)).wait();
+  console.log("Frozen fraud-model identity:", modelArtifact.modelIdentityHash);
 
   const ClaimAdjudicator = await hre.ethers.getContractFactory(
     "ClaimAdjudicator",
@@ -241,6 +257,38 @@ async function main() {
   ).wait();
 
   console.log("PolicyBenefitsManager deployed to:", benefitsAddress);
+  const migrationManifest = fs.readFileSync(
+    path.resolve(__dirname, "..", "..", "docs", "protocol-v2-migration.json"),
+    "utf8"
+  );
+  const ProtocolDeploymentRegistry = await hre.ethers.getContractFactory(
+    "ProtocolDeploymentRegistry",
+    adminWallet
+  );
+  const deploymentRegistry = await ProtocolDeploymentRegistry.deploy(
+    hre.ethers.id("BLOCK_INSURE_V1"),
+    hre.ethers.keccak256(hre.ethers.toUtf8Bytes(migrationManifest))
+  );
+  await deploymentRegistry.waitForDeployment();
+  const deploymentRegistryAddress = await deploymentRegistry.getAddress();
+  for (const [name, address, interfaceVersion] of [
+    ["InsuranceManager", contractAddress, "IInsuranceManager/1"],
+    ["OracleCoordinator", await insuranceManager.oracleCoordinator(), "IOracleCoordinator/1"],
+    ["ClaimAdjudicator", adjudicatorAddress, "IClaimAdjudicator/1"],
+    ["PolicyEconomics", economicsAddress, "IPolicyEconomics/1"],
+    ["EvidenceRegistry", evidenceRegistryAddress, "IEvidenceRegistry/1"],
+    ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/1"],
+  ]) {
+    await (
+      await deploymentRegistry.registerComponent(
+        hre.ethers.id(name),
+        address,
+        hre.ethers.id(interfaceVersion),
+        true
+      )
+    ).wait();
+  }
+  console.log("ProtocolDeploymentRegistry deployed to:", deploymentRegistryAddress);
   syncContractAbi();
   syncLocalContractDeployment(
     contractAddress,
@@ -249,7 +297,8 @@ async function main() {
     benefitsAddress,
     benefitsDeploymentBlock,
     economicsAddress,
-    evidenceRegistryAddress
+    evidenceRegistryAddress,
+    deploymentRegistryAddress
   );
   console.log("");
   console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
@@ -259,6 +308,7 @@ async function main() {
   console.log("POLICY_BENEFITS_ADDRESS =", benefitsAddress);
   console.log("POLICY_ECONOMICS_ADDRESS =", economicsAddress);
   console.log("EVIDENCE_REGISTRY_ADDRESS =", evidenceRegistryAddress);
+  console.log("PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS =", deploymentRegistryAddress);
 }
 
 main().catch((error) => {

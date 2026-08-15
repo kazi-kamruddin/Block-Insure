@@ -1,0 +1,985 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-15T07:56:17.192Z",
+  "testInventory": {
+    "solidity": 123,
+    "backend": 38,
+    "oracle": 9,
+    "note": "Static test declarations; runtime pass counts are emitted by npm run verify:all."
+  },
+  "coverage": {
+    "statements": {
+      "covered": 707,
+      "total": 755,
+      "percent": 93.64238410596026
+    },
+    "functions": {
+      "covered": 153,
+      "total": 170,
+      "percent": 90
+    },
+    "lines": {
+      "covered": 941,
+      "total": 998,
+      "percent": 94.28857715430861
+    },
+    "branches": {
+      "covered": 578,
+      "total": 896,
+      "percent": 64.50892857142857
+    }
+  },
+  "contractSizes": [
+    {
+      "name": "InsuranceManager",
+      "deployedBytes": 24262,
+      "eip170Limit": 24576
+    },
+    {
+      "name": "OracleCoordinator",
+      "deployedBytes": 7014,
+      "eip170Limit": 24576
+    },
+    {
+      "name": "ClaimAdjudicator",
+      "deployedBytes": 10818,
+      "eip170Limit": 24576
+    },
+    {
+      "name": "PolicyEconomics",
+      "deployedBytes": 9484,
+      "eip170Limit": 24576
+    },
+    {
+      "name": "EvidenceRegistry",
+      "deployedBytes": 4135,
+      "eip170Limit": 24576
+    },
+    {
+      "name": "PolicyBenefitsManager",
+      "deployedBytes": 9981,
+      "eip170Limit": 24576
+    },
+    {
+      "name": "ProtocolDeploymentRegistry",
+      "deployedBytes": 923,
+      "eip170Limit": 24576
+    }
+  ],
+  "gasPerWorkflow": [
+    {
+      "records": 10,
+      "individual_gas": 249268,
+      "merkle_gas": 43851,
+      "gas_saved": 205417,
+      "savings_percent": 82.41
+    },
+    {
+      "records": 25,
+      "individual_gas": 590677,
+      "merkle_gas": 43851,
+      "gas_saved": 546826,
+      "savings_percent": 92.58
+    },
+    {
+      "records": 50,
+      "individual_gas": 1159764,
+      "merkle_gas": 43851,
+      "gas_saved": 1115913,
+      "savings_percent": 96.22
+    },
+    {
+      "records": 100,
+      "individual_gas": 2297770,
+      "merkle_gas": 43851,
+      "gas_saved": 2253919,
+      "savings_percent": 98.09
+    },
+    {
+      "records": 200,
+      "individual_gas": 4573986,
+      "merkle_gas": 43851,
+      "gas_saved": 4530135,
+      "savings_percent": 99.04
+    },
+    {
+      "records": 500,
+      "individual_gas": 11402190,
+      "merkle_gas": 43851,
+      "gas_saved": 11358339,
+      "savings_percent": 99.62
+    }
+  ],
+  "modelMetrics": {
+    "accuracy": {
+      "mean": 0.9113333333333332,
+      "lower": 0.896431296544879,
+      "upper": 0.9262353701217875
+    },
+    "precision": {
+      "mean": 0.44809333333333334,
+      "lower": 0.2392544203972194,
+      "upper": 0.6569322462694474
+    },
+    "recall": {
+      "mean": 0.21769333333333335,
+      "lower": 0.11896120164188358,
+      "upper": 0.31642546502478314
+    },
+    "f1Score": {
+      "mean": 0.2869466666666666,
+      "lower": 0.1587834473385337,
+      "upper": 0.4151098859947996
+    },
+    "rocAuc": {
+      "mean": 0.8874594666666666,
+      "lower": 0.854338494746687,
+      "upper": 0.9205804385866463
+    },
+    "prAuc": {
+      "mean": 0.5774285333333332,
+      "lower": 0.5225200073880945,
+      "upper": 0.632337059278572
+    },
+    "brierScore": {
+      "mean": 0.0639748868033607,
+      "lower": 0.059740505351047815,
+      "upper": 0.0682092682556736
+    },
+    "calibrationError": {
+      "mean": 0.06441349843015227,
+      "lower": 0.054778634562055395,
+      "upper": 0.07404836229824915
+    }
+  },
+  "temporalModelMetrics": {
+    "confusionMatrix": {
+      "truePositive": 16,
+      "trueNegative": 81,
+      "falsePositive": 5,
+      "falseNegative": 18
+    },
+    "accuracy": 0.8083,
+    "precision": 0.7619,
+    "recall": 0.4706,
+    "specificity": 0.9419,
+    "falsePositiveRate": 0.0581,
+    "f1Score": 0.5818,
+    "rocAuc": 0.80284,
+    "prAuc": 0.647515,
+    "brierScore": 0.15290015468922658,
+    "calibrationError": 0.09821668832045953
+  },
+  "classificationErrors": {
+    "falseAcceptanceRate": 0.5294117647058824,
+    "falseRejectionRate": 0.05813953488372093
+  },
+  "inferencePerformance": {
+    "evaluationTimeMs": 137.25360000000006,
+    "totalInferenceTimeMs": 0.9628999999999905,
+    "meanInferenceTimeMs": 0.0016048333333333175
+  },
+  "oracleDecisionLatency": {
+    "available": false,
+    "reason": "Requires a running local deployment and finalized OracleLog records",
+    "collectionCommand": "npm --prefix backEnd run demo:populate"
+  },
+  "attackMetrics": {
+    "fuzzyDuplicateAutomaticRejectionRate": 0,
+    "groupLeakageDetections": 0
+  },
+  "indexingPerformance": {
+    "pureDecodeBenchmark": {
+      "events": 10000,
+      "elapsedMs": 16.450800000000015,
+      "eventsPerSecond": 607873.1733411135
+    },
+    "persistedIndexer": null
+  },
+  "workflowPerformance": {
+    "generatedAt": "2026-06-04T12:39:12.700Z",
+    "methodology": {
+      "concurrencyLevels": [
+        1,
+        5,
+        10,
+        20,
+        50
+      ],
+      "backendMeasurement": "HTTP response time for http://127.0.0.1:5000/health",
+      "blockchainMeasurement": "submitClaim transaction send-to-receipt duration",
+      "endToEndMeasurement": "backend request plus blockchain claim confirmation",
+      "setupExcluded": "Policy purchases are completed before each timed run and excluded from latency."
+    },
+    "conclusion": "Compare average backend and blockchain durations to identify the primary throughput bottleneck.",
+    "rows": [
+      {
+        "concurrency": 1,
+        "attemptedClaims": 1,
+        "successfulClaims": 1,
+        "failedClaims": 0,
+        "wallClockMs": 152.11,
+        "throughputClaimsPerSecond": 6.574,
+        "backend": {
+          "averageMs": 2.78,
+          "p95Ms": 2.78,
+          "minMs": 2.78,
+          "maxMs": 2.78
+        },
+        "blockchain": {
+          "averageMs": 125.28,
+          "p95Ms": 125.28,
+          "minMs": 125.28,
+          "maxMs": 125.28
+        },
+        "endToEnd": {
+          "averageMs": 151.99,
+          "p95Ms": 151.99,
+          "minMs": 151.99,
+          "maxMs": 151.99
+        },
+        "failures": [],
+        "samples": [
+          {
+            "index": 0,
+            "transactionHash": "0xcd8c176ac46124a7fa0f94e36b9aebc85154c20548d8a1d845806e6fb70d15fe",
+            "blockNumber": 9,
+            "backendResponseMs": 2.78,
+            "blockchainConfirmationMs": 125.28,
+            "endToEndMs": 151.99
+          }
+        ]
+      },
+      {
+        "concurrency": 5,
+        "attemptedClaims": 5,
+        "successfulClaims": 5,
+        "failedClaims": 0,
+        "wallClockMs": 219.8,
+        "throughputClaimsPerSecond": 22.7484,
+        "backend": {
+          "averageMs": 3.88,
+          "p95Ms": 4.89,
+          "minMs": 2.58,
+          "maxMs": 4.89
+        },
+        "blockchain": {
+          "averageMs": 201.61,
+          "p95Ms": 201.83,
+          "minMs": 201.4,
+          "maxMs": 201.83
+        },
+        "endToEnd": {
+          "averageMs": 219.06,
+          "p95Ms": 219.76,
+          "minMs": 218.54,
+          "maxMs": 219.76
+        },
+        "failures": [],
+        "samples": [
+          {
+            "index": 0,
+            "transactionHash": "0x6b5132570785aecb7dfc99d4c373111bbedb27901f0091485550be173e800eec",
+            "blockNumber": 15,
+            "backendResponseMs": 2.58,
+            "blockchainConfirmationMs": 201.83,
+            "endToEndMs": 219.76
+          },
+          {
+            "index": 1,
+            "transactionHash": "0x8f8632ac24879c9db8e5b7213be484b1659ebed66b78bdabb106566b900ad247",
+            "blockNumber": 16,
+            "backendResponseMs": 3.57,
+            "blockchainConfirmationMs": 201.7,
+            "endToEndMs": 219.31
+          },
+          {
+            "index": 2,
+            "transactionHash": "0x1852968f84d4968d661841072bde2253d6951250196143607e5c2eb2c50fe7ab",
+            "blockNumber": 17,
+            "backendResponseMs": 3.96,
+            "blockchainConfirmationMs": 201.61,
+            "endToEndMs": 218.96
+          },
+          {
+            "index": 3,
+            "transactionHash": "0xddf090670d0033383a355758806520761324b14c4a2fd97e38e135eea7b23ad6",
+            "blockNumber": 18,
+            "backendResponseMs": 4.42,
+            "blockchainConfirmationMs": 201.5,
+            "endToEndMs": 218.72
+          },
+          {
+            "index": 4,
+            "transactionHash": "0xe1aa3a9ee5c1cc02e75cfe7b7aec2d17e6814be36139cc69d2406271e50e365d",
+            "blockNumber": 19,
+            "backendResponseMs": 4.89,
+            "blockchainConfirmationMs": 201.4,
+            "endToEndMs": 218.54
+          }
+        ]
+      },
+      {
+        "concurrency": 10,
+        "attemptedClaims": 10,
+        "successfulClaims": 10,
+        "failedClaims": 0,
+        "wallClockMs": 334.5,
+        "throughputClaimsPerSecond": 29.8951,
+        "backend": {
+          "averageMs": 11.59,
+          "p95Ms": 17.65,
+          "minMs": 6.76,
+          "maxMs": 17.65
+        },
+        "blockchain": {
+          "averageMs": 293.08,
+          "p95Ms": 295.24,
+          "minMs": 286.85,
+          "maxMs": 295.24
+        },
+        "endToEnd": {
+          "averageMs": 332.19,
+          "p95Ms": 334.39,
+          "minMs": 330.66,
+          "maxMs": 334.39
+        },
+        "failures": [],
+        "samples": [
+          {
+            "index": 0,
+            "transactionHash": "0x15ac68d755ca69e0570671b5cd7218252d6b9a2f07d47d3fce73dbefcc33e3e9",
+            "blockNumber": 30,
+            "backendResponseMs": 6.76,
+            "blockchainConfirmationMs": 295.24,
+            "endToEndMs": 334.39
+          },
+          {
+            "index": 1,
+            "transactionHash": "0x29bc3a79361e6dc9280afc76a5e6e6f1cfd361ea88a0173709ef4f00f4a42d00",
+            "blockNumber": 31,
+            "backendResponseMs": 7.22,
+            "blockchainConfirmationMs": 294.97,
+            "endToEndMs": 333.56
+          },
+          {
+            "index": 2,
+            "transactionHash": "0x254d19348416a0e1d2f87327c13a7ab9f8a25354f1a065ec41a7765d13c610e6",
+            "blockNumber": 32,
+            "backendResponseMs": 8.02,
+            "blockchainConfirmationMs": 294.84,
+            "endToEndMs": 333.05
+          },
+          {
+            "index": 3,
+            "transactionHash": "0x88058c2efebedaeac59f0608acb66d1037b4e6220adfbd4e5c753642b30afb5f",
+            "blockNumber": 33,
+            "backendResponseMs": 9.42,
+            "blockchainConfirmationMs": 294.7,
+            "endToEndMs": 332.46
+          },
+          {
+            "index": 4,
+            "transactionHash": "0x8eb78807a65810e3c2783a9c8eb71fcb5fcc5da903d237c9efbcb5d4b0f590c8",
+            "blockNumber": 34,
+            "backendResponseMs": 10.49,
+            "blockchainConfirmationMs": 294.55,
+            "endToEndMs": 332.17
+          },
+          {
+            "index": 5,
+            "transactionHash": "0x6d213d6ee4c8812fe71c41a30ffa7fc71e264398d49fc406faf89d88cd59cf2f",
+            "blockNumber": 35,
+            "backendResponseMs": 12.39,
+            "blockchainConfirmationMs": 294.41,
+            "endToEndMs": 331.92
+          },
+          {
+            "index": 6,
+            "transactionHash": "0x352e9c30c5c5145c3090b21d77dc1f8b1db714c6b3914f594282b741afc7847f",
+            "blockNumber": 36,
+            "backendResponseMs": 13.34,
+            "blockchainConfirmationMs": 294.17,
+            "endToEndMs": 331.52
+          },
+          {
+            "index": 7,
+            "transactionHash": "0x22663d64815b7651dfa699f35c55f6bb200fbc8aee35e5687635335757a7d75d",
+            "blockNumber": 37,
+            "backendResponseMs": 14.26,
+            "blockchainConfirmationMs": 293.97,
+            "endToEndMs": 331.23
+          },
+          {
+            "index": 8,
+            "transactionHash": "0xa7834e8f53ec61b00f4987fbd22ac710120f0462f1ff0e24730ae6580c729e60",
+            "blockNumber": 38,
+            "backendResponseMs": 16.36,
+            "blockchainConfirmationMs": 287.1,
+            "endToEndMs": 330.97
+          },
+          {
+            "index": 9,
+            "transactionHash": "0x51a91e9f55e0830515dfac60e1611226816bcc881574738fb1931528696fb62e",
+            "blockNumber": 39,
+            "backendResponseMs": 17.65,
+            "blockchainConfirmationMs": 286.85,
+            "endToEndMs": 330.66
+          }
+        ]
+      },
+      {
+        "concurrency": 20,
+        "attemptedClaims": 20,
+        "successfulClaims": 20,
+        "failedClaims": 0,
+        "wallClockMs": 413.37,
+        "throughputClaimsPerSecond": 48.3827,
+        "backend": {
+          "averageMs": 14.65,
+          "p95Ms": 22.08,
+          "minMs": 6.65,
+          "maxMs": 22.76
+        },
+        "blockchain": {
+          "averageMs": 374.95,
+          "p95Ms": 382.39,
+          "minMs": 367.53,
+          "maxMs": 382.59
+        },
+        "endToEnd": {
+          "averageMs": 411.42,
+          "p95Ms": 412.74,
+          "minMs": 409.98,
+          "maxMs": 413.31
+        },
+        "failures": [],
+        "samples": [
+          {
+            "index": 0,
+            "transactionHash": "0x68b5ebf153d9632c49a223a6e13a6fcb22436b38c9101d85c245273c0a85175b",
+            "blockNumber": 60,
+            "backendResponseMs": 6.65,
+            "blockchainConfirmationMs": 382.59,
+            "endToEndMs": 413.31
+          },
+          {
+            "index": 1,
+            "transactionHash": "0x5981dfd85ca623ac00c2d9c2a54555081db291b957bdf87abae67d368cb4e64e",
+            "blockNumber": 61,
+            "backendResponseMs": 7.29,
+            "blockchainConfirmationMs": 382.39,
+            "endToEndMs": 412.74
+          },
+          {
+            "index": 2,
+            "transactionHash": "0xec6e035c3cc46d8b9960a23bf72f68b0c5e5949af26b5cab83c5ecac3354cc75",
+            "blockNumber": 62,
+            "backendResponseMs": 7.97,
+            "blockchainConfirmationMs": 382.23,
+            "endToEndMs": 412.56
+          },
+          {
+            "index": 3,
+            "transactionHash": "0x58f307958e06b1a16712dd9dedea469f280ba2b23ab60f800eb0e4e9f22348a3",
+            "blockNumber": 63,
+            "backendResponseMs": 8.47,
+            "blockchainConfirmationMs": 382.07,
+            "endToEndMs": 412.42
+          },
+          {
+            "index": 4,
+            "transactionHash": "0x140776c390dce57ecae9a2305e551a6dba46a2572e98b17b6d1b0d47cf9800d0",
+            "blockNumber": 64,
+            "backendResponseMs": 8.89,
+            "blockchainConfirmationMs": 381.93,
+            "endToEndMs": 412.27
+          },
+          {
+            "index": 5,
+            "transactionHash": "0x5744090377b08b3614756a0d3fce1574d516b035aa95d33c6753e2994a30f1b3",
+            "blockNumber": 65,
+            "backendResponseMs": 9.35,
+            "blockchainConfirmationMs": 381.84,
+            "endToEndMs": 412.13
+          },
+          {
+            "index": 6,
+            "transactionHash": "0x44651fb1a2d7f06f1ff4b01c68bcc6d2b8c84a8891e1de9d533389072d0f6f69",
+            "blockNumber": 66,
+            "backendResponseMs": 10.51,
+            "blockchainConfirmationMs": 381.76,
+            "endToEndMs": 411.99
+          },
+          {
+            "index": 7,
+            "transactionHash": "0xc03897db5240eea7f9e63706d47d8d02d4c160bcb41caee7b822b026d989ce73",
+            "blockNumber": 67,
+            "backendResponseMs": 11.88,
+            "blockchainConfirmationMs": 381.68,
+            "endToEndMs": 411.86
+          },
+          {
+            "index": 8,
+            "transactionHash": "0xb24c356b8c13d544d0b8f18aa2159cbb7620e59c7fc7309361e40e61fdc963bd",
+            "blockNumber": 68,
+            "backendResponseMs": 13.05,
+            "blockchainConfirmationMs": 381.6,
+            "endToEndMs": 411.7
+          },
+          {
+            "index": 9,
+            "transactionHash": "0x4184a0f499dc12cdfe8875118fe13e8f5289784715eaea88fc9e2623b5bb3b28",
+            "blockNumber": 69,
+            "backendResponseMs": 14.21,
+            "blockchainConfirmationMs": 381.53,
+            "endToEndMs": 411.55
+          },
+          {
+            "index": 10,
+            "transactionHash": "0x5dd8f6ded60f142b613d3d10930e512f384b6d470b37739ba7386090fd93d1df",
+            "blockNumber": 70,
+            "backendResponseMs": 15.97,
+            "blockchainConfirmationMs": 368.35,
+            "endToEndMs": 411.44
+          },
+          {
+            "index": 11,
+            "transactionHash": "0x1ec0a5178dd0988f742194f307549cde1d0fe2b92ba2dba77747dc3e94145d30",
+            "blockNumber": 71,
+            "backendResponseMs": 16.67,
+            "blockchainConfirmationMs": 368.23,
+            "endToEndMs": 411.05
+          },
+          {
+            "index": 12,
+            "transactionHash": "0xc611a80a8832fd4e30cf10744637d123b252e81805f10d612af635fe33271437",
+            "blockNumber": 72,
+            "backendResponseMs": 17.69,
+            "blockchainConfirmationMs": 368.14,
+            "endToEndMs": 410.93
+          },
+          {
+            "index": 13,
+            "transactionHash": "0xabeb4d066fa9504b106ea4cb89f268408c274a7b31101a57b7d40f4977016858",
+            "blockNumber": 73,
+            "backendResponseMs": 18.48,
+            "blockchainConfirmationMs": 368.06,
+            "endToEndMs": 410.76
+          },
+          {
+            "index": 14,
+            "transactionHash": "0x993eac6c5320d9dda622f6a3717460965f3e559de48d049ebb0f6cb6c249f6d5",
+            "blockNumber": 74,
+            "backendResponseMs": 19.16,
+            "blockchainConfirmationMs": 367.98,
+            "endToEndMs": 410.61
+          },
+          {
+            "index": 15,
+            "transactionHash": "0xe8300f6f58a53c42b4c5d994b4db8afada70f399a39b634a61706563c2c4a484",
+            "blockNumber": 75,
+            "backendResponseMs": 19.87,
+            "blockchainConfirmationMs": 367.9,
+            "endToEndMs": 410.46
+          },
+          {
+            "index": 16,
+            "transactionHash": "0xb4c07c520c89086be326a5ce6addf7799cc67ef1c56b652f88f19686902eec54",
+            "blockNumber": 76,
+            "backendResponseMs": 20.61,
+            "blockchainConfirmationMs": 367.82,
+            "endToEndMs": 410.36
+          },
+          {
+            "index": 17,
+            "transactionHash": "0x2d9b7c41e4a3bc820654dbea30c6f0a3e10b09049e1a52d7289657e60af3c83c",
+            "blockNumber": 77,
+            "backendResponseMs": 21.36,
+            "blockchainConfirmationMs": 367.74,
+            "endToEndMs": 410.22
+          },
+          {
+            "index": 18,
+            "transactionHash": "0x74627ca440f2903a0ad23309d30a157c8cf8c365c72e0e04254c8376c055a5f3",
+            "blockNumber": 78,
+            "backendResponseMs": 22.08,
+            "blockchainConfirmationMs": 367.62,
+            "endToEndMs": 410.11
+          },
+          {
+            "index": 19,
+            "transactionHash": "0xf3e956f1b6bd15f4df59189d114a4e5adb0e485158521445916e659d14d7f12f",
+            "blockNumber": 79,
+            "backendResponseMs": 22.76,
+            "blockchainConfirmationMs": 367.53,
+            "endToEndMs": 409.98
+          }
+        ]
+      },
+      {
+        "concurrency": 50,
+        "attemptedClaims": 50,
+        "successfulClaims": 39,
+        "failedClaims": 11,
+        "wallClockMs": 791.27,
+        "throughputClaimsPerSecond": 49.288,
+        "backend": {
+          "averageMs": 46.54,
+          "p95Ms": 60.26,
+          "minMs": 27.89,
+          "maxMs": 60.75
+        },
+        "blockchain": {
+          "averageMs": 678.55,
+          "p95Ms": 711.7,
+          "minMs": 660.01,
+          "maxMs": 711.93
+        },
+        "endToEnd": {
+          "averageMs": 787.85,
+          "p95Ms": 790.66,
+          "minMs": 785.35,
+          "maxMs": 791.18
+        },
+        "failures": [
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 162 but got 163. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 162 but got 163. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1231, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981a3843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df000000000000000000000000000000000000000000000000000000000000004c000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a2172580000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014001cc8f8adfce6ce8cbb03f2b9f6deff22f6a0fa71ebf3379f0fbcfcfa48ef091b92bc4b29296a925d79ae2cbce241e9f679c8a83a17a48a2e693f99d9f8283c60000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f333900000000000000000000000000000000000000000000c001a04bc2d2e7945ceebdabe5b058cd901f00616ce2f6e54d8bf704f93b991542f096a03735d19e41d5ab597a391f8ed9aedde4edbca218b5d7859d121b6e0a32a5a145\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 163 but got 164. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 163 but got 164. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1232, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981a4843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df000000000000000000000000000000000000000000000000000000000000004d000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a2172590000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014055798c569ed3c25ae66be0df78a8927cc2c1162febad5f9e9a8198013b984a2bbb5a9d78f68142750afdbf9a437a8e317579bf1a31688e78b7f5e9a865f0db0d0000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343000000000000000000000000000000000000000000000c080a0a2a01f75b078b6a0154b6cc8ba84f4446e5eea0ce9576bae14c283c4ae822f6aa066fc4aa41e30cb66b03606447124447092411c43db59467effd9d0e5227ead4f\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 162 but got 165. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 162 but got 165. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1233, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981a5843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df000000000000000000000000000000000000000000000000000000000000004e000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a21725a00000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000140632be026923f926b955cae0d3c5be49ca7ebd8812530f9b9be51f4d07eb68f080f5a86b635e48a51dcb428189002ec958cc122530669086a9b70f8561cd9061b0000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343100000000000000000000000000000000000000000000c001a0bca4a9624fe493a963cd38c24d8fdeb2177c894eeed076ecf0e5cd192c375f52a0544d035bb8f0b13ee4d249f5ebdf8218786fc949364706d96881876c9ed28790\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 162 but got 166. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 162 but got 166. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1234, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981a6843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df000000000000000000000000000000000000000000000000000000000000004f000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a21725b000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001404837ba7f0ad38a93ba7faa3257dcc0c309e08ac87463bd5f4f2f7bf9f001bcdc47a56f61f8b9bcca7e51f20e9c8e8d16486ee923c8ce0836d08a9e4734f3dd170000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343200000000000000000000000000000000000000000000c001a044c2a47c31c7dbbcccac6b73f0849df242cb32995bb4e1ef173e9b8a838c5854a074348ef03af7acead00ad2aa2b8a986e5ac0b3b2baaa17cb0f7d2d901052720c\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 163 but got 167. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 163 but got 167. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1235, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981a7843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df0000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a21725c00000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000140cf4614fab70760c204657c4a392bfdede4be55d072f1c7d3fb058ff53288523858846ccfc2a4a051205a5ddc10e0d6ab818aeb2adbb80cfffc9b037b883642220000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343300000000000000000000000000000000000000000000c080a052b588d960609c2b81466032526f0860c9fb00da493c0f58c5daee7a4fc2eb0ba03aebb6d98696fe48913ecce25a7bf3d2ea3058f9d8a0a88819ac0287d52a4c68\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 163 but got 168. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 163 but got 168. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1236, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981a8843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df0000000000000000000000000000000000000000000000000000000000000051000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a21725d000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001407186ad8582c958598b2be91a6d41e99e88966fd3516567f669fd33158d9cc31866846d11f213ebcca14111250c655e847dc0c0aa5e690f33efcac8667903097d0000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343400000000000000000000000000000000000000000000c080a092f639ad3d3573b221c6b889411e33c7ebb8f33a99c04262daa7dceff57d1902a05a72cfb1be24ed125a6500a5433f281be943e9f07f460ca582ad30da9806dc3f\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 163 but got 169. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 163 but got 169. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1237, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981a9843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df0000000000000000000000000000000000000000000000000000000000000052000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a21725e000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001407b40f24dcf6f969c174cd48fc639bd0ec5e278d084dc59de221c56acb5baa6fc4a4a2547d44d286efd1394109b5130bc68e4ae34e960977742ab963844cc90320000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343500000000000000000000000000000000000000000000c080a0af85d24cdb65da2e8e775e24b3f1a3f4e2cc131d1538631c33b42b58dd76afb4a0293964e469ab324f67415a03d7fec3244e5e7fdd81078815ef27011b70b4aa37\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 163 but got 170. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 163 but got 170. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1238, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981aa843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df0000000000000000000000000000000000000000000000000000000000000053000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a21725f0000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014071603278885fc38735551dcf043aed9f0c8ed44b02545fbe43dbcf4db011e9a251256fab33aa708f67e53cd5d03b33f13275b8c2714374178f4a01a3e6023b270000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343600000000000000000000000000000000000000000000c001a0a529677edb2c3ce064f069fc9e5bd9d286e4efb9548859c613b59364a1d597c8a025a788800f2e83c4a3de95d61dad858a5a0573c33d6960520abdce9bfcdad8c2\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 163 but got 171. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 163 but got 171. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1239, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981ab843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df0000000000000000000000000000000000000000000000000000000000000054000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a21726000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000140a040128117e18699795d61d0d08febde2f286bdec5f096c444bfa729922ccf14e924082694bfa0f6aff8fcd3c8a04a7a8d1f0e93d04d4701da285a1594346fca0000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343700000000000000000000000000000000000000000000c080a01b56fe07b3ee74e718d9b4694b0d9917d16d45188980c517343693922609c72da028a4ac7d7b42e798da5c83ff60dc72bca43595f897aa705272b327a6c807542c\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 163 but got 172. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 163 but got 172. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1240, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981ac843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df0000000000000000000000000000000000000000000000000000000000000055000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a21726100000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000140925dd4a0de4bd80235c05e6dc4c05e87c99c4eb0042b5084b9caa0085137e28e506ef04453547ccc5dc33a8b2f5b218bdb1b0d664f56e3fd240baee98caf6c9c0000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343800000000000000000000000000000000000000000000c001a093d6150fb237970a40bb9cc9c2463ae3c541676ef4f8fb693e09ada8506f4ea9a0051939260919d5539b60864db0b162de6e37df73a471d8fb07afe3c2a101b2f6\" ] }, code=UNKNOWN_ERROR, version=6.16.0)",
+          "could not coalesce error (error={ \"code\": -32000, \"data\": { \"data\": null, \"message\": \"Nonce too high. Expected nonce to be 162 but got 173. Note that transactions can't be queued when automining.\" }, \"message\": \"Nonce too high. Expected nonce to be 162 but got 173. Note that transactions can't be queued when automining.\" }, payload={ \"id\": 1241, \"jsonrpc\": \"2.0\", \"method\": \"eth_sendRawTransaction\", \"params\": [ \"0x02f90254827a6981ad843b9aca00843b9aca76830aaee494bec2a1b6215012cc7e59b0495f0d84c512003f9680b901e4a79735df0000000000000000000000000000000000000000000000000000000000000056000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000006a2172620000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014036ad28941a782aad1b0435a12b9e98eb7a1265499b63e598014d6b32a4f2a88e798cfe07780e530c7ebd8274f3c0a0a6c8e9523068eb01a7d2f0b08dd2883e500000000000000000000000000000000000000000000000000000000000000180000000000000000000000000000000000000000000000000000000000000000f484f53504954414c495a4154494f4e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008484f53502d303031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a6c6f61642d746573743a2f2f636c61696d2d6c6f61642d313738303537363735313930382d35302f343900000000000000000000000000000000000000000000c001a015b8700f7a62919aad516f92533de7bd8bd1fb370bc562102e368d3e28bc7c22a01f8428ed5e1a95aa4204033b008c9d2935ba180c40d7666cac3b9f4101cec90f\" ] }, code=UNKNOWN_ERROR, version=6.16.0)"
+        ],
+        "samples": [
+          {
+            "index": 0,
+            "transactionHash": "0x639f578bed5ce8484fcfe18ce360ef5b508157fef95ce7f8c83ee65a7b6f6c3a",
+            "blockNumber": 130,
+            "backendResponseMs": 27.89,
+            "blockchainConfirmationMs": 711.93,
+            "endToEndMs": 791.18
+          },
+          {
+            "index": 1,
+            "transactionHash": "0x637d64e64a2fc8ce68e71096da4bf27f79a4e70962b7ce7005b63a7e4a9024ed",
+            "blockNumber": 131,
+            "backendResponseMs": 28.99,
+            "blockchainConfirmationMs": 711.7,
+            "endToEndMs": 790.66
+          },
+          {
+            "index": 2,
+            "transactionHash": "0x0688176633d4308e9ce145aef87d607605d9d1c21ce63a7777b3374651c523a8",
+            "blockNumber": 132,
+            "backendResponseMs": 29.88,
+            "blockchainConfirmationMs": 711.43,
+            "endToEndMs": 790.42
+          },
+          {
+            "index": 3,
+            "transactionHash": "0xf3a1a3bc57238d50128552d9ee55bfcabb2359716cd82d1b8f9e12ae6c191975",
+            "blockNumber": 133,
+            "backendResponseMs": 30.68,
+            "blockchainConfirmationMs": 711.05,
+            "endToEndMs": 790.22
+          },
+          {
+            "index": 4,
+            "transactionHash": "0x76ba908fb7b5f9e5ee0e1ffe571047822dc0e5f7bf1a304f5284a7a91aa5bd86",
+            "blockNumber": 134,
+            "backendResponseMs": 31.44,
+            "blockchainConfirmationMs": 710.94,
+            "endToEndMs": 790.05
+          },
+          {
+            "index": 5,
+            "transactionHash": "0x167d5725a709e99d96954c3d5dc43bb4341034754f61c05741e3c857d4aaa5f3",
+            "blockNumber": 135,
+            "backendResponseMs": 32.26,
+            "blockchainConfirmationMs": 710.85,
+            "endToEndMs": 789.88
+          },
+          {
+            "index": 6,
+            "transactionHash": "0x08c622d40771b910daaf46a706b880fecca5f7a527a868235acab89e996bcc7a",
+            "blockNumber": 136,
+            "backendResponseMs": 33.05,
+            "blockchainConfirmationMs": 710.71,
+            "endToEndMs": 789.68
+          },
+          {
+            "index": 7,
+            "transactionHash": "0xd7e86ba17afe667de75bc25a00576c668d10c1ec3c15232a124e98d856744c5a",
+            "blockNumber": 137,
+            "backendResponseMs": 34.01,
+            "blockchainConfirmationMs": 710.54,
+            "endToEndMs": 789.48
+          },
+          {
+            "index": 8,
+            "transactionHash": "0xbe968527d18ce7a0700fa4d09544e5b287da04c4755ef74d6a4a8a2dbd75c98f",
+            "blockNumber": 138,
+            "backendResponseMs": 34.89,
+            "blockchainConfirmationMs": 710.39,
+            "endToEndMs": 789.34
+          },
+          {
+            "index": 9,
+            "transactionHash": "0x8cd4007fb087157b5edadb74b45ca4906c79b5f94138afcfc6aacfff4001d9ca",
+            "blockNumber": 139,
+            "backendResponseMs": 35.84,
+            "blockchainConfirmationMs": 710.22,
+            "endToEndMs": 789.24
+          },
+          {
+            "index": 10,
+            "transactionHash": "0xb2515bda9013b8adfe52cce37c3cb6fa089aefa9911aa4b61050e93872371ffa",
+            "blockNumber": 140,
+            "backendResponseMs": 36.55,
+            "blockchainConfirmationMs": 710.05,
+            "endToEndMs": 789.11
+          },
+          {
+            "index": 11,
+            "transactionHash": "0x1d408641a03d2a757493ba892e9989b79b51a637a7218d7bfe935b405d403a62",
+            "blockNumber": 141,
+            "backendResponseMs": 37.48,
+            "blockchainConfirmationMs": 709.88,
+            "endToEndMs": 788.98
+          },
+          {
+            "index": 12,
+            "transactionHash": "0x6e4b91bf17b9fadd66df03a9c032db73363af26215366cf0089b100e02107c0a",
+            "blockNumber": 142,
+            "backendResponseMs": 39.38,
+            "blockchainConfirmationMs": 667.43,
+            "endToEndMs": 788.75
+          },
+          {
+            "index": 13,
+            "transactionHash": "0x03fb4626c6bf3525d886f9d7195a32c9167af2bacdec50ee9f0552a32fd57c2e",
+            "blockNumber": 143,
+            "backendResponseMs": 41.14,
+            "blockchainConfirmationMs": 667.16,
+            "endToEndMs": 788.58
+          },
+          {
+            "index": 14,
+            "transactionHash": "0x7f78fced73eb2f87a1e562fedbd667f7ec92eae2b5a0891b95aada305903b9d0",
+            "blockNumber": 144,
+            "backendResponseMs": 42.31,
+            "blockchainConfirmationMs": 666.97,
+            "endToEndMs": 788.44
+          },
+          {
+            "index": 15,
+            "transactionHash": "0x4714a74215e19f00681f2c57b26e08409441cdbbe1ca46bdda1cf37dca8f79c2",
+            "blockNumber": 145,
+            "backendResponseMs": 45.43,
+            "blockchainConfirmationMs": 666.78,
+            "endToEndMs": 788.3
+          },
+          {
+            "index": 16,
+            "transactionHash": "0x36a8f0604fbb901597880995a5d9765f33ae1ee57d2718dc94947e7f741d0c37",
+            "blockNumber": 146,
+            "backendResponseMs": 46.93,
+            "blockchainConfirmationMs": 666.64,
+            "endToEndMs": 788.16
+          },
+          {
+            "index": 17,
+            "transactionHash": "0x49c53bfbf95f34da04fd7a20eb44f6bd473cda4431178f9f42420254edbba7e6",
+            "blockNumber": 147,
+            "backendResponseMs": 48,
+            "blockchainConfirmationMs": 666.48,
+            "endToEndMs": 788.02
+          },
+          {
+            "index": 18,
+            "transactionHash": "0xbc18bfa5d508a4ad2969dae2551740906faea311c52f1e3352f1accfa27b9867",
+            "blockNumber": 148,
+            "backendResponseMs": 48.85,
+            "blockchainConfirmationMs": 666.34,
+            "endToEndMs": 787.89
+          },
+          {
+            "index": 19,
+            "transactionHash": "0x14b3d1351ba8fb8dc8ed21b5cad9dffa7de0457a127e621a584abdaf1ff6cf64",
+            "blockNumber": 149,
+            "backendResponseMs": 49.58,
+            "blockchainConfirmationMs": 666.22,
+            "endToEndMs": 787.75
+          },
+          {
+            "index": 20,
+            "transactionHash": "0x65b507b3adda28c641b5abc54f2bbca6118a9e71a0b3db903b2c09f371a4592b",
+            "blockNumber": 150,
+            "backendResponseMs": 50.16,
+            "blockchainConfirmationMs": 666.09,
+            "endToEndMs": 787.61
+          },
+          {
+            "index": 21,
+            "transactionHash": "0x43ee3488815bfc9e7217e43ff492a91d0da6cdf7eb7fe6359a0fc9f6351b9752",
+            "blockNumber": 151,
+            "backendResponseMs": 50.57,
+            "blockchainConfirmationMs": 665.95,
+            "endToEndMs": 787.48
+          },
+          {
+            "index": 22,
+            "transactionHash": "0xf88face26e69ea763fcae1617aba0fee2593f0e737ac38c00a45934fb69ad5bd",
+            "blockNumber": 152,
+            "backendResponseMs": 51.12,
+            "blockchainConfirmationMs": 665.83,
+            "endToEndMs": 787.31
+          },
+          {
+            "index": 23,
+            "transactionHash": "0xad7e0b965d0f6d62aab6d8ff5f294f61f145be859889894a5250aad075f6e2ec",
+            "blockNumber": 153,
+            "backendResponseMs": 51.73,
+            "blockchainConfirmationMs": 665.7,
+            "endToEndMs": 787.18
+          },
+          {
+            "index": 24,
+            "transactionHash": "0x68c8a49a5c03e1ab71c243e7619b512c6771ea3f074d851e18f9a8ef6a82cfdd",
+            "blockNumber": 154,
+            "backendResponseMs": 52.31,
+            "blockchainConfirmationMs": 665.56,
+            "endToEndMs": 787.03
+          },
+          {
+            "index": 25,
+            "transactionHash": "0x9c33f5c940d193be36599a2b27b1cba31289336dfa40fae017193c1f4c41900f",
+            "blockNumber": 155,
+            "backendResponseMs": 52.8,
+            "blockchainConfirmationMs": 665.43,
+            "endToEndMs": 786.86
+          },
+          {
+            "index": 26,
+            "transactionHash": "0xd2249b5a5069ea75f9fbbcfc110f6aadd85197ef9b3a87a7290dfb3a1746003d",
+            "blockNumber": 156,
+            "backendResponseMs": 53.24,
+            "blockchainConfirmationMs": 665.3,
+            "endToEndMs": 786.76
+          },
+          {
+            "index": 27,
+            "transactionHash": "0x6da6572c2de2020def7b63ed32295de1043702cd40080b34e86316c8d00abc92",
+            "blockNumber": 157,
+            "backendResponseMs": 53.62,
+            "blockchainConfirmationMs": 665.21,
+            "endToEndMs": 786.62
+          },
+          {
+            "index": 28,
+            "transactionHash": "0x8dc863077920d082aba507d5a2a423587a83c148041dd398e6b405f863763823",
+            "blockNumber": 158,
+            "backendResponseMs": 56.47,
+            "blockchainConfirmationMs": 665.07,
+            "endToEndMs": 786.52
+          },
+          {
+            "index": 29,
+            "transactionHash": "0xc9d2927144c80845f3823762663587c6040a74167e4528d0d5d6da5321ee627f",
+            "blockNumber": 159,
+            "backendResponseMs": 57,
+            "blockchainConfirmationMs": 664.96,
+            "endToEndMs": 786.4
+          },
+          {
+            "index": 30,
+            "transactionHash": "0x0fc16b0cb0a0d12a226adec71d87c5c26b8acf50d16d1b7a74732497e69d5409",
+            "blockNumber": 160,
+            "backendResponseMs": 57.54,
+            "blockchainConfirmationMs": 661.04,
+            "endToEndMs": 786.3
+          },
+          {
+            "index": 31,
+            "transactionHash": "0x2e5f83e149c4a9c8e571831126ac1d6e9446f65fe6c1fdd1926fa5567e908304",
+            "blockNumber": 161,
+            "backendResponseMs": 57.92,
+            "blockchainConfirmationMs": 660.82,
+            "endToEndMs": 786.2
+          },
+          {
+            "index": 32,
+            "transactionHash": "0x6c90dbdf6f2174d33eebe4a600a54d1182cad7d57b4c333d76dffa2f15acef74",
+            "blockNumber": 162,
+            "backendResponseMs": 58.26,
+            "blockchainConfirmationMs": 660.7,
+            "endToEndMs": 786.03
+          },
+          {
+            "index": 33,
+            "transactionHash": "0x5d3381d2cdbf37e89b05e4afc19a5b85cb260d56754a6793eee8de68d1c9c79b",
+            "blockNumber": 163,
+            "backendResponseMs": 58.66,
+            "blockchainConfirmationMs": 660.6,
+            "endToEndMs": 785.92
+          },
+          {
+            "index": 34,
+            "transactionHash": "0xb6ba673bde85dd8ac7df16d71d89ee5f4b7f2e757a6324d71122535eea0182c2",
+            "blockNumber": 164,
+            "backendResponseMs": 59,
+            "blockchainConfirmationMs": 660.49,
+            "endToEndMs": 785.8
+          },
+          {
+            "index": 35,
+            "transactionHash": "0x3c7df154adc0802de89ba2ae1a49b8f72473759f75b6607726dbebbf6e61193e",
+            "blockNumber": 165,
+            "backendResponseMs": 59.33,
+            "blockchainConfirmationMs": 660.4,
+            "endToEndMs": 785.69
+          },
+          {
+            "index": 36,
+            "transactionHash": "0xe4fd4ef191dcd68d31d4606d712812970655eb617b3522c9ee6fe5e66195eb1b",
+            "blockNumber": 166,
+            "backendResponseMs": 59.64,
+            "blockchainConfirmationMs": 660.29,
+            "endToEndMs": 785.57
+          },
+          {
+            "index": 37,
+            "transactionHash": "0x45bb89de3c8c5544cf75dba394b01c9ca6ee40cd70c6bdd76fdabd08df353cbc",
+            "blockNumber": 167,
+            "backendResponseMs": 60.26,
+            "blockchainConfirmationMs": 660.16,
+            "endToEndMs": 785.48
+          },
+          {
+            "index": 38,
+            "transactionHash": "0x2f2060d98e826d1d88adb1f66220bd21a0485a351d27a389e7cf25cb98a81c3c",
+            "blockNumber": 168,
+            "backendResponseMs": 60.75,
+            "blockchainConfirmationMs": 660.01,
+            "endToEndMs": 785.35
+          }
+        ]
+      }
+    ]
+  },
+  "evidenceProofCosts": {
+    "treeSize": 512,
+    "buildAndProveMs": 5.0803999999999405,
+    "inclusionProofNodes": 9,
+    "inclusionProofBytes": 288,
+    "consistencyProofNodes": 1,
+    "consistencyProofBytes": 32,
+    "inclusionVerified": true,
+    "consistencyVerified": true
+  }
+}

@@ -98,7 +98,7 @@ describe("InsuranceManager - Phase 5 Claim Submission System", function () {
     expect(claim.documentHash).to.equal(DOCUMENT_HASH);
     expect(claim.documentCID).to.equal(DOCUMENT_CID);
     expect(claim.status).to.equal(1); // ClaimStatus.DUPLICATE_CHECKED
-    expect(claim.riskScore).to.equal(90);
+    expect(claim.verificationConfidence).to.equal(90);
   });
 
   it("Stores claim document metadata", async function () {

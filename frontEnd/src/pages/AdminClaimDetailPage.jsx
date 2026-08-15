@@ -392,9 +392,9 @@ export default function AdminClaimDetailPage() {
           </p>
           <p>
             On-chain validation score:{" "}
-            {claim.riskScoreAvailable === false
+          {claim.verificationConfidenceAvailable === false
               ? "Not calculated"
-              : `${formatValue(claim.riskScore)}/100`}
+            : `${formatValue(claim.verificationConfidence)}/100`}
           </p>
           <p className="muted-text">
             Higher is cleaner in the contract’s duplicate-check model. Oracle
