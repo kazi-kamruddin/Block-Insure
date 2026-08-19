@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { execFileSync } = require("node:child_process");
 const { generateSyntheticDataset } = require("../services/syntheticRegistryService");
 const { trainModelParams } = require("../services/modelTrainingService");
 const { verifyModelArtifact } = require("../services/modelArtifactService");
@@ -9,6 +10,32 @@ const { fitPlattScaling } = require("../services/calibrationService");
 const { calculateTrainingDataHash } = require("../services/modelArtifactService");
 
 const OUTPUT_PATH = path.join(__dirname, "..", "model-params.json");
+const REPOSITORY_ROOT = path.join(__dirname, "..", "..");
+
+const resolveSourceCommit = () => {
+  const explicitCommit = process.env.GIT_COMMIT?.trim();
+  const commit =
+    explicitCommit ||
+    execFileSync(
+      "git",
+      [
+        "-c",
+        `safe.directory=${REPOSITORY_ROOT.replace(/\\/g, "/")}`,
+        "rev-parse",
+        "HEAD",
+      ],
+      {
+        cwd: REPOSITORY_ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "inherit"],
+      }
+    ).trim();
+
+  if (!/^[0-9a-f]{40}$/i.test(commit)) {
+    throw new Error("GIT_COMMIT must be a full 40-character Git commit hash");
+  }
+  return commit.toLowerCase();
+};
 
 const run = ({ writeOutput = true } = {}) => {
   const records = generateSyntheticDataset({ profile: "normal", seed: 202605, size: 600 });
@@ -38,7 +65,7 @@ const run = ({ writeOutput = true } = {}) => {
     modelVersion: "bernoulli-fraud-v3.0.0",
     trainedAt: "2026-08-15T00:00:00.000Z",
     source: "phase5/normal seed=202605 size=600",
-    gitCommit: process.env.GIT_COMMIT || "WORKTREE",
+    gitCommit: resolveSourceCommit(),
     threshold: 0.5,
     calibration,
     calibrationDataHash: calculateTrainingDataHash(

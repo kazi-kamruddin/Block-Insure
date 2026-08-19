@@ -39,7 +39,7 @@ test("rejects reconciliation when the authorization has no fact snapshot", () =>
   assert.equal(claimMatchesSubmittedFacts(claim, {}), false);
 });
 
-test("allows completed eligibility snapshots to opt out of temporary-attempt expiry", () => {
+test("allows completed eligibility snapshots to opt out of temporary-attempt expiry", async () => {
   const completed = new ClaimSubmissionAttempt({
     walletAddress: "0x0000000000000000000000000000000000000001",
     policyId: "1",
@@ -47,6 +47,6 @@ test("allows completed eligibility snapshots to opt out of temporary-attempt exp
     expiresAt: null,
   });
 
-  assert.equal(completed.validateSync(), undefined);
+  await assert.doesNotReject(() => completed.validate());
   assert.equal(completed.expiresAt, null);
 });

@@ -74,6 +74,7 @@ test("Bernoulli classifications match the ml-naivebayes reference on expanded bi
 
 test("frozen runtime model hashes match and parameter mutation is detected", () => {
   assert.equal(verifyModelArtifact(modelArtifact).valid, true);
+  assert.match(modelArtifact.gitCommit, /^[a-f0-9]{40}$/);
   assert.equal(modelArtifact.calibration.method, "platt");
   assert.match(modelArtifact.calibrationDataHash, /^[a-f0-9]{64}$/);
   const mutated = JSON.parse(JSON.stringify(modelArtifact));

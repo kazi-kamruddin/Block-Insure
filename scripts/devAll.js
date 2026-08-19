@@ -1,5 +1,6 @@
 const { spawn, spawnSync } = require("node:child_process");
-const net = require("node:net");
+const fs = require("node:fs");
+const http = require("node:http");
 const path = require("node:path");
 const readline = require("node:readline");
 const { writeEvent } = require("./observability");
@@ -39,28 +40,70 @@ function startService(label, directory, args) {
   return child;
 }
 
-function waitForPort(port, timeoutMs = 30_000) {
-  const startedAt = Date.now();
+function readEnvValue(relativePath, key) {
+  const content = fs.readFileSync(path.join(projectRoot, relativePath), "utf8");
+  const prefix = `${key}=`;
+  const line = content
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith(prefix));
+  return line ? line.slice(prefix.length).trim() : "";
+}
+
+function jsonRpc(method, params = [], timeoutMs = 1_500) {
+  const payload = JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
 
   return new Promise((resolve, reject) => {
-    const probe = () => {
-      const socket = net.createConnection({ host: "127.0.0.1", port });
-      socket.once("connect", () => {
-        socket.destroy();
-        resolve();
-      });
-      socket.once("error", () => {
-        socket.destroy();
-        if (Date.now() - startedAt >= timeoutMs) {
-          reject(new Error(`Port ${port} did not become ready within ${timeoutMs}ms`));
-          return;
-        }
-        setTimeout(probe, 400);
-      });
-    };
-
-    probe();
+    const request = http.request(
+      "http://127.0.0.1:8545",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(payload),
+        },
+        timeout: timeoutMs,
+      },
+      (response) => {
+        let body = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+        response.on("end", () => {
+          try {
+            const parsed = JSON.parse(body);
+            if (response.statusCode !== 200 || parsed.error || parsed.result == null) {
+              throw new Error(parsed.error?.message || `HTTP ${response.statusCode}`);
+            }
+            resolve(parsed.result);
+          } catch (error) {
+            reject(new Error(`Invalid local JSON-RPC response: ${error.message}`));
+          }
+        });
+      }
+    );
+    request.once("timeout", () => request.destroy(new Error("JSON-RPC request timed out")));
+    request.once("error", reject);
+    request.end(payload);
   });
+}
+
+async function verifyLocalDeployment() {
+  const chainId = await jsonRpc("eth_chainId");
+  if (BigInt(chainId) !== 31337n) {
+    throw new Error(`Expected local chain ID 31337, received ${BigInt(chainId)}`);
+  }
+
+  const managerAddress = readEnvValue("backEnd/.env", "VITE_CONTRACT_ADDRESS");
+  if (!/^0x[0-9a-fA-F]{40}$/.test(managerAddress)) {
+    throw new Error("Backend VITE_CONTRACT_ADDRESS is not a valid contract address");
+  }
+
+  const code = await jsonRpc("eth_getCode", [managerAddress, "latest"]);
+  if (code === "0x" || code === "0x0") {
+    throw new Error(`No deployed InsuranceManager exists at ${managerAddress}`);
+  }
 }
 
 function stopAll(signal = "SIGTERM") {
@@ -76,9 +119,16 @@ async function main() {
   });
   if (preflight.status !== 0) process.exit(preflight.status || 1);
 
-  console.log("[Launcher] Starting local Hardhat chain...");
-  startService("Chain", "contracts", ["run", "node"]);
-  await waitForPort(8545);
+  try {
+    await verifyLocalDeployment();
+  } catch (error) {
+    throw new Error(
+      `A ready local deployment was not found (${error.message}). ` +
+        "Start `npm --prefix contracts run node`, keep that terminal open, " +
+        "run `npm run setup:local` in a second terminal, and then rerun this command."
+    );
+  }
+  console.log("[Launcher] Reusing the verified local deployment on port 8545.");
 
   console.log("[Launcher] Chain is ready. Starting application services...");
   startService("Backend", "backEnd", ["run", "dev"]);

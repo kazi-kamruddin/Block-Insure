@@ -63,12 +63,8 @@ package and zero purchased policies/claims before you start the application.
 The deploy step also synchronizes the new contract address into the backend,
 frontend, and both oracle environment files.
 
-For separate terminals, start each service with:
-
-```powershell
-cd contracts
-npm run node
-```
+Keep the Hardhat-node terminal open. For separate application terminals, start
+each remaining service with:
 
 ```powershell
 cd backEnd
@@ -87,8 +83,10 @@ npm run dev
 npm run dev:oracle2
 ```
 
-Alternatively, once a local deployment already exists, start all five
-processes with prefixed logs in one terminal:
+Alternatively, once a local deployment exists and that same Hardhat node is
+still running, start the application processes with prefixed logs in one
+terminal. The launcher detects and reuses the existing chain instead of trying
+to bind a second process to port 8545:
 
 ```powershell
 npm run preflight
@@ -112,15 +110,16 @@ the claimant withdraws it.
 
 Claim and appeal evidence is encrypted in the browser with AES-256-GCM before
 upload. Pinata, MongoDB, and the blockchain receive only encrypted bytes and
-their hash/CID. The browser also wraps the AES key with the application's
-RSA-3072 public key. The backend may unwrap that key only for the policyholder
-who owns the claim, an authenticated Admin, or an auditor assigned to that
-claim's snapshotted review, and every unwrap is
-recorded in the evidence-access log. This makes authorized recovery work from
-another browser while keeping the raw AES key out of IPFS and the blockchain.
-For local development, the RSA key pair is generated under
-`backEnd/.local-keys`; production should replace this provider with managed KMS
-or OpenBao and enforce its release policy.
+their hash/CID. The random AES key is encapsulated for the uploader's versioned
+Recrypt identity. An owner can grant an assigned auditor a proxy
+re-encryption transform key; the backend transforms the encrypted key capsule
+without learning the AES key or document plaintext, and the recipient decrypts
+in the browser. Private evidence identities live in IndexedDB, with an
+encrypted recovery backup derived from a wallet signature. Access grants and
+key retrievals are recorded in the evidence-access log, while the raw AES key
+is never persisted in IPFS, MongoDB, or the blockchain. Production deployments
+must protect the proxy signing key with managed KMS/HSM custody and an explicit
+release policy.
 
 The normal claim allowance is controlled by `CLAIMS_PER_WALLET_24H`. Set it to
 `0` to disable the daily allowance locally, or opt into the authenticated local
@@ -196,6 +195,9 @@ The admin **Thesis Results** dashboard reads generated artifacts from
 
 ## Documentation
 
-- [Section 1: Smart Contract and System Design](docs/section-1-system-design.md)
-- [Section 2: Oracle, Security, and Fraud Model](docs/section-2-oracle-security-fraud-model.md)
-- [Section 3: Fraud Model and Report Quality](docs/section-3-fraud-model-report-quality.md)
+- [Current protocol security verification](docs/security-verification.md)
+- [Current protocol migration manifest](docs/protocol-v2-migration.json)
+- Historical research notes retained for provenance:
+  [Section 1](docs/section-1-system-design.md),
+  [Section 2](docs/section-2-oracle-security-fraud-model.md), and
+  [Section 3](docs/section-3-fraud-model-report-quality.md).

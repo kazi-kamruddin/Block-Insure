@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-15T07:56:17.192Z",
+  "generatedAt": "2026-08-15T08:38:16.150Z",
   "testInventory": {
     "solidity": 123,
     "backend": 38,
@@ -175,9 +175,9 @@
     "falseRejectionRate": 0.05813953488372093
   },
   "inferencePerformance": {
-    "evaluationTimeMs": 137.25360000000006,
-    "totalInferenceTimeMs": 0.9628999999999905,
-    "meanInferenceTimeMs": 0.0016048333333333175
+    "evaluationTimeMs": 140.5154,
+    "totalInferenceTimeMs": 0.9764999999999873,
+    "meanInferenceTimeMs": 0.0016274999999999788
   },
   "oracleDecisionLatency": {
     "available": false,
@@ -191,8 +191,8 @@
   "indexingPerformance": {
     "pureDecodeBenchmark": {
       "events": 10000,
-      "elapsedMs": 16.450800000000015,
-      "eventsPerSecond": 607873.1733411135
+      "elapsedMs": 17.944500000000005,
+      "eventsPerSecond": 557273.816489732
     },
     "persistedIndexer": null
   },
@@ -974,7 +974,7 @@
   },
   "evidenceProofCosts": {
     "treeSize": 512,
-    "buildAndProveMs": 5.0803999999999405,
+    "buildAndProveMs": 5.139400000000023,
     "inclusionProofNodes": 9,
     "inclusionProofBytes": 288,
     "consistencyProofNodes": 1,

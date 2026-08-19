@@ -3,7 +3,7 @@
   "modelVersion": "bernoulli-fraud-v3.0.0",
   "trainedAt": "2026-08-15T00:00:00.000Z",
   "source": "phase5/normal seed=202605 size=600",
-  "gitCommit": "WORKTREE",
+  "gitCommit": "0d88ea662abc811d061ea59f5d79465ab9d3c7ed",
   "trainingDataHash": "7bb4669e76e54f9c55abc1e32233141e0274aa908ba8449e0a66e030417aeafc",
   "calibrationDataHash": "b2424b890fdad486eec6b4d5569b50a223fcf52d813404309bd8e716223774d1",
   "featureSchemaVersion": "fraud-features-v3",
@@ -311,6 +311,6 @@
       }
     }
   },
-  "artifactHash": "e9d4ac723cdac53e67ce4dca42535090e70ab99ddbe56e18a0eccc396d68118a",
-  "modelIdentityHash": "0x0c273c593b67bd458d76cc7ef0d3aaf2e85e57b470c2254113f07f5a45a519ea"
+  "artifactHash": "812722b152b9c43545db2b1de3fb535382ba7b7069c0837a9b22fcfb258db611",
+  "modelIdentityHash": "0xfe23d521b89b254072149fd8168328def5b772ce069d23e3c068b43405626ba2"
 }

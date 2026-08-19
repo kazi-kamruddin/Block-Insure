@@ -1,11 +1,11 @@
 {
   "schemaVersion": 3,
-  "generatedAt": "2026-08-15T07:52:43.746Z",
+  "generatedAt": "2026-08-15T08:38:11.864Z",
   "runtimeModel": {
     "modelVersion": "bernoulli-fraud-v3.0.0",
-    "artifactHash": "e9d4ac723cdac53e67ce4dca42535090e70ab99ddbe56e18a0eccc396d68118a",
-    "modelIdentityHash": "0x0c273c593b67bd458d76cc7ef0d3aaf2e85e57b470c2254113f07f5a45a519ea",
-    "evaluatedArtifactHash": "e9d4ac723cdac53e67ce4dca42535090e70ab99ddbe56e18a0eccc396d68118a",
+    "artifactHash": "812722b152b9c43545db2b1de3fb535382ba7b7069c0837a9b22fcfb258db611",
+    "modelIdentityHash": "0xfe23d521b89b254072149fd8168328def5b772ce069d23e3c068b43405626ba2",
+    "evaluatedArtifactHash": "812722b152b9c43545db2b1de3fb535382ba7b7069c0837a9b22fcfb258db611",
     "hashesMatch": true
   },
   "datasets": {
@@ -3290,9 +3290,9 @@
         }
       ],
       "performance": {
-        "evaluationTimeMs": 137.25360000000006,
-        "totalInferenceTimeMs": 0.9628999999999905,
-        "meanInferenceTimeMs": 0.0016048333333333175
+        "evaluationTimeMs": 140.5154,
+        "totalInferenceTimeMs": 0.9764999999999873,
+        "meanInferenceTimeMs": 0.0016274999999999788
       }
     },
     "high_fraud_stress": {
@@ -6726,9 +6726,9 @@
         }
       ],
       "performance": {
-        "evaluationTimeMs": 111.85800000000006,
-        "totalInferenceTimeMs": 1.1771999999999707,
-        "meanInferenceTimeMs": 0.001961999999999951
+        "evaluationTimeMs": 114.47209999999995,
+        "totalInferenceTimeMs": 1.2487999999999602,
+        "meanInferenceTimeMs": 0.002081333333333267
       }
     },
     "provider_compromise": {
@@ -9682,9 +9682,9 @@
         }
       ],
       "performance": {
-        "evaluationTimeMs": 104.67240000000004,
-        "totalInferenceTimeMs": 0.9654000000000451,
-        "meanInferenceTimeMs": 0.0016090000000000752
+        "evaluationTimeMs": 106.96010000000001,
+        "totalInferenceTimeMs": 1.0470000000000255,
+        "meanInferenceTimeMs": 0.0017450000000000425
       }
     },
     "temporal_distribution_shift": {
@@ -12563,9 +12563,9 @@
         }
       ],
       "performance": {
-        "evaluationTimeMs": 98.79589999999996,
-        "totalInferenceTimeMs": 0.94399999999996,
-        "meanInferenceTimeMs": 0.0015733333333332667
+        "evaluationTimeMs": 103.16210000000001,
+        "totalInferenceTimeMs": 1.0024000000000797,
+        "meanInferenceTimeMs": 0.0016706666666667994
       }
     }
   },
@@ -12659,9 +12659,9 @@
     }
   },
   "performance": {
-    "evaluationTimeMs": 137.25360000000006,
-    "totalInferenceTimeMs": 0.9628999999999905,
-    "meanInferenceTimeMs": 0.0016048333333333175
+    "evaluationTimeMs": 140.5154,
+    "totalInferenceTimeMs": 0.9764999999999873,
+    "meanInferenceTimeMs": 0.0016274999999999788
   },
   "fraudProbabilityDistribution": [
     {
@@ -12701,7 +12701,7 @@
   },
   "evidenceProofCosts": {
     "treeSize": 512,
-    "buildAndProveMs": 5.0803999999999405,
+    "buildAndProveMs": 5.139400000000023,
     "inclusionProofNodes": 9,
     "inclusionProofBytes": 288,
     "consistencyProofNodes": 1,
