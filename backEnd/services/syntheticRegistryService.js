@@ -79,7 +79,7 @@ const generateSyntheticDataset = ({ profile = "normal", seed = 202605, size = 60
     const billAmount = Math.max(expectedMin * 0.8, expectedMin * amountMultiplier);
     const occurredAt = addDays(baseDate, Math.floor(progress * 1095 + random() * 14));
     const invoiceNumber = duplicateVariant && records.length
-      ? `${records[Math.floor(random() * records.length)].invoiceNumber}-REV`
+      ? `${records[Math.floor(random() * records.length)].invoiceNumber}-REV-${String(index + 1).padStart(6, "0")}`
       : `INV-${provider.id}-${String(index + 1).padStart(6, "0")}`;
     const labelTypes = ["USED_INVOICE", "INFLATED_AMOUNT", "SUSPICIOUS_PATTERN", "DATE_MISMATCH"];
 

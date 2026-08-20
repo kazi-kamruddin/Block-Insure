@@ -24,7 +24,10 @@ function addAccount(accounts, seen, name, address) {
     return;
   }
 
-  const normalizedAddress = ethers.getAddress(address);
+  // Local role addresses may be copied from an environment file with mixed
+  // casing that is not a valid EIP-55 checksum. They are still valid 20-byte
+  // addresses, so canonicalize the hex before asking ethers to checksum it.
+  const normalizedAddress = ethers.getAddress(String(address).trim().toLowerCase());
   const key = normalizedAddress.toLowerCase();
 
   if (seen.has(key)) {
@@ -52,7 +55,7 @@ function getAccountsToFund() {
     process.env.CLAIM_OFFICER_WALLET_ADDRESS
   );
   addAccount(accounts, seen, "auditorThreeAccount", process.env.AUDITOR_WALLET_ADDRESS_3 || "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955");
-  addAccount(accounts, seen, "auditorFourAccount", process.env.AUDITOR_WALLET_ADDRESS_4 || "0x23618e81E3f5CDf7f54C3d65f7fBfB5d82f842fB");
+  addAccount(accounts, seen, "auditorFourAccount", process.env.AUDITOR_WALLET_ADDRESS_4 || "0x23618e81e3F5Cdf7F54C3D65F7fBFB5d82F842fB");
 
   addAccount(
     accounts,

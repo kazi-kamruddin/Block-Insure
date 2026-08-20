@@ -100,11 +100,13 @@ async function main() {
     process.env.AUDITOR_WALLET_ADDRESS_3,
     process.env.AUDITOR_WALLET_ADDRESS_4,
     "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
-    "0x23618e81E3f5CDf7f54C3d65f7fBfB5d82f842fB",
+    "0x23618e81e3F5Cdf7F54C3D65F7fBFB5d82F842fB",
     "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
   ]
     .filter(Boolean)
-    .map((address) => ethers.getAddress(address).toLowerCase())
+    .map((address) =>
+      ethers.getAddress(String(address).trim().toLowerCase()).toLowerCase()
+    )
     .filter((address, index, all) => all.indexOf(address) === index)
     .slice(0, 4)
     .sort();

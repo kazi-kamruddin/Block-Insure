@@ -1,6 +1,9 @@
 const { ethers } = require("ethers");
 const Notification = require("../models/Notification");
-const { getReadOnlyContract } = require("./contractService");
+const {
+  getPolicyEconomics,
+  getReadOnlyContract,
+} = require("./contractService");
 
 let listenerContract = null;
 let reserveLowHandler = null;
@@ -110,8 +113,9 @@ const startBlockchainEventListener = async () => {
     return;
   }
 
-  listenerContract = getReadOnlyContract();
-  reserveLowHandler = async (currentReserveWei, thresholdWei, eventPayload) => {
+  const managerContract = getReadOnlyContract();
+  listenerContract = await getPolicyEconomics(managerContract);
+  reserveLowHandler = async (currentReserveWei, requiredReserveWei, eventPayload) => {
     const eventLog = eventPayload?.log || eventPayload;
     const transactionHash = eventLog?.transactionHash || "unknown";
     const logIndex = eventLog?.index ?? eventLog?.logIndex ?? "unknown";
@@ -121,15 +125,15 @@ const startBlockchainEventListener = async () => {
       title: "Contract reserve is below the warning threshold",
       message:
         `Current reserve: ${ethers.formatEther(currentReserveWei)} ETH. ` +
-        `Configured threshold: ${ethers.formatEther(thresholdWei)} ETH.`,
+        `Required reserve: ${ethers.formatEther(requiredReserveWei)} ETH.`,
       status: "RESERVE_LOW",
       link: "/admin",
       dedupeKey: `reserve-low:${transactionHash}:${logIndex}`,
     });
   };
 
-  await listenerContract.on("ReserveLowWarning", reserveLowHandler);
-  console.log("ReserveLowWarning blockchain listener started");
+  await listenerContract.on("SolvencyWarning", reserveLowHandler);
+  console.log("SolvencyWarning blockchain listener started");
 };
 
 const stopBlockchainEventListener = async () => {
@@ -137,7 +141,7 @@ const stopBlockchainEventListener = async () => {
     return;
   }
 
-  await listenerContract.off("ReserveLowWarning", reserveLowHandler);
+  await listenerContract.off("SolvencyWarning", reserveLowHandler);
 
   if (typeof listenerContract.runner?.destroy === "function") {
     listenerContract.runner.destroy();
