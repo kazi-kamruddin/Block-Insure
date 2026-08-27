@@ -3,7 +3,7 @@ const { ethers } = require("hardhat");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 require("dotenv").config({
-  path: path.join(__dirname, "..", "..", "backend", ".env"),
+  path: path.join(__dirname, "..", "..", "backEnd", ".env"),
   override: false,
 });
 
@@ -19,27 +19,15 @@ function getAddressFromPrivateKey(privateKey) {
   }
 }
 
-function readAddressList(...keys) {
-  return keys.flatMap((key) => {
-    const value = process.env[key];
-
-    if (!value) {
-      return [];
-    }
-
-    return value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-  });
-}
-
 function addAccount(accounts, seen, name, address) {
   if (!address) {
     return;
   }
 
-  const normalizedAddress = ethers.getAddress(address);
+  // Local role addresses may be copied from an environment file with mixed
+  // casing that is not a valid EIP-55 checksum. They are still valid 20-byte
+  // addresses, so canonicalize the hex before asking ethers to checksum it.
+  const normalizedAddress = ethers.getAddress(String(address).trim().toLowerCase());
   const key = normalizedAddress.toLowerCase();
 
   if (seen.has(key)) {
@@ -66,17 +54,22 @@ function getAccountsToFund() {
     "claimOfficerAccount",
     process.env.CLAIM_OFFICER_WALLET_ADDRESS
   );
+  addAccount(accounts, seen, "auditorThreeAccount", process.env.AUDITOR_WALLET_ADDRESS_3 || "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955");
+  addAccount(accounts, seen, "auditorFourAccount", process.env.AUDITOR_WALLET_ADDRESS_4 || "0x23618e81e3F5Cdf7F54C3D65F7fBFB5d82F842fB");
 
-  readAddressList(
-    "AUDITOR_WALLET_ADDRESS",
-    "AUDITOR_2_WALLET_ADDRESS",
-    "AUDITOR_3_WALLET_ADDRESS",
-    "AUDITOR_4_WALLET_ADDRESS",
-    "AUDITOR_5_WALLET_ADDRESS",
-    "AUDITOR_WALLET_ADDRESSES"
-  ).forEach((address, index) => {
-    addAccount(accounts, seen, `auditor${index + 1}Account`, address);
-  });
+  addAccount(
+    accounts,
+    seen,
+    "auditorAccount",
+    process.env.AUDITOR_WALLET_ADDRESS
+  );
+  addAccount(
+    accounts,
+    seen,
+    "auditorTwoAccount",
+    process.env.AUDITOR_WALLET_ADDRESS_2 ||
+      getAddressFromPrivateKey(process.env.DEMO_AUDITOR_PRIVATE_KEY_2)
+  );
 
   addAccount(
     accounts,

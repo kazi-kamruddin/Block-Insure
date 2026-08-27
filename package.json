@@ -1,0 +1,22 @@
+{
+  "name": "block-insure-local-workflow",
+  "private": true,
+  "scripts": {
+    "setup:local": "npm --prefix backEnd run reset:local && npm --prefix contracts run fund:accounts:local && npm --prefix contracts run deploy:local && npm --prefix backEnd run grant:roles && npm --prefix backEnd run fund:local && npm --prefix backEnd run push:merkle && npm --prefix backEnd run verify:clean",
+    "preflight": "node scripts/preflight.js",
+    "preflight:e2e": "node scripts/e2ePreflight.js",
+    "test:e2e": "npm run preflight:e2e && playwright test --grep-invert @workflow",
+    "test:e2e:headed": "npm run preflight:e2e && playwright test --grep-invert @workflow --headed",
+    "test:e2e:workflow": "npm run preflight:e2e && playwright test --grep @workflow --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
+    "dev:all": "node scripts/devAll.js",
+    "dev:observe": "node scripts/devObservability.js",
+    "deploy:benefits:local": "npm --prefix contracts run deploy:benefits:local",
+    "verify:all": "npm --prefix contracts test && npm --prefix backEnd test && npm --prefix frontEnd run lint && npm --prefix frontEnd run build && npm --prefix oracle test",
+    "verify:sync": "node scripts/verifySynchronization.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}

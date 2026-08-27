@@ -1,11 +1,35 @@
 const { ethers } = require("ethers");
 const {
   getAdminContract,
+  getPolicyEconomics,
+  getOracleCoordinator,
+  getRegistrySnapshot,
   getReadOnlyContract,
 } = require("../services/contractService");
 const { buildReserveIntelligence } = require("../services/settlementIntelligenceService");
-const { exportMerkleRoot } = require("../services/merkleRegistryService");
+const {
+  getActiveRoleMembers,
+  getPolicyPackageIds,
+  paginate,
+  parsePagination,
+} = require("../services/contractQueryService");
+const { buildRegistryMerkleRoot } = require("../services/merkleRegistryService");
 const { notifyClaimStatusChange } = require("../services/notificationService");
+const { logAdminAction } = require("../services/adminActionLogService");
+const AdminActionLog = require("../models/AdminActionLog");
+const User = require("../models/User");
+
+const CONFIRMABLE_ADMIN_ACTIONS = {
+  REQUEST_ORACLE_VERIFICATION: {
+    event: "OracleRequested",
+    status: "ORACLE_PENDING",
+  },
+  SEND_CLAIM_TO_MANUAL_REVIEW: {
+    event: "ClaimSentToManualReview",
+    status: "MANUAL_REVIEW",
+  },
+  RESOLVE_ORACLE_TIMEOUT: { event: "OracleTimedOut", status: "ORACLE_FAILED" },
+};
 
 /* ----------------------------- Status Map ------------------------------ */
 
@@ -17,10 +41,12 @@ const CLAIM_STATUS = [
   "ORACLE_VERIFIED",
   "ORACLE_FAILED",
   "MANUAL_REVIEW",
-  "APPROVED",
+  "PAYOUT_READY",
   "REJECTED",
   "SETTLED",
   "CLOSED",
+  "FUNDING_REQUIRED",
+  "APPEALED",
 ];
 
 /* ----------------------------- Utilities ------------------------------- */
@@ -63,7 +89,7 @@ const formatClaim = (claim) => {
       code: statusNumber,
       label: CLAIM_STATUS[statusNumber] || "UNKNOWN",
     },
-    riskScore: claim.riskScore.toString(),
+      verificationConfidence: claim.verificationConfidence.toString(),
     submittedAt: formatTimestamp(claim.submittedAt),
   };
 };
@@ -83,15 +109,6 @@ const formatPolicyPackage = (policyPackage) => {
   };
 };
 
-const formatContractBalance = async (contract) => {
-  const balance = await contract.getContractBalance();
-
-  return {
-    wei: balance.toString(),
-    eth: ethers.formatEther(balance),
-  };
-};
-
 const formatRegistrySnapshot = (snapshot) => {
   const root = snapshot.root || snapshot[0];
   const timestamp = snapshot.timestamp || snapshot[1];
@@ -99,7 +116,10 @@ const formatRegistrySnapshot = (snapshot) => {
   const timestampValue = Number(timestamp);
 
   return {
+    version: (snapshot.version || 0n).toString(),
     root,
+    treeVersionHash: snapshot.treeVersionHash || ethers.ZeroHash,
+    leafCount: (snapshot.leafCount || 0n).toString(),
     timestamp: {
       unix: timestamp.toString(),
       iso: timestampValue ? new Date(timestampValue * 1000).toISOString() : null,
@@ -109,12 +129,106 @@ const formatRegistrySnapshot = (snapshot) => {
   };
 };
 
+const normalizeWallet = (wallet) => String(wallet || "").trim().toLowerCase();
+
+const ROLE_KEYS = {
+  ADMIN: "ADMIN_ROLE",
+  AUDITOR: "AUDITOR_ROLE",
+  ORACLE: "ORACLE_ROLE",
+};
+
+const asServiceCode = (value) =>
+  ethers.keccak256(ethers.toUtf8Bytes(String(value || "").trim().toUpperCase()));
+
+const publishEconomicRules = async ({ contract, packageId, economicRules }) => {
+  const economics = await getPolicyEconomics(contract);
+  const currentVersion = await economics.currentPackageRuleVersion(packageId);
+  const allowedServices = (economicRules.allowedClaimTypes || []).map(asServiceCode);
+  const excludedServices = (economicRules.excludedClaimTypes || []).map(asServiceCode);
+  if (allowedServices.length === 0) {
+    throw createError("At least one allowed claim type is required", 400);
+  }
+  const requiredDocuments = (economicRules.requiredDocumentTypes || []).map(asServiceCode);
+  const exclusionsRoot = excludedServices.length
+    ? ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32[]"], [excludedServices]))
+    : ethers.ZeroHash;
+  const requiredDocumentsRoot = requiredDocuments.length
+    ? ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32[]"], [requiredDocuments]))
+    : ethers.ZeroHash;
+  const normalizedRules = {
+    waitingPeriod: Number(economicRules.waitingPeriodDays || 0) * 86400,
+    reinstatementWaitingPeriod:
+      Number(economicRules.reinstatementWaitingPeriodDays || 0) * 86400,
+    claimDeadline: Number(economicRules.claimDeadlineDays || 365) * 86400,
+    minimumDocumentCommitments: Number(economicRules.minimumDocumentCommitments || 1),
+    deductibleRateBps: Number(economicRules.deductibleRateBps || 0),
+    insurerShareBps: Number(economicRules.insurerShareBps || 10000),
+    deductibleCapWei: ethers.parseEther(String(economicRules.deductibleCapEth || "0")),
+    maximumClaimWei: ethers.parseEther(String(economicRules.maximumClaimEth || "0")),
+    exclusionsRoot,
+    requiredDocumentsRoot,
+  };
+  const formulaName = economicRules.settlementFormulaVersion || "BLOCK_INSURE_SETTLEMENT_V1";
+  const ruleDocument = JSON.stringify({
+    packageId: String(packageId),
+    version: (currentVersion + 1n).toString(),
+    ...Object.fromEntries(
+      Object.entries(normalizedRules).map(([key, value]) => [key, value.toString()])
+    ),
+    allowedServices,
+    excludedServices,
+    requiredDocuments,
+  });
+  const transaction = await economics.publishPackageRules(
+    packageId,
+    {
+      version: currentVersion + 1n,
+      ...normalizedRules,
+      settlementFormulaVersion: ethers.keccak256(ethers.toUtf8Bytes(formulaName)),
+      policyRuleVersion: ethers.keccak256(ethers.toUtf8Bytes(ruleDocument)),
+    },
+    allowedServices,
+    excludedServices
+  );
+  const receipt = await transaction.wait();
+  return { transaction, receipt, version: currentVersion + 1n, ruleDocument };
+};
+
+const getRoleBytes = async (contract, roleKey) => contract[ROLE_KEYS[roleKey]]();
+
+const getConfiguredRoleWallets = () => {
+  const wallets = [];
+  const pushPrivateKeyWallet = (privateKey, role, label) => {
+    try {
+      if (privateKey) {
+        wallets.push({
+          walletAddress: normalizeWallet(new ethers.Wallet(privateKey).address),
+          role,
+          label,
+        });
+      }
+    } catch (_) {
+      // Invalid env values are reported elsewhere by the demo verifier.
+    }
+  };
+
+  pushPrivateKeyWallet(process.env.ADMIN_PRIVATE_KEY, "ADMIN", "ADMIN_PRIVATE_KEY");
+  pushPrivateKeyWallet(process.env.ORACLE_PRIVATE_KEY, "ORACLE", "ORACLE_PRIVATE_KEY");
+  pushPrivateKeyWallet(process.env.ORACLE_PRIVATE_KEY_2, "ORACLE", "ORACLE_PRIVATE_KEY_2");
+
+  return wallets;
+};
+
 /* -------------------------- Policy Package Admin ------------------------ */
 
 const getAllPolicyPackages = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
-    const packageIds = await contract.getAllPackageIds();
+    const allPackageIds = await getPolicyPackageIds(contract);
+    const { items: packageIds, pagination } = paginate(
+      allPackageIds,
+      parsePagination(req.query)
+    );
 
     const packages = await Promise.all(
       packageIds.map(async (packageId) => {
@@ -126,6 +240,7 @@ const getAllPolicyPackages = async (req, res, next) => {
     res.status(200).json({
       success: true,
       count: packages.length,
+      pagination,
       packages,
     });
   } catch (error) {
@@ -184,6 +299,32 @@ const createPolicyPackage = async (req, res, next) => {
         // Ignore logs from other contracts.
       }
     }
+
+    let economicsPublication = null;
+    if (req.body.economicRules) {
+      economicsPublication = await publishEconomicRules({
+        contract,
+        packageId,
+        economicRules: req.body.economicRules,
+      });
+    }
+
+    await logAdminAction({
+      req,
+      action: "CREATE_POLICY_PACKAGE",
+      targetType: "POLICY_PACKAGE",
+      targetId: packageId,
+      tx,
+      receipt,
+      metadata: {
+        name,
+        policyType,
+        premiumAmountWei: premiumAmountWei.toString(),
+        coverageAmountWei: coverageAmountWei.toString(),
+        durationDays: Number(durationDays),
+        economicRuleVersion: economicsPublication?.version?.toString() || "0",
+      },
+    });
 
     res.status(201).json({
       success: true,
@@ -244,15 +385,65 @@ const updatePolicyPackage = async (req, res, next) => {
       requiredDocumentType
     );
 
-    await tx.wait();
+    const receipt = await tx.wait();
 
     const updatedPackage = await contract.getPolicyPackage(id);
+
+    await logAdminAction({
+      req,
+      action: "UPDATE_POLICY_PACKAGE",
+      targetType: "POLICY_PACKAGE",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: {
+        name,
+        policyType,
+        premiumAmountWei: premiumAmountWei.toString(),
+        coverageAmountWei: coverageAmountWei.toString(),
+        durationDays: Number(durationDays),
+      },
+    });
 
     res.status(200).json({
       success: true,
       message: "Policy package updated successfully",
       transactionHash: tx.hash,
+      economicsTransactionHash:
+        economicsPublication?.transaction?.hash || "",
+      economicRuleVersion: economicsPublication?.version?.toString() || "0",
       package: formatPolicyPackage(updatedPackage),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const publishPolicyPackageEconomicRules = async (req, res, next) => {
+  try {
+    const contract = getAdminContract();
+    const result = await publishEconomicRules({
+      contract,
+      packageId: req.params.id,
+      economicRules: req.body,
+    });
+    await logAdminAction({
+      req,
+      action: "PUBLISH_POLICY_ECONOMIC_RULES",
+      targetType: "POLICY_PACKAGE",
+      targetId: req.params.id,
+      tx: result.transaction,
+      receipt: result.receipt,
+      metadata: {
+        version: result.version.toString(),
+        ruleDocument: result.ruleDocument,
+      },
+    });
+    res.status(200).json({
+      success: true,
+      message: "Immutable policy economic rules published",
+      version: result.version.toString(),
+      transactionHash: result.transaction.hash,
     });
   } catch (error) {
     next(error);
@@ -270,9 +461,18 @@ const deactivatePolicyPackage = async (req, res, next) => {
     const contract = getAdminContract();
     const tx = await contract.deactivatePolicyPackage(id);
 
-    await tx.wait();
+    const receipt = await tx.wait();
 
     const updatedPackage = await contract.getPolicyPackage(id);
+
+    await logAdminAction({
+      req,
+      action: "DEACTIVATE_POLICY_PACKAGE",
+      targetType: "POLICY_PACKAGE",
+      targetId: id,
+      tx,
+      receipt,
+    });
 
     res.status(200).json({
       success: true,
@@ -296,9 +496,18 @@ const reactivatePolicyPackage = async (req, res, next) => {
     const contract = getAdminContract();
     const tx = await contract.reactivatePolicyPackage(id);
 
-    await tx.wait();
+    const receipt = await tx.wait();
 
     const updatedPackage = await contract.getPolicyPackage(id);
+
+    await logAdminAction({
+      req,
+      action: "REACTIVATE_POLICY_PACKAGE",
+      targetType: "POLICY_PACKAGE",
+      targetId: id,
+      tx,
+      receipt,
+    });
 
     res.status(200).json({
       success: true,
@@ -329,7 +538,7 @@ const getReserveIntelligence = async (req, res, next) => {
 const getRegistryMerkleRoot = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
-    const snapshot = await contract.getRegistrySnapshot();
+    const snapshot = await getRegistrySnapshot(contract);
 
     res.status(200).json({
       success: true,
@@ -342,12 +551,36 @@ const getRegistryMerkleRoot = async (req, res, next) => {
 
 const pushRegistryMerkleRoot = async (req, res, next) => {
   try {
-    const root = await exportMerkleRoot();
+    const merkleRoot = await buildRegistryMerkleRoot();
+    const root = merkleRoot.rootHash || ethers.ZeroHash;
     const contract = getAdminContract();
+    const coordinator = await getOracleCoordinator(contract);
+    const treeVersionHash = ethers.keccak256(
+      ethers.toUtf8Bytes(merkleRoot.treeVersion)
+    );
 
-    const tx = await contract.updateRegistryMerkleRoot(root);
+    const tx = await coordinator.publishRegistrySnapshot(
+      root,
+      merkleRoot.leafCount,
+      treeVersionHash
+    );
     const receipt = await tx.wait();
-    const snapshot = await contract.getRegistrySnapshot();
+    const snapshot = await getRegistrySnapshot(contract);
+
+    await logAdminAction({
+      req,
+      action: "PUSH_REGISTRY_MERKLE_ROOT",
+      targetType: "REGISTRY",
+      targetId: root,
+      tx,
+      receipt,
+      metadata: {
+        root,
+        leafCount: merkleRoot.leafCount,
+        treeVersion: merkleRoot.treeVersion,
+        treeVersionHash,
+      },
+    });
 
     res.status(200).json({
       success: true,
@@ -362,23 +595,184 @@ const pushRegistryMerkleRoot = async (req, res, next) => {
   }
 };
 
+const listAdminActionLogs = async (req, res, next) => {
+  try {
+    const {
+      action,
+      actorWallet,
+      targetType,
+      targetId,
+      limit = 100,
+      page = 1,
+    } = req.query;
+    const filter = {};
+
+    if (action) filter.action = action;
+    if (targetType) filter.targetType = targetType;
+    if (targetId) filter.targetId = targetId;
+    if (actorWallet) filter.actorWallet = actorWallet.toLowerCase();
+
+    const pageSize = Math.min(Math.max(Number(limit) || 100, 1), 250);
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const skip = (currentPage - 1) * pageSize;
+
+    const [logs, total] = await Promise.all([
+      AdminActionLog.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      AdminActionLog.countDocuments(filter),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      count: logs.length,
+      total,
+      page: currentPage,
+      limit: pageSize,
+      logs,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getRoleSyncHealth = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const users = await User.find({
+      role: { $in: ["ADMIN", "AUDITOR", "ORACLE"] },
+    })
+      .select("walletAddress role name email")
+      .lean();
+    const roleBytes = {
+      ADMIN: await getRoleBytes(contract, "ADMIN"),
+      AUDITOR: await getRoleBytes(contract, "AUDITOR"),
+      ORACLE: await getRoleBytes(contract, "ORACLE"),
+    };
+
+    const checks = await Promise.all(
+      users.map(async (user) => {
+        const backendRole = user.role;
+        const wallet = normalizeWallet(user.walletAddress);
+        const [hasExpectedRole, hasAdminRole, hasAuditorRole, hasOracleRole] =
+          await Promise.all([
+            contract.hasRole(roleBytes[backendRole], wallet),
+            contract.hasRole(roleBytes.ADMIN, wallet),
+            contract.hasRole(roleBytes.AUDITOR, wallet),
+            contract.hasRole(roleBytes.ORACLE, wallet),
+          ]);
+        const onChainRoles = [
+          hasAdminRole ? "ADMIN" : null,
+          hasAuditorRole ? "AUDITOR" : null,
+          hasOracleRole ? "ORACLE" : null,
+        ].filter(Boolean);
+
+        return {
+          walletAddress: wallet,
+          name: user.name || "",
+          email: user.email || "",
+          backendRole,
+          onChainRoles,
+          hasExpectedOnChainRole: Boolean(hasExpectedRole),
+          healthy:
+            Boolean(hasExpectedRole) &&
+            onChainRoles.length === 1 &&
+            onChainRoles[0] === backendRole,
+          issues: [
+            !hasExpectedRole
+              ? `Backend ${backendRole} is missing ${ROLE_KEYS[backendRole]} on-chain`
+              : null,
+            onChainRoles.length > 0 && !onChainRoles.includes(backendRole)
+              ? `Wallet has on-chain ${onChainRoles.join(", ")} but backend role is ${backendRole}`
+              : null,
+          ].filter(Boolean),
+        };
+      })
+    );
+
+    let trackedAuditors = [];
+
+    try {
+      trackedAuditors = (
+        await getActiveRoleMembers(contract, roleBytes.AUDITOR)
+      ).map(normalizeWallet);
+    } catch (_) {
+      trackedAuditors = [];
+    }
+
+    const backendRoleByWallet = new Map(
+      users.map((user) => [normalizeWallet(user.walletAddress), user.role])
+    );
+    const orphanedAuditors = trackedAuditors
+      .filter((wallet) => backendRoleByWallet.get(wallet) !== "AUDITOR")
+      .map((wallet) => ({
+        walletAddress: wallet,
+        backendRole: backendRoleByWallet.get(wallet) || "MISSING",
+        onChainRoles: ["AUDITOR"],
+        healthy: false,
+        issues: ["On-chain AUDITOR_ROLE tracked but backend role is missing or different"],
+      }));
+    const configuredRoleRows = await Promise.all(
+      getConfiguredRoleWallets()
+        .filter(
+          (entry) =>
+            entry.walletAddress && backendRoleByWallet.get(entry.walletAddress) !== entry.role
+        )
+        .map(async (entry) => ({
+          walletAddress: entry.walletAddress,
+          backendRole: backendRoleByWallet.get(entry.walletAddress) || "MISSING",
+          onChainRoles: (await contract.hasRole(roleBytes[entry.role], entry.walletAddress))
+            ? [entry.role]
+            : [],
+          healthy: false,
+          issues: [
+            `${entry.label} maps to ${entry.role}, but backend role is ${backendRoleByWallet.get(entry.walletAddress) || "missing"}`,
+          ],
+        }))
+    );
+    const rows = [...checks, ...orphanedAuditors, ...configuredRoleRows];
+    const mismatches = rows.filter((row) => !row.healthy);
+
+    res.status(200).json({
+      success: true,
+      generatedAt: new Date().toISOString(),
+      summary: {
+        checkedWallets: rows.length,
+        mismatches: mismatches.length,
+        healthy: mismatches.length === 0,
+      },
+      rows,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAdminClaims = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
 
-    const nextClaimId = await contract.claimCounter();
-    const totalCreatedClaims = Number(nextClaimId) - 1;
-
-    const claims = [];
-
-    for (let claimId = 1; claimId <= totalCreatedClaims; claimId += 1) {
-      const claim = await contract.getClaim(claimId);
-      claims.push(formatClaim(claim));
-    }
+    const nextClaimId = Number(await contract.claimCounter());
+    const allClaimIds = Array.from(
+      { length: Math.max(nextClaimId - 1, 0) },
+      (_, index) => BigInt(index + 1)
+    );
+    const { items: claimIds, pagination } = paginate(
+      allClaimIds,
+      parsePagination(req.query)
+    );
+    const claims = await Promise.all(
+      claimIds.map(async (claimId) =>
+        formatClaim(await contract.getClaim(claimId))
+      )
+    );
 
     res.status(200).json({
       success: true,
       count: claims.length,
+      pagination,
       claims,
     });
   } catch (error) {
@@ -427,150 +821,21 @@ const requestOracleForClaim = async (req, res, next) => {
       message: `Oracle verification started for claim #${id}.`,
     });
 
+    await logAdminAction({
+      req,
+      action: "REQUEST_ORACLE_VERIFICATION",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: { oracleRequest },
+    });
+
     res.status(200).json({
       success: true,
       message: "Oracle verification requested successfully",
       transactionHash: tx.hash,
       oracleRequest,
-      claim: formatClaim(updatedClaim),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const approveClaim = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      throw createError("Claim id is required", 400);
-    }
-
-    const contract = getAdminContract();
-
-    const tx = await contract.approveClaim(id);
-    const receipt = await tx.wait();
-
-    let approvalEvent = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog && parsedLog.name === "ClaimApproved") {
-          approvalEvent = {
-            claimId: parsedLog.args.claimId.toString(),
-            approvedBy: parsedLog.args.approvedBy,
-            timestamp: parsedLog.args.timestamp.toString(),
-          };
-        }
-      } catch (_) {
-        // Ignore logs from other contracts.
-      }
-    }
-
-    const updatedClaim = await contract.getClaim(id);
-
-    await notifyClaimStatusChange({
-      claim: updatedClaim,
-      status: "APPROVED",
-      transactionHash: tx.hash,
-      source: "admin-approve",
-      message: `Claim #${id} was approved and is ready for settlement.`,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Claim approved successfully",
-      transactionHash: tx.hash,
-      approvalEvent,
-      claim: formatClaim(updatedClaim),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const settleClaim = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      throw createError("Claim id is required", 400);
-    }
-
-    const contract = getAdminContract();
-
-    const balanceBefore = await formatContractBalance(contract);
-
-    const tx = await contract.settleClaim(id);
-    const receipt = await tx.wait();
-
-    let settlementEvent = null;
-    let settlementCalculation = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog && parsedLog.name === "SettlementCalculated") {
-          settlementCalculation = {
-            claimId: parsedLog.args.claimId.toString(),
-            claimAmountWei: parsedLog.args.claimAmount.toString(),
-            claimAmountEth: ethers.formatEther(parsedLog.args.claimAmount),
-            deductibleWei: parsedLog.args.deductible.toString(),
-            deductibleEth: ethers.formatEther(parsedLog.args.deductible),
-            insurerPaysWei: parsedLog.args.insurerPays.toString(),
-            insurerPaysEth: ethers.formatEther(parsedLog.args.insurerPays),
-            claimantResponsibilityWei:
-              parsedLog.args.claimantResponsibility.toString(),
-            claimantResponsibilityEth: ethers.formatEther(
-              parsedLog.args.claimantResponsibility
-            ),
-          };
-        }
-
-        if (parsedLog && parsedLog.name === "ClaimSettled") {
-          settlementEvent = {
-            claimId: parsedLog.args.claimId.toString(),
-            claimantWallet:
-              parsedLog.args.claimantWallet ||
-              parsedLog.args.recipient ||
-              parsedLog.args[1],
-            amountWei: parsedLog.args.amount.toString(),
-            amountEth: ethers.formatEther(parsedLog.args.amount),
-            timestamp: parsedLog.args.timestamp
-              ? parsedLog.args.timestamp.toString()
-              : null,
-          };
-        }
-      } catch (_) {
-        // Ignore logs from other contracts.
-      }
-    }
-
-    const updatedClaim = await contract.getClaim(id);
-    const balanceAfter = await formatContractBalance(contract);
-
-    await notifyClaimStatusChange({
-      claim: updatedClaim,
-      status: "SETTLED",
-      transactionHash: tx.hash,
-      source: "admin-settle",
-      message: `Claim #${id} was settled successfully.`,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Claim settled successfully",
-      transactionHash: tx.hash,
-      settlementEvent,
-      settlementCalculation,
-      contractBalance: {
-        before: balanceBefore,
-        after: balanceAfter,
-      },
       claim: formatClaim(updatedClaim),
     });
   } catch (error) {
@@ -587,7 +852,8 @@ const resolveTimedOutOracle = async (req, res, next) => {
     }
 
     const contract = getAdminContract();
-    const tx = await contract.resolveTimedOutOracle(id);
+    const coordinator = await getOracleCoordinator(contract);
+    const tx = await coordinator.resolveTimedOutRequest(id);
     const receipt = await tx.wait();
     let timeoutEvent = null;
 
@@ -617,120 +883,21 @@ const resolveTimedOutOracle = async (req, res, next) => {
       message: `Oracle verification timed out for claim #${id}; the claim is ready for manual review.`,
     });
 
+    await logAdminAction({
+      req,
+      action: "RESOLVE_ORACLE_TIMEOUT",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: { timeoutEvent },
+    });
+
     res.status(200).json({
       success: true,
       message: "Timed-out oracle request resolved successfully",
       transactionHash: tx.hash,
       timeoutEvent,
-      claim: formatClaim(updatedClaim),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const closeClaim = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      throw createError("Claim id is required", 400);
-    }
-
-    const contract = getAdminContract();
-    const tx = await contract.closeClaim(id);
-    const receipt = await tx.wait();
-    let closureEvent = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog && parsedLog.name === "ClaimClosed") {
-          closureEvent = {
-            claimId: parsedLog.args.claimId.toString(),
-            closedBy: parsedLog.args.closedBy,
-            timestamp: parsedLog.args.timestamp.toString(),
-          };
-        }
-      } catch (_) {
-        // Ignore logs from other contracts.
-      }
-    }
-
-    const updatedClaim = await contract.getClaim(id);
-
-    await notifyClaimStatusChange({
-      claim: updatedClaim,
-      status: "CLOSED",
-      transactionHash: tx.hash,
-      source: "admin-close",
-      message: `Claim #${id} lifecycle was closed.`,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Claim closed successfully",
-      transactionHash: tx.hash,
-      closureEvent,
-      claim: formatClaim(updatedClaim),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const rejectClaim = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { reason = "Claim rejected by admin" } = req.body;
-
-    if (!id) {
-      throw createError("Claim id is required", 400);
-    }
-
-    const contract = getAdminContract();
-
-    const reasonHash = ethers.keccak256(ethers.toUtf8Bytes(reason));
-
-    const tx = await contract.rejectClaim(id, reasonHash);
-    const receipt = await tx.wait();
-
-    let rejectionEvent = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog && parsedLog.name === "ClaimRejected") {
-          rejectionEvent = {
-            claimId: parsedLog.args.claimId.toString(),
-            rejectedBy: parsedLog.args.rejectedBy,
-            reasonHash: parsedLog.args.reasonHash,
-          };
-        }
-      } catch (_) {
-        // Ignore logs from other contracts.
-      }
-    }
-
-    const updatedClaim = await contract.getClaim(id);
-
-    await notifyClaimStatusChange({
-      claim: updatedClaim,
-      status: "REJECTED",
-      transactionHash: tx.hash,
-      source: "admin-reject",
-      message: `Claim #${id} was rejected. You may submit one appeal.`,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Claim rejected successfully",
-      transactionHash: tx.hash,
-      rejectionEvent,
-      rejectionReason: reason,
-      reasonHash,
       claim: formatClaim(updatedClaim),
     });
   } catch (error) {
@@ -781,12 +948,163 @@ const sendClaimToManualReview = async (req, res, next) => {
       message: `Claim #${id} was sent to manual review.`,
     });
 
+    await logAdminAction({
+      req,
+      action: "SEND_CLAIM_TO_MANUAL_REVIEW",
+      targetType: "CLAIM",
+      targetId: id,
+      tx,
+      receipt,
+      metadata: { manualReviewEvent },
+    });
+
     res.status(200).json({
       success: true,
       message: "Claim sent to manual review successfully",
       transactionHash: tx.hash,
       manualReviewEvent,
       claim: formatClaim(updatedClaim),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const confirmAdminClaimTransaction = async (req, res, next) => {
+  try {
+    const claimId = String(req.params.id || "").trim();
+    const action = String(req.body.action || "").trim().toUpperCase();
+    const transactionHash = String(req.body.transactionHash || "").trim();
+    const actionConfig = CONFIRMABLE_ADMIN_ACTIONS[action];
+
+    if (!claimId || !/^\d+$/.test(claimId)) {
+      throw createError("A valid claim id is required", 400);
+    }
+
+    if (!actionConfig) {
+      throw createError("Unsupported admin claim action", 400);
+    }
+
+    if (!/^0x[a-f\d]{64}$/i.test(transactionHash)) {
+      throw createError("A valid transactionHash is required", 400);
+    }
+
+    const previousConfirmation = await AdminActionLog.findOne({
+      action,
+      transactionHash,
+    }).lean();
+
+    if (previousConfirmation) {
+      const contract = getReadOnlyContract();
+      const claim = await contract.getClaim(claimId);
+
+      return res.status(200).json({
+        success: true,
+        idempotent: true,
+        message: "Admin transaction was already confirmed",
+        transactionHash,
+        claim: formatClaim(claim),
+      });
+    }
+
+    const contract = getReadOnlyContract();
+    const expectedTarget =
+      action === "RESOLVE_ORACLE_TIMEOUT"
+        ? await (await getOracleCoordinator(contract)).getAddress()
+        : String(contract.target);
+    const [receipt, transaction] = await Promise.all([
+      contract.runner.getTransactionReceipt(transactionHash),
+      contract.runner.getTransaction(transactionHash),
+    ]);
+
+    if (!receipt || !transaction) {
+      return res.status(202).json({
+        success: false,
+        pending: true,
+        message: "Admin transaction is still pending",
+      });
+    }
+
+    if (Number(receipt.status) !== 1) {
+      throw createError("Admin transaction reverted", 409);
+    }
+
+    if (
+      transaction.to?.toLowerCase() !== expectedTarget.toLowerCase()
+    ) {
+      throw createError("Transaction does not target the expected contract", 409);
+    }
+
+    if (
+      transaction.from.toLowerCase() !== req.user.walletAddress.toLowerCase()
+    ) {
+      throw createError(
+        "Transaction signer does not match the authenticated admin wallet",
+        403
+      );
+    }
+
+    let confirmedEvent = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+        const eventClaimId = parsedLog?.args?.claimId?.toString();
+
+        if (
+          parsedLog?.name === actionConfig.event &&
+          eventClaimId === claimId
+        ) {
+          confirmedEvent = {
+            name: parsedLog.name,
+            claimId: eventClaimId,
+          };
+          break;
+        }
+      } catch {
+        // Ignore unrelated logs.
+      }
+    }
+
+    if (!confirmedEvent) {
+      throw createError(
+        `Transaction does not contain ${actionConfig.event} for claim #${claimId}`,
+        409
+      );
+    }
+
+    const claim = await contract.getClaim(claimId);
+
+    if (actionConfig.status) {
+      await notifyClaimStatusChange({
+        claim,
+        status: actionConfig.status,
+        transactionHash,
+        source: `wallet-admin-${action.toLowerCase()}`,
+        message: `Claim #${claimId} was updated by admin ${req.user.walletAddress}.`,
+      });
+    }
+
+    await logAdminAction({
+      req,
+      action,
+      targetType: "CLAIM",
+      targetId: claimId,
+      tx: { hash: transactionHash },
+      receipt,
+      metadata: {
+        confirmedEvent,
+        onChainActor: transaction.from,
+        executionMode: "ADMIN_BROWSER_WALLET",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Admin wallet transaction confirmed and audited",
+      transactionHash,
+      onChainActor: transaction.from,
+      claim: formatClaim(claim),
     });
   } catch (error) {
     next(error);
@@ -802,12 +1120,12 @@ module.exports = {
   getReserveIntelligence,
   getRegistryMerkleRoot,
   pushRegistryMerkleRoot,
+  listAdminActionLogs,
+  getRoleSyncHealth,
   getAdminClaims,
   requestOracleForClaim,
   resolveTimedOutOracle,
-  approveClaim,
-  rejectClaim,
-  settleClaim,
-  closeClaim,
+  confirmAdminClaimTransaction,
   sendClaimToManualReview,
+  publishPolicyPackageEconomicRules,
 };

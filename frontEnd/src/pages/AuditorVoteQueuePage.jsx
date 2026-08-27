@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import {
@@ -8,9 +9,11 @@ import {
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import { getClaimStatusName, getStatusExplanation } from "../utils/claimStatus";
+import { ensureEvidenceIdentity } from "../services/evidenceEncryption";
+import { showToast } from "../services/toast";
 import "../styles/pages/AuditorClaimLookupPage.css";
 
-const VOTE_OPEN_STATUSES = new Set(["MANUAL_REVIEW", "ORACLE_FAILED"]);
+const VOTE_OPEN_STATUSES = new Set(["MANUAL_REVIEW"]);
 
 function extractClaims(data) {
   if (Array.isArray(data)) return data;
@@ -35,7 +38,7 @@ async function getActiveWalletAddress(fallbackWallet) {
 
 async function loadVoteQueue(fallbackWallet) {
   const activeWalletAddress = await getActiveWalletAddress(fallbackWallet);
-  const claimsData = await getAllReadableClaims();
+  const claimsData = await getAllReadableClaims({ limit: 100 });
   const claims = extractClaims(claimsData).filter((claim) =>
     VOTE_OPEN_STATUSES.has(getClaimStatusName(claim))
   );
@@ -66,11 +69,14 @@ async function loadVoteQueue(fallbackWallet) {
     })
   );
 
-  return enrichedClaims.filter((claim) => !claim.hasCurrentUserVoted);
+  return enrichedClaims.filter(
+    (claim) => claim.voteSummary && !claim.hasCurrentUserVoted
+  );
 }
 
 export default function AuditorVoteQueuePage() {
   const { walletAddress } = useWallet();
+  const [isPreparingEvidenceKey, setIsPreparingEvidenceKey] = useState(false);
   const {
     data: claims = [],
     isLoading,
@@ -82,6 +88,23 @@ export default function AuditorVoteQueuePage() {
     queryFn: () => loadVoteQueue(walletAddress),
   });
 
+  async function prepareEvidenceKey() {
+    try {
+      setIsPreparingEvidenceKey(true);
+      await ensureEvidenceIdentity(walletAddress);
+      showToast("Your client-side evidence identity is ready.", {
+        title: "Evidence access ready",
+      });
+    } catch (identityError) {
+      showToast(identityError.response?.data?.message || identityError.message, {
+        tone: "error",
+        title: "Identity setup failed",
+      });
+    } finally {
+      setIsPreparingEvidenceKey(false);
+    }
+  }
+
   return (
     <section className="page-container page-auditor-claim-lookup">
       <div className="page-heading-row">
@@ -90,11 +113,20 @@ export default function AuditorVoteQueuePage() {
           <p>
             Auditors vote only when a claim is actually open for independent
             review. In this contract, that means claims in{" "}
-            <strong>MANUAL_REVIEW</strong> or <strong>ORACLE_FAILED</strong>.
+            <strong>MANUAL_REVIEW</strong> and assigned to your snapshotted panel.
           </p>
         </div>
         <button type="button" onClick={() => refetch()} disabled={isFetching}>
           {isFetching ? "Refreshing..." : "Refresh Queue"}
+        </button>
+        <button
+          type="button"
+          onClick={prepareEvidenceKey}
+          disabled={isPreparingEvidenceKey || !walletAddress}
+        >
+          {isPreparingEvidenceKey
+            ? "Preparing evidence key..."
+            : "Prepare encrypted evidence access"}
         </button>
       </div>
 
@@ -112,9 +144,8 @@ export default function AuditorVoteQueuePage() {
         <div className="card auditor-empty-state">
           <h3>No vote-ready claims</h3>
           <p>
-            There are no manual-review or oracle-failed claims waiting for your
-            auditor wallet right now, or your wallet has already voted on the
-            currently open ones.
+            There are no manual-review claims assigned to your auditor wallet,
+            or your wallet has already voted on its current assignments.
           </p>
           <Link to="/auditor/claims">View all claim timelines</Link>
         </div>

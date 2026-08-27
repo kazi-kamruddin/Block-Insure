@@ -1,34 +1,10 @@
 const crypto = require("crypto");
 const Appeal = require("../models/Appeal");
 const {
-  getAdminContract,
+  getClaimAdjudicator,
   getReadOnlyContract,
 } = require("../services/contractService");
-const {
-  notifyAdmins,
-  notifyWallet,
-} = require("../services/notificationService");
-
-const CLAIM_STATUS = [
-  "SUBMITTED",
-  "DUPLICATE_CHECKED",
-  "FRAUD_FLAGGED",
-  "ORACLE_PENDING",
-  "ORACLE_VERIFIED",
-  "ORACLE_FAILED",
-  "MANUAL_REVIEW",
-  "APPROVED",
-  "REJECTED",
-  "SETTLED",
-  "CLOSED",
-];
-
-const APPEAL_STATUSES = new Set([
-  "PENDING",
-  "UNDER_REVIEW",
-  "APPROVED",
-  "REJECTED",
-]);
+const { notifyAdmins } = require("../services/notificationService");
 
 const createError = (message, statusCode) => {
   const error = new Error(message);
@@ -39,116 +15,141 @@ const createError = (message, statusCode) => {
 const sha256Text = (value) =>
   `0x${crypto.createHash("sha256").update(value, "utf8").digest("hex")}`;
 
-const normalizeClaimId = (claimId) => String(claimId || "").trim();
-
-const formatAppeal = (appeal) => {
-  if (!appeal) return null;
-
-  return {
-    id: appeal._id,
-    claimId: appeal.claimId,
-    claimantWallet: appeal.claimantWallet,
-    appealReason: appeal.appealReason,
-    appealReasonHash: appeal.appealReasonHash,
-    additionalDocumentHash: appeal.additionalDocumentHash,
-    additionalDocumentCID: appeal.additionalDocumentCID,
-    status: appeal.status,
-    adminNote: appeal.adminNote,
-    transactionHash: appeal.transactionHash,
-    submittedAt: appeal.submittedAt,
-    reviewedAt: appeal.reviewedAt,
-    createdAt: appeal.createdAt,
-    updatedAt: appeal.updatedAt,
-  };
-};
+const formatAppeal = (appeal) =>
+  appeal
+    ? {
+        id: appeal._id,
+        claimId: appeal.claimId,
+        claimantWallet: appeal.claimantWallet,
+        appealReason: appeal.appealReason,
+        reasonCategory: appeal.reasonCategory,
+        appealDescription: appeal.appealDescription,
+        appealReasonHash: appeal.appealReasonHash,
+        additionalDocumentHash: appeal.additionalDocumentHash,
+        additionalDocumentCID: appeal.additionalDocumentCID,
+        proposedCorrections: {
+          hospitalId: appeal.proposedHospitalId || "",
+          invoiceNumber: appeal.proposedInvoiceNumber || "",
+          claimType: appeal.proposedClaimType || "",
+          claimAmountEth: appeal.proposedClaimAmountEth || "",
+        },
+        status: appeal.status,
+        history: appeal.history || [],
+        transactionHash: appeal.transactionHash,
+        submittedAt: appeal.submittedAt,
+        updatedAt: appeal.updatedAt,
+      }
+    : null;
 
 const assertCanReadAppeal = (req, appeal) => {
-  if (req.user.role === "ADMIN" || req.user.role === "AUDITOR") {
-    return;
-  }
-
-  if (appeal.claimantWallet.toLowerCase() === req.user.walletAddress.toLowerCase()) {
-    return;
-  }
-
+  if (["ADMIN", "AUDITOR"].includes(req.user.role)) return;
+  if (
+    appeal.claimantWallet.toLowerCase() === req.user.walletAddress.toLowerCase()
+  ) return;
   throw createError("Access denied: appeal does not belong to this wallet", 403);
+};
+
+const verifyAppealTransaction = async (contract, claimId, walletAddress, txHash) => {
+  if (!/^0x[a-f\d]{64}$/i.test(txHash)) {
+    throw createError("A confirmed appeal transactionHash is required", 400);
+  }
+  const [receipt, transaction] = await Promise.all([
+    contract.runner.getTransactionReceipt(txHash),
+    contract.runner.getTransaction(txHash),
+  ]);
+  if (!receipt || !transaction || Number(receipt.status) !== 1) {
+    throw createError("Appeal transaction is not confirmed", 409);
+  }
+  if (
+    transaction.to?.toLowerCase() !== String(contract.target).toLowerCase() ||
+    transaction.from.toLowerCase() !== walletAddress.toLowerCase()
+  ) {
+    throw createError("Appeal transaction signer or destination is invalid", 403);
+  }
+  const matched = receipt.logs.some((log) => {
+    try {
+      const parsed = contract.interface.parseLog(log);
+      return parsed?.name === "ClaimAppealed" && parsed.args.claimId.toString() === claimId;
+    } catch {
+      return false;
+    }
+  });
+  if (!matched) throw createError("Transaction does not contain this claim appeal", 409);
 };
 
 const submitAppeal = async (req, res, next) => {
   try {
-    const claimId = normalizeClaimId(req.body.claimId);
+    const claimId = String(req.body.claimId || "").trim();
     const appealReason = String(req.body.appealReason || "").trim();
-
-    if (!claimId) {
-      throw createError("claimId is required", 400);
-    }
-
-    if (!appealReason) {
-      throw createError("appealReason is required", 400);
+    if (!claimId || !appealReason) {
+      throw createError("claimId and appealReason are required", 400);
     }
 
     const contract = getReadOnlyContract();
+    const adjudicator = await getClaimAdjudicator(contract);
     const claim = await contract.getClaim(claimId);
-    const claimantWallet = claim.claimantWallet.toLowerCase();
-
-    if (claimantWallet !== req.user.walletAddress.toLowerCase()) {
+    if (claim.claimantWallet.toLowerCase() !== req.user.walletAddress.toLowerCase()) {
       throw createError("Access denied: claim does not belong to this wallet", 403);
     }
 
-    const statusLabel = CLAIM_STATUS[Number(claim.status)] || "UNKNOWN";
-
-    if (statusLabel !== "REJECTED") {
-      throw createError("Only rejected claims can be appealed", 400);
+    const round = await adjudicator.appealRound(claimId);
+    if (Number(round) === 0) {
+      throw createError("Submit the on-chain appeal before saving its metadata", 400);
     }
-
-    const existingAppeal = await Appeal.findOne({ claimId });
-
-    if (existingAppeal) {
-      throw createError("An appeal already exists for this claim", 409);
-    }
-
-    const onChainAppealed = await contract.claimAppealed(claimId);
-
-    if (!onChainAppealed) {
-      throw createError(
-        "Submit the on-chain appeal transaction before saving the appeal record",
-        400
-      );
-    }
+    await verifyAppealTransaction(
+      contract,
+      claimId,
+      req.user.walletAddress,
+      String(req.body.transactionHash || "").trim()
+    );
 
     const appealReasonHash = sha256Text(appealReason);
     const providedHash = String(req.body.appealReasonHash || "").trim();
-
     if (providedHash && providedHash.toLowerCase() !== appealReasonHash.toLowerCase()) {
       throw createError("appealReasonHash does not match appealReason", 400);
     }
 
-    const appeal = await Appeal.create({
-      claimId,
-      claimantWallet,
-      appealReason,
-      appealReasonHash,
-      additionalDocumentHash: req.body.additionalDocumentHash || "",
-      additionalDocumentCID: req.body.additionalDocumentCID || "",
-      transactionHash: req.body.transactionHash || "",
-    });
+    const appeal = await Appeal.findOneAndUpdate(
+      { claimId },
+      {
+        $setOnInsert: {
+          claimId,
+          claimantWallet: claim.claimantWallet.toLowerCase(),
+          appealReason,
+          reasonCategory: String(req.body.reasonCategory || "OTHER").toUpperCase(),
+          appealDescription: req.body.appealDescription || appealReason,
+          appealReasonHash,
+          additionalDocumentHash: req.body.additionalDocumentHash || "",
+          additionalDocumentCID: req.body.additionalDocumentCID || "",
+          proposedHospitalId: String(req.body.proposedHospitalId || "").trim(),
+          proposedInvoiceNumber: String(req.body.proposedInvoiceNumber || "").trim(),
+          proposedClaimType: String(req.body.proposedClaimType || "").trim().toUpperCase(),
+          proposedClaimAmountEth: String(req.body.proposedClaimAmountEth || "").trim(),
+          transactionHash: req.body.transactionHash,
+          status: "UNDER_REVIEW",
+          history: [{
+            status: "UNDER_REVIEW",
+            actorWallet: req.user.walletAddress,
+            actorRole: req.user.role,
+            note: `Appeal round ${round} automatically opened a new oracle cycle`,
+            timestamp: new Date(),
+          }],
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     await notifyAdmins({
-      actorWallet: claimantWallet,
+      actorWallet: claim.claimantWallet,
       type: "APPEAL_SUBMITTED",
       title: `Appeal submitted for claim #${claimId}`,
-      message: `The claimant appealed rejected claim #${claimId}.`,
+      message: `Appeal round ${round} automatically opened a new oracle cycle.`,
       claimId,
       appealId: appeal._id.toString(),
       link: `/admin/claims/${claimId}`,
       dedupeKey: `appeal:${appeal._id}:submitted`,
     });
-
-    res.status(201).json({
-      success: true,
-      message: "Appeal submitted successfully",
-      appeal: formatAppeal(appeal),
-    });
+    res.status(201).json({ success: true, appeal: formatAppeal(appeal) });
   } catch (error) {
     next(error);
   }
@@ -156,118 +157,41 @@ const submitAppeal = async (req, res, next) => {
 
 const getAppealByClaim = async (req, res, next) => {
   try {
-    const claimId = normalizeClaimId(req.params.claimId);
-    const appeal = await Appeal.findOne({ claimId });
-
-    if (!appeal) {
-      return res.status(404).json({
-        success: false,
-        message: "Appeal not found for this claim",
-      });
-    }
-
+    const claimId = String(req.params.claimId || "").trim();
+    let appeal = await Appeal.findOne({ claimId });
+    if (!appeal) throw createError("Appeal not found for this claim", 404);
     assertCanReadAppeal(req, appeal);
 
-    res.status(200).json({
-      success: true,
-      appeal: formatAppeal(appeal),
-    });
+    const contract = getReadOnlyContract();
+    const adjudicator = await getClaimAdjudicator(contract);
+    const [version, finalized] = await Promise.all([
+      contract.claimVersion(claimId),
+      adjudicator.appealFinalized(claimId),
+    ]);
+    if (finalized && !["APPROVED", "REJECTED"].includes(appeal.status)) {
+      const decision = await adjudicator.getDecision(claimId, version);
+      const status = decision.approved ? "APPROVED" : "REJECTED";
+      appeal = await Appeal.findByIdAndUpdate(
+        appeal._id,
+        {
+          $set: { status, reviewedAt: new Date() },
+          $push: {
+            history: {
+              status,
+              actorWallet: String(adjudicator.target),
+              actorRole: "PROTOCOL",
+              note: "Appeal finalized automatically by oracle/auditor adjudication",
+              timestamp: new Date(),
+            },
+          },
+        },
+        { new: true }
+      );
+    }
+    res.status(200).json({ success: true, appeal: formatAppeal(appeal) });
   } catch (error) {
     next(error);
   }
 };
 
-const reviewAppeal = async (req, res, next) => {
-  try {
-    const { status, adminNote = "" } = req.body;
-    const normalizedStatus = String(status || "").trim().toUpperCase();
-
-    if (!APPEAL_STATUSES.has(normalizedStatus)) {
-      throw createError("Invalid appeal review status", 400);
-    }
-
-    const existingAppeal = await Appeal.findById(req.params.id);
-
-    if (!existingAppeal) {
-      throw createError("Appeal not found", 404);
-    }
-
-    if (
-      ["APPROVED", "REJECTED"].includes(existingAppeal.status) &&
-      normalizedStatus !== existingAppeal.status
-    ) {
-      throw createError("Finalized appeal decisions cannot be changed", 409);
-    }
-
-    let transactionHash = "";
-    let reopenedClaim = null;
-
-    if (normalizedStatus === "APPROVED" && existingAppeal.status !== "APPROVED") {
-      const contract = getAdminContract();
-      const tx = await contract.reopenClaimAfterAppeal(existingAppeal.claimId);
-
-      await tx.wait();
-
-      transactionHash = tx.hash;
-      reopenedClaim = await contract.getClaim(existingAppeal.claimId);
-    }
-
-    if (normalizedStatus === "REJECTED" && existingAppeal.status !== "REJECTED") {
-      const contract = getAdminContract();
-      const tx = await contract.finalizeRejectedAppeal(existingAppeal.claimId);
-
-      await tx.wait();
-
-      transactionHash = tx.hash;
-    }
-
-    const appeal = await Appeal.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: normalizedStatus,
-        adminNote,
-        reviewedAt: new Date(),
-      },
-      { new: true, runValidators: true }
-    );
-
-    const displayStatus = normalizedStatus.replaceAll("_", " ");
-    const appealMessage =
-      normalizedStatus === "APPROVED"
-        ? `Your appeal for claim #${appeal.claimId} was approved. The claim was reopened for a fresh oracle verification cycle.`
-        : `Your appeal for claim #${appeal.claimId} is now ${displayStatus}.`;
-
-    await notifyWallet(appeal.claimantWallet, {
-      actorWallet: req.user.walletAddress,
-      type: "APPEAL_STATUS_CHANGED",
-      title: `Appeal for claim #${appeal.claimId}: ${displayStatus}`,
-      message: appealMessage,
-      claimId: appeal.claimId,
-      appealId: appeal._id.toString(),
-      status: normalizedStatus,
-      link: `/user/claims/${appeal.claimId}`,
-      dedupeKey: `appeal:${appeal._id}:review:${normalizedStatus}`,
-    });
-
-    res.status(200).json({
-      success: true,
-      message:
-        normalizedStatus === "APPROVED"
-          ? "Appeal approved and claim reopened successfully"
-          : "Appeal review updated successfully",
-      transactionHash,
-      reopenedClaimStatus: reopenedClaim
-        ? CLAIM_STATUS[Number(reopenedClaim.status)] || "UNKNOWN"
-        : null,
-      appeal: formatAppeal(appeal),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-module.exports = {
-  submitAppeal,
-  getAppealByClaim,
-  reviewAppeal,
-};
+module.exports = { submitAppeal, getAppealByClaim };

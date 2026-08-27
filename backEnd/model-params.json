@@ -1,116 +1,316 @@
 {
-  "modelVersion": "bayesian-registry-trained-v2",
-  "trainedAt": "2026-06-04T06:55:30.416Z",
-  "source": "Deterministic synthetic registry seed baseline; regenerate with npm run train:model",
-  "trainingSet": {
-    "totalRecords": 72,
-    "fraudRecords": 39,
-    "legitimateRecords": 33,
-    "priorFraudProbability": 0.541667,
-    "classDistribution": {
-      "fraud": 39,
-      "legitimate": 33
-    },
-    "smoothing": "Laplace +1"
+  "artifactSchemaVersion": 3,
+  "modelVersion": "bernoulli-fraud-v3.0.0",
+  "trainedAt": "2026-08-15T00:00:00.000Z",
+  "source": "phase5/normal seed=202605 size=600",
+  "gitCommit": "0d88ea662abc811d061ea59f5d79465ab9d3c7ed",
+  "trainingDataHash": "7bb4669e76e54f9c55abc1e32233141e0274aa908ba8449e0a66e030417aeafc",
+  "calibrationDataHash": "b2424b890fdad486eec6b4d5569b50a223fcf52d813404309bd8e716223774d1",
+  "featureSchemaVersion": "fraud-features-v3",
+  "threshold": 0.5,
+  "calibration": {
+    "method": "platt",
+    "version": "platt-v1",
+    "slope": 0.5386002105011548,
+    "intercept": -0.5857824076187182,
+    "trainedOn": "latest 20 percent temporal validation partition",
+    "records": 120
   },
-  "factorLikelihoods": {
+  "trainingSet": {
+    "totalRecords": 480,
+    "fraudRecords": 49,
+    "legitimateRecords": 431,
+    "priorFraudProbability": 0.1037344398340249,
+    "classDistribution": {
+      "fraud": 49,
+      "legitimate": 431
+    },
+    "smoothing": "Laplace alpha=1"
+  },
+  "algorithm": "BernoulliNB",
+  "alpha": 1,
+  "featureNames": [
+    "clean_registry_match",
+    "registry_record_missing",
+    "hospital_id_mismatch",
+    "invoice_hash_mismatch",
+    "claim_exceeds_registry_bill",
+    "bill_range_anomaly",
+    "treatment_type_mismatch",
+    "date_mismatch",
+    "invalid_record_status",
+    "used_invoice",
+    "cancelled_record",
+    "license_suspended",
+    "license_blacklisted",
+    "repeat_claim_pattern",
+    "provider_velocity_anomaly",
+    "claimant_velocity_anomaly",
+    "near_duplicate_advisory",
+    "missing_or_noisy_record"
+  ],
+  "classCounts": {
+    "fraud": 49,
+    "legitimate": 431
+  },
+  "classPrior": {
+    "fraud": 0.1037344398340249,
+    "legitimate": 0.8962655601659751
+  },
+  "featureProbabilities": {
     "clean_registry_match": {
-      "fraud": 0.02439,
-      "legitimate": 0.971429,
-      "fraudMatches": 0,
-      "legitimateMatches": 33,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.11764705882352941,
+        "absent": 0.8823529411764706,
+        "presentCount": 5,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.418013856812933,
+        "absent": 0.581986143187067,
+        "presentCount": 180,
+        "classCount": 431
+      }
     },
     "registry_record_missing": {
-      "fraud": 0.02439,
-      "legitimate": 0.028571,
-      "fraudMatches": 0,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.0196078431372549,
+        "absent": 0.9803921568627451,
+        "presentCount": 0,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.0023094688221709007,
+        "absent": 0.9976905311778291,
+        "presentCount": 0,
+        "classCount": 431
+      }
     },
     "hospital_id_mismatch": {
-      "fraud": 0.02439,
-      "legitimate": 0.028571,
-      "fraudMatches": 0,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.0196078431372549,
+        "absent": 0.9803921568627451,
+        "presentCount": 0,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.0023094688221709007,
+        "absent": 0.9976905311778291,
+        "presentCount": 0,
+        "classCount": 431
+      }
     },
     "invoice_hash_mismatch": {
-      "fraud": 0.02439,
-      "legitimate": 0.028571,
-      "fraudMatches": 0,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.0196078431372549,
+        "absent": 0.9803921568627451,
+        "presentCount": 0,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.0023094688221709007,
+        "absent": 0.9976905311778291,
+        "presentCount": 0,
+        "classCount": 431
+      }
     },
     "claim_exceeds_registry_bill": {
-      "fraud": 0.146341,
-      "legitimate": 0.028571,
-      "fraudMatches": 5,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.45098039215686275,
+        "absent": 0.5490196078431373,
+        "presentCount": 22,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.2817551963048499,
+        "absent": 0.7182448036951501,
+        "presentCount": 121,
+        "classCount": 431
+      }
     },
     "bill_range_anomaly": {
-      "fraud": 0.146341,
-      "legitimate": 0.028571,
-      "fraudMatches": 5,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.19607843137254902,
+        "absent": 0.803921568627451,
+        "presentCount": 9,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.26096997690531176,
+        "absent": 0.7390300230946882,
+        "presentCount": 112,
+        "classCount": 431
+      }
     },
     "treatment_type_mismatch": {
-      "fraud": 0.02439,
-      "legitimate": 0.028571,
-      "fraudMatches": 0,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.0196078431372549,
+        "absent": 0.9803921568627451,
+        "presentCount": 0,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.0023094688221709007,
+        "absent": 0.9976905311778291,
+        "presentCount": 0,
+        "classCount": 431
+      }
     },
     "date_mismatch": {
-      "fraud": 0.121951,
-      "legitimate": 0.028571,
-      "fraudMatches": 4,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.11764705882352941,
+        "absent": 0.8823529411764706,
+        "presentCount": 5,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.009237875288683603,
+        "absent": 0.9907621247113164,
+        "presentCount": 3,
+        "classCount": 431
+      }
     },
     "invalid_record_status": {
-      "fraud": 0.853659,
-      "legitimate": 0.028571,
-      "fraudMatches": 34,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.21568627450980393,
+        "absent": 0.7843137254901961,
+        "presentCount": 10,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.020785219399538105,
+        "absent": 0.9792147806004619,
+        "presentCount": 8,
+        "classCount": 431
+      }
     },
     "used_invoice": {
-      "fraud": 0.243902,
-      "legitimate": 0.028571,
-      "fraudMatches": 9,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.1568627450980392,
+        "absent": 0.8431372549019608,
+        "presentCount": 7,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.011547344110854504,
+        "absent": 0.9884526558891455,
+        "presentCount": 4,
+        "classCount": 431
+      }
     },
     "cancelled_record": {
-      "fraud": 0.170732,
-      "legitimate": 0.028571,
-      "fraudMatches": 6,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.0784313725490196,
+        "absent": 0.9215686274509804,
+        "presentCount": 3,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.011547344110854504,
+        "absent": 0.9884526558891455,
+        "presentCount": 4,
+        "classCount": 431
+      }
     },
     "license_suspended": {
-      "fraud": 0.243902,
-      "legitimate": 0.028571,
-      "fraudMatches": 9,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.0196078431372549,
+        "absent": 0.9803921568627451,
+        "presentCount": 0,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.0023094688221709007,
+        "absent": 0.9976905311778291,
+        "presentCount": 0,
+        "classCount": 431
+      }
     },
     "license_blacklisted": {
-      "fraud": 0.243902,
-      "legitimate": 0.028571,
-      "fraudMatches": 9,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.0784313725490196,
+        "absent": 0.9215686274509804,
+        "presentCount": 3,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.006928406466512702,
+        "absent": 0.9930715935334873,
+        "presentCount": 2,
+        "classCount": 431
+      }
     },
     "repeat_claim_pattern": {
-      "fraud": 0.390244,
-      "legitimate": 0.028571,
-      "fraudMatches": 15,
-      "legitimateMatches": 0,
-      "smoothing": "Laplace +1"
+      "fraud": {
+        "present": 0.29411764705882354,
+        "absent": 0.7058823529411764,
+        "presentCount": 14,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.27251732101616627,
+        "absent": 0.7274826789838338,
+        "presentCount": 117,
+        "classCount": 431
+      }
+    },
+    "provider_velocity_anomaly": {
+      "fraud": {
+        "present": 0.49019607843137253,
+        "absent": 0.5098039215686274,
+        "presentCount": 24,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.057736720554272515,
+        "absent": 0.9422632794457275,
+        "presentCount": 24,
+        "classCount": 431
+      }
+    },
+    "claimant_velocity_anomaly": {
+      "fraud": {
+        "present": 0.3333333333333333,
+        "absent": 0.6666666666666667,
+        "presentCount": 16,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.07159353348729793,
+        "absent": 0.9284064665127021,
+        "presentCount": 30,
+        "classCount": 431
+      }
+    },
+    "near_duplicate_advisory": {
+      "fraud": {
+        "present": 0.35294117647058826,
+        "absent": 0.6470588235294117,
+        "presentCount": 17,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.020785219399538105,
+        "absent": 0.9792147806004619,
+        "presentCount": 8,
+        "classCount": 431
+      }
+    },
+    "missing_or_noisy_record": {
+      "fraud": {
+        "present": 0.0196078431372549,
+        "absent": 0.9803921568627451,
+        "presentCount": 0,
+        "classCount": 49
+      },
+      "legitimate": {
+        "present": 0.06235565819861432,
+        "absent": 0.9376443418013857,
+        "presentCount": 26,
+        "classCount": 431
+      }
     }
-  }
+  },
+  "artifactHash": "812722b152b9c43545db2b1de3fb535382ba7b7069c0837a9b22fcfb258db611",
+  "modelIdentityHash": "0xfe23d521b89b254072149fd8168328def5b772ce069d23e3c068b43405626ba2"
 }

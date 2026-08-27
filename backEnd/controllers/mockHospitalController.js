@@ -1,5 +1,6 @@
 const { ethers } = require("ethers");
 const { buildRiskAssessment } = require("../services/riskScoringService");
+const { analyzeDuplicateCandidate } = require("../services/duplicateIntelligenceService");
 const {
   getRegistryModel,
   normalizeRegistrySnapshot,
@@ -8,10 +9,14 @@ const {
   buildRegistryMerkleProof,
   buildRegistryMerkleRoot,
 } = require("../services/merkleRegistryService");
+const { getReadOnlyContract, getRegistrySnapshot } = require("../services/contractService");
+const Appeal = require("../models/Appeal");
 
 const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const BILL_RANGE_TOLERANCE_RATE = 0.15;
+const BOUNDARY_NOTE =
+  "Synthetic external registry for thesis/demo verification. Production deployments should replace this mock with a hospital API or signed data feed while keeping hashes/Merkle roots on-chain.";
 
 const toBoolean = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -444,6 +449,7 @@ const getAllHospitalRecords = async (req, res, next) => {
       page,
       limit,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       summary,
       records,
     });
@@ -468,6 +474,7 @@ const getHospitalRecordById = async (req, res, next) => {
     res.status(200).json({
       success: true,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       record,
     });
   } catch (error) {
@@ -485,6 +492,7 @@ const getHospitalRegistrySummary = async (req, res, next) => {
     res.status(200).json({
       success: true,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       summary,
     });
   } catch (error) {
@@ -500,7 +508,37 @@ const getHospitalRegistryMerkleRoot = async (req, res, next) => {
     res.status(200).json({
       success: true,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       merkleRoot,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getHospitalOnChainRegistryMerkleRoot = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const snapshot = await getRegistrySnapshot(contract);
+    const root = snapshot.root || snapshot[0];
+    const timestamp = snapshot.timestamp || snapshot[1];
+    const blockNumber = snapshot.blockNumber || snapshot[2];
+
+    res.status(200).json({
+      success: true,
+      registrySnapshot: {
+        version: (snapshot.version || 0n).toString(),
+        root,
+        treeVersionHash: snapshot.treeVersionHash || ethers.ZeroHash,
+        leafCount: (snapshot.leafCount || 0n).toString(),
+        committed: root !== ethers.ZeroHash && Number(timestamp) > 0,
+        timestamp: {
+          unix: timestamp.toString(),
+          iso: Number(timestamp) ? new Date(Number(timestamp) * 1000).toISOString() : null,
+        },
+        blockNumber: blockNumber.toString(),
+      },
+      boundaryNote: BOUNDARY_NOTE,
     });
   } catch (error) {
     next(error);
@@ -527,6 +565,7 @@ const getHospitalRegistryMerkleProof = async (req, res, next) => {
     res.status(200).json({
       success: true,
       registrySnapshot,
+      boundaryNote: BOUNDARY_NOTE,
       merkleProof,
     });
   } catch (error) {
@@ -536,15 +575,47 @@ const getHospitalRegistryMerkleProof = async (req, res, next) => {
 
 const verifyHospitalRecord = async (req, res, next) => {
   try {
-    const {
+    let {
       hospitalId,
       invoiceHash,
       claimAmountEth,
       claimAmountWei,
       claimType,
       incidentDate,
+      modelVersion,
+      modelArtifactHash,
       registrySnapshot: requestedRegistrySnapshot,
     } = req.query;
+    const claimId = String(req.query.claimId || "").trim();
+    let verificationSource = "ORIGINAL_CLAIM";
+
+    if (claimId) {
+      const approvedAppeal = await Appeal.findOne({
+        claimId,
+        status: "APPROVED",
+      }).lean();
+
+      if (
+        approvedAppeal &&
+        [
+          approvedAppeal.proposedHospitalId,
+          approvedAppeal.proposedInvoiceNumber,
+          approvedAppeal.proposedClaimType,
+          approvedAppeal.proposedClaimAmountEth,
+        ].some(Boolean)
+      ) {
+        hospitalId = approvedAppeal.proposedHospitalId || hospitalId;
+        invoiceHash = approvedAppeal.proposedInvoiceNumber
+          ? ethers.keccak256(
+              ethers.toUtf8Bytes(approvedAppeal.proposedInvoiceNumber.trim())
+            )
+          : invoiceHash;
+        claimType = approvedAppeal.proposedClaimType || claimType;
+        claimAmountEth =
+          approvedAppeal.proposedClaimAmountEth || claimAmountEth;
+        verificationSource = "APPROVED_APPEAL_CORRECTION";
+      }
+    }
 
     if (!hospitalId || !invoiceHash) {
       return res.status(400).json({
@@ -583,13 +654,56 @@ const verifyHospitalRecord = async (req, res, next) => {
       claimAmountWei: claimAmountWei || null,
       claimType: claimType || null,
       incidentDate: incidentDate || null,
+      claimId: claimId || null,
+      source: verificationSource,
     };
+    const duplicateIntelligence = record
+      ? analyzeDuplicateCandidate(
+          {
+            claimantId: record.claimantId || record.patientHash,
+            providerSignedInvoiceId: record.invoiceHash,
+            claimType: claimType || record.treatmentType,
+            incidentDate: record.admissionDate,
+            invoiceNumber: record.invoiceNumber,
+            providerName: record.hospitalName,
+            documentText: `${record.diagnosisCode} ${record.treatmentType}`,
+            amount: claimAmountEth || record.billAmount,
+          },
+          modelRecords
+            .filter((item) => normalizeHash(item.invoiceHash) !== normalizedInvoiceHash)
+            .map((item) => ({
+              claimId: item.recordId || item.invoiceNumber,
+              claimantId: item.claimantId || item.patientHash,
+              providerSignedInvoiceId: item.invoiceHash,
+              claimType: item.treatmentType,
+              incidentDate: item.admissionDate,
+              invoiceNumber: item.invoiceNumber,
+              providerName: item.hospitalName,
+              documentText: `${item.diagnosisCode} ${item.treatmentType}`,
+              amount: item.billAmount,
+            }))
+        )
+      : null;
     const riskAssessment = await buildRiskAssessment({
       record,
       comparison,
       query: verificationQuery,
       records: modelRecords,
+      duplicateIntelligence,
     });
+    if (
+      (modelVersion && normalizeHash(modelVersion) !== normalizeHash(riskAssessment.modelIdentityHash)) ||
+      (modelArtifactHash && normalizeHash(modelArtifactHash) !== normalizeHash(riskAssessment.artifactHash))
+    ) {
+      return res.status(409).json({
+        success: false,
+        verified: false,
+        message: "Requested oracle model identity does not match the evaluated runtime artifact",
+        requestedModelVersion: modelVersion || null,
+        runtimeModelIdentityHash: riskAssessment.modelIdentityHash,
+        runtimeArtifactHash: riskAssessment.artifactHash,
+      });
+    }
 
     if (!record) {
       return res.status(200).json({
@@ -602,13 +716,14 @@ const verifyHospitalRecord = async (req, res, next) => {
         merkleProof,
         query: verificationQuery,
         registrySnapshot,
+        boundaryNote: BOUNDARY_NOTE,
       });
     }
 
     const comparisonVerified = comparison.blockingFailureCount === 0;
     const verified =
       comparisonVerified &&
-      riskAssessment.recommendation !== "REJECT_ORACLE_VERIFICATION";
+      riskAssessment.recommendation === "AUTO_VERIFY_RECOMMENDED";
 
     const comparisonRiskLevel = comparisonVerified
       ? comparison.warningFailureCount > 0
@@ -634,14 +749,24 @@ const verifyHospitalRecord = async (req, res, next) => {
           ? "Synthetic healthcare registry record matched with non-blocking warnings"
           : "Synthetic healthcare registry record matched"
         : comparisonVerified
-          ? "Bayesian risk engine rejected the claim for high fraud probability"
+          ? riskAssessment.recommendation === "MANUAL_REVIEW_RECOMMENDED"
+            ? "Fraud or duplicate intelligence requires manual review; it is not an automatic fraud rejection"
+            : "Bernoulli fraud model rejected oracle verification for high fraud probability"
           : `Registry verification failed: ${failureSummary || record.fraudLabel}`,
       comparison,
+      duplicateIntelligence,
       riskAssessment,
       merkleProof,
       query: verificationQuery,
       registrySnapshot,
-      record,
+      boundaryNote: BOUNDARY_NOTE,
+      recordCommitment: {
+        hospitalId: record.hospitalId,
+        invoiceHash: record.invoiceHash,
+        recordStatus: record.recordStatus,
+        invoiceStatus: record.invoiceStatus,
+        fraudLabel: record.fraudLabel,
+      },
     });
   } catch (error) {
     next(error);
@@ -654,6 +779,7 @@ module.exports = {
   getHospitalRecordById,
   getHospitalRegistryMerkleProof,
   getHospitalRegistryMerkleRoot,
+  getHospitalOnChainRegistryMerkleRoot,
   getHospitalRegistrySummary,
   verifyHospitalRecord,
 };

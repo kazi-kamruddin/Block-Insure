@@ -4,7 +4,7 @@
   "description": "Block-Insure API, oracle registry, and thesis evaluation tools",
   "main": "server.js",
   "scripts": {
-    "test": "npm run test:section3",
+    "test": "npm run test:section3 && npm run test:unit",
     "dev": "nodemon server.js",
     "start": "node server.js",
     "test:wallet-login": "node scripts/testWalletLogin.js",
@@ -14,23 +14,33 @@
     "grant:roles": "node scripts/grantProjectRolesLocal.js",
     "oracle:local": "node scripts/submitOracleResultLocal.js",
     "fund:local": "node scripts/fundContractLocal.js",
+    "reset:local": "node scripts/resetLocalData.js --yes",
+    "verify:clean": "node scripts/verifyCleanStart.js",
     "seed:mock": "node scripts/seedMockData.js",
     "demo:populate": "node scripts/populateDemoScenario.js",
+    "verify:demo": "node scripts/verifyDemoSeed.js",
+    "demo:check": "node scripts/demoCheck.js",
     "train:model": "node scripts/trainModel.js",
+    "freeze:model": "node scripts/freezeModelArtifact.js",
+    "generate:datasets": "node scripts/generateSyntheticDatasets.js",
+    "evaluate:phase5": "node scripts/evaluatePhase5.js",
+    "metrics:collect": "node scripts/collectResearchMetrics.js",
     "push:merkle": "node scripts/pushMerkleRoot.js",
     "backfill:evidence-chain": "node scripts/backfillEvidenceChains.js",
-    "evaluate:risk": "node scripts/evaluateRiskModel.js",
-    "evaluate:risk:synthetic": "node scripts/evaluateRiskModel.js --synthetic",
+    "evaluate:risk": "node scripts/evaluatePhase5.js",
+    "evaluate:risk:synthetic": "node scripts/evaluatePhase5.js",
     "charts:generate": "node scripts/generateEvaluationCharts.js",
     "analyze:auditors": "node scripts/analyzeAuditorReputation.js",
     "loadtest:claims": "node scripts/loadTestClaims.js",
     "test:section3": "node scripts/testSection3Analytics.js",
+    "test:unit": "node --test test/*.test.js",
     "role:set": "node scripts/setUserRole.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@ironcorelabs/recrypt-node-binding": "^0.11.1",
     "axios": "^1.16.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -43,9 +53,10 @@
     "mongoose": "^9.6.2",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
-    "zod": "^4.4.3"
+    "siwe": "^3.0.0"
   },
   "devDependencies": {
+    "ml-naivebayes": "^4.0.0",
     "nodemon": "^3.1.14"
   }
 }

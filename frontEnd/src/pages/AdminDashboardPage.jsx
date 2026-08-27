@@ -1,7 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 
-import { getReserveIntelligence } from "../services/api";
+import {
+  getAdminRoleSyncHealth,
+  getOracleHealth,
+  getReserveIntelligence,
+  reconcilePendingAdminTransactions,
+} from "../services/api";
+import {
+  fundTreasuryWithReference,
+  parseTransactionError,
+} from "../services/contractService";
+import { showToast } from "../services/toast";
 import "../styles/pages/AdminDashboardPage.css";
 
 function extractReserveIntelligence(data) {
@@ -23,22 +34,86 @@ function getBreakdownCount(intelligence, status) {
 }
 
 export default function AdminDashboardPage() {
+  const [reconciliationMessage, setReconciliationMessage] = useState("");
+  const [fundingReference, setFundingReference] = useState("");
+  const [fundingAmountEth, setFundingAmountEth] = useState("");
+  const [isFunding, setIsFunding] = useState(false);
+
+  useEffect(() => {
+    reconcilePendingAdminTransactions()
+      .then(({ confirmed, remaining }) => {
+        if (confirmed > 0 || remaining > 0) {
+          setReconciliationMessage(
+            `${confirmed} pending admin transaction(s) reconciled; ${remaining} still pending.`
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const {
     data,
     isLoading,
+    isFetching,
     error,
     refetch,
   } = useQuery({
     queryKey: ["reserveIntelligence"],
     queryFn: getReserveIntelligence,
   });
+  const roleHealthQuery = useQuery({
+    queryKey: ["adminRoleSyncHealth"],
+    queryFn: getAdminRoleSyncHealth,
+  });
+  const oracleHealthQuery = useQuery({
+    queryKey: ["oracleHealth"],
+    queryFn: getOracleHealth,
+  });
 
   const intelligence = extractReserveIntelligence(data);
   const settlementQueue = intelligence?.settlementQueue || [];
   const solvencyStatus = intelligence?.solvency?.status || "UNKNOWN";
+  const roleHealth = roleHealthQuery.data;
+  const oracleHealth = oracleHealthQuery.data?.oracles || [];
+  const isRefreshing =
+    isFetching || roleHealthQuery.isFetching || oracleHealthQuery.isFetching;
+
+  function refreshAll() {
+    refetch();
+    roleHealthQuery.refetch();
+    oracleHealthQuery.refetch();
+  }
+
+  async function fundTreasury(event) {
+    event.preventDefault();
+    try {
+      setIsFunding(true);
+      const transaction = await fundTreasuryWithReference(
+        fundingReference,
+        fundingAmountEth
+      );
+      await transaction.wait();
+      setFundingReference("");
+      setFundingAmountEth("");
+      showToast("Referenced ETH funding reached the protocol treasury.", {
+        title: "Treasury funded",
+      });
+      await refetch();
+    } catch (fundingError) {
+      showToast(parseTransactionError(fundingError), {
+        tone: "error",
+        title: "Funding failed",
+      });
+    } finally {
+      setIsFunding(false);
+    }
+  }
 
   return (
     <section className="page-container page-admin-dashboard">
+      {reconciliationMessage ? (
+        <p className="success-text">{reconciliationMessage}</p>
+      ) : null}
       <div className="dashboard-heading">
         <div>
           <span className="dashboard-eyebrow">Administration workspace</span>
@@ -53,9 +128,10 @@ export default function AdminDashboardPage() {
           <button
             className="dashboard-refresh-button"
             type="button"
-            onClick={() => refetch()}
+            onClick={refreshAll}
+            disabled={isRefreshing}
           >
-            Refresh data
+            {isRefreshing ? "Refreshing..." : "Refresh data"}
           </button>
         </div>
       </div>
@@ -66,6 +142,18 @@ export default function AdminDashboardPage() {
             error.message ||
             "Could not load reserve intelligence"}
         </p>
+      ) : null}
+
+      {roleHealthQuery.error || oracleHealthQuery.error ? (
+        <div className="status-message is-error" role="alert">
+          <strong>Some operational diagnostics are unavailable.</strong>
+          <span>
+            {roleHealthQuery.error?.response?.data?.message ||
+              roleHealthQuery.error?.message ||
+              oracleHealthQuery.error?.response?.data?.message ||
+              oracleHealthQuery.error?.message}
+          </span>
+        </div>
       ) : null}
 
       {isLoading ? <p>Loading reserve intelligence...</p> : null}
@@ -84,6 +172,22 @@ export default function AdminDashboardPage() {
       ) : null}
 
       <div className="card-row">
+        <div className="card">
+          <h3>Referenced Treasury Funding</h3>
+          <form onSubmit={fundTreasury}>
+            <label>
+              Funding reference
+              <input value={fundingReference} onChange={(event) => setFundingReference(event.target.value)} required />
+            </label>
+            <label>
+              Amount (ETH)
+              <input type="number" min="0.000001" step="0.000001" value={fundingAmountEth} onChange={(event) => setFundingAmountEth(event.target.value)} required />
+            </label>
+            <button type="submit" disabled={isFunding}>
+              {isFunding ? "Funding..." : "Fund Treasury"}
+            </button>
+          </form>
+        </div>
         <div className="card">
           <h3>Contract Reserve</h3>
           <p className="metric-value">
@@ -105,11 +209,13 @@ export default function AdminDashboardPage() {
         <div className="card">
           <h3>Approved Liability</h3>
           <p className="metric-value">
-            {formatEthValue(intelligence?.liabilities?.approvedLiabilityEth)} ETH
+            {formatEthValue(
+              intelligence?.liabilities?.approvedPendingExposureEth ||
+                intelligence?.liabilities?.approvedLiabilityEth
+            )} ETH
           </p>
           <p>
-            {formatRatio(intelligence?.ratios?.reserveToApprovedLiability)} approved
-            queue cover.
+            {intelligence?.liabilities?.unsettledApprovedClaimCount || 0} unsettled approved claims.
           </p>
         </div>
 
@@ -127,6 +233,24 @@ export default function AdminDashboardPage() {
             {formatEthValue(intelligence?.portfolio?.premiumCollectedEth)} ETH
           </p>
           <p>{intelligence?.portfolio?.activePolicies || 0} active policies.</p>
+        </div>
+
+        <div className="card">
+          <h3>Settlements Paid</h3>
+          <p className="metric-value">
+            {formatEthValue(intelligence?.liabilities?.totalSettlementsPaidEth)} ETH
+          </p>
+          <p>Authoritative paid settlement records from contract state.</p>
+        </div>
+
+        <div className="card">
+          <h3>Reserve After Exposure</h3>
+          <p className="metric-value">
+            {formatEthValue(intelligence?.solvency?.reserveAfterPendingExposureEth)} ETH
+          </p>
+          <p>
+            Warning threshold: {formatEthValue(intelligence?.reserve?.warningThresholdEth)} ETH.
+          </p>
         </div>
 
         <div className="card">
@@ -157,7 +281,72 @@ export default function AdminDashboardPage() {
           <p className="metric-value">{getBreakdownCount(intelligence, "REJECTED")}</p>
           <p>{getBreakdownCount(intelligence, "FRAUD_FLAGGED")} fraud flagged.</p>
         </div>
+
+        <div className="card">
+          <h3>Role Sync</h3>
+          <p className="metric-value">
+            {roleHealthQuery.isLoading
+              ? "Loading..."
+              : roleHealthQuery.error
+                ? "Unavailable"
+              : roleHealth?.summary?.healthy
+                ? "Healthy"
+                : `${roleHealth?.summary?.mismatches || 0} mismatch`}
+          </p>
+          <p>Backend roles compared with on-chain role grants.</p>
+          <Link to="/admin/role-health">Open diagnostics</Link>
+        </div>
+
+        <div className="card">
+          <h3>Oracle Health</h3>
+          <p className="metric-value">
+            {oracleHealthQuery.isLoading
+              ? "Loading..."
+              : oracleHealthQuery.error
+                ? "Unavailable"
+                : oracleHealth.length}
+          </p>
+          <p>
+            {oracleHealthQuery.error
+              ? "Check the backend and oracle health endpoint."
+              : oracleHealth.length === 0
+                ? "No heartbeats yet. Start both oracle workers."
+                : `${oracleHealth.filter((oracle) => oracle.status === "ONLINE").length} online, ${oracleHealth.filter((oracle) => oracle.status === "STALE").length} stale.`}
+          </p>
+        </div>
       </div>
+
+      {oracleHealth.length > 0 ? (
+        <div className="card reserve-table-card">
+          <h3>Oracle Identity and Independence</h3>
+          <table className="reserve-table">
+            <thead>
+              <tr>
+                <th>Oracle</th>
+                <th>Wallet</th>
+                <th>Registry Root</th>
+                <th>Heartbeat</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {oracleHealth.map((oracle) => (
+                <tr key={oracle.id || oracle.oracleWallet || oracle.oracleInstanceId}>
+                  <td>{oracle.label || oracle.oracleInstanceId || "Oracle"}</td>
+                  <td>{oracle.oracleWallet || "-"}</td>
+                  <td>{oracle.registryRoot || oracle.registrySnapshot || "-"}</td>
+                  <td>
+                    {oracle.lastHeartbeatAt
+                      ? new Date(oracle.lastHeartbeatAt).toLocaleString()
+                      : "-"}
+                  </td>
+                  <td>{oracle.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       {intelligence ? (
         <div className="reserve-grid">

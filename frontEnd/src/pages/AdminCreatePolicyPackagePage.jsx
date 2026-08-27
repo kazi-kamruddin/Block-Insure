@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import TransactionLink from "../components/TransactionLink";
 import { createPolicyPackage } from "../services/api";
+import { showToast } from "../services/toast";
 import "../styles/pages/AdminCreatePolicyPackagePage.css";
 
 const PACKAGE_PRESETS = [
@@ -14,6 +15,16 @@ const PACKAGE_PRESETS = [
     coverageAmountEth: "1",
     durationDays: "365",
     requiredDocumentType: "HOSPITAL_BILL",
+    waitingPeriodDays: "30",
+    reinstatementWaitingPeriodDays: "7",
+    claimDeadlineDays: "365",
+    minimumDocumentCommitments: "1",
+    deductibleRateBps: "1000",
+    deductibleCapEth: "0.1",
+    insurerShareBps: "8000",
+    maximumClaimEth: "2",
+    allowedClaimTypes: "HEALTH,SURGERY",
+    excludedClaimTypes: "COSMETIC",
   },
   {
     label: "Health Plus",
@@ -69,6 +80,16 @@ export default function AdminCreatePolicyPackagePage() {
       coverageAmountEth: preset.coverageAmountEth,
       durationDays: preset.durationDays,
       requiredDocumentType: preset.requiredDocumentType,
+      waitingPeriodDays: "30",
+      reinstatementWaitingPeriodDays: "7",
+      claimDeadlineDays: "365",
+      minimumDocumentCommitments: "1",
+      deductibleRateBps: "1000",
+      deductibleCapEth: "0.1",
+      insurerShareBps: "8000",
+      maximumClaimEth: preset.coverageAmountEth,
+      allowedClaimTypes: preset.policyType,
+      excludedClaimTypes: "COSMETIC",
     });
   }
 
@@ -89,22 +110,47 @@ export default function AdminCreatePolicyPackagePage() {
         coverageAmountEth: form.coverageAmountEth,
         durationDays: Number(form.durationDays),
         requiredDocumentType: form.requiredDocumentType.trim(),
+        economicRules: {
+          waitingPeriodDays: Number(form.waitingPeriodDays),
+          reinstatementWaitingPeriodDays: Number(
+            form.reinstatementWaitingPeriodDays
+          ),
+          claimDeadlineDays: Number(form.claimDeadlineDays),
+          minimumDocumentCommitments: Number(
+            form.minimumDocumentCommitments
+          ),
+          deductibleRateBps: Number(form.deductibleRateBps),
+          deductibleCapEth: form.deductibleCapEth,
+          insurerShareBps: Number(form.insurerShareBps),
+          maximumClaimEth: form.maximumClaimEth,
+          allowedClaimTypes: form.allowedClaimTypes
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
+          excludedClaimTypes: form.excludedClaimTypes
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
+          requiredDocumentTypes: [form.requiredDocumentType.trim()],
+          settlementFormulaVersion: "BLOCK_INSURE_SETTLEMENT_V1",
+        },
       });
 
       setTxHash(result.transactionHash || result.txHash || "");
-      setSuccessMessage(
-        `Policy package created successfully. Package ID: ${
-          result.packageId || "-"
-        }`
-      );
+      const message = `Policy package created successfully. Package ID: ${
+        result.packageId || "-"
+      }`;
+      setSuccessMessage(message);
+      showToast(message, { title: "Package created" });
     } catch (err) {
       console.error(err);
-      setError(
+      const message =
         err.response?.data?.message ||
           err.response?.data?.error ||
           err.message ||
-          "Could not create policy package"
-      );
+          "Could not create policy package";
+      setError(message);
+      showToast(message, { tone: "error", title: "Package creation failed" });
     } finally {
       setIsSubmitting(false);
     }
@@ -209,6 +255,56 @@ export default function AdminCreatePolicyPackagePage() {
             }
             required
           />
+        </label>
+
+        <label>
+          Initial waiting period (days)
+          <input type="number" min="0" value={form.waitingPeriodDays} onChange={(event) => updateField("waitingPeriodDays", event.target.value)} required />
+        </label>
+
+        <label>
+          Reinstatement waiting period (days)
+          <input type="number" min="0" value={form.reinstatementWaitingPeriodDays} onChange={(event) => updateField("reinstatementWaitingPeriodDays", event.target.value)} required />
+        </label>
+
+        <label>
+          Claim filing deadline (days)
+          <input type="number" min="1" value={form.claimDeadlineDays} onChange={(event) => updateField("claimDeadlineDays", event.target.value)} required />
+        </label>
+
+        <label>
+          Minimum evidence commitments
+          <input type="number" min="1" value={form.minimumDocumentCommitments} onChange={(event) => updateField("minimumDocumentCommitments", event.target.value)} required />
+        </label>
+
+        <label>
+          Deductible rate (basis points)
+          <input type="number" min="0" max="10000" value={form.deductibleRateBps} onChange={(event) => updateField("deductibleRateBps", event.target.value)} required />
+        </label>
+
+        <label>
+          Deductible cap (ETH)
+          <input type="number" min="0" step="0.001" value={form.deductibleCapEth} onChange={(event) => updateField("deductibleCapEth", event.target.value)} required />
+        </label>
+
+        <label>
+          Insurer share (basis points)
+          <input type="number" min="0" max="10000" value={form.insurerShareBps} onChange={(event) => updateField("insurerShareBps", event.target.value)} required />
+        </label>
+
+        <label>
+          Maximum claim (ETH)
+          <input type="number" min="0.001" step="0.001" value={form.maximumClaimEth} onChange={(event) => updateField("maximumClaimEth", event.target.value)} required />
+        </label>
+
+        <label>
+          Allowed claim types (comma separated)
+          <input type="text" value={form.allowedClaimTypes} onChange={(event) => updateField("allowedClaimTypes", event.target.value)} required />
+        </label>
+
+        <label>
+          Excluded service codes (comma separated)
+          <input type="text" value={form.excludedClaimTypes} onChange={(event) => updateField("excludedClaimTypes", event.target.value)} />
         </label>
 
         <button type="submit" disabled={isSubmitting}>

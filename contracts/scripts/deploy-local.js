@@ -1,5 +1,132 @@
 require("dotenv").config();
 const hre = require("hardhat");
+const fs = require("fs");
+const path = require("path");
+const { verifyModelArtifact } = require("../../backEnd/services/modelArtifactService");
+
+function updateEnvValue(filePath, key, value) {
+  if (!fs.existsSync(filePath)) {
+    console.warn(`Skipped ${filePath}; file does not exist.`);
+    return;
+  }
+
+  const content = fs.readFileSync(filePath, "utf8");
+  const linePattern = new RegExp(`^${key}=.*$`, "m");
+  const nextContent = linePattern.test(content)
+    ? content.replace(linePattern, `${key}=${value}`)
+    : `${content.replace(/\s*$/, "")}\n${key}=${value}\n`;
+
+  fs.writeFileSync(filePath, nextContent, "utf8");
+  console.log(`Updated ${path.relative(process.cwd(), filePath)} (${key})`);
+}
+
+function syncLocalContractDeployment(
+  contractAddress,
+  deploymentBlock,
+  adjudicatorAddress,
+  benefitsAddress,
+  benefitsDeploymentBlock,
+  economicsAddress,
+  evidenceRegistryAddress,
+  deploymentRegistryAddress
+) {
+  const projectRoot = path.resolve(__dirname, "..", "..");
+  const targets = [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "VITE_CONTRACT_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_CONTRACT_ADDRESS" },
+    { file: path.join(projectRoot, "oracle", ".env"), key: "CONTRACT_ADDRESS" },
+    { file: path.join(projectRoot, "oracle", ".env.oracle2"), key: "CONTRACT_ADDRESS" },
+  ];
+
+  targets.forEach(({ file, key }) => updateEnvValue(file, key, contractAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "CLAIM_ADJUDICATOR_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_CLAIM_ADJUDICATOR_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, adjudicatorAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "POLICY_ECONOMICS_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_POLICY_ECONOMICS_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, economicsAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "EVIDENCE_REGISTRY_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_EVIDENCE_REGISTRY_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, evidenceRegistryAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, deploymentRegistryAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "POLICY_BENEFITS_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_POLICY_BENEFITS_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, benefitsAddress));
+
+  [
+    {
+      file: path.join(projectRoot, "backEnd", ".env"),
+      key: "CONTRACT_DEPLOYMENT_BLOCK",
+    },
+    {
+      file: path.join(projectRoot, "frontEnd", ".env"),
+      key: "VITE_CONTRACT_DEPLOYMENT_BLOCK",
+    },
+    {
+      file: path.join(projectRoot, "oracle", ".env"),
+      key: "ORACLE_START_BLOCK",
+    },
+    {
+      file: path.join(projectRoot, "oracle", ".env.oracle2"),
+      key: "ORACLE_START_BLOCK",
+    },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, deploymentBlock));
+
+  [
+    {
+      file: path.join(projectRoot, "backEnd", ".env"),
+      key: "POLICY_BENEFITS_DEPLOYMENT_BLOCK",
+    },
+    {
+      file: path.join(projectRoot, "frontEnd", ".env"),
+      key: "VITE_POLICY_BENEFITS_DEPLOYMENT_BLOCK",
+    },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, benefitsDeploymentBlock));
+}
+
+function syncContractAbi() {
+  const projectRoot = path.resolve(__dirname, "..", "..");
+  [
+    "InsuranceManager",
+    "OracleCoordinator",
+    "ClaimAdjudicator",
+    "PolicyEconomics",
+    "EvidenceRegistry",
+    "ProtocolDeploymentRegistry",
+  ].forEach((contractName) => {
+    const artifactPath = path.join(
+      projectRoot,
+      "contracts",
+      "artifacts",
+      "contracts",
+      `${contractName}.sol`,
+      `${contractName}.json`
+    );
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+    const abiDocument = JSON.stringify({ contractName, abi: artifact.abi }, null, 2);
+
+    [
+      path.join(projectRoot, "backEnd", "abi", `${contractName}.json`),
+      path.join(projectRoot, "frontEnd", "src", "abi", `${contractName}.json`),
+      path.join(projectRoot, "oracle", "abi", `${contractName}.json`),
+    ].forEach((target) => {
+      fs.writeFileSync(target, `${abiDocument}\n`, "utf8");
+      console.log(`Updated ${path.relative(projectRoot, target)}`);
+    });
+  });
+}
 
 async function main() {
   if (!process.env.ADMIN_PRIVATE_KEY) {
@@ -34,8 +161,41 @@ async function main() {
   await insuranceManager.waitForDeployment();
 
   const contractAddress = await insuranceManager.getAddress();
+  const deploymentReceipt = await insuranceManager.deploymentTransaction().wait();
+  const deploymentBlock = deploymentReceipt.blockNumber;
 
   console.log("InsuranceManager deployed to:", contractAddress);
+  console.log("InsuranceManager deployment block:", deploymentBlock);
+  console.log("OracleCoordinator deployed to:", await insuranceManager.oracleCoordinator());
+  const modelArtifactPath = path.resolve(__dirname, "..", "..", "backEnd", "model-params.json");
+  const modelArtifact = JSON.parse(fs.readFileSync(modelArtifactPath, "utf8"));
+  const modelVerification = verifyModelArtifact(modelArtifact);
+  if (!modelVerification.valid) {
+    throw new Error(`Frozen model artifact is invalid: ${modelVerification.errors.join("; ")}`);
+  }
+  await (await insuranceManager.updateOracleModelVersion(modelArtifact.modelIdentityHash)).wait();
+  console.log("Frozen fraud-model identity:", modelArtifact.modelIdentityHash);
+
+  const ClaimAdjudicator = await hre.ethers.getContractFactory(
+    "ClaimAdjudicator",
+    adminWallet
+  );
+  const claimAdjudicator = await ClaimAdjudicator.deploy(contractAddress);
+  await claimAdjudicator.waitForDeployment();
+  const adjudicatorAddress = await claimAdjudicator.getAddress();
+  await (await insuranceManager.configureClaimAdjudicator(adjudicatorAddress)).wait();
+  console.log("ClaimAdjudicator deployed to:", adjudicatorAddress);
+  const economicsAddress = await insuranceManager.policyEconomics();
+  console.log("PolicyEconomics deployed to:", economicsAddress);
+
+  const EvidenceRegistry = await hre.ethers.getContractFactory(
+    "EvidenceRegistry",
+    adminWallet
+  );
+  const evidenceRegistry = await EvidenceRegistry.deploy(contractAddress);
+  await evidenceRegistry.waitForDeployment();
+  const evidenceRegistryAddress = await evidenceRegistry.getAddress();
+  console.log("EvidenceRegistry deployed to:", evidenceRegistryAddress);
 
   const premiumAmount = hre.ethers.parseEther("0.01");
   const coverageAmount = hre.ethers.parseEther("1");
@@ -52,13 +212,103 @@ async function main() {
   await tx.wait();
 
   console.log("Health Basic policy package created");
+
+  const PolicyBenefitsManager = await hre.ethers.getContractFactory(
+    "PolicyBenefitsManager",
+    adminWallet
+  );
+  const benefitsManager = await PolicyBenefitsManager.deploy(
+    contractAddress
+  );
+  await benefitsManager.waitForDeployment();
+  const benefitsAddress = await benefitsManager.getAddress();
+  const benefitsReceipt = await benefitsManager.deploymentTransaction().wait();
+  const benefitsDeploymentBlock = benefitsReceipt.blockNumber;
+  const defaultTermsDocument = JSON.stringify({
+    packageId: 1,
+    version: 1,
+    deathBenefitEnabled: true,
+    surrenderEnabled: true,
+    maturityEnabled: false,
+    deathBenefitBps: 10000,
+    surrenderValueBps: 5000,
+    maturityBonusBps: 0,
+    minimumSurrenderInstallments: 6,
+  });
+  await (
+    await benefitsManager.publishBenefitTerms(
+      1,
+      true,
+      true,
+      false,
+      10000,
+      5000,
+      0,
+      6,
+      1,
+      hre.ethers.keccak256(hre.ethers.toUtf8Bytes(defaultTermsDocument))
+    )
+  ).wait();
+  await (
+    await adminWallet.sendTransaction({
+      to: benefitsAddress,
+      value: hre.ethers.parseEther("2"),
+    })
+  ).wait();
+
+  console.log("PolicyBenefitsManager deployed to:", benefitsAddress);
+  const migrationManifest = fs.readFileSync(
+    path.resolve(__dirname, "..", "..", "docs", "protocol-v2-migration.json"),
+    "utf8"
+  );
+  const ProtocolDeploymentRegistry = await hre.ethers.getContractFactory(
+    "ProtocolDeploymentRegistry",
+    adminWallet
+  );
+  const deploymentRegistry = await ProtocolDeploymentRegistry.deploy(
+    hre.ethers.id("BLOCK_INSURE_V1"),
+    hre.ethers.keccak256(hre.ethers.toUtf8Bytes(migrationManifest))
+  );
+  await deploymentRegistry.waitForDeployment();
+  const deploymentRegistryAddress = await deploymentRegistry.getAddress();
+  for (const [name, address, interfaceVersion] of [
+    ["InsuranceManager", contractAddress, "IInsuranceManager/1"],
+    ["OracleCoordinator", await insuranceManager.oracleCoordinator(), "IOracleCoordinator/1"],
+    ["ClaimAdjudicator", adjudicatorAddress, "IClaimAdjudicator/1"],
+    ["PolicyEconomics", economicsAddress, "IPolicyEconomics/1"],
+    ["EvidenceRegistry", evidenceRegistryAddress, "IEvidenceRegistry/1"],
+    ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/1"],
+  ]) {
+    await (
+      await deploymentRegistry.registerComponent(
+        hre.ethers.id(name),
+        address,
+        hre.ethers.id(interfaceVersion),
+        true
+      )
+    ).wait();
+  }
+  console.log("ProtocolDeploymentRegistry deployed to:", deploymentRegistryAddress);
+  syncContractAbi();
+  syncLocalContractDeployment(
+    contractAddress,
+    deploymentBlock,
+    adjudicatorAddress,
+    benefitsAddress,
+    benefitsDeploymentBlock,
+    economicsAddress,
+    evidenceRegistryAddress,
+    deploymentRegistryAddress
+  );
   console.log("");
-  console.log("Copy this contract address into:");
-  console.log("- backEnd/.env      VITE_CONTRACT_ADDRESS");
-  console.log("- frontEnd/.env     VITE_CONTRACT_ADDRESS");
-  console.log("- oracle/.env       CONTRACT_ADDRESS");
+  console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
   console.log("");
   console.log("CONTRACT_ADDRESS =", contractAddress);
+  console.log("CLAIM_ADJUDICATOR_ADDRESS =", adjudicatorAddress);
+  console.log("POLICY_BENEFITS_ADDRESS =", benefitsAddress);
+  console.log("POLICY_ECONOMICS_ADDRESS =", economicsAddress);
+  console.log("EVIDENCE_REGISTRY_ADDRESS =", evidenceRegistryAddress);
+  console.log("PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS =", deploymentRegistryAddress);
 }
 
 main().catch((error) => {

@@ -12,8 +12,6 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
   dns.setServers(["8.8.8.8", "1.1.1.1"]);
 }
 
-const DEFAULT_AUDITOR_REPUTATIONS = [72, 91, 48, 83, 64];
-
 function requireEnv(name) {
   const value = process.env[name];
 
@@ -24,80 +22,10 @@ function requireEnv(name) {
   return value;
 }
 
-function readAddressList(...keys) {
-  const addresses = [];
-
-  keys.forEach((key) => {
-    const value = process.env[key];
-
-    if (!value) {
-      return;
-    }
-
-    value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-      .forEach((entry) => addresses.push(entry));
-  });
-
-  const normalizedAddresses = [];
-  const seen = new Set();
-
-  addresses.forEach((address) => {
-    const normalizedAddress = ethers.getAddress(address);
-    const key = normalizedAddress.toLowerCase();
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      normalizedAddresses.push(normalizedAddress);
-    }
-  });
-
-  return normalizedAddresses;
-}
-
-function readAuditorAddresses() {
-  const auditorAddresses = readAddressList(
-    "AUDITOR_WALLET_ADDRESS",
-    "AUDITOR_2_WALLET_ADDRESS",
-    "AUDITOR_3_WALLET_ADDRESS",
-    "AUDITOR_4_WALLET_ADDRESS",
-    "AUDITOR_5_WALLET_ADDRESS",
-    "AUDITOR_WALLET_ADDRESSES"
-  );
-
-  if (auditorAddresses.length === 0) {
-    throw new Error(
-      "At least one auditor wallet address is required. Set AUDITOR_WALLET_ADDRESS or AUDITOR_WALLET_ADDRESSES."
-    );
-  }
-
-  return auditorAddresses;
-}
-
-function getAuditorReputation(address, index) {
-  const explicitScore =
-    process.env[`AUDITOR_${index + 1}_REPUTATION`] ||
-    (index === 0 ? process.env.AUDITOR_REPUTATION : "");
-
-  if (explicitScore !== undefined && explicitScore !== null && explicitScore !== "") {
-    const score = Number(explicitScore);
-
-    if (!Number.isInteger(score) || score < 0 || score > 100) {
-      throw new Error(
-        `Invalid reputation score for ${address}. Use an integer from 0 to 100.`
-      );
-    }
-
-    return score;
-  }
-
-  return DEFAULT_AUDITOR_REPUTATIONS[index] ?? 50;
-}
-
 async function grantRoleIfMissing(contract, roleName, roleHash, walletAddress, nonceState) {
-  const normalizedAddress = ethers.getAddress(walletAddress);
+  const normalizedAddress = ethers.getAddress(
+    String(walletAddress).trim().toLowerCase()
+  );
 
   const alreadyHasRole = await contract.hasRole(roleHash, normalizedAddress);
 
@@ -120,23 +48,6 @@ async function grantRoleIfMissing(contract, roleName, roleHash, walletAddress, n
   await tx.wait();
 
   console.log(`${roleName} granted successfully`);
-}
-
-async function updateAuditorReputation(contract, walletAddress, score, nonceState) {
-  console.log(`Setting auditor reputation ${score}/100 for: ${walletAddress}`);
-
-  const tx = await contract.updateAuditorReputation(walletAddress, score, {
-    nonce: nonceState.current,
-  });
-
-  console.log(`Auditor reputation transaction sent: ${tx.hash}`);
-  console.log(`Auditor reputation nonce used: ${nonceState.current}`);
-
-  nonceState.current += 1;
-
-  await tx.wait();
-
-  console.log("Auditor reputation updated successfully");
 }
 
 async function syncMongoRole(walletAddress, role) {
@@ -164,7 +75,28 @@ async function main() {
     const contractAddress = requireEnv("VITE_CONTRACT_ADDRESS");
     const adminPrivateKey = requireEnv("ADMIN_PRIVATE_KEY");
     const oraclePrivateKey = requireEnv("ORACLE_PRIVATE_KEY");
-    const auditorWalletAddresses = readAuditorAddresses();
+    const auditorCandidates = [
+      requireEnv("AUDITOR_WALLET_ADDRESS"),
+      process.env.AUDITOR_WALLET_ADDRESS_2,
+      process.env.AUDITOR_WALLET_ADDRESS_3,
+      process.env.AUDITOR_WALLET_ADDRESS_4,
+      "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+      "0x23618e81e3F5Cdf7F54C3D65F7fBFB5d82F842fB",
+      "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+    ].filter(Boolean);
+    const auditorWalletAddresses = [
+      ...new Map(
+        auditorCandidates.map((address) => {
+          const normalized = ethers.getAddress(
+            String(address).trim().toLowerCase()
+          );
+          return [normalized.toLowerCase(), normalized];
+        })
+      ).values(),
+    ].slice(0, 4);
+    if (auditorWalletAddresses.length !== 4) {
+      throw new Error("Four distinct auditor wallet addresses are required");
+    }
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const adminWallet = new ethers.Wallet(adminPrivateKey, provider);
@@ -175,7 +107,6 @@ async function main() {
 
     const claimOfficerWalletAddress =
       process.env.CLAIM_OFFICER_WALLET_ADDRESS || adminWallet.address;
-
     const contract = new ethers.Contract(
       contractAddress,
       InsuranceManagerArtifact.abi,
@@ -194,10 +125,7 @@ async function main() {
       "Second oracle wallet:",
       secondOracleWallet ? secondOracleWallet.address : "not configured"
     );
-    console.log("Auditor wallets:");
-    auditorWalletAddresses.forEach((address, index) => {
-      console.log(`  Auditor ${index + 1}: ${address}`);
-    });
+    console.log("Auditor wallets:", auditorWalletAddresses.join(", "));
     console.log("Claim officer wallet:", claimOfficerWalletAddress);
     console.log("");
 
@@ -252,19 +180,12 @@ async function main() {
       );
     }
 
-    for (const [index, auditorWalletAddress] of auditorWalletAddresses.entries()) {
+    for (const auditorAddress of auditorWalletAddresses) {
       await grantRoleIfMissing(
         contract,
         "AUDITOR_ROLE",
         auditorRole,
-        auditorWalletAddress,
-        nonceState
-      );
-
-      await updateAuditorReputation(
-        contract,
-        auditorWalletAddress,
-        getAuditorReputation(auditorWalletAddress, index),
+        auditorAddress,
         nonceState
       );
     }
@@ -280,8 +201,8 @@ async function main() {
         await syncMongoRole(secondOracleWallet.address, "ORACLE");
       }
 
-      for (const auditorWalletAddress of auditorWalletAddresses) {
-        await syncMongoRole(auditorWalletAddress, "AUDITOR");
+      for (const auditorAddress of auditorWalletAddresses) {
+        await syncMongoRole(auditorAddress, "AUDITOR");
       }
 
       await mongoose.connection.close();

@@ -21,6 +21,17 @@ const appealSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    reasonCategory: {
+      type: String,
+      trim: true,
+      default: "OTHER",
+      index: true,
+    },
+    appealDescription: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     appealReasonHash: {
       type: String,
       required: true,
@@ -36,6 +47,27 @@ const appealSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    proposedHospitalId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    proposedInvoiceNumber: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    proposedClaimType: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+    },
+    proposedClaimAmountEth: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     status: {
       type: String,
       enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"],
@@ -46,6 +78,32 @@ const appealSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
+    },
+    auditorRecommendation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    finalRejectionReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    appealDeadline: {
+      type: Date,
+      default: null,
+    },
+    history: {
+      type: [
+        {
+          status: { type: String, trim: true },
+          actorWallet: { type: String, trim: true, lowercase: true, default: "" },
+          actorRole: { type: String, trim: true, default: "" },
+          note: { type: String, trim: true, default: "" },
+          timestamp: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
     },
     transactionHash: {
       type: String,
@@ -59,6 +117,32 @@ const appealSchema = new mongoose.Schema(
     reviewedAt: {
       type: Date,
       default: null,
+    },
+    reviewOperationStatus: {
+      type: String,
+      enum: ["IDLE", "PROCESSING", "CHAIN_CONFIRMED", "COMPLETED", "FAILED"],
+      default: "IDLE",
+      index: true,
+    },
+    reviewDesiredStatus: {
+      type: String,
+      enum: ["", "APPROVED", "REJECTED"],
+      default: "",
+    },
+    reviewTransactionHash: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    reviewLockExpiresAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    reviewFailureReason: {
+      type: String,
+      trim: true,
+      default: "",
     },
   },
   { timestamps: true }

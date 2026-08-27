@@ -1,9 +1,28 @@
 :root {
-  font-family: Arial, sans-serif;
+  --font-sans: "Segoe UI Variable", "Segoe UI", Inter, Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono",
+    monospace;
+  font-family: var(--font-sans);
   color: #f8fafc;
   background: #0b1324;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+  scrollbar-color: #2a3850 #0b1324;
 }
 
 * {
   box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(45, 212, 191, 0.3);
+  color: #ffffff;
 }

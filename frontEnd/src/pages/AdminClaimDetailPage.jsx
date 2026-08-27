@@ -7,26 +7,26 @@ import EvidenceChainPanel from "../components/EvidenceChainPanel";
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
+import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
 import TransactionLink from "../components/TransactionLink";
+import { showToast } from "../services/toast";
 import {
-  approveClaim,
-  closeClaim,
-  finalizeClaimVoting,
   getAppealByClaim,
   getClaimById,
   getClaimVoteSummary,
   getOracleResults,
-  rejectClaim,
   resolveOracleTimeout,
-  reviewAppeal,
   requestOracleVerification,
   sendClaimToManualReview,
-  settleClaim,
 } from "../services/api";
 import {
+  getContractBalance,
   formatEth,
   getReadOnlyContract,
+  getReadOnlyOracleCoordinator,
+  parseTransactionError,
 } from "../services/contractService";
+import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/AdminClaimDetailPage.css";
 
@@ -82,20 +82,27 @@ function formatBpsPercent(value) {
 }
 
 async function getContractReserveBalance() {
-  const contract = getReadOnlyContract();
-  const balance = await contract.getContractBalance();
+  const balance = await getContractBalance();
   return formatEth(balance);
 }
 
 async function getSettlementBreakdown(claimId) {
   const contract = getReadOnlyContract();
-  const [settlement, deductibleRateBps, deductibleCapWei, insurerShareBps] =
+  const [
+    settlement,
+    deductibleRateBps,
+    deductibleCapWei,
+    insurerShareBps,
+  ] =
     await Promise.all([
       contract.calculateSettlement(claimId),
       contract.deductibleRateBps(),
       contract.deductibleCapWei(),
       contract.insurerShareBps(),
     ]);
+  const reserveWei = await getContractBalance();
+  const reserveAfterWei =
+    reserveWei >= settlement.insurerPays ? reserveWei - settlement.insurerPays : 0n;
 
   return {
     claimAmountWei: settlement.claimAmount.toString(),
@@ -108,6 +115,13 @@ async function getSettlementBreakdown(claimId) {
     insurerPaysEth: formatEth(settlement.insurerPays),
     claimantResponsibilityWei: settlement.claimantResponsibility.toString(),
     claimantResponsibilityEth: formatEth(settlement.claimantResponsibility),
+    reserveGate: {
+      reserveWei: reserveWei.toString(),
+      reserveEth: formatEth(reserveWei),
+      reserveAfterWei: reserveAfterWei.toString(),
+      reserveAfterEth: formatEth(reserveAfterWei),
+      funded: reserveWei >= settlement.insurerPays,
+    },
     params: {
       deductibleRateBps: deductibleRateBps.toString(),
       deductibleRatePercent: formatBpsPercent(deductibleRateBps),
@@ -120,17 +134,19 @@ async function getSettlementBreakdown(claimId) {
 }
 
 async function getOracleQuorumStatus(claimId) {
-  const contract = getReadOnlyContract();
-  const oracleRequest = await contract.getOracleRequestByClaimId(claimId);
-  const status = await contract.getOracleConfirmationStatus(
-    oracleRequest.requestId
-  );
+  const coordinator = await getReadOnlyOracleCoordinator();
+  const oracleRequest = await coordinator.getRequestByClaimId(claimId);
+  const confirmations = await coordinator.revealCount(oracleRequest.requestId);
 
   return {
     requestId: oracleRequest.requestId.toString(),
-    confirmations: Number(status.confirmations ?? status[0] ?? 0),
-    required: Number(status.required ?? status[1] ?? 0),
-    finalized: Boolean(status.finalized ?? status[2]),
+    confirmations: Number(confirmations),
+    required: Number(oracleRequest.requiredConfirmations),
+    finalized: Boolean(oracleRequest.isFulfilled),
+    commitDeadlineBlock: oracleRequest.commitDeadlineBlock.toString(),
+    revealDeadlineBlock: oracleRequest.revealDeadlineBlock.toString(),
+    registryVersion: oracleRequest.registryVersion.toString(),
+    claimVersion: oracleRequest.claimVersion.toString(),
   };
 }
 
@@ -141,8 +157,6 @@ export default function AdminClaimDetailPage() {
   const [actionMessage, setActionMessage] = useState("");
   const [actionTxHash, setActionTxHash] = useState("");
   const [isActing, setIsActing] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [appealAdminNote, setAppealAdminNote] = useState("");
 
   const {
     data: claimData,
@@ -221,7 +235,11 @@ export default function AdminClaimDetailPage() {
 
   const claim = extractClaim(claimData);
   const evidenceChain = extractEvidenceChain(claimData);
+  const originalEvidenceDocument = evidenceChain?.documents?.find(
+    (document) => document.ipfsCID === claim?.documentCID
+  );
   const oracleLogs = extractOracleLogs(oracleData);
+  const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const statusName = getClaimStatusName(claim);
 
   const {
@@ -239,21 +257,24 @@ export default function AdminClaimDetailPage() {
 
   const appeal = appealData?.appeal || null;
   const voteSummary = extractVoteSummary(voteData);
-  const appealIsFinal =
-    appeal?.status === "APPROVED" || appeal?.status === "REJECTED";
 
-  const canRequestOracle = statusName === "DUPLICATE_CHECKED";
-  const canSendManualReview =
-    statusName === "ORACLE_FAILED" || statusName === "FRAUD_FLAGGED";
-  const canApprove =
-    statusName === "ORACLE_VERIFIED" || statusName === "MANUAL_REVIEW";
-  const canReject =
-    statusName !== "SETTLED" &&
-    statusName !== "CLOSED" &&
-    statusName !== "REJECTED" &&
-    statusName !== "UNKNOWN";
-  const canSettle = statusName === "APPROVED";
-  const canClose = statusName === "SETTLED" || statusName === "REJECTED";
+  const getAdminRule = (action, extra = {}) =>
+    getClaimActionRule({
+      action,
+      statusName,
+      role: "ADMIN",
+      alreadySettled: statusName === "SETTLED" && action !== CLAIM_ACTIONS.CLOSE,
+      ...extra,
+    });
+  const requestOracleRule = getAdminRule(CLAIM_ACTIONS.REQUEST_ORACLE);
+  const manualReviewRule =
+    statusName === "FRAUD_FLAGGED"
+      ? { allowed: true, reason: "" }
+      : getAdminRule(CLAIM_ACTIONS.MANUAL_REVIEW);
+  const resolveTimeoutRule = getAdminRule(CLAIM_ACTIONS.RESOLVE_ORACLE_TIMEOUT, {
+    oracleQuorumReached: true,
+  });
+  const canSettle = ["PAYOUT_READY", "FUNDING_REQUIRED", "SETTLED"].includes(statusName);
   const canShowVoting =
     statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
   const isAwaitingOracleQuorum =
@@ -286,16 +307,14 @@ export default function AdminClaimDetailPage() {
 
       setActionTxHash(getTransactionHash(result));
       setActionMessage(successText);
+      showToast(successText, { title: "Admin action confirmed" });
 
       await refreshAll();
     } catch (err) {
       console.error(err);
-      setActionError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Admin action failed"
-      );
+      const message = parseTransactionError(err);
+      setActionError(message);
+      showToast(message, { tone: "error", title: "Admin action failed" });
     } finally {
       setIsActing(false);
     }
@@ -315,68 +334,10 @@ export default function AdminClaimDetailPage() {
     );
   }
 
-  function handleApprove() {
-    runAdminAction(() => approveClaim(id), "Claim approved successfully.");
-  }
-
-  function handleReject() {
-    if (!rejectReason.trim()) {
-      setActionError("Enter a rejection reason first.");
-      return;
-    }
-
-    runAdminAction(
-      () => rejectClaim(id, rejectReason.trim()),
-      "Claim rejected successfully."
-    );
-  }
-
-  function handleSettle() {
-    const confirmed = window.confirm(
-      `Settle this claim now? This will transfer ${
-        settlementBreakdown?.insurerPaysEth || "the calculated payout"
-      } ETH from the contract reserve to the claimant.`
-    );
-
-    if (!confirmed) return;
-
-    runAdminAction(() => settleClaim(id), "Claim settled successfully.");
-  }
-
   function handleResolveOracleTimeout() {
     runAdminAction(
       () => resolveOracleTimeout(id),
       "Timed-out oracle request resolved successfully."
-    );
-  }
-
-  function handleClose() {
-    const confirmed = window.confirm(
-      "Close this claim lifecycle? Closed claims cannot return to an active workflow."
-    );
-
-    if (!confirmed) return;
-
-    runAdminAction(() => closeClaim(id), "Claim closed successfully.");
-  }
-
-  function handleReviewAppeal(status) {
-    if (!appeal?.id) return;
-
-    runAdminAction(
-      () =>
-        reviewAppeal(appeal.id, {
-          status,
-          adminNote: appealAdminNote.trim(),
-        }),
-      `Appeal marked ${status.toLowerCase().replace("_", " ")} successfully.`
-    );
-  }
-
-  function handleFinalizeVoting() {
-    runAdminAction(
-      () => finalizeClaimVoting(id),
-      "Voting finalized and auditor reputations updated successfully."
     );
   }
 
@@ -392,7 +353,9 @@ export default function AdminClaimDetailPage() {
         Refresh Claim
       </button>
 
-      <div className="card">
+      <div className="admin-claim-workspace">
+        <div className="admin-claim-main">
+      <div className="card reserve-summary-card">
         <h3>Contract Reserve</h3>
         <p>{reserveLoading ? "Loading..." : `${reserveBalance} ETH`}</p>
         <p>This is the central payout reserve used during claim settlement.</p>
@@ -427,13 +390,32 @@ export default function AdminClaimDetailPage() {
           <p>
             Status: <ClaimStatusBadge status={statusName} showHelp />
           </p>
-          <p>Risk score: {formatValue(claim.riskScore)}</p>
+          <p>
+            On-chain validation score:{" "}
+          {claim.verificationConfidenceAvailable === false
+              ? "Not calculated"
+            : `${formatValue(claim.verificationConfidence)}/100`}
+          </p>
+          <p className="muted-text">
+            Higher is cleaner in the contract’s duplicate-check model. Oracle
+            fraud probability is reported separately below.
+          </p>
+          <PolicyEligibilityResult
+            evaluation={claim.policyEligibility?.evaluation}
+            title="Submitted policy-rule assessment"
+          />
 
           <h3>Evidence</h3>
           <EvidenceField label="Invoice hash" value={claim.invoiceHash} />
           <EvidenceField label="Document hash" value={claim.documentHash} />
           <p>
-            <strong>Document CID:</strong> <IpfsLink cid={claim.documentCID} />
+            <strong>Document CID:</strong>{" "}
+            <IpfsLink
+              cid={claim.documentCID}
+              documentId={originalEvidenceDocument?.id}
+              recoverable={originalEvidenceDocument?.recoverableAcrossBrowsers}
+              sha256Hash={originalEvidenceDocument?.sha256Hash}
+            />
           </p>
           <EvidenceChainPanel evidenceChain={evidenceChain} />
         </div>
@@ -474,11 +456,24 @@ export default function AdminClaimDetailPage() {
                 then insurer pays {settlementBreakdown.params.insurerSharePercent}
                 {" "}of the remaining amount.
               </p>
+
+              <div className="settlement-breakdown-grid">
+                <div>
+                  <span>Manager Reserve After Allocation</span>
+                  <strong>{settlementBreakdown.reserveGate.reserveAfterEth} ETH</strong>
+                </div>
+                <div>
+                  <span>Funding Gate</span>
+                  <strong>{settlementBreakdown.reserveGate.funded ? "Funded" : "Funding Required"}</strong>
+                </div>
+              </div>
             </>
           ) : null}
         </div>
       ) : null}
 
+        </div>
+        <aside className="admin-claim-sidebar">
       <div className="card">
         <h3>Admin Actions</h3>
 
@@ -487,74 +482,45 @@ export default function AdminClaimDetailPage() {
         </p>
 
         <div className="action-row">
+          {statusName === "DUPLICATE_CHECKED" ? (
           <button
             type="button"
             onClick={handleRequestOracle}
-            disabled={!canRequestOracle || isActing}
+            disabled={!requestOracleRule.allowed || isActing}
+            title={requestOracleRule.reason}
           >
             Request Oracle Verification
           </button>
+          ) : null}
 
+          {statusName === "ORACLE_FAILED" ? (
           <button
             type="button"
             onClick={handleManualReview}
-            disabled={!canSendManualReview || isActing}
+            disabled={!manualReviewRule.allowed || isActing}
+            title={manualReviewRule.reason}
           >
             Send to Manual Review
           </button>
+          ) : null}
 
+          {statusName === "ORACLE_PENDING" ? (
           <button
             type="button"
             onClick={handleResolveOracleTimeout}
-            disabled={statusName !== "ORACLE_PENDING" || isActing}
+            disabled={!resolveTimeoutRule.allowed || isActing}
+            title={resolveTimeoutRule.reason}
           >
             Resolve Oracle Timeout
           </button>
+          ) : null}
 
-          <button
-            type="button"
-            onClick={handleApprove}
-            disabled={!canApprove || isActing}
-          >
-            Approve Claim
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSettle}
-            disabled={!canSettle || isActing}
-          >
-            Settle Claim
-          </button>
-
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={!canClose || isActing}
-          >
-            Close Claim
-          </button>
         </div>
-
-        <div className="form-grid">
-          <label>
-            Rejection reason
-            <input
-              type="text"
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              placeholder="Example: Duplicate invoice/document evidence detected"
-            />
-          </label>
-
-          <button
-            type="button"
-            onClick={handleReject}
-            disabled={!canReject || isActing}
-          >
-            Reject Claim
-          </button>
-        </div>
+        <p className="muted-text">
+          Approval, rejection, payout allocation, appeal decisions, and settlement are
+          protocol-controlled. Administrators can only start operations or route an
+          oracle failure to the snapshotted auditor panel.
+        </p>
       </div>
 
       {statusName === "ORACLE_PENDING" ? (
@@ -652,18 +618,11 @@ export default function AdminClaimDetailPage() {
                 <p>No auditor votes have been cast yet.</p>
               )}
 
-              <button
-                type="button"
-                onClick={handleFinalizeVoting}
-                disabled={
-                  isActing ||
-                  !voteSummary.totalVoters ||
-                  voteSummary.isTie ||
-                  !voteSummary.consensusCode
-                }
-              >
-                Finalize Voting & Update Reputations
-              </button>
+              <p className={voteSummary.quorumReached ? "success-text" : "muted-text"}>
+                {voteSummary.finalized
+                  ? "Voting was finalized automatically on-chain."
+                  : `${voteSummary.totalVoters || 0} votes recorded. Three approvals allocate payout; two rejections reject immediately.`}
+              </p>
             </>
           ) : null}
         </div>
@@ -687,9 +646,33 @@ export default function AdminClaimDetailPage() {
               </span>
             </p>
             <p>Submitted: {formatValue(appeal.submittedAt)}</p>
-            <p>Claimant: {formatValue(appeal.claimantWallet)}</p>
-            <p>Reason: {formatValue(appeal.appealReason)}</p>
-            <EvidenceField label="Appeal reason hash" value={appeal.appealReasonHash} />
+            <p>Appeal deadline: {formatValue(appeal.appealDeadline)}</p>
+            <div className="appeal-focus-panel">
+              <span className="dashboard-eyebrow">Why the policyholder appealed</span>
+              <h4>{formatValue(appeal.appealReason)}</h4>
+              <p>{formatValue(appeal.appealDescription)}</p>
+              <span>Category: {formatValue(appeal.reasonCategory)}</span>
+            </div>
+            {appeal.proposedCorrections &&
+            Object.values(appeal.proposedCorrections).some(Boolean) ? (
+              <div className="appeal-corrections">
+                <h4>Proposed corrected claim information</h4>
+                {Object.entries(appeal.proposedCorrections)
+                  .filter(([, value]) => value)
+                  .map(([field, value]) => (
+                    <p key={field}>
+                      <strong>{field}:</strong> {value}
+                    </p>
+                  ))}
+                <p className="muted-text">
+                  An approved appeal uses these values in the next oracle round.
+                </p>
+              </div>
+            ) : null}
+            <details className="technical-details">
+              <summary>Appeal transaction and hashes</summary>
+              <p>Claimant: {formatValue(appeal.claimantWallet)}</p>
+              <EvidenceField label="Appeal reason hash" value={appeal.appealReasonHash} />
             {appeal.additionalDocumentHash ? (
               <EvidenceField
                 label="Additional document hash"
@@ -706,44 +689,29 @@ export default function AdminClaimDetailPage() {
                 Appeal tx: <TransactionLink txHash={appeal.transactionHash} />
               </p>
             ) : null}
+            </details>
 
-            <div className="form-grid">
-              <label>
-                Admin note
-                <input
-                  type="text"
-                  value={appealAdminNote}
-                  onChange={(event) => setAppealAdminNote(event.target.value)}
-                  placeholder={appeal.adminNote || "Optional appeal review note"}
-                />
-              </label>
-            </div>
-
-            <div className="action-row">
-              <button
-                type="button"
-                onClick={() => handleReviewAppeal("UNDER_REVIEW")}
-                disabled={isActing || appealIsFinal || appeal.status === "UNDER_REVIEW"}
-              >
-                Mark Under Review
-              </button>
-              <button
-                type="button"
-                onClick={() => handleReviewAppeal("APPROVED")}
-                disabled={isActing || appealIsFinal}
-              >
-                Approve Appeal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleReviewAppeal("REJECTED")}
-                disabled={isActing || appealIsFinal}
-              >
-                Reject Appeal
-              </button>
-            </div>
+            <p className="muted-text">
+              Appeals automatically open a new claim version and oracle request. The
+              administrator cannot approve or reject an appeal.
+            </p>
           </>
         ) : null}
+
+        {appeal?.history?.length ? (
+          <div>
+            <h4>Appeal History</h4>
+            {appeal.history.map((entry, index) => (
+              <p key={`${entry.status}-${entry.timestamp || index}`}>
+                {formatValue(entry.timestamp)} - {formatValue(entry.status)} by{" "}
+                {formatValue(entry.actorRole)} {entry.note ? `- ${entry.note}` : ""}
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+        </aside>
       </div>
 
       <h3>Oracle Results</h3>
@@ -756,22 +724,12 @@ export default function AdminClaimDetailPage() {
         </p>
       ) : null}
 
-      {!oracleLoading && canShowOracleResultPanel && oracleLogs.length === 0 ? (
-        <p>No oracle result found yet.</p>
+      {canShowOracleResultPanel && !oracleLoading ? (
+        <OracleComparisonPanel
+          logs={oracleLogs}
+          quorumSummary={backendQuorumSummary || oracleQuorumStatus}
+        />
       ) : null}
-
-      {canShowOracleResultPanel ? oracleLogs.map((log) => (
-        <div className="card" key={log._id || log.requestId || log.resultHash}>
-          <p>Request ID: {formatValue(log.requestId)}</p>
-          <p>Verified: {formatValue(log.verified)}</p>
-          <p>Risk level: {formatValue(log.riskLevel)}</p>
-          <EvidenceField label="Result hash" value={log.resultHash} />
-          <p>
-            Tx hash: <TransactionLink txHash={log.submittedTxHash || log.txHash} />
-          </p>
-          <OracleComparisonPanel log={log} />
-        </div>
-      )) : null}
     </section>
   );
 }

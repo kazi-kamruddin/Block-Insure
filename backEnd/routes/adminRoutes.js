@@ -8,17 +8,15 @@ const {
   getReserveIntelligence,
   getRegistryMerkleRoot,
   pushRegistryMerkleRoot,
+  listAdminActionLogs,
+  getRoleSyncHealth,
   getAdminClaims,
-  requestOracleForClaim,
-  resolveTimedOutOracle,
-  approveClaim,
-  rejectClaim,
-  settleClaim,
-  closeClaim,
-  sendClaimToManualReview,
+  confirmAdminClaimTransaction,
+  publishPolicyPackageEconomicRules,
 } = require("../controllers/adminController");
 const {
   getAuditorReputationAnalysis,
+  getDefenseSummary,
   getEvaluationSummary,
   getGasComparison,
   getOracleStats,
@@ -27,8 +25,46 @@ const {
 } = require("../controllers/evaluationController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
+const {
+  approveBenefitRequest,
+  listBenefitRequests,
+  confirmPublishedBenefitTerms,
+  rejectBenefitRequest,
+  settleBenefitRequest,
+} = require("../controllers/policyBenefitsController");
 
 const router = express.Router();
+
+router.get(
+  "/benefit-requests",
+  authMiddleware,
+  requireRole("ADMIN"),
+  listBenefitRequests
+);
+router.post(
+  "/policy-packages/:packageId/benefit-terms/confirm",
+  authMiddleware,
+  requireRole("ADMIN"),
+  confirmPublishedBenefitTerms
+);
+router.post(
+  "/benefit-requests/:requestId/approve",
+  authMiddleware,
+  requireRole("ADMIN"),
+  approveBenefitRequest
+);
+router.post(
+  "/benefit-requests/:requestId/reject",
+  authMiddleware,
+  requireRole("ADMIN"),
+  rejectBenefitRequest
+);
+router.post(
+  "/benefit-requests/:requestId/settle",
+  authMiddleware,
+  requireRole("ADMIN"),
+  settleBenefitRequest
+);
 
 router.get(
   "/policy-packages",
@@ -38,10 +74,24 @@ router.get(
 );
 
 router.post(
+  "/claims/:id/confirm-transaction",
+  authMiddleware,
+  requireRole("ADMIN"),
+  confirmAdminClaimTransaction
+);
+
+router.post(
   "/policy-packages",
   authMiddleware,
   requireRole("ADMIN"),
   createPolicyPackage
+);
+
+router.post(
+  "/policy-packages/:id/economic-rules",
+  authMiddleware,
+  requireRole("ADMIN"),
+  publishPolicyPackageEconomicRules
 );
 
 router.put(
@@ -84,6 +134,13 @@ router.get(
   authMiddleware,
   requireRole("ADMIN"),
   getEvaluationSummary
+);
+
+router.get(
+  "/evaluation/defense-summary",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getDefenseSummary
 );
 
 router.get(
@@ -136,59 +193,24 @@ router.post(
 );
 
 router.get(
+  "/audit-logs",
+  authMiddleware,
+  requireRole("ADMIN"),
+  listAdminActionLogs
+);
+
+router.get(
+  "/role-sync-health",
+  authMiddleware,
+  requireRole("ADMIN"),
+  getRoleSyncHealth
+);
+
+router.get(
   "/claims",
   authMiddleware,
   requireRole("ADMIN"),
   getAdminClaims
-);
-
-router.post(
-  "/claims/:id/request-oracle",
-  authMiddleware,
-  requireRole("ADMIN"),
-  requestOracleForClaim
-);
-
-router.post(
-  "/claims/:id/resolve-oracle-timeout",
-  authMiddleware,
-  requireRole("ADMIN"),
-  resolveTimedOutOracle
-);
-
-router.post(
-  "/claims/:id/manual-review",
-  authMiddleware,
-  requireRole("ADMIN"),
-  sendClaimToManualReview
-);
-
-router.post(
-  "/claims/:id/approve",
-  authMiddleware,
-  requireRole("ADMIN"),
-  approveClaim
-);
-
-router.post(
-  "/claims/:id/reject",
-  authMiddleware,
-  requireRole("ADMIN"),
-  rejectClaim
-);
-
-router.post(
-  "/claims/:id/settle",
-  authMiddleware,
-  requireRole("ADMIN"),
-  settleClaim
-);
-
-router.post(
-  "/claims/:id/close",
-  authMiddleware,
-  requireRole("ADMIN"),
-  closeClaim
 );
 
 module.exports = router;

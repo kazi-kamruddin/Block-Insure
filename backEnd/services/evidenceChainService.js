@@ -2,6 +2,7 @@ const File = require("../models/File");
 const { calculateTextSHA256 } = require("./hashService");
 
 const GENESIS_EVIDENCE_HASH = "GENESIS";
+const MAX_CHAIN_ASSIGNMENT_ATTEMPTS = 5;
 
 const normalizeClaimId = (claimId) => {
   const value = String(claimId || "").trim();
@@ -16,6 +17,9 @@ const buildEvidenceChainHash = ({
   ipfsCID,
   documentType,
   uploaderWallet,
+  claimVersion = 0,
+  associatedDataHash = "",
+  encryptionSchemeVersion = "",
 }) => {
   return calculateTextSHA256(
     JSON.stringify({
@@ -26,6 +30,9 @@ const buildEvidenceChainHash = ({
       ipfsCID,
       documentType,
       uploaderWallet: String(uploaderWallet || "").toLowerCase(),
+      claimVersion: Number(claimVersion || 0),
+      associatedDataHash,
+      encryptionSchemeVersion,
     })
   );
 };
@@ -39,6 +46,9 @@ const formatEvidenceDocument = (fileRecord, expectedHash = "") => {
     ipfsCID: fileRecord.ipfsCID,
     documentType: fileRecord.documentType,
     uploaderWallet: fileRecord.uploaderWallet,
+    claimVersion: fileRecord.claimVersion,
+    associatedDataHash: fileRecord.associatedDataHash,
+    encryptionSchemeVersion: fileRecord.encryptionSchemeVersion,
   });
 
   return {
@@ -50,6 +60,14 @@ const formatEvidenceDocument = (fileRecord, expectedHash = "") => {
     sha256Hash: fileRecord.sha256Hash,
     ipfsCID: fileRecord.ipfsCID,
     documentType: fileRecord.documentType,
+    encrypted: Boolean(fileRecord.encrypted),
+    encryptionAlgorithm: fileRecord.encryptionAlgorithm || "",
+    originalMimeType: fileRecord.originalMimeType || "",
+    keyProvider: fileRecord.keyProvider || "",
+    keyId: fileRecord.keyId || "",
+    recoverableAcrossBrowsers: Boolean(
+      fileRecord.keyCapsule && fileRecord.encryptionIdentityVersion
+    ),
     uploadedAt: fileRecord.createdAt,
     previousEvidenceHash: fileRecord.previousEvidenceHash || "",
     evidenceChainHash: fileRecord.evidenceChainHash || "",
@@ -76,35 +94,52 @@ const assignEvidenceChainLink = async (fileRecord, claimId) => {
     return fileRecord;
   }
 
-  const latestDocument = await File.findOne({
-    claimId: normalizedClaimId,
-    _id: { $ne: fileRecord._id },
-    evidenceChainHash: { $ne: "" },
-  }).sort({ evidenceChainIndex: -1, createdAt: -1 });
+  for (let attempt = 1; attempt <= MAX_CHAIN_ASSIGNMENT_ATTEMPTS; attempt += 1) {
+    const latestDocument = await File.findOne({
+      claimId: normalizedClaimId,
+      _id: { $ne: fileRecord._id },
+      evidenceChainHash: { $ne: "" },
+    }).sort({ evidenceChainIndex: -1, createdAt: -1 });
 
-  const previousEvidenceHash =
-    latestDocument?.evidenceChainHash || GENESIS_EVIDENCE_HASH;
-  const evidenceChainIndex = latestDocument
-    ? Number(latestDocument.evidenceChainIndex || 0) + 1
-    : 0;
-  const evidenceChainHash = buildEvidenceChainHash({
-    claimId: normalizedClaimId,
-    evidenceChainIndex,
-    previousEvidenceHash,
-    sha256Hash: fileRecord.sha256Hash,
-    ipfsCID: fileRecord.ipfsCID,
-    documentType: fileRecord.documentType,
-    uploaderWallet: fileRecord.uploaderWallet,
-  });
+    const previousEvidenceHash =
+      latestDocument?.evidenceChainHash || GENESIS_EVIDENCE_HASH;
+    const evidenceChainIndex = latestDocument
+      ? Number(latestDocument.evidenceChainIndex || 0) + 1
+      : 0;
+    const evidenceChainHash = buildEvidenceChainHash({
+      claimId: normalizedClaimId,
+      evidenceChainIndex,
+      previousEvidenceHash,
+      sha256Hash: fileRecord.sha256Hash,
+      ipfsCID: fileRecord.ipfsCID,
+      documentType: fileRecord.documentType,
+      uploaderWallet: fileRecord.uploaderWallet,
+      claimVersion: fileRecord.claimVersion,
+      associatedDataHash: fileRecord.associatedDataHash,
+      encryptionSchemeVersion: fileRecord.encryptionSchemeVersion,
+    });
 
-  fileRecord.claimId = normalizedClaimId;
-  fileRecord.previousEvidenceHash = previousEvidenceHash;
-  fileRecord.evidenceChainIndex = evidenceChainIndex;
-  fileRecord.evidenceChainHash = evidenceChainHash;
+    fileRecord.claimId = normalizedClaimId;
+    fileRecord.previousEvidenceHash = previousEvidenceHash;
+    fileRecord.evidenceChainIndex = evidenceChainIndex;
+    fileRecord.evidenceChainHash = evidenceChainHash;
 
-  await fileRecord.save();
+    try {
+      await fileRecord.save();
+      return fileRecord;
+    } catch (error) {
+      if (error?.code !== 11000 || attempt === MAX_CHAIN_ASSIGNMENT_ATTEMPTS) {
+        throw error;
+      }
 
-  return fileRecord;
+      // Another upload won this index. Reload the head and retry with its hash.
+      fileRecord.previousEvidenceHash = "";
+      fileRecord.evidenceChainIndex = null;
+      fileRecord.evidenceChainHash = "";
+    }
+  }
+
+  throw new Error("Could not allocate an evidence-chain index");
 };
 
 const getEvidenceChainForClaim = async (claimId) => {
@@ -120,10 +155,12 @@ const getEvidenceChainForClaim = async (claimId) => {
     };
   }
 
-  const files = await File.find({ claimId: normalizedClaimId }).sort({
-    evidenceChainIndex: 1,
-    createdAt: 1,
-  });
+  const files = await File.find({ claimId: normalizedClaimId })
+    .select("+keyCapsule")
+    .sort({
+      evidenceChainIndex: 1,
+      createdAt: 1,
+    });
   let previousHash = GENESIS_EVIDENCE_HASH;
   const documents = files.map((fileRecord, index) => {
     const expectedHash = buildEvidenceChainHash({
@@ -134,6 +171,9 @@ const getEvidenceChainForClaim = async (claimId) => {
       ipfsCID: fileRecord.ipfsCID,
       documentType: fileRecord.documentType,
       uploaderWallet: fileRecord.uploaderWallet,
+      claimVersion: fileRecord.claimVersion,
+      associatedDataHash: fileRecord.associatedDataHash,
+      encryptionSchemeVersion: fileRecord.encryptionSchemeVersion,
     });
     const document = formatEvidenceDocument(fileRecord, expectedHash);
     const expectedPreviousHash =

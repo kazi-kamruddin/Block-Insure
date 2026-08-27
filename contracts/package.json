@@ -4,9 +4,17 @@
   "description": "Block-Insure smart contracts and Hardhat verification suite",
   "main": "index.js",
   "scripts": {
-    "test": "hardhat test",
-    "compile": "hardhat compile",
-    "gas:compare": "npx hardhat run scripts/gasComparison.js --network localhost"
+    "node": "node scripts/runHardhat.js node",
+    "test": "node scripts/runHardhat.js test",
+    "coverage": "node scripts/runHardhat.js coverage",
+    "compile": "node scripts/runHardhat.js compile",
+    "sync:abi": "node scripts/sync-abi.js",
+    "deploy:local": "node scripts/runHardhat.js run scripts/deploy-local.js --network localhost",
+    "deploy:benefits:local": "node scripts/runHardhat.js run scripts/deploy-benefits-local.js --network localhost",
+    "fund:accounts:local": "node scripts/runHardhat.js run scripts/fund-demo-accounts-local.js --network localhost",
+    "gas:compare": "node scripts/runHardhat.js run scripts/gasComparison.js"
+    ,"test:stateful": "node scripts/runHardhat.js test test/Phase5StatefulInvariants.test.js"
+    ,"analyze:slither": "slither . --config-file slither.config.json"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +22,7 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.2",
     "hardhat": "^2.28.0",
+    "solc": "0.8.26",
     "solidity-coverage": "^0.8.17"
   },
   "dependencies": {

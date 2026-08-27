@@ -8,8 +8,10 @@ function shortAddress(address) {
 export default function WalletConnectButton() {
   const {
     walletAddress,
+    role,
     isConnected,
     isConnecting,
+    isRestoringSession,
     error,
     connectWallet,
     logout,
@@ -22,6 +24,7 @@ export default function WalletConnectButton() {
         <span className="wallet-address" title={walletAddress}>
           {shortAddress(walletAddress)}
         </span>
+        <span className="wallet-role">{role}</span>
         <button type="button" onClick={logout}>
           Logout
         </button>
@@ -31,10 +34,22 @@ export default function WalletConnectButton() {
 
   return (
     <div className="wallet-box">
-      <button type="button" onClick={connectWallet} disabled={isConnecting}>
-        {isConnecting ? "Connecting..." : "Connect Wallet"}
+      <button
+        type="button"
+        onClick={connectWallet}
+        disabled={isConnecting || isRestoringSession}
+      >
+        {isRestoringSession
+          ? "Checking session..."
+          : isConnecting
+            ? "Connecting..."
+            : "Connect Wallet"}
       </button>
-      {error ? <small className="error-text">{error}</small> : null}
+      {error ? (
+        <small className="error-text" role="alert">
+          {error}
+        </small>
+      ) : null}
     </div>
   );
 }

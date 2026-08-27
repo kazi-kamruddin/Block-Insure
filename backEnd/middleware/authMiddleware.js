@@ -1,6 +1,11 @@
 const jwt = require("jsonwebtoken");
 const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
+const {
+  assertCurrentOnChainRole,
+} = require("../services/onChainAuthorizationService");
+const JWT_ISSUER = process.env.JWT_ISSUER || "block-insure-api";
+const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "block-insure-client";
 
 const authMiddleware = async (req, res, next) => {
   try {
@@ -15,13 +20,23 @@ const authMiddleware = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      audience: JWT_AUDIENCE,
+      issuer: JWT_ISSUER,
+    });
     const walletAddress = decoded.walletAddress?.toLowerCase();
 
     if (!walletAddress || !decoded.jti) {
       return res.status(401).json({
         success: false,
         message: "Invalid token payload",
+      });
+    }
+
+    if (decoded.authMethod !== "SIWE") {
+      return res.status(401).json({
+        success: false,
+        message: "A current SIWE session is required",
       });
     }
 
@@ -44,6 +59,8 @@ const authMiddleware = async (req, res, next) => {
         message: "User no longer exists",
       });
     }
+
+    await assertCurrentOnChainRole(user.role, user.walletAddress);
 
     req.user = {
       walletAddress: user.walletAddress,

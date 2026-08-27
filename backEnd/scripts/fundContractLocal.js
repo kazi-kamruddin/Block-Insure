@@ -39,7 +39,7 @@ const fundContractLocal = async () => {
 
     await tx.wait();
 
-    const balance = await contract.getContractBalance();
+    const balance = await provider.getBalance(process.env.VITE_CONTRACT_ADDRESS);
 
     console.log("Contract funded successfully");
     console.log("Contract balance:", ethers.formatEther(balance), "ETH");

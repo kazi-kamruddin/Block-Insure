@@ -2,6 +2,7 @@ const express = require("express");
 const {
   getAllHospitalRecords,
   getHospitalRecordById,
+  getHospitalOnChainRegistryMerkleRoot,
   getHospitalRegistryMerkleProof,
   getHospitalRegistryMerkleRoot,
   getHospitalRegistrySummary,
@@ -9,6 +10,7 @@ const {
 } = require("../controllers/mockHospitalController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
+const requireOracleApiKey = require("../middleware/oracleApiKeyMiddleware");
 
 const router = express.Router();
 
@@ -31,6 +33,12 @@ router.get(
   getHospitalRegistryMerkleRoot
 );
 router.get(
+  "/records/on-chain-merkle-root",
+  authMiddleware,
+  requireRole("ADMIN", "AUDITOR"),
+  getHospitalOnChainRegistryMerkleRoot
+);
+router.get(
   "/records/merkle-proof",
   authMiddleware,
   requireRole("ADMIN", "AUDITOR"),
@@ -42,6 +50,6 @@ router.get(
   requireRole("ADMIN", "AUDITOR"),
   getHospitalRecordById
 );
-router.get("/verify", verifyHospitalRecord);
+router.get("/verify", requireOracleApiKey, verifyHospitalRecord);
 
 module.exports = router;

@@ -8,13 +8,16 @@ export default function PublicLayout() {
 
   return (
     <div className="app-shell">
-      <nav className="navbar">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
+      <nav className="navbar" aria-label="Primary navigation">
         <Link className="brand" to="/">
           <span className="brand-mark">B</span>
           <span>Block-Insure</span>
         </Link>
 
-        <div className="nav-links" aria-label="Primary navigation">
+        <div className="nav-links">
           {isConnected && workspace ? (
             <span className="portal-context">{workspace.label}</span>
           ) : (
@@ -29,7 +32,7 @@ export default function PublicLayout() {
         <WalletConnectButton />
       </nav>
 
-      <main className="app-main">
+      <main className="app-main" id="main-content" tabIndex="-1">
         <Outlet />
       </main>
 

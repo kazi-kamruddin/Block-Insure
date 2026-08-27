@@ -2,8 +2,9 @@ require("dotenv").config();
 
 const dns = require("dns");
 const mongoose = require("mongoose");
-const { exportMerkleRoot } = require("../services/merkleRegistryService");
-const { getAdminContract } = require("../services/contractService");
+const { ethers } = require("ethers");
+const { buildRegistryMerkleRoot } = require("../services/merkleRegistryService");
+const { getAdminContract, getOracleCoordinator } = require("../services/contractService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -19,13 +20,22 @@ const pushMerkleRoot = async () => {
 
     await mongoose.connect(process.env.MONGODB_URI);
 
-    const root = await exportMerkleRoot();
+    const merkleRoot = await buildRegistryMerkleRoot();
+    const root = merkleRoot.rootHash || ethers.ZeroHash;
     const contract = getAdminContract();
+    const coordinator = await getOracleCoordinator(contract);
+    const treeVersionHash = ethers.keccak256(
+      ethers.toUtf8Bytes(merkleRoot.treeVersion)
+    );
 
     console.log("Pushing registry Merkle root on-chain...");
     console.log("Root:", root);
 
-    const tx = await contract.updateRegistryMerkleRoot(root);
+    const tx = await coordinator.publishRegistrySnapshot(
+      root,
+      merkleRoot.leafCount,
+      treeVersionHash
+    );
 
     console.log("Transaction sent:", tx.hash);
 

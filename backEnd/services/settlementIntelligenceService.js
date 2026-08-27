@@ -1,5 +1,10 @@
 const { ethers } = require("ethers");
-const { getReadOnlyContract } = require("./contractService");
+const {
+  getClaimAdjudicator,
+  getContractBalance,
+  getPolicyEconomics,
+  getReadOnlyContract,
+} = require("./contractService");
 
 const CLAIM_STATUS = [
   "SUBMITTED",
@@ -9,20 +14,21 @@ const CLAIM_STATUS = [
   "ORACLE_VERIFIED",
   "ORACLE_FAILED",
   "MANUAL_REVIEW",
-  "APPROVED",
+  "PAYOUT_READY",
   "REJECTED",
   "SETTLED",
   "CLOSED",
+  "FUNDING_REQUIRED",
+  "APPEALED",
 ];
 
-const SETTLE_READY_STATUSES = new Set(["APPROVED"]);
+const SETTLE_READY_STATUSES = new Set(["PAYOUT_READY", "FUNDING_REQUIRED"]);
 const OPEN_EXPOSURE_STATUSES = new Set([
   "SUBMITTED",
   "DUPLICATE_CHECKED",
   "ORACLE_PENDING",
   "ORACLE_VERIFIED",
   "MANUAL_REVIEW",
-  "APPROVED",
 ]);
 const REVIEW_EXPOSURE_STATUSES = new Set([
   "FRAUD_FLAGGED",
@@ -67,7 +73,7 @@ const getSolvencyStatus = ({ reserveWei, approvedLiabilityWei, openExposureWei }
 const formatSettlementModel = (settlement, params) => {
   return {
     model: "on_chain_deductible_coinsurance",
-    note: "Settlement math is enforced by InsuranceManager.calculateSettlement and settleClaim transfers only insurerPays.",
+    note: "Settlement math is enforced by InsuranceManager.calculateSettlement; the adjudicator vault pays only insurerPays through claimant withdrawal.",
     deductibleRateBps: params.deductibleRateBps.toString(),
     deductibleRate: toBpsRate(params.deductibleRateBps),
     deductibleCapWei: params.deductibleCapWei.toString(),
@@ -96,9 +102,17 @@ const normalizeSettlement = (rawSettlement) => ({
   claimantResponsibilityWei: rawSettlement.claimantResponsibility,
 });
 
-const getSettlementQuote = async (contract, claim, params) => {
-  const rawSettlement = await contract.calculateSettlement(claim.claimId);
+const getSettlementQuote = async (contract, economics, claim) => {
+  const [rawSettlement, terms] = await Promise.all([
+    contract.calculateSettlement(claim.claimId),
+    economics.getPolicyTerms(claim.policyId),
+  ]);
   const settlement = normalizeSettlement(rawSettlement);
+  const params = {
+    deductibleRateBps: terms.deductibleRateBps,
+    deductibleCapWei: terms.deductibleCapWei,
+    insurerShareBps: terms.insurerShareBps,
+  };
 
   return {
     ...settlement,
@@ -201,29 +215,43 @@ const buildStatusBreakdown = (claims) => {
 
 const buildReserveIntelligence = async () => {
   const contract = getReadOnlyContract();
+  const adjudicator = await getClaimAdjudicator(contract);
+  const economics = await getPolicyEconomics(contract);
+  const managerReserveWei = await getContractBalance();
   const [
-    reserveWei,
     claims,
     policies,
-    deductibleRateBps,
-    deductibleCapWei,
-    insurerShareBps,
+    enforcedReservedLiabilityWei,
+    unfundedLiabilityWei,
+    payoutVaultBalanceWei,
+    activeExposureGuardWei,
+    totalReservedCoverageWei,
+    reserveRatioBps,
+    minimumCapitalBufferWei,
   ] = await Promise.all([
-    contract.getContractBalance(),
     getAllClaims(contract),
     getAllPolicies(contract),
-    contract.deductibleRateBps(),
-    contract.deductibleCapWei(),
-    contract.insurerShareBps(),
+    adjudicator.totalOutstandingLiabilityWei(),
+    adjudicator.totalUnfundedLiabilityWei(),
+    contract.runner.provider.getBalance(adjudicator.target),
+    economics.activeExposureWei(),
+    economics.totalReservedCoverageWei(),
+    economics.reserveRatioBps(),
+    economics.minimumCapitalBufferWei(),
   ]);
-  const settlementParams = {
-    deductibleRateBps,
-    deductibleCapWei,
-    insurerShareBps,
-  };
+  const minimumTreasuryBalanceWei = await economics.minimumTreasuryBalance(
+    unfundedLiabilityWei
+  );
+  const withdrawableExcessWei =
+    managerReserveWei > minimumTreasuryBalanceWei
+      ? managerReserveWei - minimumTreasuryBalanceWei
+      : 0n;
+  const reserveWei = managerReserveWei + payoutVaultBalanceWei;
+  const reserveWarningThresholdWei = 0n;
+  const highValueSettlementThresholdWei = 0n;
   const settlementQuotes = await Promise.all(
     claims.map(async (claim) => {
-      const quote = await getSettlementQuote(contract, claim, settlementParams);
+      const quote = await getSettlementQuote(contract, economics, claim);
 
       return [claim.claimId.toString(), quote];
     })
@@ -241,7 +269,7 @@ const buildReserveIntelligence = async () => {
     zeroWei
   );
   const premiumCollectedWei = policies.reduce(
-    (total, policy) => total + policy.premiumPaid,
+    (total, policy) => total + (policy.totalPremiumPaid || policy.premiumPaid),
     zeroWei
   );
   const openExposureWei = claims
@@ -301,20 +329,28 @@ const buildReserveIntelligence = async () => {
     generatedAt: new Date().toISOString(),
     assumptions: {
       settlementModel:
-        "On-chain deductible/co-insurance formula enforced by InsuranceManager.settleClaim.",
+        "On-chain deductible/co-insurance formula with automatic vault allocation and claimant withdrawal.",
       openExposureStatuses: Array.from(OPEN_EXPOSURE_STATUSES),
       reviewExposureStatuses: Array.from(REVIEW_EXPOSURE_STATUSES),
       settlementReadyStatuses: Array.from(SETTLE_READY_STATUSES),
-      deductibleRateBps: deductibleRateBps.toString(),
-      deductibleRate: toBpsRate(deductibleRateBps),
-      deductibleCapWei: deductibleCapWei.toString(),
-      deductibleCapEth: toEth(deductibleCapWei),
-      insurerShareBps: insurerShareBps.toString(),
-      insurerShareRate: toBpsRate(insurerShareBps),
+      termSource: "Immutable per-policy PolicyEconomics snapshot",
     },
     reserve: {
       wei: reserveWei.toString(),
       eth: toEth(reserveWei),
+      warningThresholdWei: reserveWarningThresholdWei.toString(),
+      warningThresholdEth: toEth(reserveWarningThresholdWei),
+      highValueSettlementThresholdWei: highValueSettlementThresholdWei.toString(),
+      highValueSettlementThresholdEth: toEth(highValueSettlementThresholdWei),
+      enforcedReservedLiabilityWei: enforcedReservedLiabilityWei.toString(),
+      enforcedReservedLiabilityEth: toEth(enforcedReservedLiabilityWei),
+      withdrawableExcessWei:
+        withdrawableExcessWei.toString(),
+      withdrawableExcessEth: toEth(withdrawableExcessWei),
+      managerBalanceWei: managerReserveWei.toString(),
+      managerBalanceEth: toEth(managerReserveWei),
+      payoutVaultBalanceWei: payoutVaultBalanceWei.toString(),
+      payoutVaultBalanceEth: toEth(payoutVaultBalanceWei),
     },
     portfolio: {
       totalPolicies: policies.length,
@@ -330,10 +366,15 @@ const buildReserveIntelligence = async () => {
       openExposureEth: toEth(openExposureWei),
       approvedLiabilityWei: approvedLiabilityWei.toString(),
       approvedLiabilityEth: toEth(approvedLiabilityWei),
+      approvedPendingExposureWei: approvedLiabilityWei.toString(),
+      approvedPendingExposureEth: toEth(approvedLiabilityWei),
+      unsettledApprovedClaimCount: pendingSettlementClaims.length,
       reviewExposureWei: reviewExposureWei.toString(),
       reviewExposureEth: toEth(reviewExposureWei),
       settledWei: settledWei.toString(),
       settledEth: toEth(settledWei),
+      totalSettlementsPaidWei: settledWei.toString(),
+      totalSettlementsPaidEth: toEth(settledWei),
     },
     ratios: {
       reserveToOpenExposure: reserveToOpenExposureRatio,
@@ -341,15 +382,26 @@ const buildReserveIntelligence = async () => {
       reserveToActiveCoverage: reserveToCoverageRatio,
     },
     solvency: {
-      status: getSolvencyStatus({
-        reserveWei,
-        approvedLiabilityWei,
-        openExposureWei,
-      }),
+      status:
+        managerReserveWei >= minimumTreasuryBalanceWei
+          ? "SUFFICIENT"
+          : "BELOW_ENFORCED_MINIMUM",
+      minimumTreasuryBalanceWei: minimumTreasuryBalanceWei.toString(),
+      minimumTreasuryBalanceEth: toEth(minimumTreasuryBalanceWei),
+      minimumCapitalBufferWei: minimumCapitalBufferWei.toString(),
+      minimumCapitalBufferEth: toEth(minimumCapitalBufferWei),
+      reserveRatioBps: reserveRatioBps.toString(),
+      activeExposureWei: activeExposureGuardWei.toString(),
+      activeExposureEth: toEth(activeExposureGuardWei),
+      totalReservedCoverageWei: totalReservedCoverageWei.toString(),
+      totalReservedCoverageEth: toEth(totalReservedCoverageWei),
       approvedClaimsFullyCovered: reserveWei >= approvedLiabilityWei,
       openExposureFullyCovered: reserveWei >= openExposureWei,
       reserveAfterApprovedQueueWei: reserveAfterQueueWei.toString(),
       reserveAfterApprovedQueueEth: toEth(reserveAfterQueueWei),
+      reserveAfterPendingExposureWei: reserveAfterQueueWei.toString(),
+      reserveAfterPendingExposureEth: toEth(reserveAfterQueueWei),
+      belowWarningThreshold: reserveAfterQueueWei < reserveWarningThresholdWei,
       coverageUtilizationPercent:
         activeCoverageWei === zeroWei
           ? 0

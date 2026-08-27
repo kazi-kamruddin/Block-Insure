@@ -1,7 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 
-import { getMyClaims, getMyPolicies } from "../services/api";
+import {
+  getMyClaims,
+  getMyPolicies,
+  reconcilePendingClaimSubmissions,
+} from "../services/api";
 import { useWallet } from "../context/useWallet";
 import { getStatusLabel } from "../services/contractService";
 import "../styles/pages/UserDashboardPage.css";
@@ -47,11 +52,27 @@ function getClaimStatusName(claim) {
 }
 
 export default function UserDashboardPage() {
+  const [reconciliationMessage, setReconciliationMessage] = useState("");
+
+  useEffect(() => {
+    reconcilePendingClaimSubmissions()
+      .then(({ reconciled, remaining }) => {
+        if (reconciled > 0 || remaining > 0) {
+          setReconciliationMessage(
+            `${reconciled} claim submission(s) recovered; ${remaining} still pending.`
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const { walletAddress, isConnected } = useWallet();
 
   const {
     data: policiesData,
     isLoading: policiesLoading,
+    isFetching: policiesFetching,
+    error: policiesError,
     refetch: refetchPolicies,
   } = useQuery({
     queryKey: ["userDashboardPolicies", walletAddress],
@@ -62,6 +83,8 @@ export default function UserDashboardPage() {
   const {
     data: claimsData,
     isLoading: claimsLoading,
+    isFetching: claimsFetching,
+    error: claimsError,
     refetch: refetchClaims,
   } = useQuery({
     queryKey: ["userDashboardClaims", walletAddress],
@@ -71,6 +94,8 @@ export default function UserDashboardPage() {
 
   const policies = extractPolicies(policiesData);
   const claims = extractClaims(claimsData);
+  const isRefreshing = policiesFetching || claimsFetching;
+  const dashboardError = policiesError || claimsError;
 
   const activePolicies = policies.filter((policy) => policy.isActive !== false);
   const settledClaims = claims.filter(
@@ -113,6 +138,9 @@ export default function UserDashboardPage() {
 
   return (
     <section className="page-container page-user-dashboard">
+      {reconciliationMessage ? (
+        <p className="success-text">{reconciliationMessage}</p>
+      ) : null}
       <div className="dashboard-heading">
         <div>
           <span className="dashboard-eyebrow">Policyholder workspace</span>
@@ -131,11 +159,23 @@ export default function UserDashboardPage() {
               refetchPolicies();
               refetchClaims();
             }}
+            disabled={isRefreshing}
           >
-            Refresh data
+            {isRefreshing ? "Refreshing..." : "Refresh data"}
           </button>
         </div>
       </div>
+
+      {dashboardError ? (
+        <div className="status-message is-error" role="alert">
+          <strong>Dashboard data is incomplete.</strong>
+          <span>
+            {dashboardError.response?.data?.message ||
+              dashboardError.message ||
+              "The backend or local blockchain could not be reached."}
+          </span>
+        </div>
+      ) : null}
 
       <div className="card dashboard-guidance-card">
         <div>

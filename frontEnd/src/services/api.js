@@ -1,4 +1,11 @@
 import axios from "axios";
+import { ethers } from "ethers";
+
+import {
+  getPolicyBenefitsWalletContract,
+  getWalletContract,
+  getWalletOracleCoordinator,
+} from "./contractService";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -18,14 +25,36 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      error.response?.status === 401 &&
+      localStorage.getItem("blockinsure_jwt")
+    ) {
+      clearStoredSession();
+      window.dispatchEvent(
+        new CustomEvent("blockinsure:session-expired", {
+          detail:
+            error.response?.data?.message ||
+            "Your session expired. Connect your wallet again.",
+        })
+      );
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export async function getWalletNonce(walletAddress) {
   const response = await api.get(`/api/auth/nonce/${walletAddress}`);
   return response.data;
 }
 
-export async function loginWithWallet(walletAddress, signature) {
+export async function loginWithWallet(walletAddress, message, signature) {
   const response = await api.post("/api/auth/wallet-login", {
     walletAddress,
+    message,
     signature,
   });
 
@@ -37,8 +66,29 @@ export async function getCurrentUser() {
   return response.data;
 }
 
-export async function getPolicyPackages() {
-  const response = await api.get("/api/policy-packages");
+export async function getPolicyPackages(params = {}) {
+  const response = await api.get("/api/policy-packages", { params });
+  return response.data;
+}
+
+export async function getRiskPremiumQuote(packageId, payload) {
+  const response = await api.post(
+    `/api/policy-packages/${packageId}/risk-premium-quote`,
+    payload
+  );
+  return response.data;
+}
+
+export async function getRealisticPolicyScenarios() {
+  const response = await api.get("/api/policy-packages/realistic-scenarios");
+  return response.data;
+}
+
+export async function simulateHistoricalPolicyEligibility(packageId, payload) {
+  const response = await api.post(
+    `/api/policy-packages/${packageId}/eligibility-preview`,
+    payload
+  );
   return response.data;
 }
 
@@ -52,8 +102,8 @@ export async function logoutSession() {
   return response.data;
 }
 
-export async function getAdminPolicyPackages() {
-  const response = await api.get("/api/admin/policy-packages");
+export async function getAdminPolicyPackages(params = {}) {
+  const response = await api.get("/api/admin/policy-packages", { params });
   return response.data;
 }
 
@@ -76,12 +126,18 @@ export async function reactivatePolicyPackage(packageId) {
   return response.data;
 }
 
-export async function getMyPolicies() {
-  const response = await api.get("/api/policies/my");
+export async function getMyPolicies(params = {}) {
+  const response = await api.get("/api/policies/my", { params });
   return response.data;
 }
 
-export async function uploadClaimDocument({ file, documentType, claimId }) {
+export async function uploadClaimDocument({
+  file,
+  documentType,
+  claimId,
+  attemptId,
+  encryption,
+}) {
   const formData = new FormData();
 
   formData.append("document", file);
@@ -94,6 +150,23 @@ export async function uploadClaimDocument({ file, documentType, claimId }) {
     formData.append("claimId", claimId);
   }
 
+  if (attemptId) {
+    formData.append("attemptId", attemptId);
+  }
+
+  if (encryption?.enabled) {
+    formData.append("encrypted", "true");
+    formData.append("encryptionAlgorithm", encryption.algorithm);
+    formData.append("originalMimeType", encryption.originalMimeType);
+    formData.append("originalName", encryption.originalName);
+    formData.append("keyCapsule", encryption.keyCapsule);
+    formData.append("associatedData", encryption.associatedData);
+    formData.append(
+      "encryptionIdentityVersion",
+      String(encryption.encryptionIdentityVersion)
+    );
+  }
+
   const response = await api.post("/api/documents/upload", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
@@ -103,13 +176,217 @@ export async function uploadClaimDocument({ file, documentType, claimId }) {
   return response.data;
 }
 
-export async function getMyClaims() {
-  const response = await api.get("/api/claims/my");
+export async function getMyClaims(params = {}) {
+  const response = await api.get("/api/claims/my", { params });
   return response.data;
 }
 
-export async function getAllReadableClaims() {
-  const response = await api.get("/api/claims/all");
+export async function getPolicyBenefits(policyId) {
+  const response = await api.get(`/api/policy-benefits/policies/${policyId}`);
+  return response.data;
+}
+
+export async function getPackageBenefitTerms(packageId) {
+  const response = await api.get(
+    `/api/policy-benefits/packages/${packageId}/terms`
+  );
+  return response.data;
+}
+
+export async function downloadPolicyTerms(policyId) {
+  const response = await api.get(
+    `/api/policy-benefits/policies/${policyId}/document`,
+    { responseType: "blob" }
+  );
+  const url = URL.createObjectURL(response.data);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `policy-${policyId}-terms.md`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function getBenefitRequests() {
+  const response = await api.get("/api/admin/benefit-requests");
+  return response.data;
+}
+
+async function executeBenefitAdminAction({
+  action,
+  targetId,
+  confirmUrl,
+  sendTransaction,
+}) {
+  const tx = await sendTransaction();
+  await tx.wait();
+  const pendingKey = "blockinsure:pending-benefit-admin-confirmations";
+  const pending = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+  const confirmation = { action, targetId: String(targetId), confirmUrl, transactionHash: tx.hash };
+  localStorage.setItem(
+    pendingKey,
+    JSON.stringify([
+      ...pending.filter((item) => item.transactionHash !== tx.hash),
+      confirmation,
+    ])
+  );
+
+  try {
+    const response = await api.post(confirmUrl, { transactionHash: tx.hash });
+    localStorage.setItem(
+      pendingKey,
+      JSON.stringify(
+        JSON.parse(localStorage.getItem(pendingKey) || "[]").filter(
+          (item) => item.transactionHash !== tx.hash
+        )
+      )
+    );
+    return response.data;
+  } catch (error) {
+    error.message =
+      `The on-chain benefit action succeeded (${tx.hash}), but backend audit confirmation is pending. ` +
+      (error.message || "");
+    throw error;
+  }
+}
+
+export async function reconcilePendingBenefitAdminTransactions() {
+  const pendingKey = "blockinsure:pending-benefit-admin-confirmations";
+  const pending = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+  const remaining = [];
+  let confirmed = 0;
+  for (const item of pending) {
+    try {
+      await api.post(item.confirmUrl, { transactionHash: item.transactionHash });
+      confirmed += 1;
+    } catch {
+      remaining.push(item);
+    }
+  }
+  localStorage.setItem(pendingKey, JSON.stringify(remaining));
+  return { confirmed, remaining: remaining.length };
+}
+
+export async function publishBenefitTerms(packageId, payload) {
+  const contract = await getPolicyBenefitsWalletContract();
+  const termsDocument = {
+    packageId: String(packageId),
+    version: Number(payload.version),
+    deathBenefitEnabled: payload.deathBenefitEnabled === true,
+    surrenderEnabled: payload.surrenderEnabled === true,
+    maturityEnabled: payload.maturityEnabled === true,
+    deathBenefitBps: Math.round(Number(payload.deathBenefitPercent) * 100),
+    surrenderValueBps: Math.round(Number(payload.surrenderValuePercent) * 100),
+    maturityBonusBps: Math.round(Number(payload.maturityBonusPercent) * 100),
+    minimumSurrenderInstallments: Number(payload.minimumSurrenderInstallments),
+  };
+  const termsHash = ethers.keccak256(
+    ethers.toUtf8Bytes(JSON.stringify(termsDocument))
+  );
+  return executeBenefitAdminAction({
+    action: "PUBLISH_BENEFIT_TERMS",
+    targetId: packageId,
+    confirmUrl: `/api/admin/policy-packages/${packageId}/benefit-terms/confirm`,
+    sendTransaction: () =>
+      contract.publishBenefitTerms(
+        packageId,
+        termsDocument.deathBenefitEnabled,
+        termsDocument.surrenderEnabled,
+        termsDocument.maturityEnabled,
+        termsDocument.deathBenefitBps,
+        termsDocument.surrenderValueBps,
+        termsDocument.maturityBonusBps,
+        termsDocument.minimumSurrenderInstallments,
+        termsDocument.version,
+        termsHash
+      ),
+  });
+}
+
+export async function approveBenefitRequest(requestId) {
+  const contract = await getPolicyBenefitsWalletContract();
+  return executeBenefitAdminAction({
+    action: "APPROVE_BENEFIT_REQUEST",
+    targetId: requestId,
+    confirmUrl: `/api/admin/benefit-requests/${requestId}/approve`,
+    sendTransaction: () => contract.approveBenefit(requestId),
+  });
+}
+
+export async function rejectBenefitRequest(requestId, reason) {
+  const contract = await getPolicyBenefitsWalletContract();
+  const reasonHash = ethers.keccak256(ethers.toUtf8Bytes(reason));
+  return executeBenefitAdminAction({
+    action: "REJECT_BENEFIT_REQUEST",
+    targetId: requestId,
+    confirmUrl: `/api/admin/benefit-requests/${requestId}/reject`,
+    sendTransaction: () => contract.rejectBenefit(requestId, reasonHash),
+  });
+}
+
+export async function settleBenefitRequest(requestId) {
+  const contract = await getPolicyBenefitsWalletContract();
+  return executeBenefitAdminAction({
+    action: "SETTLE_BENEFIT_REQUEST",
+    targetId: requestId,
+    confirmUrl: `/api/admin/benefit-requests/${requestId}/settle`,
+    sendTransaction: () => contract.settleBenefit(requestId),
+  });
+}
+
+export async function previewPurchasedPolicyEligibility(policyId, payload) {
+  const response = await api.post(
+    `/api/policies/${policyId}/eligibility-preview`,
+    payload
+  );
+  return response.data;
+}
+
+export async function getEvidenceEncryptionKey() {
+  const response = await api.get("/api/documents/encryption-key");
+  return response.data;
+}
+
+export async function getEvidenceDecryptionKey(documentId) {
+  const response = await api.get(
+    `/api/documents/${documentId}/decryption-key`
+  );
+  return response.data;
+}
+
+export async function registerEvidenceEncryptionIdentity(identity) {
+  const response = await api.post("/api/documents/encryption-key", identity);
+  return response.data;
+}
+
+export async function getRecipientEncryptionIdentity(walletAddress, claimId) {
+  const response = await api.get(
+    `/api/documents/encryption-identities/${walletAddress}`,
+    { params: { claimId } }
+  );
+  return response.data;
+}
+
+export async function grantDocumentAccess(documentId, payload) {
+  const response = await api.post(`/api/documents/${documentId}/grants`, payload);
+  return response.data;
+}
+
+export async function revokeDocumentAccess(documentId, granteeWallet) {
+  const response = await api.delete(`/api/documents/${documentId}/grants`, {
+    data: { granteeWallet },
+  });
+  return response.data;
+}
+
+export async function getEvidenceReceipt(documentId) {
+  const response = await api.get(`/api/documents/${documentId}/receipt`);
+  return response.data;
+}
+
+export async function getAllReadableClaims(params = {}) {
+  const response = await api.get("/api/claims/all", { params });
   return response.data;
 }
 
@@ -118,13 +395,66 @@ export async function getClaimById(claimId) {
   return response.data;
 }
 
-export async function authorizeClaimSubmission(policyId) {
-  const response = await api.post("/api/claims/submission-check", { policyId });
+export async function authorizeClaimSubmission(policyId, facts = {}) {
+  const response = await api.post("/api/claims/submission-check", {
+    policyId,
+    ...facts,
+  });
   return response.data;
 }
 
-export async function getClaimDocumentHash(claimId) {
-  const response = await api.get(`/api/claims/${claimId}/document-hash`);
+export async function resetMyClaimSubmissionLimit() {
+  const response = await api.delete("/api/claims/submission-limit/me");
+  return response.data;
+}
+
+export async function recordClaimSubmissionTransaction(attemptId, transactionHash) {
+  const response = await api.patch(
+    `/api/claims/submission-attempts/${attemptId}/transaction`,
+    { transactionHash }
+  );
+  return response.data;
+}
+
+export async function reconcileClaimSubmission(attemptId) {
+  const response = await api.post(
+    `/api/claims/submission-attempts/${attemptId}/reconcile`
+  );
+  return response.data;
+}
+
+export async function abandonClaimSubmission(attemptId, reason = "") {
+  const response = await api.delete(
+    `/api/claims/submission-attempts/${attemptId}`,
+    { data: { reason } }
+  );
+  return response.data;
+}
+
+export async function reconcilePendingClaimSubmissions() {
+  const pendingKey = "block-insure:pending-claim-submissions";
+  const pending = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+  const remaining = [];
+  let reconciled = 0;
+
+  for (const item of pending) {
+    try {
+      await recordClaimSubmissionTransaction(item.attemptId, item.transactionHash);
+      await reconcileClaimSubmission(item.attemptId);
+      reconciled += 1;
+    } catch {
+      remaining.push(item);
+    }
+  }
+
+  localStorage.setItem(pendingKey, JSON.stringify(remaining));
+  return { reconciled, remaining: remaining.length };
+}
+
+export async function getClaimDocumentHash(claimId, documentId = "") {
+  const response = await api.get(`/api/claims/${claimId}/document-hash`, {
+    params: documentId ? { documentId } : {},
+  });
   return response.data;
 }
 
@@ -153,11 +483,6 @@ export async function getAppealByClaim(claimId) {
   return response.data;
 }
 
-export async function reviewAppeal(appealId, payload) {
-  const response = await api.patch(`/api/appeals/${appealId}/review`, payload);
-  return response.data;
-}
-
 export async function getClaimVoteSummary(claimId, voterAddress = "") {
   const response = await api.get(`/api/votes/claim/${claimId}`, {
     params: voterAddress ? { voterAddress } : undefined,
@@ -165,13 +490,18 @@ export async function getClaimVoteSummary(claimId, voterAddress = "") {
   return response.data;
 }
 
-export async function finalizeClaimVoting(claimId) {
-  const response = await api.post(`/api/votes/finalize/${claimId}`);
+export async function getAdminClaims(params = {}) {
+  const response = await api.get("/api/admin/claims", { params });
   return response.data;
 }
 
-export async function getAdminClaims() {
-  const response = await api.get("/api/admin/claims");
+export async function getAdminActionLogs(params = {}) {
+  const response = await api.get("/api/admin/audit-logs", { params });
+  return response.data;
+}
+
+export async function getAdminRoleSyncHealth() {
+  const response = await api.get("/api/admin/role-sync-health");
   return response.data;
 }
 
@@ -180,8 +510,18 @@ export async function getReserveIntelligence() {
   return response.data;
 }
 
+export async function getIndexedEvents(params = {}) {
+  const response = await api.get("/api/indexer/events", { params });
+  return response.data;
+}
+
 export async function getEvaluationSummary() {
   const response = await api.get("/api/admin/evaluation/summary");
+  return response.data;
+}
+
+export async function getDefenseSummary() {
+  const response = await api.get("/api/admin/evaluation/defense-summary");
   return response.data;
 }
 
@@ -210,47 +550,104 @@ export async function getAuditorReputationAnalysis() {
   return response.data;
 }
 
+async function executeAdminWalletAction(action, claimId, sendTransaction) {
+  const tx = await sendTransaction();
+  await tx.wait();
+
+  const pendingKey = "block-insure:pending-admin-confirmations";
+  const pending = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+  const confirmation = {
+    action,
+    claimId: String(claimId),
+    transactionHash: tx.hash,
+  };
+
+  localStorage.setItem(
+    pendingKey,
+    JSON.stringify([
+      ...pending.filter((item) => item.transactionHash !== tx.hash),
+      confirmation,
+    ])
+  );
+
+  try {
+    const response = await api.post(
+      `/api/admin/claims/${claimId}/confirm-transaction`,
+      {
+        action,
+        transactionHash: tx.hash,
+      }
+    );
+    const remaining = JSON.parse(localStorage.getItem(pendingKey) || "[]").filter(
+      (item) => item.transactionHash !== tx.hash
+    );
+    localStorage.setItem(pendingKey, JSON.stringify(remaining));
+    return response.data;
+  } catch (error) {
+    error.adminTransactionHash = tx.hash;
+    error.message =
+      `The on-chain action succeeded (${tx.hash}), but backend audit confirmation is pending. ` +
+      (error.message || "");
+    throw error;
+  }
+}
+
+export async function reconcilePendingAdminTransactions() {
+  const pendingKey = "block-insure:pending-admin-confirmations";
+  const pending = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+  const remaining = [];
+  let confirmed = 0;
+
+  for (const item of pending) {
+    try {
+      await api.post(`/api/admin/claims/${item.claimId}/confirm-transaction`, {
+        action: item.action,
+        transactionHash: item.transactionHash,
+      });
+      confirmed += 1;
+    } catch {
+      remaining.push(item);
+    }
+  }
+
+  localStorage.setItem(pendingKey, JSON.stringify(remaining));
+  return { confirmed, remaining: remaining.length };
+}
+
 export async function requestOracleVerification(claimId) {
-  const response = await api.post(`/api/admin/claims/${claimId}/request-oracle`);
-  return response.data;
+  const contract = await getWalletContract();
+  return executeAdminWalletAction(
+    "REQUEST_ORACLE_VERIFICATION",
+    claimId,
+    () => contract.requestOracleVerification(claimId)
+  );
 }
 
 export async function sendClaimToManualReview(claimId) {
-  const response = await api.post(`/api/admin/claims/${claimId}/manual-review`);
-  return response.data;
-}
-
-export async function approveClaim(claimId) {
-  const response = await api.post(`/api/admin/claims/${claimId}/approve`);
-  return response.data;
-}
-
-export async function rejectClaim(claimId, reason) {
-  const response = await api.post(`/api/admin/claims/${claimId}/reject`, {
-    reason,
-  });
-  return response.data;
-}
-
-export async function settleClaim(claimId) {
-  const response = await api.post(`/api/admin/claims/${claimId}/settle`);
-  return response.data;
+  const contract = await getWalletContract();
+  return executeAdminWalletAction(
+    "SEND_CLAIM_TO_MANUAL_REVIEW",
+    claimId,
+    () => contract.sendToManualReview(claimId)
+  );
 }
 
 export async function resolveOracleTimeout(claimId) {
-  const response = await api.post(
-    `/api/admin/claims/${claimId}/resolve-oracle-timeout`
+  const coordinator = await getWalletOracleCoordinator();
+  return executeAdminWalletAction(
+    "RESOLVE_ORACLE_TIMEOUT",
+    claimId,
+    () => coordinator.resolveTimedOutRequest(claimId)
   );
-  return response.data;
-}
-
-export async function closeClaim(claimId) {
-  const response = await api.post(`/api/admin/claims/${claimId}/close`);
-  return response.data;
 }
 
 export async function getOracleResults(claimId) {
   const response = await api.get(`/api/oracle/results/${claimId}`);
+  return response.data;
+}
+
+export async function getOracleHealth() {
+  const response = await api.get("/api/oracle/health");
   return response.data;
 }
 
@@ -270,6 +667,11 @@ export async function getHealthcareRegistrySummary(params = {}) {
 
 export async function getHealthcareRegistryMerkleRoot() {
   const response = await api.get("/mock/hospital/records/merkle-root");
+  return response.data;
+}
+
+export async function getHealthcareOnChainRegistryMerkleRoot() {
+  const response = await api.get("/mock/hospital/records/on-chain-merkle-root");
   return response.data;
 }
 
@@ -297,15 +699,24 @@ export async function getClaimAuditTimeline(claimId) {
   return response.data;
 }
 
+export async function exportClaimAuditTimeline(claimId, format = "json") {
+  const response = await api.get(`/api/audit/claims/${claimId}/export`, {
+    params: { format },
+    responseType: format === "markdown" || format === "md" ? "text" : "json",
+  });
+  return response.data;
+}
+
 export function clearStoredSession() {
   localStorage.removeItem("blockinsure_jwt");
   localStorage.removeItem("blockinsure_wallet");
   localStorage.removeItem("blockinsure_user");
 }
 
-export async function attachDocumentToClaim(documentId, claimId) {
+export async function attachDocumentToClaim(documentId, claimId, attemptId = "") {
   const response = await api.patch(`/api/documents/${documentId}/claim`, {
     claimId,
+    attemptId,
   });
   return response.data;
 }

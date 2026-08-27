@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import TransactionLink from "../components/TransactionLink";
+import PaginationControls from "../components/PaginationControls";
 import {
   deactivatePolicyPackage,
   getAdminPolicyPackages,
@@ -10,6 +11,7 @@ import {
   updatePolicyPackage,
 } from "../services/api";
 import "../styles/pages/AdminPolicyPackagesPage.css";
+import { showToast } from "../services/toast";
 
 function extractPackages(data) {
   if (Array.isArray(data)) return data;
@@ -36,6 +38,7 @@ export default function AdminPolicyPackagesPage() {
   const [actionMessage, setActionMessage] = useState("");
   const [actionTxHash, setActionTxHash] = useState("");
   const [actingPackageId, setActingPackageId] = useState("");
+  const [page, setPage] = useState(1);
 
   const {
     data,
@@ -44,8 +47,8 @@ export default function AdminPolicyPackagesPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["adminPolicyPackages"],
-    queryFn: getAdminPolicyPackages,
+    queryKey: ["adminPolicyPackages", page],
+    queryFn: () => getAdminPolicyPackages({ page }),
   });
 
   const packages = extractPackages(data);
@@ -82,16 +85,18 @@ export default function AdminPolicyPackagesPage() {
 
       setActionTxHash(result.transactionHash || result.txHash || "");
       setActionMessage(successText);
+      showToast(successText, { title: "Package updated" });
       cancelEditing();
       await refetch();
     } catch (err) {
       console.error(err);
-      setActionError(
+      const message =
         err.response?.data?.message ||
           err.response?.data?.error ||
           err.message ||
-          "Package action failed"
-      );
+          "Package action failed";
+      setActionError(message);
+      showToast(message, { tone: "error", title: "Package action failed" });
     } finally {
       setActingPackageId("");
     }
@@ -306,6 +311,10 @@ export default function AdminPolicyPackagesPage() {
           </div>
         ))}
       </div>
+      <PaginationControls
+        pagination={data?.pagination}
+        onPageChange={setPage}
+      />
     </section>
   );
 }

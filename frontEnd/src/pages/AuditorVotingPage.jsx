@@ -5,6 +5,7 @@ import { useState } from "react";
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import EvidenceField from "../components/EvidenceField";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
+import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
 import TransactionLink from "../components/TransactionLink";
 import {
   getClaimById,
@@ -12,14 +13,15 @@ import {
   getOracleResults,
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
-import { getWalletContract } from "../services/contractService";
+import { getWalletContract, parseTransactionError } from "../services/contractService";
+import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/AuditorVotingPage.css";
+import { showToast } from "../services/toast";
 
 const VOTE_OPTIONS = [
   { code: 1, label: "Valid Claim", tone: "valid" },
   { code: 2, label: "Invalid Claim", tone: "invalid" },
-  { code: 3, label: "Needs More Evidence", tone: "needs-more" },
 ];
 
 function extractClaim(data) {
@@ -56,10 +58,10 @@ function getLatestOracleLog(logs) {
 
 function getBayesianFraudPercent(log) {
   return (
-    log?.responseData?.hospitalVerification?.riskAssessment?.posteriorFraudPercent ??
-    log?.hospitalVerification?.riskAssessment?.posteriorFraudPercent ??
-    log?.responseData?.riskAssessment?.posteriorFraudPercent ??
-    log?.riskAssessment?.posteriorFraudPercent ??
+    log?.responseData?.hospitalVerification?.riskAssessment?.fraudProbabilityPercent ??
+    log?.hospitalVerification?.riskAssessment?.fraudProbabilityPercent ??
+    log?.responseData?.riskAssessment?.fraudProbabilityPercent ??
+    log?.riskAssessment?.fraudProbabilityPercent ??
     null
   );
 }
@@ -129,13 +131,19 @@ export default function AuditorVotingPage() {
   const claim = extractClaim(claimData);
   const statusName = getClaimStatusName(claim);
   const oracleLogs = extractOracleLogs(oracleData);
+  const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const latestOracleLog = getLatestOracleLog(oracleLogs);
   const voteSummary = extractVoteSummary(voteData);
   const bayesianFraudPercent = getBayesianFraudPercent(latestOracleLog);
-  const isReviewable =
-    statusName === "MANUAL_REVIEW" || statusName === "ORACLE_FAILED";
-  const canVote =
-    isReviewable && voteSummary && !voteSummary.hasCurrentUserVoted && !isVoting;
+  const voteRule = getClaimActionRule({
+    action: CLAIM_ACTIONS.AUDITOR_VOTE,
+    statusName,
+    role: "AUDITOR",
+    hasVoted: Boolean(voteSummary?.hasCurrentUserVoted),
+    auditorVotingFinalized: Boolean(voteSummary?.finalized),
+  });
+  const isReviewable = voteRule.allowed || voteRule.reason === "Already voted";
+  const canVote = voteRule.allowed && voteSummary && !isVoting;
 
   async function refreshAll() {
     await refetchClaim();
@@ -157,17 +165,19 @@ export default function AuditorVotingPage() {
       setVoteTxHash(tx.hash);
 
       await tx.wait();
-      setVoteMessage("Vote recorded on-chain.");
+      const label =
+        VOTE_OPTIONS.find((option) => option.code === voteCode)?.label ||
+        "Auditor";
+      setVoteMessage(`${label} vote recorded on-chain.`);
+      showToast(`${label} vote recorded for claim #${claimId}.`, {
+        title: "Auditor vote confirmed",
+      });
       await refreshAll();
     } catch (error) {
       console.error(error);
-      setVoteError(
-        error.reason ||
-          error.shortMessage ||
-          error.response?.data?.message ||
-          error.message ||
-          "Vote transaction failed"
-      );
+      const message = parseTransactionError(error);
+      setVoteError(message);
+      showToast(message, { tone: "error", title: "Vote failed" });
     } finally {
       setIsVoting(false);
     }
@@ -203,6 +213,8 @@ export default function AuditorVotingPage() {
         </p>
       ) : null}
 
+      <div className="auditor-vote-workspace">
+        <div className="auditor-vote-analysis">
       {claim ? (
         <div className="card">
           <h3>Claim #{formatValue(claim.claimId || claimId)}</h3>
@@ -213,7 +225,10 @@ export default function AuditorVotingPage() {
             <p>
               Status: <ClaimStatusBadge status={statusName} />
             </p>
-            <p>On-chain trust score: {formatValue(claim.riskScore)}/100</p>
+            <p>
+          Verification confidence: {formatValue(claim.verificationConfidence)}/100
+              <small> Higher means the deterministic submission checks passed.</small>
+            </p>
             <p>
               Bayesian fraud probability:{" "}
               {bayesianFraudPercent === null
@@ -221,6 +236,10 @@ export default function AuditorVotingPage() {
                 : `${formatValue(bayesianFraudPercent)}%`}
             </p>
           </div>
+          <PolicyEligibilityResult
+            evaluation={claim.policyEligibility?.evaluation}
+            title="Submission-time policy assessment"
+          />
           <EvidenceField label="Invoice hash" value={claim.invoiceHash} />
           <EvidenceField label="Document hash" value={claim.documentHash} />
         </div>
@@ -228,31 +247,25 @@ export default function AuditorVotingPage() {
 
       <div className={`card voting-readiness ${canVote ? "is-open" : ""}`}>
         <h3>Voting Readiness</h3>
-        <p>{getVotingHint({ isReviewable, statusName, voteSummary, isVoting })}</p>
+        <p>
+          {voteRule.reason ||
+            getVotingHint({ isReviewable, statusName, voteSummary, isVoting })}
+        </p>
       </div>
 
       <div className="card">
         <h3>Oracle Result Summary</h3>
         {oracleLoading ? <p>Loading oracle results...</p> : null}
-        {!oracleLoading && !latestOracleLog ? <p>No oracle result found.</p> : null}
-        {latestOracleLog ? (
-          <>
-            <div className="voting-detail-grid">
-              <p>Request ID: {formatValue(latestOracleLog.requestId)}</p>
-              <p>Verified: {formatValue(latestOracleLog.verified)}</p>
-              <p>Risk level: {formatValue(latestOracleLog.riskLevel)}</p>
-              <p>
-                Transaction:{" "}
-                <TransactionLink
-                  txHash={latestOracleLog.submittedTxHash || latestOracleLog.txHash}
-                />
-              </p>
-            </div>
-            <OracleComparisonPanel log={latestOracleLog} />
-          </>
+        {!oracleLoading ? (
+          <OracleComparisonPanel
+            logs={oracleLogs}
+            quorumSummary={backendQuorumSummary}
+          />
         ) : null}
       </div>
 
+        </div>
+        <aside className="auditor-vote-decision">
       <div className="card">
         <h3>Weighted Consensus</h3>
         {voteLoading ? <p>Loading votes...</p> : null}
@@ -288,7 +301,10 @@ export default function AuditorVotingPage() {
                 Strength: <strong>{formatPercent(voteSummary.consensusStrength)}</strong>
               </span>
               <span>
-                Total voters: <strong>{voteSummary.totalVoters || 0}</strong>
+                Quorum:{" "}
+                <strong>
+                  {voteSummary.totalVoters || 0}/{voteSummary.minimumVoters || 2}
+                </strong>
               </span>
             </div>
 
@@ -307,7 +323,11 @@ export default function AuditorVotingPage() {
         <div className="action-row vote-action-row">
           {VOTE_OPTIONS.map((option) => (
             <button
-              className={`vote-button vote-${option.tone}`}
+              className={`vote-button vote-${option.tone} ${
+                voteSummary?.currentUserVote?.vote === option.code
+                  ? "is-selected"
+                  : ""
+              }`}
               type="button"
               key={option.code}
               onClick={() => handleCastVote(option.code)}
@@ -320,9 +340,11 @@ export default function AuditorVotingPage() {
 
         {!isReviewable ? (
           <p className="muted-text">
-            Current status {statusName} is not open for auditor voting.
+            {voteRule.reason || `Current status ${statusName} is not open for auditor voting.`}
           </p>
         ) : null}
+      </div>
+        </aside>
       </div>
     </section>
   );

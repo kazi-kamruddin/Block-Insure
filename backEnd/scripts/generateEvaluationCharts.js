@@ -323,51 +323,6 @@ const drawConfusionMatrix = (summary, filePath) => {
   canvas.save(filePath);
 };
 
-const getRiskColor = (score) => {
-  if (score >= 85) return COLORS.red;
-  if (score >= 70) return COLORS.orange;
-  if (score >= 35) return COLORS.yellow;
-  return COLORS.green;
-};
-
-const drawRiskScoreDistribution = (records, filePath) => {
-  const canvas = setupChart("RISK SCORE DISTRIBUTION", 1000, 700);
-  const buckets = Array.from({ length: 10 }, (_, index) => ({
-    start: index * 10,
-    end: index === 9 ? 100 : index * 10 + 9,
-    count: 0,
-  }));
-
-  records.forEach((record) => {
-    const score = Number(record.riskScore);
-    const index = Math.min(Math.floor(score / 10), 9);
-    buckets[index].count += 1;
-  });
-
-  const chart = { x: 90, y: 170, width: 840, height: 410 };
-  const maxCount = Math.max(...buckets.map((bucket) => bucket.count), 1);
-
-  canvas.line(chart.x, chart.y + chart.height, chart.x + chart.width, chart.y + chart.height, COLORS.line, 3);
-  canvas.line(chart.x, chart.y, chart.x, chart.y + chart.height, COLORS.line, 3);
-  canvas.drawText("COUNT", 40, 165, COLORS.muted, 2);
-  canvas.drawText("RISK SCORE", 400, 625, COLORS.muted, 2);
-
-  const barWidth = chart.width / buckets.length - 10;
-
-  buckets.forEach((bucket, index) => {
-    const barHeight = (bucket.count / maxCount) * (chart.height - 20);
-    const x = chart.x + index * (chart.width / buckets.length) + 6;
-    const y = chart.y + chart.height - barHeight;
-    const mid = (bucket.start + bucket.end) / 2;
-
-    canvas.fillRect(x, y, barWidth, barHeight, getRiskColor(mid));
-    canvas.drawTextCentered(String(bucket.count), x + barWidth / 2, y - 24, COLORS.text, 2);
-    canvas.drawTextCentered(`${bucket.start}-${bucket.end}`, x + barWidth / 2, chart.y + chart.height + 20, COLORS.muted, 1);
-  });
-
-  canvas.save(filePath);
-};
-
 const drawFraudLabelBreakdown = (summary, filePath) => {
   const canvas = setupChart("FRAUD LABEL BREAKDOWN", 1150, 720);
   const preferredOrder = [
@@ -457,7 +412,9 @@ const drawFraudProbabilityDistribution = (records, filePath) => {
   };
 
   records.forEach((record) => {
-    const value = Number(record.posteriorFraudPercent);
+    const value = Number(
+      record.fraudProbabilityPercent ?? record.posteriorFraudPercent
+    );
     const index = Math.min(Math.round(value / 10), 10);
     series[record.actualFraud === "true" ? "fraud" : "legitimate"][index] += 1;
   });
@@ -760,7 +717,6 @@ const main = () => {
   const records = readCsv(RECORDS_PATH);
   const outputs = [
     ["confusion_matrix.png", (filePath) => drawConfusionMatrix(summary, filePath)],
-    ["risk_score_distribution.png", (filePath) => drawRiskScoreDistribution(records, filePath)],
     ["fraud_label_breakdown.png", (filePath) => drawFraudLabelBreakdown(summary, filePath)],
     ["precision_recall_f1.png", (filePath) => drawPrecisionRecallF1(summary, filePath)],
     ["fraud_probability_distribution.png", (filePath) => drawFraudProbabilityDistribution(records, filePath)],

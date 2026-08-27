@@ -1,6 +1,5 @@
 const express = require("express");
 const {
-  finalizeVoting,
   getClaimVoteSummary,
 } = require("../controllers/votingController");
 const authMiddleware = require("../middleware/authMiddleware");
@@ -13,13 +12,6 @@ router.get(
   authMiddleware,
   requireRole("AUDITOR", "ADMIN"),
   getClaimVoteSummary
-);
-
-router.post(
-  "/finalize/:claimId",
-  authMiddleware,
-  requireRole("ADMIN"),
-  finalizeVoting
 );
 
 module.exports = router;

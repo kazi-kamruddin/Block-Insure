@@ -1,5 +1,9 @@
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
+const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
+const ClaimAdjudicatorArtifact = require("../abi/ClaimAdjudicator.json");
+const PolicyEconomicsArtifact = require("../abi/PolicyEconomics.json");
+const EvidenceRegistryArtifact = require("../abi/EvidenceRegistry.json");
 
 const getRequiredEnv = (key) => {
   const value = process.env[key];
@@ -33,6 +37,76 @@ const getReadOnlyContract = () => {
   );
 };
 
+const getContractBalance = async () => {
+  const provider = getProvider();
+  return provider.getBalance(getContractAddress());
+};
+
+const getOracleCoordinator = async (contract = getReadOnlyContract()) => {
+  const coordinatorAddress = await contract.oracleCoordinator();
+  return new ethers.Contract(
+    coordinatorAddress,
+    OracleCoordinatorArtifact.abi,
+    contract.runner
+  );
+};
+
+const getClaimAdjudicator = async (contract = getReadOnlyContract()) => {
+  const adjudicatorAddress = await contract.claimAdjudicator();
+  return new ethers.Contract(
+    adjudicatorAddress,
+    ClaimAdjudicatorArtifact.abi,
+    contract.runner
+  );
+};
+
+const getPolicyEconomics = async (contract = getReadOnlyContract()) => {
+  const economicsAddress = await contract.policyEconomics();
+  return new ethers.Contract(
+    economicsAddress,
+    PolicyEconomicsArtifact.abi,
+    contract.runner
+  );
+};
+
+const getEvidenceRegistry = (runner = getProvider()) =>
+  new ethers.Contract(
+    getRequiredEnv("EVIDENCE_REGISTRY_ADDRESS"),
+    EvidenceRegistryArtifact.abi,
+    runner
+  );
+
+const getRegistrySnapshot = async (contract = getReadOnlyContract()) => {
+  const coordinator = await getOracleCoordinator(contract);
+  const [version, root, timestamp, blockNumber] = await Promise.all([
+    coordinator.currentRegistryVersion(),
+    coordinator.currentRegistryRoot(),
+    coordinator.currentRegistryTimestamp(),
+    coordinator.currentRegistryBlock(),
+  ]);
+
+  if (version === 0n) {
+    return {
+      version,
+      root,
+      timestamp,
+      blockNumber,
+      treeVersionHash: ethers.ZeroHash,
+      leafCount: 0n,
+    };
+  }
+
+  const snapshot = await coordinator.getRegistrySnapshot(version);
+  return {
+    version,
+    root,
+    timestamp,
+    blockNumber,
+    treeVersionHash: snapshot.treeVersionHash,
+    leafCount: snapshot.leafCount,
+  };
+};
+
 const getAdminWallet = () => {
   const provider = getProvider();
   const privateKey = getRequiredEnv("ADMIN_PRIVATE_KEY");
@@ -58,6 +132,13 @@ const getAdminContract = () => {
 module.exports = {
   getProvider,
   getContractAddress,
+  getContractBalance,
+  getOracleCoordinator,
+  getClaimAdjudicator,
+  getPolicyEconomics,
+  getEvidenceRegistry,
+  getRegistrySnapshot,
   getReadOnlyContract,
   getAdminContract,
+  getAdminWallet,
 };

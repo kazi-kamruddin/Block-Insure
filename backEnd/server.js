@@ -10,6 +10,15 @@ const {
   startBlockchainEventListener,
   stopBlockchainEventListener,
 } = require("./services/notificationService");
+const { writeEvent } = require("../scripts/observability");
+const {
+  startBlockchainIndexer,
+  stopBlockchainIndexer,
+} = require("./services/blockchainIndexerService");
+const {
+  startEvidenceAnchorScheduler,
+  stopEvidenceAnchorScheduler,
+} = require("./services/evidenceAnchorService");
 
 /* ----------------------------- DNS Config ----------------------------- */
 
@@ -27,6 +36,18 @@ const app = express();
 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
+const DEFAULT_ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+];
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowedOrigins =
+  ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : DEFAULT_ALLOWED_ORIGINS;
 
 if (!MONGODB_URI) {
   console.error("Missing required environment variable: MONGODB_URI");
@@ -53,7 +74,13 @@ app.disable("x-powered-by");
 
 app.use(
   cors({
-    origin: true,
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
     credentials: true,
   })
 );
@@ -68,7 +95,16 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 if (process.env.NODE_ENV !== "test") {
-  app.use(morgan("dev"));
+  app.use(
+    morgan("[Backend] :method :url :status :response-time ms", {
+      stream: {
+        write(line) {
+          writeEvent("Backend", "info", line.trim());
+          process.stdout.write(line);
+        },
+      },
+    })
+  );
 }
 
 /* ---------------------------- Base Routes ----------------------------- */
@@ -81,9 +117,20 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
+  const databaseState =
+    mongoose.connection.readyState === 1 ? "connected" : "disconnected";
   res.status(200).json({
     success: true,
     message: "Backend is healthy",
+    services: {
+      database: databaseState,
+      blockchainRpc: process.env.RPC_URL ? "configured" : "missing",
+      contract: process.env.VITE_CONTRACT_ADDRESS ? "configured" : "missing",
+      evidenceEncryption: "client-aes256gcm-with-recrypt-pre",
+      evidenceTransparency: process.env.EVIDENCE_REGISTRY_ADDRESS
+        ? "anchored"
+        : "registry-address-missing",
+    },
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
@@ -103,13 +150,20 @@ app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/documents", require("./routes/documentRoutes"));
 app.use("/api/policy-packages", require("./routes/policyRoutes"));
 app.use("/api/policies", require("./routes/policiesRoutes"));
+app.use("/api/policy-benefits", require("./routes/policyBenefitsRoutes"));
 app.use("/api/claims", require("./routes/claimRoutes"));
 app.use("/api/appeals", require("./routes/appealRoutes"));
 app.use("/api/votes", require("./routes/votingRoutes"));
+app.use("/api/evaluation", require("./routes/evaluationRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/audit", require("./routes/auditRoutes"));
 app.use("/api/oracle", require("./routes/oracleRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/indexer", require("./routes/indexerRoutes"));
+app.use(
+  "/api/evidence-log",
+  require("./routes/evidenceTransparencyRoutes")
+);
 
 /* ----------------------------- Mock Routes ---------------------------- */
 
@@ -127,11 +181,27 @@ app.use((req, res) => {
 /* ------------------------ Global Error Handler ------------------------- */
 
 app.use((err, req, res, next) => {
-  console.error("Server error:", err);
+  const statusCode = Number(err.statusCode) || 500;
+  const isServerError = statusCode >= 500;
+  const exposeInternalErrors =
+    process.env.NODE_ENV !== "production" ||
+    process.env.EXPOSE_INTERNAL_ERRORS === "true";
 
-  res.status(err.statusCode || 500).json({
+  console.error("Server error:", {
+    method: req.method,
+    path: req.originalUrl,
+    statusCode,
+    message: err.message,
+    stack: process.env.NODE_ENV === "production" ? undefined : err.stack,
+  });
+  writeEvent("Backend", isServerError ? "error" : "warn", err.message);
+
+  res.status(statusCode).json({
     success: false,
-    message: err.message || "Internal server error",
+    message:
+      isServerError && !exposeInternalErrors
+        ? "Internal server error"
+        : err.message || "Internal server error",
   });
 });
 
@@ -139,7 +209,7 @@ app.use((err, req, res, next) => {
 
 const connectDatabase = async () => {
   await mongoose.connect(MONGODB_URI);
-  console.log("MongoDB connected successfully");
+  console.log("[Backend] MongoDB connected successfully");
 };
 
 /* -------------------------- Server Startup ----------------------------- */
@@ -147,11 +217,13 @@ const connectDatabase = async () => {
 const startServer = async () => {
   try {
     await connectDatabase();
+    await startBlockchainIndexer();
+    startEvidenceAnchorScheduler();
     await startBlockchainEventListener();
 
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/health`);
+      console.log(`[Backend] Server running on port ${PORT}`);
+      console.log(`[Backend] Health check: http://localhost:${PORT}/health`);
     });
   } catch (error) {
     console.error("MongoDB connection failed:", error.message);
@@ -167,6 +239,8 @@ const shutdownServer = async (signal) => {
   try {
     console.log(`${signal} received. Closing MongoDB connection...`);
     await stopBlockchainEventListener();
+    stopBlockchainIndexer();
+    stopEvidenceAnchorScheduler();
     await mongoose.connection.close();
     console.log("MongoDB connection closed");
     process.exit(0);

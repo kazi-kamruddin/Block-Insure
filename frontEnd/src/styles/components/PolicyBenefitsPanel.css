@@ -1,0 +1,48 @@
+.policy-benefits-panel {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(45, 212, 191, 0.05);
+}
+
+.policy-benefits-panel > summary {
+  cursor: pointer;
+  color: var(--brand-strong);
+  font-weight: 700;
+}
+
+.benefit-projection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.benefit-projection-grid div {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.benefit-projection-grid span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.beneficiary-form {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.beneficiary-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 100px;
+  gap: 8px;
+}
+
+.benefit-request-list {
+  margin-top: 12px;
+}

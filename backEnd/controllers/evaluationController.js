@@ -1,6 +1,15 @@
 const fs = require("fs/promises");
 const path = require("path");
+const { ethers } = require("ethers");
 const OracleLog = require("../models/OracleLog");
+const User = require("../models/User");
+const VotingFinalization = require("../models/VotingFinalization");
+const {
+  getContractBalance,
+  getRegistrySnapshot,
+  getReadOnlyContract,
+} = require("../services/contractService");
+const { getPolicyPackageIds } = require("../services/contractQueryService");
 
 const backendRoot = path.resolve(__dirname, "..");
 const projectRoot = path.resolve(backendRoot, "..");
@@ -16,6 +25,32 @@ const AUDITOR_ANALYSIS_PATH = path.join(
   EVALUATION_RESULTS_DIR,
   "auditor-reputation-analysis.json"
 );
+
+const CLAIM_STATUS = [
+  "SUBMITTED",
+  "DUPLICATE_CHECKED",
+  "FRAUD_FLAGGED",
+  "ORACLE_PENDING",
+  "ORACLE_VERIFIED",
+  "ORACLE_FAILED",
+  "MANUAL_REVIEW",
+  "PAYOUT_READY",
+  "REJECTED",
+  "SETTLED",
+  "CLOSED",
+  "FUNDING_REQUIRED",
+  "APPEALED",
+];
+
+const POLICY_STATUS = [
+  "PENDING_PAYMENT",
+  "ACTIVE",
+  "GRACE_PERIOD",
+  "LAPSED",
+  "CANCELLED",
+  "EXPIRED",
+  "RENEWED",
+];
 
 const parseCsvLine = (line) => {
   const values = [];
@@ -92,6 +127,7 @@ const readFirstExistingFile = async (paths) => {
 const getEvaluationSummary = async (req, res, next) => {
   try {
     const result = await readFirstExistingFile([
+      path.join(EVALUATION_RESULTS_DIR, "phase5-evaluation.json"),
       path.join(EVALUATION_RESULTS_DIR, "risk-model-summary.json"),
       path.join(LEGACY_SCRIPTS_DIR, "risk-model-summary.json"),
     ]);
@@ -99,7 +135,7 @@ const getEvaluationSummary = async (req, res, next) => {
     if (!result) {
       return res.status(200).json({
         success: false,
-        error: "Run npm run evaluate:risk first",
+        error: "Run npm run evaluate:phase5 first",
       });
     }
 
@@ -151,35 +187,21 @@ const getGasComparison = async (req, res, next) => {
 const getRiskDistribution = async (req, res, next) => {
   try {
     const result = await readFirstExistingFile([
-      path.join(EVALUATION_RESULTS_DIR, "risk-model-records.csv"),
-      path.join(LEGACY_SCRIPTS_DIR, "risk-model-records.csv"),
+      path.join(EVALUATION_RESULTS_DIR, "phase5-evaluation.json"),
     ]);
 
     if (!result) {
       return res.status(200).json({
         success: false,
-        error: "Run npm run evaluate:risk first",
+        error: "Run npm run evaluate:phase5 first",
       });
     }
-
-    const buckets = [
-      { range: "0-20", min: 0, max: 20, count: 0, label: "LOW" },
-      { range: "21-40", min: 21, max: 40, count: 0, label: "LOW-MEDIUM" },
-      { range: "41-60", min: 41, max: 60, count: 0, label: "MEDIUM" },
-      { range: "61-80", min: 61, max: 80, count: 0, label: "HIGH" },
-      { range: "81-100", min: 81, max: 100, count: 0, label: "CRITICAL" },
-    ];
-
-    parseCsv(result.contents).forEach((row) => {
-      const riskScore = normalizeNumber(row.riskScore);
-      const bucket = buckets.find(
-        (item) => riskScore >= item.min && riskScore <= item.max
-      );
-
-      if (bucket) {
-        bucket.count += 1;
-      }
-    });
+    const evaluation = JSON.parse(result.contents);
+    const labels = ["LOW", "LOW-MEDIUM", "MEDIUM", "HIGH", "CRITICAL"];
+    const buckets = (evaluation.fraudProbabilityDistribution || []).map((bucket, index) => ({
+      ...bucket,
+      label: labels[index] || "UNKNOWN",
+    }));
 
     res.status(200).json({
       success: true,
@@ -289,8 +311,205 @@ const getAuditorReputationAnalysis = async (req, res, next) => {
   }
 };
 
+const increment = (target, key) => {
+  const safeKey = key || "UNKNOWN";
+  target[safeKey] = (target[safeKey] || 0) + 1;
+};
+
+const safeReadJson = async (filePath) => {
+  try {
+    return JSON.parse(await fs.readFile(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+};
+
+const getDefenseSummary = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const warnings = [];
+    const [
+      packageIds,
+      nextPolicyId,
+      nextClaimId,
+      oracleLogs,
+      votingFinalizations,
+      contractBalance,
+      registrySnapshot,
+      modelSummary,
+    ] = await Promise.all([
+      getPolicyPackageIds(contract).catch((error) => {
+        warnings.push(`Policy package read failed: ${error.message}`);
+        return [];
+      }),
+      contract.policyCounter().catch(() => 1n),
+      contract.claimCounter().catch(() => 1n),
+      OracleLog.find({}).lean().catch(() => []),
+      VotingFinalization.find({}).lean().catch(() => []),
+      getContractBalance().catch(() => null),
+      getRegistrySnapshot(contract).catch(() => null),
+      safeReadJson(path.join(EVALUATION_RESULTS_DIR, "phase5-evaluation.json")),
+    ]);
+
+    const packages = await Promise.all(
+      packageIds.map(async (packageId) => contract.getPolicyPackage(packageId))
+    );
+    const policyStatusCounts = Object.fromEntries(
+      POLICY_STATUS.map((status) => [status, 0])
+    );
+    const claimStateDistribution = Object.fromEntries(
+      CLAIM_STATUS.map((status) => [status, 0])
+    );
+    const policies = [];
+    let totalPremiumsCollectedWei = 0n;
+    let overduePolicyCount = 0;
+
+    for (let policyId = 1; policyId < Number(nextPolicyId); policyId += 1) {
+      try {
+        const [policy, effectiveStatus] = await Promise.all([
+          contract.getPolicy(policyId),
+          contract.getEffectivePolicyStatus(policyId),
+        ]);
+        const statusLabel = POLICY_STATUS[Number(effectiveStatus)] || "UNKNOWN";
+        const totalPaid = policy.totalPremiumPaid || policy.premiumPaid || 0n;
+
+        increment(policyStatusCounts, statusLabel);
+        totalPremiumsCollectedWei += totalPaid;
+
+        if (statusLabel === "GRACE_PERIOD" || statusLabel === "LAPSED") {
+          overduePolicyCount += 1;
+        }
+
+        policies.push({
+          policyId: policy.policyId.toString(),
+          status: statusLabel,
+          totalPremiumPaidWei: totalPaid.toString(),
+        });
+      } catch (error) {
+        warnings.push(`Policy #${policyId} skipped: ${error.message}`);
+      }
+    }
+
+    let fraudFlaggedCount = 0;
+    let settlementTotalWei = 0n;
+    let settledClaimCount = 0;
+
+    for (let claimId = 1; claimId < Number(nextClaimId); claimId += 1) {
+      try {
+        const claim = await contract.getClaim(claimId);
+        const statusLabel = CLAIM_STATUS[Number(claim.status)] || "UNKNOWN";
+
+        increment(claimStateDistribution, statusLabel);
+
+        if (statusLabel === "FRAUD_FLAGGED") {
+          fraudFlaggedCount += 1;
+        }
+
+        if (statusLabel === "SETTLED" || statusLabel === "CLOSED") {
+          try {
+            const settlement = await contract.getSettlementRecord(claimId);
+            settlementTotalWei += settlement.amount;
+            settledClaimCount += 1;
+          } catch {
+            warnings.push(`Settlement data missing for claim #${claimId}`);
+          }
+        }
+      } catch (error) {
+        warnings.push(`Claim #${claimId} skipped: ${error.message}`);
+      }
+    }
+
+    const oraclePendingCount = claimStateDistribution.ORACLE_PENDING || 0;
+    const oracleSuccessCount = oracleLogs.filter((log) => log.verified === true).length;
+    const oracleFailureCount = oracleLogs.filter((log) => log.verified === false).length;
+    const root = registrySnapshot?.root || registrySnapshot?.[0] || ethers.ZeroHash;
+    const registryTimestamp = registrySnapshot?.timestamp || registrySnapshot?.[1] || 0n;
+    const usersByRole = await User.aggregate([
+      { $group: { _id: "$role", count: { $sum: 1 } } },
+    ]).catch(() => []);
+
+    const demoReadiness = {
+      hasActivePackage: packages.some((policyPackage) => policyPackage.isActive),
+      hasPurchasedPolicy: policies.length > 0,
+      hasClaims: Number(nextClaimId) > 1,
+      hasOracleLogs: oracleLogs.length > 0,
+      hasVotingReadyClaim:
+        (claimStateDistribution.ORACLE_FAILED || 0) +
+          (claimStateDistribution.MANUAL_REVIEW || 0) >
+        0,
+      hasSettlement: settledClaimCount > 0,
+      warnings,
+    };
+
+    res.status(200).json({
+      success: true,
+      defenseSummary: {
+        generatedAt: new Date().toISOString(),
+        policyPackages: {
+          total: packages.length,
+          active: packages.filter((policyPackage) => policyPackage.isActive).length,
+        },
+        policies: {
+          totalPurchased: policies.length,
+          statusCounts: policyStatusCounts,
+          totalPremiumsCollectedWei: totalPremiumsCollectedWei.toString(),
+          totalPremiumsCollectedEth: ethers.formatEther(totalPremiumsCollectedWei),
+          overduePolicyCount,
+        },
+        claims: {
+          total: Number(nextClaimId) - 1,
+          stateDistribution: claimStateDistribution,
+          fraudFlaggedCount,
+        },
+        oracle: {
+          pending: oraclePendingCount,
+          success: oracleSuccessCount,
+          failure: oracleFailureCount,
+          totalLogs: oracleLogs.length,
+        },
+        auditors: {
+          finalizedVotes: votingFinalizations.length,
+          totalVoters: votingFinalizations.reduce(
+            (total, finalization) => total + (finalization.voters?.length || 0),
+            0
+          ),
+        },
+        settlements: {
+          settledClaimCount,
+          totalWei: settlementTotalWei.toString(),
+          totalEth: ethers.formatEther(settlementTotalWei),
+        },
+        contract: {
+          reserveWei: contractBalance?.toString?.() || null,
+          reserveEth: contractBalance ? ethers.formatEther(contractBalance) : null,
+        },
+        registry: {
+          root,
+          committed: root !== ethers.ZeroHash && Number(registryTimestamp) > 0,
+          timestamp: registryTimestamp?.toString?.() || "0",
+          blockNumber: (registrySnapshot?.blockNumber || registrySnapshot?.[2] || 0n).toString(),
+        },
+        modelEvaluation: modelSummary
+          ? {
+              metrics: modelSummary.metrics || null,
+              decisionRule: modelSummary.decisionRule || null,
+              dataset: modelSummary.dataset || null,
+            }
+          : null,
+        demoReadiness,
+        usersByRole: Object.fromEntries(
+          usersByRole.map((entry) => [entry._id || "UNKNOWN", entry.count])
+        ),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAuditorReputationAnalysis,
+  getDefenseSummary,
   getEvaluationSummary,
   getGasComparison,
   getRiskDistribution,

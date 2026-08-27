@@ -56,7 +56,7 @@ const calculateClassificationMetrics = (matrix) => {
 const getThresholdPoint = (rows, threshold) => {
   const confusionMatrix = buildConfusionMatrix(
     rows,
-    (row) => Number(row.riskScore) >= threshold
+    (row) => Number(row.fraudProbability) >= threshold
   );
   const metrics = calculateClassificationMetrics(confusionMatrix);
 
@@ -107,15 +107,15 @@ const calculateAveragePrecision = (points) => {
 const buildThresholdRange = (start, end, step) => {
   const values = [];
 
-  for (let threshold = start; threshold >= end; threshold -= step) {
-    values.push(threshold);
+  for (let threshold = start; threshold >= end - 1e-10; threshold -= step) {
+    values.push(Number(threshold.toFixed(6)));
   }
 
   return values;
 };
 
 const calculateCurves = (rows) => {
-  const points = [101, ...buildThresholdRange(100, 0, 1)].map((threshold) =>
+  const points = [1.01, ...buildThresholdRange(1, 0, 0.01)].map((threshold) =>
     getThresholdPoint(rows, threshold)
   );
   const fraudPrevalence =
@@ -142,8 +142,8 @@ const calculateCurves = (rows) => {
   };
 };
 
-const calculateThresholdSensitivity = (rows, step = 5) => {
-  return buildThresholdRange(100, 0, step).map((threshold) =>
+const calculateThresholdSensitivity = (rows, step = 0.05) => {
+  return buildThresholdRange(1, 0, step).map((threshold) =>
     getThresholdPoint(rows, threshold)
   );
 };

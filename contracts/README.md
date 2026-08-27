@@ -1,13 +1,32 @@
-# Sample Hardhat Project
+# Block-Insure Smart Contracts
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+Hardhat workspace for `InsuranceManager`, the policy-benefit extension,
+deployment scripts, gas measurements, and Solidity tests.
 
-Try running some of the following tasks:
+## Local workflow
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.js
+```powershell
+npm install
+npm run node
 ```
+
+With the local chain running, use a second terminal:
+
+```powershell
+npm run fund:accounts:local
+npm run deploy:local
+```
+
+`deploy:local` deploys both contract modules, publishes the default benefit
+terms, synchronizes addresses and ABIs, and funds the local benefit reserve.
+
+## Verification
+
+```powershell
+npm run compile
+npm test
+npm run coverage
+```
+
+Use `npm run deploy:benefits:local` only when attaching a new benefit extension
+to an already deployed `InsuranceManager` instance.

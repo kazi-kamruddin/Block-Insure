@@ -9,14 +9,16 @@ export const CLAIM_STATUS_EXPLANATIONS = {
   ORACLE_PENDING:
     "Oracle verification has been requested and the oracle worker should process it.",
   ORACLE_VERIFIED:
-    "Oracle verified the hospital record. Admin can approve the claim.",
+    "Oracle verification completed; payout allocation is automatic in the same transaction.",
   ORACLE_FAILED:
-    "Oracle could not verify the hospital record. Auditors can vote, or admin can send it to manual review.",
+    "Oracle could not verify the hospital record. Manual review becomes publicly routable after the SLA.",
   MANUAL_REVIEW:
-    "Claim is under manual review and is open for auditor voting before final admin action.",
-  APPROVED: "Claim was approved and is ready for settlement.",
+    "Four snapshotted auditors are reviewing the claim. Quorum finalizes automatically.",
+  PAYOUT_READY: "The payout is allocated and ready for claimant withdrawal.",
+  FUNDING_REQUIRED: "The claim is valid but treasury funding is required before withdrawal.",
+  APPEALED: "An appeal opened a new claim version and oracle cycle.",
   REJECTED: "Claim was rejected and cannot be settled.",
-  SETTLED: "Claim was settled and payout was transferred from the contract reserve.",
+  SETTLED: "The claimant withdrew the allocated settlement.",
   CLOSED: "Claim lifecycle is closed.",
   UNKNOWN: "Status could not be resolved from the returned contract/API value.",
 };

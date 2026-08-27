@@ -1,13 +1,9 @@
-const {
-  getAdminContract,
-  getReadOnlyContract,
-} = require("../services/contractService");
 const { ethers } = require("ethers");
 const {
-  calculateReputationUpdate,
-  calculateWeightedConsensus,
-} = require("../services/votingService");
-const VotingFinalization = require("../models/VotingFinalization");
+  getClaimAdjudicator,
+  getReadOnlyContract,
+} = require("../services/contractService");
+const { calculateWeightedConsensus } = require("../services/votingService");
 
 const createError = (message, statusCode) => {
   const error = new Error(message);
@@ -15,178 +11,70 @@ const createError = (message, statusCode) => {
   return error;
 };
 
-const shortenAddress = (address) => {
-  if (!address) return "";
-
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-};
-
-const formatVoteSummary = (claimId, rawVotes, currentWalletAddress = "") => {
-  const voters = Array.from(rawVotes.voters || rawVotes[0] || []);
-  const votes = Array.from(rawVotes.votes || rawVotes[1] || []);
-  const reputations = Array.from(rawVotes.reputations || rawVotes[2] || []);
-  const consensusResult = calculateWeightedConsensus(voters, votes, reputations);
-  const normalizedCurrentWallet = currentWalletAddress.toLowerCase();
-
-  const formattedVoters = consensusResult.voters.map((voter) => ({
-    ...voter,
-    shortenedAddress: shortenAddress(voter.auditorAddress),
-  }));
-
-  const currentUserVote =
-    formattedVoters.find(
-      (voter) => voter.auditorAddress.toLowerCase() === normalizedCurrentWallet
-    ) || null;
-
-  return {
-    claimId: claimId.toString(),
-    ...consensusResult,
-    voters: formattedVoters,
-    hasCurrentUserVoted: Boolean(currentUserVote),
-    currentUserVote: currentUserVote
-      ? {
-          vote: currentUserVote.vote,
-          voteLabel: currentUserVote.voteLabel,
-          voteDisplayLabel: currentUserVote.voteDisplayLabel,
-        }
-      : null,
-  };
-};
+const shortenAddress = (address) =>
+  address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
 
 const getClaimVoteSummary = async (req, res, next) => {
   try {
     const { claimId } = req.params;
-    const voterAddress = String(req.query.voterAddress || "").trim();
+    if (!claimId) throw createError("claimId is required", 400);
 
-    if (!claimId) {
-      throw createError("claimId is required", 400);
+    const manager = getReadOnlyContract();
+    const adjudicator = await getClaimAdjudicator(manager);
+    const version = await manager.claimVersion(claimId);
+    const [rawVotes, review] = await Promise.all([
+      adjudicator.getVotes(claimId, version),
+      adjudicator.getReview(claimId, version),
+    ]);
+    const assigned = Array.from(rawVotes.auditors || rawVotes[0] || []).filter(
+      (address) => address !== ethers.ZeroAddress
+    );
+    const votes = Array.from(rawVotes.reviewVotes || rawVotes[1] || []);
+
+    if (
+      req.user.role === "AUDITOR" &&
+      !assigned.some(
+        (address) => address.toLowerCase() === req.user.walletAddress.toLowerCase()
+      )
+    ) {
+      throw createError("Access denied: auditor is not assigned to this review", 403);
     }
 
-    const contract = getReadOnlyContract();
-    const rawVotes = await contract.getClaimVotes(claimId);
-    const currentWalletAddress = ethers.isAddress(voterAddress)
-      ? voterAddress
-      : req.user.walletAddress;
-    const voteSummary = formatVoteSummary(
-      claimId,
-      rawVotes,
-      currentWalletAddress
+    const reputations = await Promise.all(
+      assigned.map((address) => adjudicator.auditorReputation(address))
+    );
+    const consensus = calculateWeightedConsensus(assigned, votes, reputations);
+    const currentWallet = String(
+      req.query.voterAddress || req.user.walletAddress || ""
+    ).toLowerCase();
+    const currentUserVote = consensus.voters.find(
+      (voter) => voter.auditorAddress.toLowerCase() === currentWallet
     );
 
     res.status(200).json({
       success: true,
-      voteSummary,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const finalizeVoting = async (req, res, next) => {
-  try {
-    const { claimId } = req.params;
-
-    if (!claimId) {
-      throw createError("claimId is required", 400);
-    }
-
-    const existingFinalization = await VotingFinalization.findOne({
-      claimId: claimId.toString(),
-    })
-      .select("_id")
-      .lean();
-
-    if (existingFinalization) {
-      throw createError("Voting has already been finalized for this claim", 409);
-    }
-
-    const contract = getAdminContract();
-    const rawVotes = await contract.getClaimVotes(claimId);
-    const voteSummary = formatVoteSummary(
-      claimId,
-      rawVotes,
-      req.user.walletAddress
-    );
-
-    if (voteSummary.totalVoters === 0) {
-      throw createError("No auditor votes found for this claim", 400);
-    }
-
-    if (!voteSummary.consensusCode || voteSummary.isTie) {
-      throw createError(
-        "Voting cannot be finalized until there is a clear weighted consensus",
-        400
-      );
-    }
-
-    const reputationChanges = [];
-    const transactionHashes = [];
-    let nextNonce = await contract.runner.getNonce("pending");
-
-    for (const voter of voteSummary.voters) {
-      const reputationChange = calculateReputationUpdate(
-        voter.auditorAddress,
-        claimId,
-        voteSummary
-      );
-
-      const tx = await contract.updateAuditorReputation(
-        reputationChange.auditorAddress,
-        reputationChange.newReputation,
-        { nonce: nextNonce }
-      );
-      nextNonce += 1;
-      const receipt = await tx.wait();
-
-      reputationChanges.push({
-        ...reputationChange,
-        transactionHash: tx.hash,
-        blockNumber: receipt.blockNumber,
-      });
-      transactionHashes.push(tx.hash);
-    }
-
-    await VotingFinalization.findOneAndUpdate(
-      { claimId: claimId.toString() },
-      {
-        claimId: claimId.toString(),
-        consensus: voteSummary.consensus,
-        consensusCode: voteSummary.consensusCode,
-        consensusStrength: voteSummary.consensusStrength,
-        totalVoters: voteSummary.totalVoters,
-        voters: voteSummary.voters.map((voter) => ({
-          auditorAddress: voter.auditorAddress,
-          vote: voter.vote,
-          voteLabel: voter.voteLabel,
-          reputationAtFinalization: voter.reputation,
-          votedWithConsensus: voter.vote === voteSummary.consensusCode,
+      voteSummary: {
+        claimId: String(claimId),
+        ...consensus,
+        voters: consensus.voters.map((voter) => ({
+          ...voter,
+          shortenedAddress: shortenAddress(voter.auditorAddress),
         })),
-        reputationTransactionHashes: transactionHashes,
-        finalizedBy: req.user.walletAddress,
+        assignedAuditors: assigned,
+        approvals: Number(review.approvals),
+        rejections: Number(review.rejections),
+        deadline: Number(review.deadline),
+        minimumVoters: 4,
+        quorumReached: Boolean(review.finalized),
+        finalized: Boolean(review.finalized),
+        approved: Boolean(review.approved),
+        hasCurrentUserVoted: Boolean(currentUserVote),
+        currentUserVote: currentUserVote || null,
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Voting finalized and auditor reputations updated",
-      consensusResult: {
-        consensus: voteSummary.consensus,
-        consensusCode: voteSummary.consensusCode,
-        consensusDisplayLabel: voteSummary.consensusDisplayLabel,
-        consensusStrength: voteSummary.consensusStrength,
-        weightedResults: voteSummary.weightedResults,
-        totalVoters: voteSummary.totalVoters,
-      },
-      reputationChanges,
-      transactionHashes,
     });
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = {
-  getClaimVoteSummary,
-  finalizeVoting,
-};
+module.exports = { getClaimVoteSummary };

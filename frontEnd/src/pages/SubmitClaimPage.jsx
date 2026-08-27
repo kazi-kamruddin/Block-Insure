@@ -3,25 +3,39 @@ import { useQuery } from "@tanstack/react-query";
 
 import TransactionLink from "../components/TransactionLink";
 import {
+  abandonClaimSubmission,
   authorizeClaimSubmission,
   attachDocumentToClaim,
   getMyPolicies,
+  previewPurchasedPolicyEligibility,
+  reconcileClaimSubmission,
+  recordClaimSubmissionTransaction,
+  resetMyClaimSubmissionLimit,
   uploadClaimDocument,
 } from "../services/api";
 
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
+import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
+import PolicyTermsPanel from "../components/PolicyTermsPanel";
 
 import {
   assertCorrectNetwork,
   getConnectedWalletAddress,
   getWalletContract,
   hashInvoiceNumber,
+  parseTransactionError,
   parseEth,
   toBytes32FromBackendSha256,
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
+import {
+  encryptEvidenceFile,
+  storeEvidenceKey,
+} from "../services/evidenceEncryption";
+import { getClaimIdsByWallet } from "../utils/contractQueries";
 import "../styles/pages/SubmitClaimPage.css";
+import { showToast } from "../services/toast";
 
 const VALID_MOCK_HOSPITAL_PRESETS = [
   {
@@ -119,14 +133,15 @@ function extractClaimIdFromReceipt(contract, receipt) {
   return "";
 }
 
-function unixSecondsToDateTimeLocal(unixSeconds) {
-  if (!unixSeconds) return "";
+async function resolveSubmittedClaimId(contract, receipt, walletAddress) {
+  const eventClaimId = extractClaimIdFromReceipt(contract, receipt);
 
-  const date = new Date(Number(unixSeconds) * 1000);
-  const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000;
-  const localDate = new Date(date.getTime() - timezoneOffsetMs);
+  if (eventClaimId) return eventClaimId;
 
-  return localDate.toISOString().slice(0, 16);
+  const claimIds = await getClaimIdsByWallet(contract, walletAddress);
+  const latestClaimId = claimIds[claimIds.length - 1];
+
+  return latestClaimId ? latestClaimId.toString() : "";
 }
 
 function dateTimeLocalToUnixSeconds(dateTimeValue) {
@@ -151,9 +166,15 @@ export default function SubmitClaimPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadInfo, setUploadInfo] = useState(null);
+  const [pendingEvidenceLink, setPendingEvidenceLink] = useState(null);
+  const [evidenceLinkError, setEvidenceLinkError] = useState("");
+  const [isLinkingEvidence, setIsLinkingEvidence] = useState(false);
   const [txHash, setTxHash] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
+  const [submissionLimit, setSubmissionLimit] = useState(null);
+  const [preExistingCondition, setPreExistingCondition] = useState(false);
+  const [disclosedAtPurchase, setDisclosedAtPurchase] = useState(false);
 
   const {
     data: policiesData,
@@ -177,16 +198,36 @@ export default function SubmitClaimPage() {
     (policy) => String(policy.policyId) === String(policyId)
   );
 
+  const { data: eligibilityData, error: eligibilityError } = useQuery({
+    queryKey: [
+      "policyEligibilityPreview",
+      policyId,
+      incidentDateTime,
+      claimType,
+      claimAmount,
+      preExistingCondition,
+      disclosedAtPurchase,
+    ],
+    queryFn: () =>
+      previewPurchasedPolicyEligibility(policyId, {
+        incidentDate: dateTimeLocalToUnixSeconds(incidentDateTime),
+        claimType,
+        claimAmountEth: claimAmount,
+        preExistingCondition,
+        disclosedAtPurchase,
+      }),
+    enabled: Boolean(
+      selectedPolicy &&
+        incidentDateTime &&
+        claimType.trim() &&
+        Number(claimAmount) > 0
+    ),
+    retry: false,
+  });
+
   function handlePolicyChange(nextPolicyId) {
     setPolicyId(nextPolicyId);
-
-    const nextPolicy = activePolicies.find(
-      (policy) => String(policy.policyId) === String(nextPolicyId)
-    );
-
-    if (nextPolicy?.startDate) {
-      setIncidentDateTime(unixSecondsToDateTimeLocal(nextPolicy.startDate));
-    }
+    setIncidentDateTime("");
   }
 
   function applyMockPreset(presetLabel) {
@@ -202,13 +243,44 @@ export default function SubmitClaimPage() {
     setClaimAmount(preset.claimAmount);
   }
 
+  async function linkEvidenceToClaim(link) {
+    if (!link?.documentId || !link?.claimId) return;
+
+    setEvidenceLinkError("");
+    setIsLinkingEvidence(true);
+
+    try {
+      await attachDocumentToClaim(link.documentId, link.claimId, link.attemptId);
+      setPendingEvidenceLink(null);
+      setSuccessMessage(
+        `Claim #${link.claimId} submitted and its evidence metadata was linked.`
+      );
+      showToast(`Claim #${link.claimId} submitted successfully.`, {
+        title: "Claim confirmed",
+      });
+    } catch (linkError) {
+      console.error(linkError);
+      setEvidenceLinkError(
+        `Claim #${link.claimId} is confirmed on-chain, but its off-chain evidence metadata could not be linked. Retry the link when the backend is available.`
+      );
+    } finally {
+      setIsLinkingEvidence(false);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
 
     setError("");
+    setSubmissionLimit(null);
     setSuccessMessage("");
     setTxHash("");
     setUploadInfo(null);
+    setPendingEvidenceLink(null);
+    setEvidenceLinkError("");
+
+    let activeAttemptId = "";
+    let submittedTransactionHash = "";
 
     try {
       if (!isConnected) {
@@ -248,13 +320,19 @@ export default function SubmitClaimPage() {
       }
 
       const selectedIncidentSeconds = dateTimeLocalToUnixSeconds(incidentDateTime);
+
+      if (!Number.isFinite(selectedIncidentSeconds)) {
+        throw new Error("Incident date/time is invalid");
+      }
       const policyStartSeconds = Number(selectedPolicy.startDate || 0);
       const policyEndSeconds = Number(selectedPolicy.endDate || 0);
 
-      let incidentSeconds = selectedIncidentSeconds;
+      const incidentSeconds = selectedIncidentSeconds;
 
       if (policyStartSeconds && incidentSeconds < policyStartSeconds) {
-        incidentSeconds = policyStartSeconds;
+        throw new Error(
+          "Incident date/time is before the policy coverage start time."
+        );
       }
 
       if (policyEndSeconds && incidentSeconds > policyEndSeconds) {
@@ -263,33 +341,67 @@ export default function SubmitClaimPage() {
 
       setIsSubmitting(true);
 
-      await authorizeClaimSubmission(policyId);
+      const authorization = await authorizeClaimSubmission(policyId, {
+        incidentDate: incidentSeconds,
+        claimType,
+        claimAmountEth: claimAmount,
+        preExistingCondition,
+        disclosedAtPurchase,
+      });
+      const attemptId = authorization?.attemptId || authorization?.data?.attemptId || "";
+      activeAttemptId = attemptId;
+      const contract = await getWalletContract();
+      const predictedClaimId = (await contract.claimCounter()).toString();
+      const encryptedEvidence = await encryptEvidenceFile(file, {
+        claimId: predictedClaimId,
+        claimVersion: 1,
+        uploader: activeWallet,
+        evidenceType: "HOSPITAL_BILL",
+      });
 
       const uploadResponse = await uploadClaimDocument({
-        file,
+        file: encryptedEvidence.encryptedFile,
         documentType: "HOSPITAL_BILL",
-        claimId: "pending",
+        attemptId,
+        encryption: {
+          enabled: true,
+          algorithm: encryptedEvidence.algorithm,
+          originalMimeType: encryptedEvidence.originalMimeType,
+          originalName: encryptedEvidence.originalName,
+          keyCapsule: encryptedEvidence.keyCapsule,
+          associatedData: encryptedEvidence.associatedData,
+          encryptionIdentityVersion:
+            encryptedEvidence.encryptionIdentityVersion,
+        },
       });
 
       const sha256Hash = getUploadedHash(uploadResponse);
       const ipfsCID = getUploadedCid(uploadResponse);
       const documentId = getUploadedDocumentId(uploadResponse);
 
-      if (!sha256Hash || !ipfsCID) {
+      if (!sha256Hash || !ipfsCID || !documentId) {
         console.log("Upload response:", uploadResponse);
-        throw new Error("Backend upload did not return sha256Hash and ipfsCID");
+        throw new Error(
+          "Backend upload did not return document metadata needed to submit and link the claim"
+        );
       }
+
+      storeEvidenceKey(ipfsCID, encryptedEvidence);
 
       setUploadInfo({
         documentId,
         sha256Hash,
         ipfsCID,
+        encryption: {
+          enabled: true,
+          status: `${encryptedEvidence.algorithm}; encrypted before upload.`,
+          keyStorage:
+            "Your dedicated private encryption key remains in this browser; the backend receives only a transformable encrypted key capsule.",
+        },
       });
 
       const documentHashBytes32 = toBytes32FromBackendSha256(sha256Hash);
       const invoiceHash = hashInvoiceNumber(invoiceNumber.trim());
-
-      const contract = await getWalletContract();
 
       const tx = await contract.submitClaim(
         BigInt(policyId),
@@ -303,26 +415,87 @@ export default function SubmitClaimPage() {
       );
 
       setTxHash(tx.hash);
+      submittedTransactionHash = tx.hash;
+      const pendingClaimKey = "block-insure:pending-claim-submissions";
+      const pendingClaims = JSON.parse(
+        localStorage.getItem(pendingClaimKey) || "[]"
+      );
+      localStorage.setItem(
+        pendingClaimKey,
+        JSON.stringify([
+          ...pendingClaims.filter((item) => item.attemptId !== attemptId),
+          { attemptId, transactionHash: tx.hash },
+        ])
+      );
+      await recordClaimSubmissionTransaction(attemptId, tx.hash);
 
       const receipt = await tx.wait();
-      const claimId = extractClaimIdFromReceipt(contract, receipt);
+      const claimId = await resolveSubmittedClaimId(contract, receipt, activeWallet);
 
-      if (documentId && claimId) {
-        await attachDocumentToClaim(documentId, claimId);
+      if (!claimId) {
+        setSuccessMessage(
+          "Claim transaction was confirmed, but its ID could not be resolved. Refresh My Claims before retrying any evidence link."
+        );
+        return;
       }
 
-      setSuccessMessage(
-        claimId
-          ? `Claim submitted successfully. Claim ID: ${claimId}`
-          : "Claim submitted successfully."
+      const evidenceLink = { documentId, claimId, attemptId };
+      setPendingEvidenceLink(evidenceLink);
+      setSuccessMessage(`Claim #${claimId} submitted on-chain. Linking evidence metadata...`);
+      await refetchPolicies();
+      await reconcileClaimSubmission(attemptId);
+      localStorage.setItem(
+        pendingClaimKey,
+        JSON.stringify(
+          JSON.parse(localStorage.getItem(pendingClaimKey) || "[]").filter(
+            (item) => item.attemptId !== attemptId
+          )
+        )
       );
+      setPendingEvidenceLink(null);
+      setSuccessMessage(
+        `Claim #${claimId} submitted and its encrypted evidence was reconciled successfully.`
+      );
+      showToast(`Claim #${claimId} and its encrypted evidence were confirmed.`, {
+        title: "Claim submitted",
+      });
     } catch (err) {
       console.error(err);
-      setError(
-        err.shortMessage || err.reason || err.message || "Claim submission failed"
-      );
+
+      if (activeAttemptId && !submittedTransactionHash) {
+        try {
+          await abandonClaimSubmission(
+            activeAttemptId,
+            "Submission stopped before a blockchain transaction was sent"
+          );
+        } catch (cleanupError) {
+          console.error("Could not clean up unused evidence:", cleanupError);
+        }
+      }
+
+      const message = parseTransactionError(err);
+      if (err.response?.status === 429) {
+        setSubmissionLimit(err.response.data || null);
+      }
+      setError(message);
+      showToast(message, { tone: "error", title: "Claim submission failed" });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleDevelopmentLimitReset() {
+    try {
+      const result = await resetMyClaimSubmissionLimit();
+      setSubmissionLimit(null);
+      setError("");
+      showToast(
+        `${result.removedAttempts || 0} local submission record(s) cleared.`,
+        { title: "Testing limit reset" }
+      );
+    } catch (resetError) {
+      const message = parseTransactionError(resetError);
+      showToast(message, { tone: "error", title: "Reset failed" });
     }
   }
 
@@ -340,8 +513,24 @@ export default function SubmitClaimPage() {
         </p>
       ) : null}
 
-      {error ? <p className="error-text">{error}</p> : null}
+      {error ? (
+        <div className="form-feedback error-text" role="alert">
+          <p>{error}</p>
+          {submissionLimit?.resetAt ? (
+            <p>
+              This testing allowance resets at{" "}
+              {new Date(submissionLimit.resetAt).toLocaleString()}.
+            </p>
+          ) : null}
+          {submissionLimit?.devResetAvailable ? (
+            <button type="button" onClick={handleDevelopmentLimitReset}>
+              Reset My Local Testing Limit
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {successMessage ? <p className="success-text">{successMessage}</p> : null}
+      {evidenceLinkError ? <p className="error-text">{evidenceLinkError}</p> : null}
 
       {txHash ? (
         <p>
@@ -356,6 +545,27 @@ export default function SubmitClaimPage() {
           <p>
             <strong>IPFS CID:</strong> <IpfsLink cid={uploadInfo.ipfsCID} />
           </p>
+          <p>
+            <strong>Encryption:</strong> {uploadInfo.encryption.status}
+          </p>
+          <p className="muted-text">{uploadInfo.encryption.keyStorage}</p>
+        </div>
+      ) : null}
+
+      {pendingEvidenceLink ? (
+        <div className="card">
+          <h3>Evidence Link Pending</h3>
+          <p>
+            Claim #{pendingEvidenceLink.claimId} is already confirmed on-chain.
+            The remaining step only links supporting metadata in the backend.
+          </p>
+          <button
+            type="button"
+            onClick={() => linkEvidenceToClaim(pendingEvidenceLink)}
+            disabled={isLinkingEvidence}
+          >
+            {isLinkingEvidence ? "Linking Evidence..." : "Retry Evidence Link"}
+          </button>
         </div>
       ) : null}
 
@@ -370,6 +580,14 @@ export default function SubmitClaimPage() {
           <h3>Selected Policy Timing</h3>
           <p>Start: {formatUnixDate(selectedPolicy.startDate)}</p>
           <p>End: {formatUnixDate(selectedPolicy.endDate)}</p>
+          <PolicyTermsPanel terms={selectedPolicy.policyTerms} />
+          {eligibilityError ? (
+            <p className="warning-text">
+              Eligibility preview is temporarily unavailable; the existing claim
+              submission flow is still available.
+            </p>
+          ) : null}
+          <PolicyEligibilityResult evaluation={eligibilityData?.evaluation} />
         </div>
       ) : null}
 
@@ -384,7 +602,8 @@ export default function SubmitClaimPage() {
             <option value="">Select policy</option>
             {activePolicies.map((policy) => (
               <option key={policy.policyId} value={policy.policyId}>
-                Policy #{policy.policyId} — Coverage{" "}
+                {policy.packageName || `Policy #${policy.policyId}`} — Policy #
+                {policy.policyId} · Coverage{" "}
                 {policy.coverageAmountEth || policy.coverageAmount} ETH
               </option>
             ))}
@@ -392,7 +611,7 @@ export default function SubmitClaimPage() {
         </label>
 
         <label>
-          Mock hospital preset for verified oracle test
+          Test data preset
           <select
             defaultValue=""
             onChange={(event) => applyMockPreset(event.target.value)}
@@ -404,6 +623,11 @@ export default function SubmitClaimPage() {
               </option>
             ))}
           </select>
+          <small>
+            Presets fill a record that exists in the local healthcare registry.
+            Manual values are accepted, but the oracle will fail them when they
+            do not match a registered hospital invoice.
+          </small>
         </label>
 
         <label>
@@ -422,10 +646,15 @@ export default function SubmitClaimPage() {
           Incident date/time
           <input
             type="datetime-local"
+            step="60"
             value={incidentDateTime}
             onChange={(event) => setIncidentDateTime(event.target.value)}
             required
           />
+          <small>
+            Enter when the incident actually occurred. This value is never
+            replaced with the policy purchase time.
+          </small>
         </label>
 
         <label>
@@ -469,7 +698,46 @@ export default function SubmitClaimPage() {
           />
         </label>
 
-        <button type="submit" disabled={isSubmitting || activePolicies.length === 0}>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={preExistingCondition}
+            onChange={(event) => {
+              setPreExistingCondition(event.target.checked);
+              if (!event.target.checked) setDisclosedAtPurchase(false);
+            }}
+          />
+          Claim involves a pre-existing condition
+        </label>
+
+        {preExistingCondition ? (
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={disclosedAtPurchase}
+              onChange={(event) => setDisclosedAtPurchase(event.target.checked)}
+            />
+            Condition was disclosed when the policy was purchased
+          </label>
+        ) : null}
+
+        <div className="card">
+          <h3>Document Privacy</h3>
+          <p>
+            Client-side encryption: enabled
+          </p>
+          <p className="muted-text">
+            Evidence is encrypted with AES-256-GCM and claim-bound authenticated
+            metadata before upload. Its AES key is protected by a dedicated
+            browser key and can be proxy-transformed only for an assigned auditor;
+            the backend cannot decrypt it.
+          </p>
+        </div>
+
+        <button
+          type="submit"
+          disabled={isSubmitting || isLinkingEvidence || activePolicies.length === 0}
+        >
           {isSubmitting ? "Submitting..." : "Submit Claim"}
         </button>
       </form>

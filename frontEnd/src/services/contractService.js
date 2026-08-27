@@ -1,12 +1,27 @@
 import { ethers } from "ethers";
 import InsuranceManagerArtifact from "../abi/InsuranceManager.json";
+import OracleCoordinatorArtifact from "../abi/OracleCoordinator.json";
+import ClaimAdjudicatorArtifact from "../abi/ClaimAdjudicator.json";
+import PolicyEconomicsArtifact from "../abi/PolicyEconomics.json";
+import EvidenceRegistryArtifact from "../abi/EvidenceRegistry.json";
+import policyBenefitsAbi from "../abi/policyBenefitsAbi";
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
+const POLICY_BENEFITS_ADDRESS = import.meta.env.VITE_POLICY_BENEFITS_ADDRESS;
+const EVIDENCE_REGISTRY_ADDRESS = import.meta.env.VITE_EVIDENCE_REGISTRY_ADDRESS;
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
 
 export const REQUIRED_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337);
 
 const ABI = InsuranceManagerArtifact.abi || InsuranceManagerArtifact;
+const ORACLE_COORDINATOR_ABI =
+  OracleCoordinatorArtifact.abi || OracleCoordinatorArtifact;
+const CLAIM_ADJUDICATOR_ABI =
+  ClaimAdjudicatorArtifact.abi || ClaimAdjudicatorArtifact;
+const POLICY_ECONOMICS_ABI =
+  PolicyEconomicsArtifact.abi || PolicyEconomicsArtifact;
+const EVIDENCE_REGISTRY_ABI =
+  EvidenceRegistryArtifact.abi || EvidenceRegistryArtifact;
 
 export const CLAIM_STATUS = {
   0: "SUBMITTED",
@@ -16,10 +31,22 @@ export const CLAIM_STATUS = {
   4: "ORACLE_VERIFIED",
   5: "ORACLE_FAILED",
   6: "MANUAL_REVIEW",
-  7: "APPROVED",
+  7: "PAYOUT_READY",
   8: "REJECTED",
   9: "SETTLED",
   10: "CLOSED",
+  11: "FUNDING_REQUIRED",
+  12: "APPEALED",
+};
+
+export const POLICY_STATUS = {
+  0: "PENDING_PAYMENT",
+  1: "ACTIVE",
+  2: "GRACE_PERIOD",
+  3: "LAPSED",
+  4: "CANCELLED",
+  5: "EXPIRED",
+  6: "RENEWED",
 };
 
 function requireContractAddress() {
@@ -30,12 +57,74 @@ function requireContractAddress() {
   return CONTRACT_ADDRESS;
 }
 
+export function getContractAddress() {
+  return requireContractAddress();
+}
+
 export function getReadProvider() {
   return new ethers.JsonRpcProvider(RPC_URL);
 }
 
 export function getReadOnlyContract() {
   return new ethers.Contract(requireContractAddress(), ABI, getReadProvider());
+}
+
+export async function getReadOnlyOracleCoordinator() {
+  const manager = getReadOnlyContract();
+  return new ethers.Contract(
+    await manager.oracleCoordinator(),
+    ORACLE_COORDINATOR_ABI,
+    manager.runner
+  );
+}
+
+export async function getReadOnlyClaimAdjudicator() {
+  const manager = getReadOnlyContract();
+  return new ethers.Contract(
+    await manager.claimAdjudicator(),
+    CLAIM_ADJUDICATOR_ABI,
+    manager.runner
+  );
+}
+
+export async function getReadOnlyPolicyEconomics() {
+  const manager = getReadOnlyContract();
+  return new ethers.Contract(
+    await manager.policyEconomics(),
+    POLICY_ECONOMICS_ABI,
+    manager.runner
+  );
+}
+
+export async function fundTreasuryWithReference(reference, amountEth) {
+  if (!String(reference || "").trim()) {
+    throw new Error("A treasury funding reference is required");
+  }
+  const manager = await getWalletContract();
+  const economics = new ethers.Contract(
+    await manager.policyEconomics(),
+    POLICY_ECONOMICS_ABI,
+    manager.runner
+  );
+  return economics.fundTreasury(
+    ethers.keccak256(ethers.toUtf8Bytes(String(reference).trim())),
+    { value: ethers.parseEther(String(amountEth)) }
+  );
+}
+
+export async function getEvidenceRegistryWalletContract() {
+  if (!EVIDENCE_REGISTRY_ADDRESS) {
+    throw new Error("Evidence registry is not configured. Run the local deployment workflow.");
+  }
+  return new ethers.Contract(
+    EVIDENCE_REGISTRY_ADDRESS,
+    EVIDENCE_REGISTRY_ABI,
+    await getSigner()
+  );
+}
+
+export async function getContractBalance() {
+  return getReadProvider().getBalance(requireContractAddress());
 }
 
 export async function getBrowserProvider() {
@@ -89,7 +178,13 @@ export function toBytes32FromBackendSha256(hash) {
     throw new Error("Missing SHA-256 document hash");
   }
 
-  return hash.startsWith("0x") ? hash : `0x${hash}`;
+  const normalizedHash = hash.startsWith("0x") ? hash : `0x${hash}`;
+
+  if (!ethers.isHexString(normalizedHash, 32)) {
+    throw new Error("Document hash must be a 32-byte SHA-256 value");
+  }
+
+  return normalizedHash;
 }
 
 export function hashInvoiceNumber(invoiceNumber) {
@@ -105,12 +200,151 @@ export function toUnixSecondsFromDateInput(dateValue) {
     throw new Error("Date is required");
   }
 
-  return Math.floor(new Date(dateValue).getTime() / 1000);
+  const milliseconds = new Date(dateValue).getTime();
+
+  if (Number.isNaN(milliseconds)) {
+    throw new Error("Invalid date value");
+  }
+
+  return Math.floor(milliseconds / 1000);
+}
+
+export async function getWalletOracleCoordinator() {
+  const manager = await getWalletContract();
+  return new ethers.Contract(
+    await manager.oracleCoordinator(),
+    ORACLE_COORDINATOR_ABI,
+    manager.runner
+  );
+}
+
+export async function getWalletClaimAdjudicator() {
+  const manager = await getWalletContract();
+  return new ethers.Contract(
+    await manager.claimAdjudicator(),
+    CLAIM_ADJUDICATOR_ABI,
+    manager.runner
+  );
+}
+
+function requirePolicyBenefitsAddress() {
+  if (!POLICY_BENEFITS_ADDRESS) {
+    throw new Error(
+      "Policy benefits module is not configured. Run the local deployment workflow."
+    );
+  }
+  return POLICY_BENEFITS_ADDRESS;
+}
+
+export async function getPolicyBenefitsWalletContract() {
+  const signer = await getSigner();
+  return new ethers.Contract(
+    requirePolicyBenefitsAddress(),
+    policyBenefitsAbi,
+    signer
+  );
+}
+
+export async function setPolicyBeneficiaries(policyId, beneficiaries) {
+  const contract = await getPolicyBenefitsWalletContract();
+  return contract.setBeneficiaries(
+    policyId,
+    beneficiaries.map((beneficiary) => beneficiary.account),
+    beneficiaries.map((beneficiary) => Math.round(beneficiary.sharePercent * 100))
+  );
+}
+
+export async function requestPolicyBenefit(policyId, benefitType, evidenceHash) {
+  const contract = await getPolicyBenefitsWalletContract();
+  return contract.requestBenefit(policyId, benefitType, evidenceHash);
+}
+
+export async function withdrawPolicyBenefit() {
+  const contract = await getPolicyBenefitsWalletContract();
+  return contract.withdrawBenefit();
+}
+
+export async function cancelPolicy(policyId) {
+  const contract = await getWalletContract();
+  return contract.cancelPolicy(policyId);
 }
 
 export function getStatusLabel(statusValue) {
   const numericStatus = Number(statusValue);
   return CLAIM_STATUS[numericStatus] || `UNKNOWN_${statusValue}`;
+}
+
+export function getPolicyStatusLabel(statusValue) {
+  const numericStatus = Number(statusValue);
+  return POLICY_STATUS[numericStatus] || `UNKNOWN_${statusValue}`;
+}
+
+export function parseTransactionError(error) {
+  const rawMessage = String(
+    error?.shortMessage ||
+      error?.reason ||
+      error?.response?.data?.message ||
+      error?.message ||
+      "Transaction failed"
+  );
+  const lowerMessage = rawMessage.toLowerCase();
+  const code = error?.code || error?.info?.error?.code;
+
+  if (code === 4001 || lowerMessage.includes("user rejected")) {
+    return "MetaMask rejected the transaction.";
+  }
+
+  if (lowerMessage.includes("wrong metamask network") || lowerMessage.includes("chain id")) {
+    return rawMessage;
+  }
+
+  if (lowerMessage.includes("metamask is not installed") || lowerMessage.includes("missing provider")) {
+    return "Wallet is missing. Install or unlock MetaMask.";
+  }
+
+  if (lowerMessage.includes("access denied") || lowerMessage.includes("role")) {
+    return "Your backend or on-chain role is missing for this action.";
+  }
+
+  if (lowerMessage.includes("policy is not active")) {
+    return "This policy is inactive, expired, lapsed, or premium-overdue.";
+  }
+
+  if (lowerMessage.includes("premium") || lowerMessage.includes("lapsed")) {
+    return rawMessage.includes("Incorrect") ? "Incorrect premium amount." : rawMessage;
+  }
+
+  if (lowerMessage.includes("duplicate")) {
+    return "Duplicate claim evidence was detected.";
+  }
+
+  if (lowerMessage.includes("insufficient contract balance")) {
+    return "Insufficient reserve for settlement.";
+  }
+
+  if (lowerMessage.includes("already settled")) {
+    return "This claim is already settled.";
+  }
+
+  if (lowerMessage.includes("already closed")) {
+    return "This claim is already closed.";
+  }
+
+  if (lowerMessage.includes("oracle") && lowerMessage.includes("not")) {
+    return "Oracle result is not ready for this action.";
+  }
+
+  return rawMessage;
+}
+
+export async function payPolicyPremium(policyId, premiumWei) {
+  const contract = await getWalletContract();
+  return contract.payPremium(policyId, { value: premiumWei });
+}
+
+export async function reinstatePolicy(policyId, premiumWei) {
+  const contract = await getWalletContract();
+  return contract.reinstatePolicy(policyId, { value: premiumWei });
 }
 
 export function getEtherscanTxUrl(txHash) {

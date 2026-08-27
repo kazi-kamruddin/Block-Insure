@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { getBrowserProvider } from "../services/contractService";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  assertCorrectNetwork,
+  getBrowserProvider,
+  parseTransactionError,
+  REQUIRED_CHAIN_ID,
+} from "../services/contractService";
 import {
   clearStoredSession,
+  getCurrentUser,
   getWalletNonce,
   loginWithWallet,
   logoutSession,
@@ -59,13 +65,28 @@ export function WalletProvider({ children }) {
   });
 
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(
+    Boolean(
+      localStorage.getItem("blockinsure_wallet") &&
+        localStorage.getItem("blockinsure_jwt")
+    )
+  );
   const [error, setError] = useState("");
 
   const role = user?.role || "GUEST";
   const workspace = ROLE_WORKSPACES[role] || null;
-  const isConnected = Boolean(walletAddress && jwt);
+  const isConnected = Boolean(walletAddress && jwt && !isRestoringSession);
 
-  async function connectWallet() {
+  const clearSessionState = useCallback((message = "") => {
+    clearStoredSession();
+    setWalletAddress("");
+    setJwt("");
+    setUser(null);
+    setError(message);
+    setIsRestoringSession(false);
+  }, []);
+
+  const connectWallet = useCallback(async () => {
     setError("");
     setIsConnecting(true);
 
@@ -84,6 +105,7 @@ export function WalletProvider({ children }) {
         throw new Error("No wallet account selected");
       }
 
+      await assertCorrectNetwork();
       const provider = await getBrowserProvider();
       const signer = await provider.getSigner();
 
@@ -96,7 +118,7 @@ export function WalletProvider({ children }) {
       }
 
       const signature = await signer.signMessage(message);
-      const loginData = await loginWithWallet(selectedWallet, signature);
+      const loginData = await loginWithWallet(selectedWallet, message, signature);
 
       const token = getToken(loginData);
 
@@ -119,18 +141,19 @@ export function WalletProvider({ children }) {
       setJwt(token);
       setWalletAddress(normalizedWallet);
       setUser(returnedUser);
+      setIsRestoringSession(false);
 
       return returnedUser;
     } catch (err) {
       console.error(err);
-      setError(err.message || "Wallet connection failed");
-      throw err;
+      setError(parseTransactionError(err));
+      return null;
     } finally {
       setIsConnecting(false);
     }
-  }
+  }, []);
 
-  async function logout() {
+  const logout = useCallback(async () => {
     try {
       if (localStorage.getItem("blockinsure_jwt")) {
         await logoutSession();
@@ -139,12 +162,75 @@ export function WalletProvider({ children }) {
       console.warn("Backend logout failed:", logoutError.message);
     }
 
-    clearStoredSession();
-    setWalletAddress("");
-    setJwt("");
-    setUser(null);
-    setError("");
-  }
+    clearSessionState();
+  }, [clearSessionState]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreSession() {
+      if (!walletAddress || !jwt) {
+        setIsRestoringSession(false);
+        return;
+      }
+
+      try {
+        if (!window.ethereum) {
+          throw new Error("MetaMask is unavailable. Connect your wallet again.");
+        }
+
+        const accounts = await window.ethereum.request({ method: "eth_accounts" });
+        const activeWallet = normalizeAddress(accounts?.[0]);
+
+        if (!activeWallet || activeWallet !== normalizeAddress(walletAddress)) {
+          throw new Error(
+            "The active MetaMask account changed. Connect the intended role wallet again."
+          );
+        }
+
+        await assertCorrectNetwork();
+        const response = await getCurrentUser();
+        const refreshedUser = response.user || response.data?.user;
+
+        if (!refreshedUser) {
+          throw new Error("Your saved session could not be restored.");
+        }
+
+        if (!cancelled) {
+          localStorage.setItem("blockinsure_user", JSON.stringify(refreshedUser));
+          setUser(refreshedUser);
+          setIsRestoringSession(false);
+        }
+      } catch (restoreError) {
+        if (!cancelled) {
+          clearSessionState(parseTransactionError(restoreError));
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clearSessionState, jwt, walletAddress]);
+
+  useEffect(() => {
+    function handleExpiredSession(event) {
+      clearSessionState(
+        event.detail || "Your session expired. Connect your wallet again."
+      );
+    }
+
+    window.addEventListener("blockinsure:session-expired", handleExpiredSession);
+
+    return () => {
+      window.removeEventListener(
+        "blockinsure:session-expired",
+        handleExpiredSession
+      );
+    };
+  }, [clearSessionState]);
 
   useEffect(() => {
     if (!window.ethereum) return undefined;
@@ -164,12 +250,22 @@ export function WalletProvider({ children }) {
       }
     }
 
+    function handleChainChanged(chainId) {
+      if (Number(chainId) !== REQUIRED_CHAIN_ID) {
+        clearSessionState(
+          `MetaMask switched networks. Select Hardhat Localhost (chain ID ${REQUIRED_CHAIN_ID}) and connect again.`
+        );
+      }
+    }
+
     window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
 
     return () => {
       window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      window.ethereum.removeListener("chainChanged", handleChainChanged);
     };
-  }, [walletAddress]);
+  }, [clearSessionState, logout, walletAddress]);
 
   const value = useMemo(
     () => ({
@@ -180,11 +276,24 @@ export function WalletProvider({ children }) {
       workspace,
       isConnected,
       isConnecting,
+      isRestoringSession,
       error,
       connectWallet,
       logout,
     }),
-    [walletAddress, jwt, user, role, workspace, isConnected, isConnecting, error]
+    [
+      walletAddress,
+      jwt,
+      user,
+      role,
+      workspace,
+      isConnected,
+      isConnecting,
+      isRestoringSession,
+      error,
+      connectWallet,
+      logout,
+    ]
   );
 
   return (

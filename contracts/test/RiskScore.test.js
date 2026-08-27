@@ -1,9 +1,21 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const {
+  configureOracleFixture,
+  finalizeExactResult,
+} = require("./helpers/oracleCoordinator");
 
-describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
+function getVerificationLevel(claim) {
+  if (Number(claim.status) === 2) return "FRAUD_FLAGGED";
+  if (Number(claim.status) === 5) return "ORACLE_FAILED";
+  if (Number(claim.verificationConfidence) >= 80) return "HIGH";
+  if (Number(claim.verificationConfidence) >= 50) return "MEDIUM";
+  return "LOW";
+}
+
+describe("InsuranceManager - verification confidence", function () {
   async function deployFixture() {
-    const [admin, user] = await ethers.getSigners();
+    const [admin, user, oracle, secondOracle] = await ethers.getSigners();
 
     const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
     const insuranceManager = await InsuranceManager.deploy();
@@ -28,6 +40,8 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
       insuranceManager,
       admin,
       user,
+      oracle,
+      secondOracle,
       PREMIUM,
       COVERAGE,
       policy,
@@ -59,23 +73,23 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
     );
   }
 
-  it("Clean claim receives risk score of 90", async function () {
+  it("clean claim receives verification confidence of 90", async function () {
     const { insuranceManager, user, policy } = await deployFixture();
 
     await submitClaim({ insuranceManager, user, policy });
 
     const claim = await insuranceManager.getClaim(1);
 
-    expect(claim.riskScore).to.equal(90);
-    expect(await insuranceManager.getRiskScore(1)).to.equal(90);
+    expect(claim.verificationConfidence).to.equal(90);
+    expect((await insuranceManager.getClaim(1)).verificationConfidence).to.equal(90);
   });
 
-  it("Clean claim risk level is LOW", async function () {
+  it("clean claim verification level is HIGH", async function () {
     const { insuranceManager, user, policy } = await deployFixture();
 
     await submitClaim({ insuranceManager, user, policy });
 
-    expect(await insuranceManager.getRiskLevel(1)).to.equal("LOW");
+    expect(getVerificationLevel(await insuranceManager.getClaim(1))).to.equal("HIGH");
   });
 
   it("Fraud-flagged claim risk level returns FRAUD_FLAGGED", async function () {
@@ -108,43 +122,43 @@ describe("InsuranceManager - Phase 7 Risk Score Logic", function () {
     const fraudClaim = await insuranceManager.getClaim(2);
 
     expect(fraudClaim.status).to.equal(2); // FRAUD_FLAGGED
-    expect(await insuranceManager.getRiskLevel(2)).to.equal("FRAUD_FLAGGED");
+    expect(getVerificationLevel(await insuranceManager.getClaim(2))).to.equal(
+      "FRAUD_FLAGGED"
+    );
   });
 
-  it("Rejects risk score and risk level lookup for non-existing claim", async function () {
+  it("rejects confidence lookup for a non-existing claim", async function () {
     const { insuranceManager } = await deployFixture();
 
-    await expect(insuranceManager.getRiskScore(999))
-      .to.be.revertedWith("Claim does not exist");
-
-    await expect(insuranceManager.getRiskLevel(999))
-      .to.be.revertedWith("Claim does not exist");
+    await expect(insuranceManager.getClaim(999)).to.be.reverted;
   });
 
   it("Oracle-failed claim risk level returns ORACLE_FAILED", async function () {
-    const { insuranceManager, user, policy, admin } = await deployFixture();
-  
-    const ORACLE_ROLE = await insuranceManager.ORACLE_ROLE();
-
-    await insuranceManager.grantProjectRole(ORACLE_ROLE, admin.address);
-    await insuranceManager.updateQuorumThreshold(1);
+    const { insuranceManager, user, policy, admin, oracle, secondOracle } = await deployFixture();
+    const coordinator = await configureOracleFixture(
+      insuranceManager,
+      admin,
+      [oracle, secondOracle]
+    );
 
     await submitClaim({ insuranceManager, user, policy });
 
     await insuranceManager.requestOracleVerification(1);
 
-    await insuranceManager.submitOracleResult(
+    await finalizeExactResult(
+      coordinator,
       1,
+      [oracle, secondOracle],
       false,
-      hashText("failed-oracle-risk-response"),
-      "HIGH",
-      "Oracle verification failed"
+      hashText("failed-oracle-risk-response")
     );
 
     const claim = await insuranceManager.getClaim(1);
 
     expect(claim.status).to.equal(5); // ORACLE_FAILED
-    expect(claim.riskScore).to.equal(90);
-    expect(await insuranceManager.getRiskLevel(1)).to.equal("ORACLE_FAILED");
+    expect(claim.verificationConfidence).to.equal(90);
+    expect(getVerificationLevel(await insuranceManager.getClaim(1))).to.equal(
+      "ORACLE_FAILED"
+    );
   });
 });

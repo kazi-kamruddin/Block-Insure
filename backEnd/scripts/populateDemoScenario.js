@@ -4,6 +4,7 @@ const dns = require("dns");
 const mongoose = require("mongoose");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
+const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
 const File = require("../models/File");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
@@ -21,10 +22,6 @@ const {
 } = require("../services/merkleRegistryService");
 const { buildRiskAssessment } = require("../services/riskScoringService");
 const { buildVerificationComparison } = require("../controllers/mockHospitalController");
-const {
-  calculateReputationUpdate,
-  calculateWeightedConsensus,
-} = require("../services/votingService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -47,17 +44,19 @@ const CLAIM_STATUS = [
   "ORACLE_VERIFIED",
   "ORACLE_FAILED",
   "MANUAL_REVIEW",
-  "APPROVED",
+  "PAYOUT_READY",
   "REJECTED",
   "SETTLED",
   "CLOSED",
+  "FUNDING_REQUIRED",
+  "APPEALED",
 ];
 
 function requireEnv(name) {
   const value = process.env[name];
 
   if (!value) {
-    throw new Error(`${name} is missing in backend/.env`);
+    throw new Error(`${name} is missing in backEnd/.env`);
   }
 
   return value;
@@ -79,6 +78,28 @@ function getOptionalPrivateKey(envName, fallbackName) {
   }
 
   return DEFAULT_LOCAL_KEYS[fallbackName] || ethers.Wallet.createRandom().privateKey;
+}
+
+function assertBuiltInDemoKeysAreLocal(rpcUrl) {
+  const usesBuiltInUserKey =
+    !process.env.DEMO_USER_PRIVATE_KEY &&
+    process.env.DEMO_USE_HARDHAT_ACCOUNTS !== "false";
+
+  if (!usesBuiltInUserKey) return;
+
+  let hostname;
+  try {
+    hostname = new URL(rpcUrl).hostname.toLowerCase();
+  } catch {
+    throw new Error("RPC_URL must be a valid URL before demo keys can be used");
+  }
+
+  const localHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+  if (!localHosts.has(hostname)) {
+    throw new Error(
+      "Built-in Hardhat demo keys are restricted to a localhost RPC. Configure DEMO_USER_PRIVATE_KEY or set DEMO_USE_HARDHAT_ACCOUNTS=false."
+    );
+  }
 }
 
 function getWallet(privateKey, provider, label) {
@@ -173,7 +194,7 @@ async function assertContractDeployed(provider, contractAddress) {
       [
         `No contract bytecode found at ${contractAddress}.`,
         "This usually means the Hardhat node was restarted after deployment,",
-        "or backend/.env VITE_CONTRACT_ADDRESS was not updated with the latest deployed address.",
+        "or backEnd/.env VITE_CONTRACT_ADDRESS was not updated with the latest deployed address.",
       ].join(" ")
     );
   }
@@ -364,7 +385,17 @@ async function verifyAgainstRegistry({
       ? "HIGH"
       : "MEDIUM";
   const riskLevel = getHigherRiskLevel(comparisonRiskLevel, riskAssessment.riskLevel);
-  const snapshot = await contract.getRegistrySnapshot();
+  const coordinator = new ethers.Contract(
+    await contract.oracleCoordinator(),
+    OracleCoordinatorArtifact.abi,
+    contract.runner
+  );
+  const [root, timestamp, blockNumber] = await Promise.all([
+    coordinator.currentRegistryRoot(),
+    coordinator.currentRegistryTimestamp(),
+    coordinator.currentRegistryBlock(),
+  ]);
+  const snapshot = { root, timestamp, blockNumber };
 
   return {
     success: true,
@@ -438,17 +469,64 @@ async function submitOracleConfirmation({
     oracleWallet: oracleWallet.address,
     registrySnapshot,
   };
+  const coordinator = new ethers.Contract(
+    await oracleContract.oracleCoordinator(),
+    OracleCoordinatorArtifact.abi,
+    oracleWallet
+  );
+  const request = await coordinator.getRequest(requestId);
+  const verificationCode = oracleResponse.verified
+    ? "VERIFIED"
+    : "HOSPITAL_REJECTED";
   const resultHash = ethers.keccak256(
-    ethers.toUtf8Bytes(JSON.stringify(oracleResponse))
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      [
+        "uint256", "uint256", "bytes32", "uint64", "uint64",
+        "bytes32", "bytes32", "bool", "bytes32", "bytes32",
+      ],
+      [
+        request.requestId,
+        request.claimId,
+        request.queryHash,
+        request.claimVersion,
+        request.registryVersion,
+        request.registryRoot,
+        request.modelVersion,
+        oracleResponse.verified,
+        ethers.keccak256(ethers.toUtf8Bytes(verificationCode)),
+        hospitalVerification.merkleProof?.leafHash || ethers.ZeroHash,
+      ]
+    )
+  );
+  oracleResponse.resultHash = resultHash;
+  const salt = ethers.keccak256(
+    ethers.solidityPacked(
+      ["string", "uint256", "address"],
+      ["BLOCK_INSURE_DEMO_SALT", requestId, oracleWallet.address]
+    )
+  );
+  const commitment = ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ["uint256", "uint64", "uint64", "bool", "bytes32", "bytes32", "bytes32"],
+      [requestId, request.claimVersion, request.registryVersion, oracleResponse.verified, resultHash, request.modelVersion, salt]
+    )
   );
   const startedAt = Date.now();
+  await waitFor(coordinator.commitOracleResult(requestId, commitment));
+
+  return { coordinator, request, salt, oracleResponse, startedAt };
+}
+
+async function revealDemoOracle({ coordinator, request, salt, oracleResponse, startedAt }) {
   const receipt = await waitFor(
-    oracleContract.submitOracleResult(
-      requestId,
+    coordinator.revealOracleResult(
+      request.requestId,
       oracleResponse.verified,
-      resultHash,
-      oracleResponse.riskLevel,
-      oracleResponse.remarks
+      oracleResponse.resultHash,
+      request.claimVersion,
+      request.registryVersion,
+      request.modelVersion,
+      salt
     )
   );
 
@@ -458,7 +536,7 @@ async function submitOracleConfirmation({
     oracleType,
     queryData: oracleResponse.queryData,
     responseData: oracleResponse,
-    resultHash,
+    resultHash: oracleResponse.resultHash,
     verified: oracleResponse.verified,
     riskLevel: oracleResponse.riskLevel,
     submittedTxHash: receipt.hash,
@@ -483,8 +561,7 @@ async function runOracleQuorum({
   oracleWallets,
 }) {
   const requestId = await requestOracle(adminContract, claimId);
-
-  await submitOracleConfirmation({
+  const first = await submitOracleConfirmation({
     requestId,
     claimId,
     oracleWallet: oracleWallets[0],
@@ -495,7 +572,7 @@ async function runOracleQuorum({
     provider,
   });
 
-  await submitOracleConfirmation({
+  const second = await submitOracleConfirmation({
     requestId,
     claimId,
     oracleWallet: oracleWallets[1],
@@ -506,71 +583,10 @@ async function runOracleQuorum({
     provider,
   });
 
+  await revealDemoOracle(first);
+  await revealDemoOracle(second);
+
   return requestId;
-}
-
-function formatVoteSummary(rawVotes) {
-  const voters = Array.from(rawVotes.voters || rawVotes[0] || []);
-  const votes = Array.from(rawVotes.votes || rawVotes[1] || []);
-  const reputations = Array.from(rawVotes.reputations || rawVotes[2] || []);
-
-  return calculateWeightedConsensus(voters, votes, reputations);
-}
-
-async function finalizeDemoVoting({ adminContract, claimId, finalizedBy }) {
-  const rawVotes = await adminContract.getClaimVotes(claimId);
-  const voteSummary = formatVoteSummary(rawVotes);
-
-  if (!voteSummary.consensusCode || voteSummary.isTie) {
-    throw new Error(`Claim #${claimId} has no clear demo voting consensus`);
-  }
-
-  const transactionHashes = [];
-
-  for (const voter of voteSummary.voters) {
-    const reputationChange = calculateReputationUpdate(
-      voter.auditorAddress,
-      claimId,
-      voteSummary
-    );
-    const tx = await adminContract.updateAuditorReputation(
-      reputationChange.auditorAddress,
-      reputationChange.newReputation
-    );
-    const receipt = await tx.wait();
-
-    transactionHashes.push({
-      transactionHash: tx.hash,
-      blockNumber: receipt.blockNumber,
-    });
-  }
-
-  await VotingFinalization.findOneAndUpdate(
-    { claimId: claimId.toString() },
-    {
-      claimId: claimId.toString(),
-      consensus: voteSummary.consensus,
-      consensusCode: voteSummary.consensusCode,
-      consensusStrength: voteSummary.consensusStrength,
-      totalVoters: voteSummary.totalVoters,
-      voters: voteSummary.voters.map((voter) => ({
-        auditorAddress: voter.auditorAddress,
-        vote: voter.vote,
-        voteLabel: voter.voteLabel,
-        reputationAtFinalization: voter.reputation,
-        votedWithConsensus: voter.vote === voteSummary.consensusCode,
-      })),
-      reputationTransactionHashes: transactionHashes.map(
-        (entry) => entry.transactionHash
-      ),
-      finalizedBy,
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
-
-  console.log(
-    `Finalized demo voting for claim #${claimId}: ${voteSummary.consensus}`
-  );
 }
 
 async function createClaimScenario({ userContract, userWallet, record, packageId, label }) {
@@ -601,6 +617,7 @@ async function createClaimScenario({ userContract, userWallet, record, packageId
 
 async function main() {
   const rpcUrl = requireEnv("RPC_URL");
+  assertBuiltInDemoKeysAreLocal(rpcUrl);
   const mongodbUri = requireEnv("MONGODB_URI");
   const contractAddress = requireEnv("VITE_CONTRACT_ADDRESS");
   const adminPrivateKey = requireEnv("ADMIN_PRIVATE_KEY");
@@ -726,14 +743,6 @@ async function main() {
       await grantRoleIfMissing(adminContract, auditorRole, auditor2Wallet.address, "AUDITOR_ROLE");
     }
 
-    if (auditorWallet) {
-      await waitFor(adminContract.updateAuditorReputation(auditorWallet.address, 80));
-    }
-
-    if (auditor2Wallet) {
-      await waitFor(adminContract.updateAuditorReputation(auditor2Wallet.address, 55));
-    }
-
     const contractBalance = await provider.getBalance(contractAddress);
 
     if (contractBalance < ethers.parseEther("1")) {
@@ -742,7 +751,18 @@ async function main() {
     }
 
     const merkleRoot = await exportMerkleRoot();
-    await waitFor(adminContract.updateRegistryMerkleRoot(merkleRoot));
+    const coordinator = new ethers.Contract(
+      await adminContract.oracleCoordinator(),
+      OracleCoordinatorArtifact.abi,
+      adminWallet
+    );
+    await waitFor(
+      coordinator.publishRegistrySnapshot(
+        merkleRoot,
+        records.length,
+        ethers.keccak256(ethers.toUtf8Bytes("phase-6-registry-merkle-v1"))
+      )
+    );
     console.log("Registry Merkle root pushed on-chain:", merkleRoot);
 
     const oracleWallets = [oracleWallet, oracle2Wallet];
@@ -775,7 +795,7 @@ async function main() {
     const settledOnlyRecord = takeRecord("settled claim", cleanRecord);
     const approvedRecord = takeRecord("approved claim", cleanRecord);
     const verifiedRecord = takeRecord("oracle-verified claim", cleanRecord);
-    const rejectedRecord = takeRecord("rejected claim", cleanRecord);
+    const rejectedRecord = takeRecord("rejected claim", riskyRecord);
     const duplicateCheckedRecord = takeRecord("duplicate-checked claim", cleanRecord);
     const pendingRecord = takeRecord("oracle-pending claim", cleanRecord);
     const failedRecord = takeRecord(
@@ -804,9 +824,7 @@ async function main() {
       claimId: closedClaimId,
       oracleWallets,
     });
-    await waitFor(adminContract.approveClaim(closedClaimId));
-    await waitFor(adminContract.settleClaim(closedClaimId));
-    await waitFor(adminContract.closeClaim(closedClaimId));
+    await waitFor(userContract.withdrawSettlement(closedClaimId));
 
     console.log("Creating claim #2 settled scenario...");
     const settledClaimId = await createClaimScenario({
@@ -824,8 +842,7 @@ async function main() {
       claimId: settledClaimId,
       oracleWallets,
     });
-    await waitFor(adminContract.approveClaim(settledClaimId));
-    await waitFor(adminContract.settleClaim(settledClaimId));
+    await waitFor(userContract.withdrawSettlement(settledClaimId));
 
     console.log("Creating claim #3 approved scenario...");
     const approvedClaimId = await createClaimScenario({
@@ -843,7 +860,6 @@ async function main() {
       claimId: approvedClaimId,
       oracleWallets,
     });
-    await waitFor(adminContract.approveClaim(approvedClaimId));
 
     console.log("Creating claim #4 oracle-verified scenario...");
     const verifiedClaimId = await createClaimScenario({
@@ -919,11 +935,7 @@ async function main() {
     if (canAutoVote) {
       await waitFor(auditorContract.castVote(duplicateClaim.claimId, 1));
       await waitFor(auditor2Contract.castVote(duplicateClaim.claimId, 2));
-      await finalizeDemoVoting({
-        adminContract,
-        claimId: duplicateClaim.claimId,
-        finalizedBy: adminWallet.address,
-      });
+      console.log(`Claim #${duplicateClaim.claimId} has two of four demo votes and remains open.`);
     } else {
       console.log(
         `Claim #${duplicateClaim.claimId} left open in MANUAL_REVIEW for MetaMask auditor voting.`
@@ -951,12 +963,18 @@ async function main() {
       label: "rejected-claim",
     });
     claimIds.push(rejectedClaimId);
-    await waitFor(
-      adminContract.rejectClaim(
-        rejectedClaimId,
-        normalizeBytes32("", "demo-direct-rejection")
-      )
-    );
+    await runOracleQuorum({
+      adminContract,
+      provider,
+      contractAddress,
+      claimId: rejectedClaimId,
+      oracleWallets,
+    });
+    await waitFor(adminContract.sendToManualReview(rejectedClaimId));
+    if (canAutoVote) {
+      await waitFor(auditorContract.castVote(rejectedClaimId, 2));
+      await waitFor(auditor2Contract.castVote(rejectedClaimId, 2));
+    }
 
     console.log("Creating claim #10 duplicate-checked scenario...");
     const duplicateCheckedClaimId = await createClaimScenario({
@@ -988,19 +1006,6 @@ async function main() {
       label: "appealed-claim",
     });
     claimIds.push(appealedClaimId);
-    await waitFor(
-      adminContract.rejectClaim(
-        appealedClaimId,
-        normalizeBytes32("", "demo-initial-rejection-before-appeal")
-      )
-    );
-    await waitFor(
-      userContract.submitAppeal(
-        appealedClaimId,
-        calculateTextSHA256("demo appeal reason")
-      )
-    );
-    await waitFor(adminContract.reopenClaimAfterAppeal(appealedClaimId));
     await runOracleQuorum({
       adminContract,
       provider,
@@ -1008,6 +1013,17 @@ async function main() {
       claimId: appealedClaimId,
       oracleWallets,
     });
+    await waitFor(adminContract.sendToManualReview(appealedClaimId));
+    if (canAutoVote) {
+      await waitFor(auditorContract.castVote(appealedClaimId, 2));
+      await waitFor(auditor2Contract.castVote(appealedClaimId, 2));
+      await waitFor(
+        userContract.submitAppeal(
+          appealedClaimId,
+          calculateTextSHA256("demo appeal reason")
+        )
+      );
+    }
 
     console.log(
       `Claim #${manualFailedClaimId} left open in MANUAL_REVIEW for MetaMask auditor voting.`

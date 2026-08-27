@@ -35,6 +35,38 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    nonceExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    encryptionPublicKey: {
+      type: String,
+      default: "",
+      select: false,
+    },
+    encryptionSigningPublicKey: {
+      type: String,
+      default: "",
+      select: false,
+    },
+    encryptedEvidenceIdentityBackup: {
+      type: String,
+      default: "",
+      select: false,
+    },
+    encryptionKeyVersion: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    encryptionSchemeVersion: {
+      type: String,
+      default: "",
+    },
+    encryptionKeyRevokedAt: {
+      type: Date,
+      default: null,
+    },
     role: {
       type: String,
       enum: ["USER", "ADMIN", "AUDITOR", "ORACLE"],
