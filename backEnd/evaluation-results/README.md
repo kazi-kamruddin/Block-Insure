@@ -16,3 +16,9 @@ Regenerate the authoritative offline artifacts with:
 cd backEnd
 npm run research:baseline
 ```
+
+Phase 3/4 authoritative artifacts are `phase3-reserve-evaluation.json` and
+`phase4-evidence-evaluation.json`. Regenerate them and their SVG charts with
+`npm run research:phase34`. Reserve results are synthetic/advisory; evidence
+storage timing uses a local content-addressed adapter and excludes public IPFS
+network latency.

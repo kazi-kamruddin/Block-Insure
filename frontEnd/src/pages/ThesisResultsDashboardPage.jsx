@@ -254,6 +254,12 @@ export default function ThesisResultsDashboardPage() {
   const matrix = summary?.confusionMatrix || {};
   const metrics = summary?.metrics || {};
   const triageOperatingPoint = summary?.triageEvaluation?.recommendedOperatingPoint || null;
+  const reserveEvaluation = summary?.reserveEvaluation || null;
+  const evidenceEvaluation = summary?.evidenceEvaluation || null;
+  const combinedReserveStress = reserveEvaluation?.scenarios?.find(
+    (scenario) => scenario.key === "combined_stress"
+  );
+  const largestEvidence = evidenceEvaluation?.documentBenchmarks?.at(-1);
   const mostCommonRiskLevel = oracleStats?.mostCommonRiskLevels?.[0];
   const anyLoading =
     summaryQuery.isLoading ||
@@ -399,6 +405,96 @@ export default function ThesisResultsDashboardPage() {
         {readiness.warnings?.length ? (
           <p className="error-text">{readiness.warnings.slice(0, 3).join(" | ")}</p>
         ) : null}
+      </div>
+
+      <div className="thesis-section card">
+        <div className="thesis-section-head">
+          <h3>Reserve Adequacy Simulation</h3>
+          <span>Advisory—does not change on-chain settlement</span>
+        </div>
+        <p className="muted-text">
+          Compound Poisson–lognormal synthetic losses compare the existing 5%
+          exposure reserve with frequency and severity stress scenarios.
+        </p>
+        <div className="thesis-metric-grid">
+          <div>
+            <span>Simulated Periods</span>
+            <strong>{formatNumber(reserveEvaluation?.methodology?.periods)}</strong>
+          </div>
+          <div>
+            <span>Baseline 5% Shortfall Risk</span>
+            <strong>{formatPercent(reserveEvaluation?.scenarios?.[0]?.currentFivePercentPolicy?.shortfallProbability)}</strong>
+          </div>
+          <div>
+            <span>Combined-Stress 5% Risk</span>
+            <strong>{formatPercent(combinedReserveStress?.currentFivePercentPolicy?.shortfallProbability)}</strong>
+          </div>
+          <div>
+            <span>Combined-Stress Recommended Ratio</span>
+            <strong>{formatPercent(combinedReserveStress?.recommendedCapitalRatio)}</strong>
+          </div>
+        </div>
+        <div className="thesis-table-wrap">
+          <table className="thesis-table">
+            <thead><tr><th>Scenario</th><th>Mean Loss</th><th>99% VaR</th><th>5% Shortfall Risk</th><th>Recommended Ratio</th></tr></thead>
+            <tbody>
+              {(reserveEvaluation?.scenarios || []).map((scenario) => (
+                <tr key={scenario.key}>
+                  <td>{scenario.label}</td>
+                  <td>{scenario.lossDistribution.meanEth.toFixed(2)} synthetic ETH</td>
+                  <td>{scenario.lossDistribution.valueAtRisk99Eth.toFixed(2)}</td>
+                  <td>{formatPercent(scenario.currentFivePercentPolicy.shortfallProbability)}</td>
+                  <td>{formatPercent(scenario.recommendedCapitalRatio)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="thesis-section card">
+        <div className="thesis-section-head">
+          <h3>Confidential Evidence Lifecycle</h3>
+          <span>Local cryptographic benchmark</span>
+        </div>
+        <p className="muted-text">
+          Timings exercise AES-256-GCM, Recrypt proxy transformation and
+          RFC6962-style proofs. Local storage measurements exclude public IPFS latency.
+        </p>
+        <div className="thesis-metric-grid">
+          <div>
+            <span>Adversarial Detection</span>
+            <strong>{evidenceEvaluation ? `${evidenceEvaluation.adversarialTests.detected}/${evidenceEvaluation.adversarialTests.total}` : "-"}</strong>
+          </div>
+          <div>
+            <span>1 MiB Encrypt p95</span>
+            <strong>{largestEvidence ? `${largestEvidence.aesEncrypt.p95Ms.toFixed(2)} ms` : "-"}</strong>
+          </div>
+          <div>
+            <span>1 MiB Decrypt p95</span>
+            <strong>{largestEvidence ? `${largestEvidence.aesDecrypt.p95Ms.toFixed(2)} ms` : "-"}</strong>
+          </div>
+          <div>
+            <span>512-Leaf Proof</span>
+            <strong>{evidenceEvaluation?.proofBenchmarks?.at(-1)?.proofBytes ?? "-"} bytes</strong>
+          </div>
+        </div>
+        <div className="thesis-table-wrap">
+          <table className="thesis-table">
+            <thead><tr><th>Document</th><th>Size</th><th>Expansion</th><th>Encrypt p95</th><th>Decrypt p95</th></tr></thead>
+            <tbody>
+              {(evidenceEvaluation?.documentBenchmarks || []).map((document) => (
+                <tr key={document.key}>
+                  <td>{document.key.replaceAll("_", " ")}</td>
+                  <td>{formatNumber(document.bytes)} bytes</td>
+                  <td>{document.ciphertextExpansionBytes} bytes</td>
+                  <td>{document.aesEncrypt.p95Ms.toFixed(3)} ms</td>
+                  <td>{document.aesDecrypt.p95Ms.toFixed(3)} ms</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="thesis-section card">

@@ -1,0 +1,713 @@
+{
+  "schemaVersion": 1,
+  "methodology": {
+    "type": "aggregate compound Poisson-lognormal Monte Carlo",
+    "frequencySampler": "Poisson with a normal approximation for aggregate lambda above 30",
+    "advisoryOnly": true,
+    "periods": 5000,
+    "policies": 1000,
+    "aggregateExposureEth": 1000,
+    "seed": 410034,
+    "deductibleRate": 0.1,
+    "deductibleCapEth": 0.02,
+    "insurerShare": 0.8,
+    "severityCapEth": 1,
+    "targetShortfallProbability": 0.01,
+    "currentOnChainReserveRatio": 0.05
+  },
+  "scenarios": [
+    {
+      "key": "baseline",
+      "label": "Baseline frequency and severity",
+      "claimFrequencyPerPolicy": 0.12,
+      "medianClaimEth": 0.35,
+      "severitySigma": 0.65,
+      "simulatedPeriods": 5000,
+      "policies": 1000,
+      "lossDistribution": {
+        "meanEth": 37.84239421032452,
+        "valueAtRisk95Eth": 44.48588902185471,
+        "valueAtRisk99Eth": 47.425312250304366,
+        "meanClaims": 120.1304
+      },
+      "currentFivePercentPolicy": {
+        "capitalRatio": 0.05,
+        "capitalEth": 50,
+        "shortfallProbability": 0.0022,
+        "expectedShortfallEth": 0.6075841382331497,
+        "expectedUnfundedFraction": 0.00003532242428118468,
+        "meanLossEth": 37.84239421032452,
+        "meanCapitalUtilization": 0.7568211505044072,
+        "meanExcessCapitalEth": 12.158942474779728,
+        "shortfallProbability95Ci": {
+          "lower": 0.001,
+          "upper": 0.0034
+        }
+      },
+      "recommendedCapitalRatio": 0.05,
+      "targetMet": true,
+      "capitalSweep": [
+        {
+          "capitalRatio": 0.02,
+          "capitalEth": 20,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 17.842394210324347,
+          "expectedUnfundedFraction": 0.4714922134989126,
+          "meanLossEth": 37.84239421032452,
+          "meanCapitalUtilization": 1,
+          "meanExcessCapitalEth": 0,
+          "shortfallProbability95Ci": {
+            "lower": 1,
+            "upper": 1
+          }
+        },
+        {
+          "capitalRatio": 0.05,
+          "capitalEth": 50,
+          "shortfallProbability": 0.0022,
+          "expectedShortfallEth": 0.6075841382331497,
+          "expectedUnfundedFraction": 0.00003532242428118468,
+          "meanLossEth": 37.84239421032452,
+          "meanCapitalUtilization": 0.7568211505044072,
+          "meanExcessCapitalEth": 12.158942474779728,
+          "shortfallProbability95Ci": {
+            "lower": 0.001,
+            "upper": 0.0034
+          }
+        },
+        {
+          "capitalRatio": 0.08,
+          "capitalEth": 80,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 37.84239421032452,
+          "meanCapitalUtilization": 0.47302992762905544,
+          "meanExcessCapitalEth": 42.157605789675515,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.1,
+          "capitalEth": 100,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 37.84239421032452,
+          "meanCapitalUtilization": 0.37842394210324476,
+          "meanExcessCapitalEth": 62.157605789675635,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.15,
+          "capitalEth": 150,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 37.84239421032452,
+          "meanCapitalUtilization": 0.25228262806882956,
+          "meanExcessCapitalEth": 112.15760578967533,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.2,
+          "capitalEth": 200,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 37.84239421032452,
+          "meanCapitalUtilization": 0.18921197105162238,
+          "meanExcessCapitalEth": 162.15760578967516,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.3,
+          "capitalEth": 300,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 37.84239421032452,
+          "meanCapitalUtilization": 0.12614131403441478,
+          "meanExcessCapitalEth": 262.1576057896764,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        }
+      ]
+    },
+    {
+      "key": "high_frequency",
+      "label": "High claim frequency",
+      "claimFrequencyPerPolicy": 0.24,
+      "medianClaimEth": 0.35,
+      "severitySigma": 0.65,
+      "simulatedPeriods": 5000,
+      "policies": 1000,
+      "lossDistribution": {
+        "meanEth": 75.73060305431022,
+        "valueAtRisk95Eth": 85.17918258423353,
+        "valueAtRisk99Eth": 89.20636005979804,
+        "meanClaims": 240.147
+      },
+      "currentFivePercentPolicy": {
+        "capitalRatio": 0.05,
+        "capitalEth": 50,
+        "shortfallProbability": 1,
+        "expectedShortfallEth": 25.7306030543101,
+        "expectedUnfundedFraction": 0.3397649301149417,
+        "meanLossEth": 75.73060305431022,
+        "meanCapitalUtilization": 1,
+        "meanExcessCapitalEth": 0,
+        "shortfallProbability95Ci": {
+          "lower": 1,
+          "upper": 1
+        }
+      },
+      "recommendedCapitalRatio": 0.1,
+      "targetMet": true,
+      "capitalSweep": [
+        {
+          "capitalRatio": 0.02,
+          "capitalEth": 20,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 55.73060305431019,
+          "expectedUnfundedFraction": 0.7359059720459769,
+          "meanLossEth": 75.73060305431022,
+          "meanCapitalUtilization": 1,
+          "meanExcessCapitalEth": 0,
+          "shortfallProbability95Ci": {
+            "lower": 1,
+            "upper": 1
+          }
+        },
+        {
+          "capitalRatio": 0.05,
+          "capitalEth": 50,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 25.7306030543101,
+          "expectedUnfundedFraction": 0.3397649301149417,
+          "meanLossEth": 75.73060305431022,
+          "meanCapitalUtilization": 1,
+          "meanExcessCapitalEth": 0,
+          "shortfallProbability95Ci": {
+            "lower": 1,
+            "upper": 1
+          }
+        },
+        {
+          "capitalRatio": 0.08,
+          "capitalEth": 80,
+          "shortfallProbability": 0.2206,
+          "expectedShortfallEth": 3.4313599097067633,
+          "expectedUnfundedFraction": 0.00999540430885595,
+          "meanLossEth": 75.73060305431022,
+          "meanCapitalUtilization": 0.937170563227862,
+          "meanExcessCapitalEth": 5.026354941771181,
+          "shortfallProbability95Ci": {
+            "lower": 0.209645,
+            "upper": 0.23275500000000002
+          }
+        },
+        {
+          "capitalRatio": 0.1,
+          "capitalEth": 100,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 75.73060305431022,
+          "meanCapitalUtilization": 0.7573060305431006,
+          "meanExcessCapitalEth": 24.2693969456899,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.15,
+          "capitalEth": 150,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 75.73060305431022,
+          "meanCapitalUtilization": 0.5048706870287342,
+          "meanExcessCapitalEth": 74.2693969456898,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.2,
+          "capitalEth": 200,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 75.73060305431022,
+          "meanCapitalUtilization": 0.3786530152715503,
+          "meanExcessCapitalEth": 124.26939694569003,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.3,
+          "capitalEth": 300,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 75.73060305431022,
+          "meanCapitalUtilization": 0.2524353435143671,
+          "meanExcessCapitalEth": 224.2693969456898,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        }
+      ]
+    },
+    {
+      "key": "heavy_tail",
+      "label": "Heavy-tailed severity",
+      "claimFrequencyPerPolicy": 0.12,
+      "medianClaimEth": 0.42,
+      "severitySigma": 1.15,
+      "simulatedPeriods": 5000,
+      "policies": 1000,
+      "lossDistribution": {
+        "meanEth": 47.019140561971376,
+        "valueAtRisk95Eth": 55.63537203500672,
+        "valueAtRisk99Eth": 59.72232981416565,
+        "meanClaims": 120.0572
+      },
+      "currentFivePercentPolicy": {
+        "capitalRatio": 0.05,
+        "capitalEth": 50,
+        "shortfallProbability": 0.2838,
+        "expectedShortfallEth": 3.304738207690544,
+        "expectedUnfundedFraction": 0.019946870404967128,
+        "meanLossEth": 47.019140561971376,
+        "meanCapitalUtilization": 0.9216251171725769,
+        "meanExcessCapitalEth": 3.9187441413710578,
+        "shortfallProbability95Ci": {
+          "lower": 0.2734,
+          "upper": 0.29431
+        }
+      },
+      "recommendedCapitalRatio": 0.08,
+      "targetMet": true,
+      "capitalSweep": [
+        {
+          "capitalRatio": 0.02,
+          "capitalEth": 20,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 27.01914056197155,
+          "expectedUnfundedFraction": 0.5746413107308977,
+          "meanLossEth": 47.019140561971376,
+          "meanCapitalUtilization": 1,
+          "meanExcessCapitalEth": 0,
+          "shortfallProbability95Ci": {
+            "lower": 1,
+            "upper": 1
+          }
+        },
+        {
+          "capitalRatio": 0.05,
+          "capitalEth": 50,
+          "shortfallProbability": 0.2838,
+          "expectedShortfallEth": 3.304738207690544,
+          "expectedUnfundedFraction": 0.019946870404967128,
+          "meanLossEth": 47.019140561971376,
+          "meanCapitalUtilization": 0.9216251171725769,
+          "meanExcessCapitalEth": 3.9187441413710578,
+          "shortfallProbability95Ci": {
+            "lower": 0.2734,
+            "upper": 0.29431
+          }
+        },
+        {
+          "capitalRatio": 0.08,
+          "capitalEth": 80,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 47.019140561971376,
+          "meanCapitalUtilization": 0.5877392570246435,
+          "meanExcessCapitalEth": 32.980859438028524,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.1,
+          "capitalEth": 100,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 47.019140561971376,
+          "meanCapitalUtilization": 0.47019140561971506,
+          "meanExcessCapitalEth": 52.980859438028666,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.15,
+          "capitalEth": 150,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 47.019140561971376,
+          "meanCapitalUtilization": 0.31346093707981026,
+          "meanExcessCapitalEth": 102.98085943802853,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.2,
+          "capitalEth": 200,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 47.019140561971376,
+          "meanCapitalUtilization": 0.23509570280985753,
+          "meanExcessCapitalEth": 152.9808594380285,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.3,
+          "capitalEth": 300,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 47.019140561971376,
+          "meanCapitalUtilization": 0.15673046853990513,
+          "meanExcessCapitalEth": 252.98085943802866,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        }
+      ]
+    },
+    {
+      "key": "combined_stress",
+      "label": "Combined frequency and severity stress",
+      "claimFrequencyPerPolicy": 0.24,
+      "medianClaimEth": 0.42,
+      "severitySigma": 1.15,
+      "simulatedPeriods": 5000,
+      "policies": 1000,
+      "lossDistribution": {
+        "meanEth": 94.05557400454762,
+        "valueAtRisk95Eth": 105.94394403503235,
+        "valueAtRisk99Eth": 110.65501281460995,
+        "meanClaims": 240.2488
+      },
+      "currentFivePercentPolicy": {
+        "capitalRatio": 0.05,
+        "capitalEth": 50,
+        "shortfallProbability": 1,
+        "expectedShortfallEth": 44.055574004547196,
+        "expectedUnfundedFraction": 0.4683993954724799,
+        "meanLossEth": 94.05557400454762,
+        "meanCapitalUtilization": 1,
+        "meanExcessCapitalEth": 0,
+        "shortfallProbability95Ci": {
+          "lower": 1,
+          "upper": 1
+        }
+      },
+      "recommendedCapitalRatio": 0.15,
+      "targetMet": true,
+      "capitalSweep": [
+        {
+          "capitalRatio": 0.02,
+          "capitalEth": 20,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 74.05557400454776,
+          "expectedUnfundedFraction": 0.7873597581889953,
+          "meanLossEth": 94.05557400454762,
+          "meanCapitalUtilization": 1,
+          "meanExcessCapitalEth": 0,
+          "shortfallProbability95Ci": {
+            "lower": 1,
+            "upper": 1
+          }
+        },
+        {
+          "capitalRatio": 0.05,
+          "capitalEth": 50,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 44.055574004547196,
+          "expectedUnfundedFraction": 0.4683993954724799,
+          "meanLossEth": 94.05557400454762,
+          "meanCapitalUtilization": 1,
+          "meanExcessCapitalEth": 0,
+          "shortfallProbability95Ci": {
+            "lower": 1,
+            "upper": 1
+          }
+        },
+        {
+          "capitalRatio": 0.08,
+          "capitalEth": 80,
+          "shortfallProbability": 0.978,
+          "expectedShortfallEth": 14.43849899966694,
+          "expectedUnfundedFraction": 0.15013306942331264,
+          "meanLossEth": 94.05557400454762,
+          "meanCapitalUtilization": 0.9991840247859122,
+          "meanExcessCapitalEth": 0.06527801712701234,
+          "shortfallProbability95Ci": {
+            "lower": 0.9734,
+            "upper": 0.982
+          }
+        },
+        {
+          "capitalRatio": 0.1,
+          "capitalEth": 100,
+          "shortfallProbability": 0.2048,
+          "expectedShortfallEth": 3.972888754804368,
+          "expectedUnfundedFraction": 0.008650711301220642,
+          "meanLossEth": 94.05557400454762,
+          "meanCapitalUtilization": 0.932419263875636,
+          "meanExcessCapitalEth": 6.758073612436633,
+          "shortfallProbability95Ci": {
+            "lower": 0.194845,
+            "upper": 0.21591
+          }
+        },
+        {
+          "capitalRatio": 0.15,
+          "capitalEth": 150,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 94.05557400454762,
+          "meanCapitalUtilization": 0.6270371600303144,
+          "meanExcessCapitalEth": 55.944425995452654,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.2,
+          "capitalEth": 200,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 94.05557400454762,
+          "meanCapitalUtilization": 0.47027787002273697,
+          "meanExcessCapitalEth": 105.9444259954524,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        },
+        {
+          "capitalRatio": 0.3,
+          "capitalEth": 300,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0,
+          "expectedUnfundedFraction": 0,
+          "meanLossEth": 94.05557400454762,
+          "meanCapitalUtilization": 0.3135185800151572,
+          "meanExcessCapitalEth": 205.94442599545226,
+          "shortfallProbability95Ci": {
+            "lower": 0,
+            "upper": 0
+          }
+        }
+      ]
+    }
+  ],
+  "chartData": [
+    {
+      "key": "baseline",
+      "points": [
+        {
+          "capitalRatio": 0.02,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 17.842394210324347
+        },
+        {
+          "capitalRatio": 0.05,
+          "shortfallProbability": 0.0022,
+          "expectedShortfallEth": 0.6075841382331497
+        },
+        {
+          "capitalRatio": 0.08,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.1,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.15,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.2,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.3,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        }
+      ]
+    },
+    {
+      "key": "high_frequency",
+      "points": [
+        {
+          "capitalRatio": 0.02,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 55.73060305431019
+        },
+        {
+          "capitalRatio": 0.05,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 25.7306030543101
+        },
+        {
+          "capitalRatio": 0.08,
+          "shortfallProbability": 0.2206,
+          "expectedShortfallEth": 3.4313599097067633
+        },
+        {
+          "capitalRatio": 0.1,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.15,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.2,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.3,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        }
+      ]
+    },
+    {
+      "key": "heavy_tail",
+      "points": [
+        {
+          "capitalRatio": 0.02,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 27.01914056197155
+        },
+        {
+          "capitalRatio": 0.05,
+          "shortfallProbability": 0.2838,
+          "expectedShortfallEth": 3.304738207690544
+        },
+        {
+          "capitalRatio": 0.08,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.1,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.15,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.2,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.3,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        }
+      ]
+    },
+    {
+      "key": "combined_stress",
+      "points": [
+        {
+          "capitalRatio": 0.02,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 74.05557400454776
+        },
+        {
+          "capitalRatio": 0.05,
+          "shortfallProbability": 1,
+          "expectedShortfallEth": 44.055574004547196
+        },
+        {
+          "capitalRatio": 0.08,
+          "shortfallProbability": 0.978,
+          "expectedShortfallEth": 14.43849899966694
+        },
+        {
+          "capitalRatio": 0.1,
+          "shortfallProbability": 0.2048,
+          "expectedShortfallEth": 3.972888754804368
+        },
+        {
+          "capitalRatio": 0.15,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.2,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        },
+        {
+          "capitalRatio": 0.3,
+          "shortfallProbability": 0,
+          "expectedShortfallEth": 0
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Synthetic frequency and severity assumptions are not fitted to insurer loss data.",
+    "The result is an advisory reserve-adequacy experiment, not statutory solvency certification.",
+    "Dependence, inflation, reinsurance, expenses, premium income, and claim development are not modelled."
+  ],
+  "generatedAt": "2026-08-27T14:29:51.820Z",
+  "reproducibilityHash": "06ebd48e7d8f4a2c7e736bb0fa882ff39e98e710fc6f55ea1a132364b7a63038"
+}

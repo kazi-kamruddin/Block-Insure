@@ -398,6 +398,8 @@ Mongo models include `User`, `RevokedToken`, `File`, `EvidenceEvent`, `EvidenceT
 - User/admin/auditor React workspaces and a thesis-results dashboard.
 - Reproducible schema-v4 model/dataset/triage/evaluation scripts, component-bootstrap intervals, generated charts, and a machine-readable research manifest.
 - An executable 10-property protocol-invariant catalogue, cross-contract generated state-machine tests, and an isolated eight-mutant functional mutation campaign are implemented. This is empirical assurance, not formal verification.
+- An off-chain advisory reserve experiment performs 5,000-period compound Poisson–lognormal stress simulation with bootstrap shortfall intervals and capital-ratio frontiers; it does not alter `PolicyEconomics`.
+- A 30-repetition evidence benchmark measures AES-GCM, real Recrypt PRE, local content-addressed storage overhead, key rotation/revocation checks, and RFC6962 proofs across three synthetic document sizes, with eight adversarial manipulation checks. It does not measure public IPFS/network latency.
 - The latest focused checks pass 43 backend unit tests and four stateful Solidity tests; full-suite counts should be taken from the most recent `npm run verify:all` output rather than this context file. Six Playwright E2E tests still require a prepared live stack and are outside `verify:all`.
 
 ### 7.2 Partial or experimental
@@ -415,7 +417,7 @@ Mongo models include `User`, `RevokedToken`, `File`, `EvidenceEvent`, `EvidenceT
 
 - No production/testnet deployment evidence, container/orchestrator configuration, CI workflow, public endpoints, monitoring backend, key manager, or infrastructure-as-code.
 - No real insurer/provider integration, payment gateway/stablecoin/fiat accounting, KYC credential verification, or decentralized identity credential flow.
-- No actuarial pricing/reserving model, reinsurance, capital optimization, or regulatory-solvency analysis.
+- A seeded advisory compound Poisson–lognormal reserve simulator now compares the fixed 5% exposure rule across baseline, high-frequency, heavy-tail, and combined stress scenarios. It is not fitted to insurer data and is not pricing, reinsurance, capital optimization, or regulatory-solvency analysis.
 - No real-world fraud dataset, external validation, fairness analysis, human-reader study, or model-monitoring/drift response.
 - No automated semantic document verification or real oracle-source provenance.
 - No independent security audit or formal verification. Stateful and mutation assurance are established in the Hardhat toolchain; Slither, Forge/Echidna, and model checking remain optional external tools.
@@ -540,8 +542,8 @@ The rankings favor additions that connect directly to current gaps, can be evalu
 | RQ1: Does calibrated, capacity-aware triage improve review decisions over fixed thresholds? | H1: At the same auditor budget, calibrated cost-aware ranking increases recall@B and lowers expected decision cost versus the current `0.5` threshold/rule baseline. | Existing synthetic pipeline can measure a first result; credible external claims require a new dataset. |
 | RQ2: How robust is exact commit-reveal under correlated and malicious oracle faults? | H2: Exact quorum reduces single-worker false settlement but loses availability as error correlation rises; conservative manual escalation bounds unsafe approvals better than first-response or simple majority. | Requires new simulator/fault injection; current coordinator supplies the treatment implementation. |
 | RQ3: Do stateful invariants reveal faults missed by unit tests? | H3: State-sequence fuzzing plus mutation testing detects a significantly larger fraction of seeded settlement/replay/access faults than unit tests alone. | Contracts/tests exist; mutation/fuzz harness must be expanded. |
-| RQ4: What privacy/performance cost does the evidence lifecycle add? | H4: AES-GCM+PRE+Merkle anchoring detects substitution and enables delegated access with acceptable latency for typical document sizes, but revocation and availability remain operational limits. | Core flow/tests exist; benchmark corpus and runtime measurements needed. |
-| RQ5: Does a stochastic reserve rule reduce underfunded approved claims? | H5: A frequency-severity reserve floor lowers simulated insolvency probability versus fixed-ratio reserve at a measurable capital-utilization cost. | Requires new model/data/simulation and preferably a separate reserve module. |
+| RQ4: What privacy/performance cost does the evidence lifecycle add? | H4: AES-GCM+PRE+Merkle anchoring detects substitution and enables delegated access with acceptable latency for typical document sizes, but revocation and availability remain operational limits. | A local 30-repetition synthetic benchmark now measures cryptographic/storage overhead and eight attacks; real IPFS/network and device validation remain missing. |
+| RQ5: Does a stochastic reserve rule reduce underfunded approved claims? | H5: A frequency-severity reserve floor lowers simulated insolvency probability versus fixed-ratio reserve at a measurable capital-utilization cost. | A seeded advisory Monte Carlo study now provides an initial synthetic comparison; external loss data and regulatory validation remain missing. |
 
 ### 9.2 Methodology options
 

@@ -63,6 +63,8 @@ const run = ({ writeOutput = true } = {}) => {
   const datasetDirectory = path.join(BACKEND_ROOT, "datasets", "phase5");
   const datasetManifestPath = path.join(datasetDirectory, "manifest.json");
   const evaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "phase5-evaluation.json");
+  const reserveEvaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "phase3-reserve-evaluation.json");
+  const evidenceEvaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "phase4-evidence-evaluation.json");
   const mutationManifestPath = path.join(CONTRACTS_ROOT, "mutations", "manifest.json");
   const mutationResultsPath = path.join(CONTRACTS_ROOT, "mutation-results.json");
   const invariantCataloguePath = path.join(CONTRACTS_ROOT, "test", "invariants", "protocol-invariants.json");
@@ -70,6 +72,8 @@ const run = ({ writeOutput = true } = {}) => {
   const triagePolicy = readJson(triagePath);
   const datasetManifest = readJson(datasetManifestPath);
   const evaluation = readJson(evaluationPath);
+  const reserveEvaluation = readJson(reserveEvaluationPath);
+  const evidenceEvaluation = readJson(evidenceEvaluationPath);
   const modelIntegrity = verifyModelArtifact(model);
   const policyIntegrity = verifyTriagePolicy(triagePolicy);
   const datasetIntegrity = verifyDatasets(datasetDirectory, datasetManifest);
@@ -78,6 +82,9 @@ const run = ({ writeOutput = true } = {}) => {
   if (!datasetIntegrity.valid) throw new Error("One or more Phase 5 dataset hashes do not match the manifest");
   if (evaluation.schemaVersion !== 4 || !evaluation.reproducibilityHash) {
     throw new Error("Run the schema-v4 Phase 5 evaluation before generating the research manifest");
+  }
+  if (!reserveEvaluation.reproducibilityHash || !evidenceEvaluation.reproducibilityHash) {
+    throw new Error("Run the Phase 3 and Phase 4 evaluations before generating the research manifest");
   }
 
   const packageFiles = {
@@ -144,6 +151,20 @@ const run = ({ writeOutput = true } = {}) => {
         schemaVersion: evaluation.schemaVersion,
         reproducibilityHash: evaluation.reproducibilityHash,
       },
+      reserveEvaluation: {
+        path: "backEnd/evaluation-results/phase3-reserve-evaluation.json",
+        schemaVersion: reserveEvaluation.schemaVersion,
+        reproducibilityHash: reserveEvaluation.reproducibilityHash,
+        executionFileSha256: sha256File(reserveEvaluationPath),
+        advisoryOnly: reserveEvaluation.methodology.advisoryOnly,
+      },
+      evidenceEvaluation: {
+        path: "backEnd/evaluation-results/phase4-evidence-evaluation.json",
+        schemaVersion: evidenceEvaluation.schemaVersion,
+        reproducibilityHash: evidenceEvaluation.reproducibilityHash,
+        executionFileSha256: sha256File(evidenceEvaluationPath),
+        adversarialDetection: evidenceEvaluation.adversarialTests,
+      },
       protocolAssurance: {
         invariantCatalogue: {
           path: "contracts/test/invariants/protocol-invariants.json",
@@ -156,7 +177,7 @@ const run = ({ writeOutput = true } = {}) => {
         mutationCampaign: fs.existsSync(mutationResultsPath)
           ? {
               path: "contracts/mutation-results.json",
-              fileSha256: sha256File(mutationResultsPath),
+              executionFileSha256: sha256File(mutationResultsPath),
               summary: readJson(mutationResultsPath).summary,
             }
           : { path: "contracts/mutation-results.json", available: false },
@@ -169,12 +190,18 @@ const run = ({ writeOutput = true } = {}) => {
       triageCapacityRates: [0.05, 0.1, 0.2, 0.3, 0.5],
       primaryTriageScenario: "fraud_averse",
       primaryNominalReviewRate: 0.2,
+      reserveSimulationPeriods: reserveEvaluation.methodology.periods,
+      reserveTargetShortfallProbability: reserveEvaluation.methodology.targetShortfallProbability,
+      evidenceBenchmarkRepetitions: evidenceEvaluation.methodology.repetitions,
     },
     commands: {
       reproduceResearch: "npm --prefix backEnd run research:baseline",
       fullVerification: "npm run verify:all",
       contractStateful: "npm --prefix contracts run test:stateful",
       contractMutationCampaign: "npm --prefix contracts run test:mutations",
+      reserveAdequacy: "npm --prefix backEnd run evaluate:reserve",
+      evidenceLifecycle: "npm --prefix backEnd run evaluate:evidence",
+      reproducePhasesThreeAndFour: "npm --prefix backEnd run research:phase34",
     },
   };
   manifest.reproducibilityHash = calculateReproducibilityHash(manifest);

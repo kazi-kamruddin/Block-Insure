@@ -9,7 +9,7 @@
 **Audience:** thesis supervisor, examiner, implementer, reviewer, and future maintainer  
 **Authority rule:** current source code, deployment scripts, tests, and frozen artifacts override older prose
 
-> **Phase 0-2 implementation update (2026-08-27):** the authoritative research results are now the schema-v4 artifact in `backEnd/evaluation-results/phase5-evaluation.json`. It supersedes older fixed-threshold metrics or recommendation examples in this long-form background reference.
+> **Phase 0-4 implementation update (2026-08-27):** authoritative research results now include the schema-v4 fraud artifact, advisory reserve simulation, evidence-lifecycle benchmark, invariant catalogue, and mutation report under `backEnd/evaluation-results` and `contracts/mutation-results.json`. These supersede older fixed-threshold or unevaluated reserve/evidence statements in this long-form background reference.
 
 ---
 

@@ -7,6 +7,7 @@ const VOLATILE_KEYS = new Set([
   "totalInferenceTimeMs",
   "meanInferenceTimeMs",
   "buildAndProveMs",
+  "executionFileSha256",
 ]);
 
 const withoutVolatileMeasurements = (value) => {

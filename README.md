@@ -155,6 +155,7 @@ npm run analyze:slither
 cd backEnd
 npm test
 npm run research:baseline
+npm run research:phase34
 ```
 
 ```powershell
@@ -201,11 +202,25 @@ claim without an authoritative integrity failure.
 The admin **Thesis Results** dashboard reads generated artifacts from
 `backEnd/evaluation-results`.
 
+The advisory reserve and confidential-evidence studies can be regenerated
+together without a running blockchain or MongoDB:
+
+```powershell
+npm run research:phase34
+```
+
+This produces seeded frequency–severity reserve stress results, real
+AES-GCM/Recrypt/Merkle lifecycle measurements, adversarial evidence checks,
+four SVG figures, and an updated research manifest. Run `npm run research:all`
+from the repository root to reproduce every Phase 0–4 research artifact and
+assurance campaign.
+
 ## Documentation
 
 - [Current protocol security verification](docs/security-verification.md)
 - [Current protocol migration manifest](docs/protocol-v2-migration.json)
 - [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
+- [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
 - Historical research notes retained for provenance:
   [Section 1](docs/section-1-system-design.md),
   [Section 2](docs/section-2-oracle-security-fraud-model.md), and

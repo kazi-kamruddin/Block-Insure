@@ -1,0 +1,353 @@
+{
+  "schemaVersion": 1,
+  "methodology": {
+    "repetitions": 30,
+    "warmup": "native modules initialized by the unit suite/runtime before measurement where applicable",
+    "encryption": "AES-256-GCM with claim/version metadata as AAD",
+    "delegatedAccess": "@ironcorelabs/recrypt-node-binding Api256 proxy re-encryption",
+    "provenance": "RFC6962-style SHA-256 Merkle inclusion proofs",
+    "contentStorage": "in-process content-addressed adapter; excludes public IPFS/network latency"
+  },
+  "documentBenchmarks": [
+    {
+      "key": "small_invoice_pdf",
+      "mediaType": "application/pdf",
+      "bytes": 16384,
+      "ciphertextBytes": 16412,
+      "ciphertextExpansionBytes": 28,
+      "ciphertextExpansionRate": 0.001708984375,
+      "aesEncrypt": {
+        "repetitions": 30,
+        "meanMs": 0.050929999999993925,
+        "p50Ms": 0.048499999999989996,
+        "p95Ms": 0.07720000000000482,
+        "minimumMs": 0.028700000000014825,
+        "maximumMs": 0.10229999999995698
+      },
+      "aesDecrypt": {
+        "repetitions": 30,
+        "meanMs": 0.05374333333333349,
+        "p50Ms": 0.050199999999961165,
+        "p95Ms": 0.08500000000003638,
+        "minimumMs": 0.02580000000000382,
+        "maximumMs": 0.10660000000001446
+      },
+      "localContentPut": {
+        "repetitions": 30,
+        "meanMs": 0.02961999999999989,
+        "p50Ms": 0.028300000000001546,
+        "p95Ms": 0.03859999999997399,
+        "minimumMs": 0.019200000000012096,
+        "maximumMs": 0.07729999999997972
+      },
+      "localContentGet": {
+        "repetitions": 30,
+        "meanMs": 0.012703333333333452,
+        "p50Ms": 0.01259999999996353,
+        "p95Ms": 0.02010000000001355,
+        "minimumMs": 0.003199999999992542,
+        "maximumMs": 0.023000000000024556
+      }
+    },
+    {
+      "key": "multipage_pdf",
+      "mediaType": "application/pdf",
+      "bytes": 262144,
+      "ciphertextBytes": 262172,
+      "ciphertextExpansionBytes": 28,
+      "ciphertextExpansionRate": 0.0001068115234375,
+      "aesEncrypt": {
+        "repetitions": 30,
+        "meanMs": 0.41274333333333857,
+        "p50Ms": 0.37639999999998963,
+        "p95Ms": 0.744700000000023,
+        "minimumMs": 0.2419999999999618,
+        "maximumMs": 0.8756000000000199
+      },
+      "aesDecrypt": {
+        "repetitions": 30,
+        "meanMs": 0.4087766666666653,
+        "p50Ms": 0.34890000000001464,
+        "p95Ms": 0.54849999999999,
+        "minimumMs": 0.28209999999995716,
+        "maximumMs": 1.43059999999997
+      },
+      "localContentPut": {
+        "repetitions": 30,
+        "meanMs": 0.284983333333336,
+        "p50Ms": 0.2400000000000091,
+        "p95Ms": 0.5536999999999921,
+        "minimumMs": 0.20710000000002537,
+        "maximumMs": 0.7273000000000138
+      },
+      "localContentGet": {
+        "repetitions": 30,
+        "meanMs": 0.14212333333333807,
+        "p50Ms": 0.10439999999999827,
+        "p95Ms": 0.36709999999999354,
+        "minimumMs": 0.06839999999999691,
+        "maximumMs": 0.7273000000000138
+      }
+    },
+    {
+      "key": "scanned_document",
+      "mediaType": "image/png",
+      "bytes": 1048576,
+      "ciphertextBytes": 1048604,
+      "ciphertextExpansionBytes": 28,
+      "ciphertextExpansionRate": 0.000026702880859375,
+      "aesEncrypt": {
+        "repetitions": 30,
+        "meanMs": 1.2423199999999952,
+        "p50Ms": 1.0562999999999647,
+        "p95Ms": 2.237700000000018,
+        "minimumMs": 0.8397999999999683,
+        "maximumMs": 2.9886999999999944
+      },
+      "aesDecrypt": {
+        "repetitions": 30,
+        "meanMs": 1.2473833333333346,
+        "p50Ms": 1.145399999999995,
+        "p95Ms": 2.0206000000000586,
+        "minimumMs": 0.804300000000012,
+        "maximumMs": 3.024099999999976
+      },
+      "localContentPut": {
+        "repetitions": 30,
+        "meanMs": 1.573806666666663,
+        "p50Ms": 0.7762000000000171,
+        "p95Ms": 1.1381999999999834,
+        "minimumMs": 0.7282000000000153,
+        "maximumMs": 22.918100000000095
+      },
+      "localContentGet": {
+        "repetitions": 30,
+        "meanMs": 0.38821000000000744,
+        "p50Ms": 0.28750000000002274,
+        "p95Ms": 0.8849999999999909,
+        "minimumMs": 0.21850000000006276,
+        "maximumMs": 0.9072999999999638
+      }
+    }
+  ],
+  "preBenchmarks": [
+    {
+      "recipientCount": 1,
+      "capsuleBytes": 932,
+      "transformations": {
+        "repetitions": 30,
+        "meanMs": 14.635713333333326,
+        "p50Ms": 14.583399999999983,
+        "p95Ms": 14.949699999999893,
+        "minimumMs": 14.328999999999724,
+        "maximumMs": 15.742799999999988
+      },
+      "recipientDecryptions": {
+        "repetitions": 30,
+        "meanMs": 18.491353333333286,
+        "p50Ms": 18.09680000000003,
+        "p95Ms": 23.85609999999997,
+        "minimumMs": 17.88989999999967,
+        "maximumMs": 23.960000000000036
+      }
+    },
+    {
+      "recipientCount": 2,
+      "capsuleBytes": 932,
+      "transformations": {
+        "repetitions": 60,
+        "meanMs": 14.59643166666662,
+        "p50Ms": 14.527100000000246,
+        "p95Ms": 15.032700000000204,
+        "minimumMs": 14.281500000000051,
+        "maximumMs": 15.625400000000354
+      },
+      "recipientDecryptions": {
+        "repetitions": 60,
+        "meanMs": 18.145111666666626,
+        "p50Ms": 18.07589999999982,
+        "p95Ms": 18.552299999999832,
+        "minimumMs": 17.879100000000108,
+        "maximumMs": 18.580599999999777
+      }
+    },
+    {
+      "recipientCount": 4,
+      "capsuleBytes": 932,
+      "transformations": {
+        "repetitions": 120,
+        "meanMs": 14.533521666666662,
+        "p50Ms": 14.493399999999383,
+        "p95Ms": 14.842200000000048,
+        "minimumMs": 14.306099999999788,
+        "maximumMs": 15.39680000000044
+      },
+      "recipientDecryptions": {
+        "repetitions": 120,
+        "meanMs": 18.07015916666668,
+        "p50Ms": 18.03819999999905,
+        "p95Ms": 18.35820000000058,
+        "minimumMs": 17.880999999999403,
+        "maximumMs": 19.047999999999774
+      }
+    }
+  ],
+  "identityLifecycle": {
+    "keyRotation": {
+      "repetitions": 30,
+      "meanMs": 0.614953333333445,
+      "p50Ms": 0.6128000000007887,
+      "p95Ms": 0.6230999999988853,
+      "minimumMs": 0.6090000000003783,
+      "maximumMs": 0.6261000000013155
+    },
+    "revocationAuthorizationCheck": {
+      "repetitions": 30,
+      "meanMs": 0.0009699999999308299,
+      "p50Ms": 0.0004000000008090865,
+      "p95Ms": 0.003800000000410364,
+      "minimumMs": 0.00019999999858555384,
+      "maximumMs": 0.004100000000107684
+    },
+    "staleGrantAuthorizationCheck": {
+      "repetitions": 30,
+      "meanMs": 0.0007300000001123408,
+      "p50Ms": 0.00029999999969732016,
+      "p95Ms": 0.00120000000060827,
+      "minimumMs": 0.00010000000111176632,
+      "maximumMs": 0.006199999999807915
+    }
+  },
+  "proofBenchmarks": [
+    {
+      "treeSize": 32,
+      "proofNodes": 5,
+      "proofBytes": 160,
+      "buildAndProve": {
+        "repetitions": 30,
+        "meanMs": 0.15474000000012894,
+        "p50Ms": 0.13959999999860884,
+        "p95Ms": 0.24910000000090804,
+        "minimumMs": 0.11599999999998545,
+        "maximumMs": 0.269800000000032
+      },
+      "verify": {
+        "repetitions": 30,
+        "meanMs": 0.01732000000010885,
+        "p50Ms": 0.014999999999417923,
+        "p95Ms": 0.036099999999350985,
+        "minimumMs": 0.010900000001129229,
+        "maximumMs": 0.03739999999925203
+      }
+    },
+    {
+      "treeSize": 128,
+      "proofNodes": 7,
+      "proofBytes": 224,
+      "buildAndProve": {
+        "repetitions": 30,
+        "meanMs": 0.5798166666666172,
+        "p50Ms": 0.5402999999987514,
+        "p95Ms": 0.6533999999992375,
+        "minimumMs": 0.4742999999998574,
+        "maximumMs": 1.5726999999988038
+      },
+      "verify": {
+        "repetitions": 30,
+        "meanMs": 0.01851666666661913,
+        "p50Ms": 0.016099999998914427,
+        "p95Ms": 0.03739999999925203,
+        "minimumMs": 0.01510000000052969,
+        "maximumMs": 0.05760000000009313
+      }
+    },
+    {
+      "treeSize": 512,
+      "proofNodes": 9,
+      "proofBytes": 288,
+      "buildAndProve": {
+        "repetitions": 30,
+        "meanMs": 2.55591666666672,
+        "p50Ms": 2.011800000000221,
+        "p95Ms": 8.201699999999619,
+        "minimumMs": 1.703300000001036,
+        "maximumMs": 8.575399999999718
+      },
+      "verify": {
+        "repetitions": 30,
+        "meanMs": 0.0264233333333929,
+        "p50Ms": 0.020399999999426655,
+        "p95Ms": 0.06939999999849533,
+        "minimumMs": 0.018000000000029104,
+        "maximumMs": 0.07419999999910942
+      }
+    }
+  ],
+  "adversarialTests": {
+    "cases": [
+      {
+        "key": "ciphertext_bit_flip",
+        "threat": "Ciphertext modification",
+        "control": "AES-256-GCM authentication tag",
+        "detected": true
+      },
+      {
+        "key": "wrong_aad",
+        "threat": "Evidence moved to another claim version",
+        "control": "Authenticated associated data",
+        "detected": true
+      },
+      {
+        "key": "replaced_receipt",
+        "threat": "Stored bytes replaced",
+        "control": "Encrypted SHA-256 receipt",
+        "detected": true
+      },
+      {
+        "key": "replaced_cid",
+        "threat": "CID substituted",
+        "control": "Content-addressed retrieval",
+        "detected": true
+      },
+      {
+        "key": "gateway_unavailable",
+        "threat": "Temporary content gateway outage",
+        "control": "Conservative retrieval failure",
+        "detected": true
+      },
+      {
+        "key": "corrupted_proof",
+        "threat": "Evidence history proof modified",
+        "control": "RFC6962 inclusion verification",
+        "detected": true
+      },
+      {
+        "key": "revoked_grant",
+        "threat": "Access requested after revocation",
+        "control": "Grant revocation check",
+        "detected": true
+      },
+      {
+        "key": "stale_key_version",
+        "threat": "Grant replayed after key rotation",
+        "control": "Versioned encryption identity",
+        "detected": true
+      }
+    ],
+    "detected": 8,
+    "total": 8,
+    "detectionRate": 1
+  },
+  "authorityBoundary": {
+    "confidentiality": "Encrypted evidence bytes remain off-chain; only commitments and tree heads are authoritative on-chain.",
+    "revocation": "Revocation prevents future transformed-key service but cannot erase plaintext already recovered by a recipient."
+  },
+  "limitations": [
+    "Local content-store timings are implementation overhead, not Pinata or public IPFS latency.",
+    "Synthetic documents do not contain clinical PII and do not establish regulatory compliance.",
+    "Browser, mobile, HSM/KMS, network, and multi-region performance require separate deployment measurements.",
+    "Ciphertext size and access metadata remain observable even when document content is confidential."
+  ],
+  "generatedAt": "2026-08-27T14:30:03.993Z",
+  "reproducibilityHash": "b2ca6dec0f9201e8d127d757e531ea7cdb0bbef5bcb537426932d8fba99eabc9"
+}

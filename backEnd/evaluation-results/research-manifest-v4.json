@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-08-27T14:11:02.478Z",
+  "generatedAt": "2026-08-27T14:30:05.529Z",
   "source": {
-    "gitCommit": "6d332eb5e0be472182d3e8815e7862cae1b68262",
+    "gitCommit": "d02f00ccdf972cafb3b4805c60a3f39e45c2c6a1",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -19,12 +19,12 @@
     "root": {
       "name": "block-insure-local-workflow",
       "version": null,
-      "packageJsonSha256": "564e0b75cf755b522297f19f058532fa16feb4f29b81d6f0d653dabd1098f950"
+      "packageJsonSha256": "ffd936fdb1e9917b65653ec6663947894da907f993e09f04a94c0bf0e8a89ca5"
     },
     "backend": {
       "name": "backend",
       "version": "1.0.0",
-      "packageJsonSha256": "6a7f3b97aa379ce6566fc41deaedea43d95cb3df42897df7714dd2aa2eba04a8"
+      "packageJsonSha256": "8279e87ba532a7140ae5bc9f57f34068a2d68be67fedfc4066db96f2de5cc210"
     },
     "contracts": {
       "name": "contracts",
@@ -134,6 +134,74 @@
       "schemaVersion": 4,
       "reproducibilityHash": "fec8c5263b1562b46f596965d276a86c6419f30738822c4bf3fa2d70d453004b"
     },
+    "reserveEvaluation": {
+      "path": "backEnd/evaluation-results/phase3-reserve-evaluation.json",
+      "schemaVersion": 1,
+      "reproducibilityHash": "06ebd48e7d8f4a2c7e736bb0fa882ff39e98e710fc6f55ea1a132364b7a63038",
+      "executionFileSha256": "b875d3a6e3df52df0fc37ac43e27cd96863d70aea0f96515114b8f090cbab32f",
+      "advisoryOnly": true
+    },
+    "evidenceEvaluation": {
+      "path": "backEnd/evaluation-results/phase4-evidence-evaluation.json",
+      "schemaVersion": 1,
+      "reproducibilityHash": "b2ca6dec0f9201e8d127d757e531ea7cdb0bbef5bcb537426932d8fba99eabc9",
+      "executionFileSha256": "97cb66dd0bbc7c4d680072477bfc38659c9b8978c00d1ecd7d5a1e34c05b6c62",
+      "adversarialDetection": {
+        "cases": [
+          {
+            "key": "ciphertext_bit_flip",
+            "threat": "Ciphertext modification",
+            "control": "AES-256-GCM authentication tag",
+            "detected": true
+          },
+          {
+            "key": "wrong_aad",
+            "threat": "Evidence moved to another claim version",
+            "control": "Authenticated associated data",
+            "detected": true
+          },
+          {
+            "key": "replaced_receipt",
+            "threat": "Stored bytes replaced",
+            "control": "Encrypted SHA-256 receipt",
+            "detected": true
+          },
+          {
+            "key": "replaced_cid",
+            "threat": "CID substituted",
+            "control": "Content-addressed retrieval",
+            "detected": true
+          },
+          {
+            "key": "gateway_unavailable",
+            "threat": "Temporary content gateway outage",
+            "control": "Conservative retrieval failure",
+            "detected": true
+          },
+          {
+            "key": "corrupted_proof",
+            "threat": "Evidence history proof modified",
+            "control": "RFC6962 inclusion verification",
+            "detected": true
+          },
+          {
+            "key": "revoked_grant",
+            "threat": "Access requested after revocation",
+            "control": "Grant revocation check",
+            "detected": true
+          },
+          {
+            "key": "stale_key_version",
+            "threat": "Grant replayed after key rotation",
+            "control": "Versioned encryption identity",
+            "detected": true
+          }
+        ],
+        "detected": 8,
+        "total": 8,
+        "detectionRate": 1
+      }
+    },
     "protocolAssurance": {
       "invariantCatalogue": {
         "path": "contracts/test/invariants/protocol-invariants.json",
@@ -145,7 +213,7 @@
       },
       "mutationCampaign": {
         "path": "contracts/mutation-results.json",
-        "fileSha256": "0ba041cec9443a516c0fa0eae8f9c7b7d813a47568bdb459d4c1695b8f03b101",
+        "executionFileSha256": "0ba041cec9443a516c0fa0eae8f9c7b7d813a47568bdb459d4c1695b8f03b101",
         "summary": {
           "requested": 8,
           "valid": 8,
@@ -175,13 +243,19 @@
       0.5
     ],
     "primaryTriageScenario": "fraud_averse",
-    "primaryNominalReviewRate": 0.2
+    "primaryNominalReviewRate": 0.2,
+    "reserveSimulationPeriods": 5000,
+    "reserveTargetShortfallProbability": 0.01,
+    "evidenceBenchmarkRepetitions": 30
   },
   "commands": {
     "reproduceResearch": "npm --prefix backEnd run research:baseline",
     "fullVerification": "npm run verify:all",
     "contractStateful": "npm --prefix contracts run test:stateful",
-    "contractMutationCampaign": "npm --prefix contracts run test:mutations"
+    "contractMutationCampaign": "npm --prefix contracts run test:mutations",
+    "reserveAdequacy": "npm --prefix backEnd run evaluate:reserve",
+    "evidenceLifecycle": "npm --prefix backEnd run evaluate:evidence",
+    "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "49c07752d86ee5eb98e5dcb6b570a0f5166e60ac400dcf197cffc2ebc1dcf8c1"
+  "reproducibilityHash": "b845caa0fa23e017a778ec5eec55552fdad5ccb91889e4168d6bb8582198cf39"
 }
