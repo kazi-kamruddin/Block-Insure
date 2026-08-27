@@ -9,6 +9,8 @@
 **Audience:** thesis supervisor, examiner, implementer, reviewer, and future maintainer  
 **Authority rule:** current source code, deployment scripts, tests, and frozen artifacts override older prose
 
+> **Phase 0-2 implementation update (2026-08-27):** the authoritative research results are now the schema-v4 artifact in `backEnd/evaluation-results/phase5-evaluation.json`. It supersedes older fixed-threshold metrics or recommendation examples in this long-form background reference.
+
 ---
 
 ## 0. How to read this reference
@@ -1902,7 +1904,7 @@ Source areas: [`backEnd/services/featureEngineeringService.js`](../backEnd/servi
 
 The current model identity includes:
 
-- Model version `bernoulli-fraud-v3.0.0`.
+- Model version `bernoulli-fraud-v3.1.0` (current frozen artifact; older narrative sections may describe the v3.0 routing policy).
 - Feature schema `fraud-features-v3`.
 - Source Git commit.
 - Training-data hash.
@@ -2035,11 +2037,9 @@ They do not change contract authority.
 The current recommendation is conceptually:
 
 ```text
-if blocking comparison failure:
+if authoritative registry-integrity failure:
     REJECT_ORACLE_VERIFICATION
-else if not fuzzyOnly and probability >= 0.85:
-    REJECT_ORACLE_VERIFICATION
-else if fuzzyOnly or probability >= 0.50:
+else if fuzzyOnly or probability >= verified capacity-aware policy threshold:
     MANUAL_REVIEW_RECOMMENDED
 else:
     AUTO_VERIFY_RECOMMENDED
@@ -2109,33 +2109,34 @@ The current phase-5 artifact reports:
 
 | Metric | Value |
 |---|---:|
-| Accuracy | 0.9113333 |
-| Precision | 0.4480933 |
-| Recall | 0.2176933 |
-| F1 | 0.2869467 |
-| ROC AUC | 0.8874595 |
-| PR AUC | 0.5774285 |
-| Brier score | 0.0639749 |
-| Calibration error | 0.0644135 |
+| Accuracy | 0.9200 |
+| Precision | 0.7241 |
+| Recall | 0.3443 |
+| F1 | 0.4667 |
+| ROC AUC | 0.841476 |
+| PR AUC | 0.546749 |
+| Brier score | 0.0638634 |
+| Calibration error | 0.0385384 |
 
 ### 14.5 Temporal holdout metrics
 
 The current temporal holdout reports:
 
-- Training size: 480.
+- Model-fit size: 384.
+- Calibration size: 96.
 - Test size: 120.
-- True positives: 16.
-- True negatives: 81.
-- False positives: 5.
-- False negatives: 18.
-- Accuracy: 0.8083.
-- Precision: 0.7619.
-- Recall: 0.4706.
-- F1: 0.5818.
-- ROC AUC: 0.80284.
-- PR AUC: 0.647515.
-- Brier score: 0.1529.
-- Calibration error: 0.0982.
+- True positives: 13.
+- True negatives: 82.
+- False positives: 4.
+- False negatives: 21.
+- Accuracy: 0.7917.
+- Precision: 0.7647.
+- Recall: 0.3824.
+- F1: 0.5098.
+- ROC AUC: 0.79071.
+- PR AUC: 0.63811.
+- Brier score: 0.153614.
+- Calibration error: 0.083008.
 
 ### 14.6 Attack checks
 
@@ -3736,4 +3737,3 @@ The research contribution is therefore the system boundary and its verifiable tr
 The limitations are part of the result.
 
 They show exactly where cryptography ends, where administration begins, and where future production work would be required.
-

@@ -14,6 +14,7 @@
     "dev:observe": "node scripts/devObservability.js",
     "deploy:benefits:local": "npm --prefix contracts run deploy:benefits:local",
     "verify:all": "npm --prefix contracts test && npm --prefix backEnd test && npm --prefix frontEnd run lint && npm --prefix frontEnd run build && npm --prefix oracle test",
+    "research:phase012": "npm --prefix backEnd run research:baseline && npm --prefix contracts run test:stateful && npm --prefix contracts run test:mutations && npm --prefix backEnd run research:manifest",
     "verify:sync": "node scripts/verifySynchronization.js"
   },
   "devDependencies": {

@@ -3,8 +3,7 @@ const path = require("path");
 const zlib = require("zlib");
 
 const RESULTS_DIR = path.join(__dirname, "..", "evaluation-results");
-const SUMMARY_PATH = path.join(RESULTS_DIR, "risk-model-summary.json");
-const RECORDS_PATH = path.join(RESULTS_DIR, "risk-model-records.csv");
+const SUMMARY_PATH = path.join(RESULTS_DIR, "phase5-evaluation.json");
 const THROUGHPUT_PATH = path.join(RESULTS_DIR, "claim-throughput-results.json");
 const AUDITOR_ANALYSIS_PATH = path.join(
   RESULTS_DIR,
@@ -624,6 +623,63 @@ const drawBaselineComparison = (summary, filePath) => {
   canvas.save(filePath);
 };
 
+const drawTriageFrontier = (artifact, filePath, {
+  metric,
+  title,
+  yLabel,
+  lowerIsBetter = false,
+}) => {
+  const canvas = setupChart(title, 1120, 760);
+  const chart = { x: 130, y: 150, width: 820, height: 430 };
+  const palette = [COLORS.blue, COLORS.green, COLORS.purple, COLORS.orange, COLORS.red];
+  const models = (artifact.triageEvaluation?.models || [])
+    .filter((model) => !model.key.endsWith("_reference"))
+    .map((model) => ({
+      ...model,
+      points: model.capacityFrontier.filter((point) => point.costScenario === "fraud_averse"),
+    }));
+  const values = models.flatMap((model) => model.points.map((point) => Number(point[metric] || 0)));
+  const maximum = lowerIsBetter ? Math.max(...values, 1e-9) : 1;
+  drawCurveAxes(canvas, chart, "NOMINAL MANUAL REVIEW CAPACITY", yLabel);
+  models.forEach((model, modelIndex) => {
+    const color = palette[modelIndex % palette.length];
+    const points = model.points
+      .map((point) => ({
+        x: Number(point.capacityRate),
+        y: Number(point[metric] || 0) / maximum,
+      }))
+      .sort((left, right) => left.x - right.x);
+    for (let index = 1; index < points.length; index += 1) {
+      const left = points[index - 1];
+      const right = points[index];
+      canvas.line(
+        chart.x + left.x * 2 * chart.width,
+        chart.y + chart.height - left.y * chart.height,
+        chart.x + right.x * 2 * chart.width,
+        chart.y + chart.height - right.y * chart.height,
+        color,
+        4
+      );
+    }
+    points.forEach((point) => {
+      canvas.fillRect(
+        chart.x + point.x * 2 * chart.width - 4,
+        chart.y + chart.height - point.y * chart.height - 4,
+        8,
+        8,
+        color
+      );
+    });
+    const legendY = 620 + modelIndex * 24;
+    canvas.fillRect(160, legendY, 16, 16, color);
+    canvas.drawText(model.label.toUpperCase().slice(0, 34), 190, legendY, COLORS.text, 1);
+  });
+  if (lowerIsBetter) {
+    canvas.drawText(`MAX ${maximum.toFixed(3)}`, 790, 105, COLORS.muted, 2);
+  }
+  canvas.save(filePath);
+};
+
 const drawThroughputLatency = (results, filePath) => {
   const canvas = setupChart("THROUGHPUT VS LATENCY", 1080, 740);
   const rows = results.rows || [];
@@ -701,20 +757,50 @@ const drawAuditorReputationScatter = (analysis, filePath) => {
 
 const assertInputsExist = () => {
   if (!fs.existsSync(SUMMARY_PATH)) {
-    throw new Error(`Missing ${SUMMARY_PATH}. Run npm run evaluate:risk first.`);
+    throw new Error(`Missing ${SUMMARY_PATH}. Run npm run evaluate:phase5 first.`);
   }
+};
 
-  if (!fs.existsSync(RECORDS_PATH)) {
-    throw new Error(`Missing ${RECORDS_PATH}. Run npm run evaluate:risk first.`);
+const adaptPhase5ChartInputs = (artifact) => {
+  if (artifact.schemaVersion < 4 || !artifact.datasets?.normal?.chartData) {
+    throw new Error("Chart generation requires the schema-v4 Phase 5 evaluation artifact");
   }
+  const primary = artifact.datasets.normal;
+  const predictions = primary.chartData.predictions || [];
+  const fraudLabelBreakdown = {};
+  for (const prediction of predictions) {
+    const label = prediction.fraudLabel || (prediction.actualFraud ? "FRAUD" : "LEGITIMATE");
+    fraudLabelBreakdown[label] = fraudLabelBreakdown[label] || { total: 0 };
+    fraudLabelBreakdown[label].total += 1;
+  }
+  return {
+    summary: {
+      confusionMatrix: primary.chartData.confusionMatrix,
+      dataset: { totalRecords: primary.records },
+      fraudLabelBreakdown,
+      metrics: artifact.metrics,
+      curves: primary.chartData.curves,
+      thresholdAnalysis: {
+        heldOutSensitivity: primary.chartData.thresholdSensitivity.map((point) => ({
+          ...point,
+          threshold: point.thresholdPercent,
+        })),
+      },
+      baselines: artifact.baselines,
+    },
+    records: predictions.map((prediction) => ({
+      ...prediction,
+      actualFraud: String(prediction.actualFraud),
+    })),
+  };
 };
 
 const main = () => {
   assertInputsExist();
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  const summary = JSON.parse(fs.readFileSync(SUMMARY_PATH, "utf8"));
-  const records = readCsv(RECORDS_PATH);
+  const artifact = JSON.parse(fs.readFileSync(SUMMARY_PATH, "utf8"));
+  const { summary, records } = adaptPhase5ChartInputs(artifact);
   const outputs = [
     ["confusion_matrix.png", (filePath) => drawConfusionMatrix(summary, filePath)],
     ["fraud_label_breakdown.png", (filePath) => drawFraudLabelBreakdown(summary, filePath)],
@@ -724,6 +810,17 @@ const main = () => {
     ["precision_recall_curve.png", (filePath) => drawPrecisionRecallCurve(summary, filePath)],
     ["threshold_sensitivity.png", (filePath) => drawThresholdSensitivity(summary, filePath)],
     ["baseline_f1_comparison.png", (filePath) => drawBaselineComparison(summary, filePath)],
+    ["triage_recall_capacity.png", (filePath) => drawTriageFrontier(artifact, filePath, {
+      metric: "recallAtCapacity",
+      title: "FRAUD RECALL VS REVIEW CAPACITY",
+      yLabel: "RECALL AT CAPACITY",
+    })],
+    ["triage_cost_capacity.png", (filePath) => drawTriageFrontier(artifact, filePath, {
+      metric: "expectedCostPerClaim",
+      title: "EXPECTED COST VS REVIEW CAPACITY",
+      yLabel: "NORMALIZED EXPECTED COST",
+      lowerIsBetter: true,
+    })],
   ];
 
   if (fs.existsSync(THROUGHPUT_PATH)) {
@@ -762,6 +859,8 @@ module.exports = {
   drawPrecisionRecallCurve,
   drawRocCurve,
   drawThresholdSensitivity,
+  drawTriageFrontier,
   drawThroughputLatency,
+  adaptPhase5ChartInputs,
   main,
 };

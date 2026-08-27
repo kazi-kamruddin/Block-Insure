@@ -279,7 +279,7 @@ Core intended invariants include:
 
 ### 5.1 Implemented fraud-risk pipeline
 
-The current runtime artifact is `bernoulli-fraud-v3.0.0`, feature schema `fraud-features-v3`, threshold `0.5`, Laplace alpha `1`, and Platt calibration fitted on a 120-record latest-temporal validation partition. Training uses 480 records: 49 fraud and 431 legitimate.
+The current runtime model artifact is `bernoulli-fraud-v3.1.0`, feature schema `fraud-features-v3`, legacy classifier threshold `0.5`, Laplace alpha `1`, and Platt calibration fitted on a 120-record latest-temporal validation partition. Training uses 480 records: 49 fraud and 431 legitimate. Runtime routing is governed by the separately hashed `capacity-cost-triage-v1.0.0` policy, bound to that exact model identity and feature schema. Its default synthetic planning scenario uses a 20% non-hard-blocked review capacity, costs `(missed fraud=10, legitimate escalation=1, manual review=0.25)`, and a runtime manual-review threshold of approximately `0.2180`.
 
 The 18 binary features are:
 
@@ -296,8 +296,8 @@ Current workflow bands are low `<0.35`, medium `0.35-<0.70`, and high `>=0.70`. 
 
 ```text
 blocking comparison failure                         -> reject automatic verification
-non-fuzzy probability >= 0.85                      -> reject automatic verification
-fuzzy-only signal or probability >= 0.50           -> recommend manual review
+authoritative hard-integrity feature                -> reject automatic verification
+fuzzy-only signal or probability >= policy threshold -> recommend manual review
 otherwise                                           -> recommend automatic verification
 ```
 
@@ -307,9 +307,11 @@ The score is a **fraud-risk/review-priority signal**, not proof of fraud. The fi
 
 - Four seeded synthetic profiles, 600 records each: normal, high-fraud, provider-compromise, temporal-shift.
 - Five folds and seeds 11/29/47; connected claimant-provider components are grouped to reduce entity leakage.
-- Calibration is fitted within training folds; Platt and isotonic candidates can be compared using validation Brier score.
-- Aggregate recorded means: accuracy `0.9113`, precision `0.4481`, recall `0.2177`, F1 `0.2869`, ROC-AUC `0.8875`, PR-AUC `0.5774`, Brier `0.0640`, calibration error `0.0644`.
-- Temporal holdout (120 records): TP 16, TN 81, FP 5, FN 18; accuracy `0.8083`, precision `0.7619`, recall `0.4706`, F1 `0.5818`, ROC-AUC `0.80284`, PR-AUC `0.647515`, Brier `0.1529`.
+- Calibration is fitted within training folds; temporal evaluation uses a strict 64/16/20 fit/calibration/test split, and a separate provider holdout is recorded.
+- Feature ablations are grouped out-of-fold rather than evaluated on their own training rows. Confidence intervals use claimant-provider component percentile bootstrap.
+- Current normal-profile out-of-fold point estimates: accuracy `0.9200`, precision `0.7241`, recall `0.3443`, F1 `0.4667`, F2 `0.3846`, MCC `0.4642`, ROC-AUC `0.8415`, PR-AUC `0.5467`, Brier `0.0639`, calibration error `0.0385`.
+- Corrected temporal holdout (120 records): TP 13, TN 82, FP 4, FN 21; accuracy `0.7917`, precision `0.7647`, recall `0.3824`, F1 `0.5098`, ROC-AUC `0.7907`, PR-AUC `0.6381`, Brier `0.1536`.
+- Under the declared fraud-averse 20% planning scenario, grouped out-of-fold calibrated-NB routing catches 45/61 fraud cases (`0.7377` recall at capacity) with 114 manual reviews and expected scenario cost `0.4725` per claim. The legacy fixed policy catches 23/61 (`0.3770`) at cost `0.6625`, but has materially fewer legitimate escalations. These are synthetic trade-offs, not operational cost estimates.
 - Recorded attack checks report no fuzzy-only automatic rejection and no connected-group leakage in the generated experiments.
 
 These numbers are synthetic methodology evidence, not estimates of deployment performance. Low aggregate recall and temporal calibration degradation are important findings, not details to hide.
@@ -321,8 +323,8 @@ These numbers are synthetic methodology evidence, not estimates of deployment pe
 **Absent or incomplete research mechanisms:**
 
 - No external real claims dataset validation, prospective study, clinician/insurer labeling, fairness audit, or demographic subgroup evaluation.
-- No cost-sensitive threshold tied to false-negative/false-positive cost and four-auditor capacity.
-- No logistic/boosted-tree/graph/anomaly baseline integrated into the current v3 study.
+- Cost/capacity-aware triage, logistic regression, class-weighted logistic regression, rule-only, random, and perfect-reference baselines are implemented. Costs and capacity remain synthetic planning assumptions; no live queue scheduler or insurer-derived cost study exists.
+- No boosted-tree/graph/anomaly baseline is integrated into the current schema-v4 study.
 - No SHAP/counterfactual explanation pipeline; current feature flags are interpretable but not a complete XAI evaluation.
 - No OCR, document-layout model, medical-code validation, digital-signature verification, or automated comparison of document contents with claim facts.
 - No real hospital/FHIR/claims API, trusted execution, decentralized oracle network, or cryptographic proof of source provenance.
@@ -394,13 +396,14 @@ Mongo models include `User`, `RevokedToken`, `File`, `EvidenceEvent`, `EvidenceT
 - Synthetic registry generation, canonical Merkle tree/proofs, historical snapshots, two worker configurations, cursors, retry/idempotency behavior, heartbeats, and logs.
 - SIWE/JWT authentication, application/on-chain role checks, route controls, rate limits, transaction reconciliation, notifications, audit exports, and reorg-aware indexing.
 - User/admin/auditor React workspaces and a thesis-results dashboard.
-- Reproducible model/dataset/evaluation scripts and machine-readable research metrics.
-- Current full verification: 124 passing Solidity tests, 38 passing backend tests, passing frontend lint/build, and 9 passing oracle tests. Six Playwright E2E tests are also defined but require a prepared live stack and are outside `verify:all`.
+- Reproducible schema-v4 model/dataset/triage/evaluation scripts, component-bootstrap intervals, generated charts, and a machine-readable research manifest.
+- An executable 10-property protocol-invariant catalogue, cross-contract generated state-machine tests, and an isolated eight-mutant functional mutation campaign are implemented. This is empirical assurance, not formal verification.
+- The latest focused checks pass 43 backend unit tests and four stateful Solidity tests; full-suite counts should be taken from the most recent `npm run verify:all` output rather than this context file. Six Playwright E2E tests still require a prepared live stack and are outside `verify:all`.
 
 ### 7.2 Partial or experimental
 
 - All external clinical truth is synthetic; the two oracle snapshots are operationally separated but can share generator, code, infrastructure, and operator.
-- Fraud evaluation is reproducible and calibrated but entirely synthetic; model recall and temporal calibration require improvement.
+- Fraud evaluation and cost/capacity routing are reproducible but entirely synthetic; provider-held-out threshold recall can still collapse even when ranking metrics remain useful, so external validation and operating-point stability require improvement.
 - Auditor reputation is recorded/derived but not used for assignment weighting, incentives, or Byzantine defense.
 - Benefits workflows exist, but death/surrender verification is administratively confirmed rather than independently automated.
 - Evidence confidentiality is technically implemented, but key custody, metadata privacy, availability, revocation semantics, and production operations remain unvalidated.
@@ -415,10 +418,10 @@ Mongo models include `User`, `RevokedToken`, `File`, `EvidenceEvent`, `EvidenceT
 - No actuarial pricing/reserving model, reinsurance, capital optimization, or regulatory-solvency analysis.
 - No real-world fraud dataset, external validation, fairness analysis, human-reader study, or model-monitoring/drift response.
 - No automated semantic document verification or real oracle-source provenance.
-- No independent security audit or formal verification. Slither is optional; Forge/Echidna/model checking are not established toolchain requirements.
+- No independent security audit or formal verification. Stateful and mutation assurance are established in the Hardhat toolchain; Slither, Forge/Echidna, and model checking remain optional external tools.
 - `CLOSED` claim status is dead/unreachable state in current transitions.
 - README/documentation links are stale because referenced security/methodology Markdown files are absent from `docs/`.
-- Legacy v2 and current v3 evaluation artifacts coexist and can lead to accidental metric/model misreporting.
+- Legacy v2 files remain for provenance, but the API and chart generator now consume only the schema-v4 Phase 5 artifact and reject incompatible chart input.
 - Environment naming mismatch: documented `JWT_EXPIRES_IN` is not the session-TTL variable consumed by authentication code.
 - The tracked repository does not provide enough evidence to assert production Mongo/IPFS durability, disaster recovery, or secret hygiene beyond ignored environment templates.
 
@@ -635,13 +638,13 @@ Block-Insure is a local, Ethereum-compatible health-insurance thesis prototype. 
 ### Limitations that targeted papers should address
 
 - Synthetic data and provider registry; no external validation or real source independence.
-- Low aggregate fraud recall and no cost/capacity-aware threshold.
+- Synthetic cost/capacity routing is implemented, but real reviewer capacity, insurer-derived costs, external labels, and stable provider-held-out operating thresholds remain unresolved.
 - Two potentially correlated oracles; no incentives, source attestations, or adversarial reliability study.
 - No semantic document verification; metadata/key-custody/revocation/availability gaps.
 - Wallet-based role assignment without verifiable professional/provider credentials.
 - Fixed reserve ratio rather than actuarial uncertainty modeling.
 - Local Hardhat only; no public-testnet/L2 deployment study.
-- No independent audit/formal proof; branch coverage and adversarial/mutation testing can improve.
+- No independent audit/formal proof; the initial eight-mutant campaign is narrow and should grow by fault family even though all targeted mutants are killed.
 - Manager has only 314 bytes EIP-170 headroom, so additions must favor separate contracts or off-chain services.
 
 ### Targeted literature-search themes

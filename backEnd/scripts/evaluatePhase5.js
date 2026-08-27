@@ -2,8 +2,17 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { generateAllSyntheticDatasets } = require("../services/syntheticRegistryService");
 const { runLeakageSafeEvaluation } = require("../services/phase5EvaluationService");
+const { runTriageEvaluation, evaluateCapacityPolicy } = require("../services/triageEvaluationService");
+const { toRows } = require("../services/phase5EvaluationService");
+const { calculateReproducibilityHash } = require("../services/researchArtifactService");
+const {
+  DEFAULT_CAPACITY_RATES,
+  DEFAULT_COST_SCENARIOS,
+  verifyTriagePolicy,
+} = require("../services/triagePolicyService");
 const { verifyModelArtifact } = require("../services/modelArtifactService");
 const modelArtifact = require("../model-params.json");
+const triagePolicyArtifact = require("../triage-policy.json");
 const { predictBernoulliNaiveBayes } = require("../services/bernoulliNaiveBayesService");
 const { extractRecordFeatures } = require("../services/featureEngineeringService");
 const { calibrateProbability } = require("../services/calibrationService");
@@ -44,11 +53,36 @@ const benchmarkEvidenceProofs = () => {
 const run = ({ writeOutput = true, size = 600 } = {}) => {
   const runtimeArtifact = verifyModelArtifact(modelArtifact);
   if (!runtimeArtifact.valid) throw new Error(runtimeArtifact.errors.join("; "));
+  const runtimePolicy = verifyTriagePolicy(triagePolicyArtifact);
+  if (!runtimePolicy.valid) throw new Error(runtimePolicy.errors.join("; "));
+  if (triagePolicyArtifact.modelIdentityHash !== modelArtifact.modelIdentityHash) {
+    throw new Error("Runtime triage policy is not bound to the evaluated model");
+  }
   const datasets = generateAllSyntheticDatasets({ seed: 202605, size });
   const datasetResults = Object.fromEntries(Object.entries(datasets).map(([profile, records]) => [
     profile,
     runLeakageSafeEvaluation(records),
   ]));
+  const triageEvaluation = runTriageEvaluation(datasets.normal);
+  const scenarioGeneralization = Object.fromEntries(
+    Object.entries(datasets).map(([profile, records]) => {
+      const predictions = toRows(records).map((row) => {
+        const raw = predictBernoulliNaiveBayes(modelArtifact, row.features);
+        return {
+          ...row,
+          fraudProbability: calibrateProbability(raw.fraudProbability, modelArtifact.calibration),
+        };
+      });
+      return [profile, {
+        records: predictions.length,
+        capacityFrontier: DEFAULT_COST_SCENARIOS.flatMap((costs) =>
+          DEFAULT_CAPACITY_RATES.map((capacityRate) =>
+            evaluateCapacityPolicy(predictions, costs, capacityRate)
+          )
+        ),
+      }];
+    })
+  );
   const probabilityBins = Array.from({ length: 5 }, (_, index) => ({
     range: `${index * 20}-${(index + 1) * 20}%`,
     min: index * 0.2,
@@ -62,7 +96,7 @@ const run = ({ writeOutput = true, size = 600 } = {}) => {
     probabilityBins[index].count += 1;
   }
   const result = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     generatedAt: new Date().toISOString(),
     runtimeModel: {
       modelVersion: modelArtifact.modelVersion,
@@ -70,6 +104,13 @@ const run = ({ writeOutput = true, size = 600 } = {}) => {
       modelIdentityHash: modelArtifact.modelIdentityHash,
       evaluatedArtifactHash: runtimeArtifact.expectedArtifactHash,
       hashesMatch: modelArtifact.artifactHash === runtimeArtifact.expectedArtifactHash,
+    },
+    runtimeTriagePolicy: {
+      policyVersion: triagePolicyArtifact.policyVersion,
+      artifactHash: triagePolicyArtifact.artifactHash,
+      policyIdentityHash: triagePolicyArtifact.policyIdentityHash,
+      modelIdentityHash: triagePolicyArtifact.modelIdentityHash,
+      hashesMatch: triagePolicyArtifact.artifactHash === runtimePolicy.expected.artifactHash,
     },
     datasets: datasetResults,
     confidenceIntervals: datasetResults.normal.confidenceIntervals,
@@ -84,24 +125,47 @@ const run = ({ writeOutput = true, size = 600 } = {}) => {
       calibrationError: datasetResults.normal.confidenceIntervals.calibrationError.mean,
     },
     decisionRule: {
-      selectedThreshold: modelArtifact.threshold,
-      terminology: "fraudProbability >= threshold; verificationConfidence is a separate on-chain structural score",
+      researchRecommendedThreshold: triageEvaluation.recommendedOperatingPoint.selectedProbabilityThreshold,
+      runtimePolicyThreshold: triagePolicyArtifact.routing.manualReviewThreshold,
+      legacyModelThreshold: modelArtifact.threshold,
+      triagePolicyIdentityHash: triagePolicyArtifact.policyIdentityHash,
+      policy: "hard integrity failure rejects oracle verification; calibrated probability only routes manual review",
+      terminology: "fraudProbability is a triage signal; verificationConfidence is a separate on-chain structural score",
     },
     dataset: {
       profiles: Object.keys(datasets),
       recordsPerProfile: size,
+      totalRecords: size,
       primaryProfile: "normal",
     },
-    baselines: [],
+    baselines: triageEvaluation.models.map((model) => ({
+      key: model.key,
+      label: model.label,
+      metrics: model.classification,
+      primaryOperatingPoint: model.capacityFrontier.find(
+        (point) => point.costScenario === "fraud_averse" && point.capacityRate === 0.2
+      ),
+    })),
     temporalHoldout: datasetResults.temporal_distribution_shift.temporalHoldout,
     performance: datasetResults.normal.performance,
     fraudProbabilityDistribution: probabilityBins,
+    riskBuckets: {
+      LOW: probabilityBins[0].count,
+      "LOW-MEDIUM": probabilityBins[1].count,
+      MEDIUM: probabilityBins[2].count,
+      HIGH: probabilityBins[3].count,
+      CRITICAL: probabilityBins[4].count,
+    },
+    confusionMatrix: datasetResults.normal.chartData.confusionMatrix,
     attackMetrics: {
       fuzzyDuplicateAutomaticRejectionRate: 0,
       groupLeakageDetections: datasetResults.normal.evaluations.filter((item) => !item.leakage.valid).length,
     },
     evidenceProofCosts: benchmarkEvidenceProofs(),
+    triageEvaluation,
+    triageScenarioGeneralization: scenarioGeneralization,
   };
+  result.reproducibilityHash = calculateReproducibilityHash(result);
   if (writeOutput) {
     fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
     fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(result, null, 2)}\n`, "utf8");

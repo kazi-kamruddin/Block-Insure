@@ -268,7 +268,7 @@ The backend never receives the plaintext evidence key. A claimant can later gran
 
 ### 9.3 Advisory fraud and registry verification
 
-The backend builds a deterministic feature vector from claim facts and the registry response. Blocking comparison failures prevent automatic verification. Fuzzy-only anomalies or a model probability over the configured threshold recommend manual review. The model is advisory: the contracts never accept a backend probability as final truth.
+The backend builds a deterministic feature vector from claim facts and the registry response. Blocking comparison failures and declared hard-integrity features prevent automatic verification. Fuzzy-only anomalies or a calibrated probability over the separately hashed triage-policy threshold recommend manual review. Probability alone can no longer reject oracle verification. The model is advisory: the contracts never accept a backend probability as final truth.
 
 An oracle independently queries the mock hospital API, loads its own registry snapshot, reconstructs the canonical Merkle leaf, validates the proof/root, checks claim/hospital/invoice/date/bill consistency, and computes the deterministic result hash. Only the coordinator's exact-result quorum changes the contract state.
 
@@ -332,31 +332,31 @@ The current schema is `fraud-features-v3` with 18 binary/advisory features:
 
 The classifier is a Bernoulli Naive Bayes model with Laplace smoothing (`alpha=1`) and log-space posterior calculation. A Platt calibration artifact (`platt-v1`) converts the raw score to a probability. Current identity values are stored in [`backEnd/model-params.json`](../backEnd/model-params.json):
 
-- model version: `bernoulli-fraud-v3.0.0`
+- model version: `bernoulli-fraud-v3.1.0`
 - feature schema: `fraud-features-v3`
-- threshold: `0.5`
+- legacy classifier threshold: `0.5`
 - training set: 480 records (49 fraud, 431 legitimate)
 - temporal calibration split: latest 20% (120 records)
 - source commit, training-data hash, artifact hash, and model identity hash: recorded in the JSON artifact
 
-Risk bands are `LOW` below `0.35`, `MEDIUM` from `0.35` to below `0.70`, and `HIGH` at or above `0.70`. Blocking comparison failures, or a non-fuzzy probability at or above `0.85`, recommend rejection from automatic oracle verification. Fuzzy-only anomalies and probabilities at or above the model threshold (`0.5`) recommend manual review. Otherwise the result is eligible for automatic verification. The recommendation is a workflow signal, not a payout decision.
+Risk bands are `LOW` below `0.35`, `MEDIUM` from `0.35` to below `0.70`, and `HIGH` at or above `0.70`. They are descriptive and do not decide routing. Runtime routing uses `backEnd/triage-policy.json`, currently `capacity-cost-triage-v1.0.0`: hard-integrity failures reject automatic verification; fuzzy-only anomalies and probabilities at or above approximately `0.2180` recommend manual review; other claims remain eligible for automatic verification. Probability alone cannot reject a claim. The 20% capacity and cost values are declared synthetic planning assumptions rather than a live queue guarantee.
 
 ### Phase-5 evaluation artifact
 
-The current frozen evaluation uses four synthetic profiles (normal, high-fraud stress, provider compromise, and temporal distribution shift), 600 records per profile, five folds, seeds 11/29/47, connected claimant/provider component grouping, and calibration inside the training fold. Aggregate values in [`backEnd/evaluation-results/phase5-evaluation.json`](../backEnd/evaluation-results/phase5-evaluation.json) are:
+The schema-v4 evaluation uses four synthetic profiles (normal, high-fraud stress, provider compromise, and temporal distribution shift), 600 records per profile, five folds, seeds 11/29/47, connected claimant/provider component grouping, calibration inside training, a strict 64/16/20 temporal split, explicit provider holdout, grouped out-of-fold ablations, and component-bootstrap intervals. Normal-profile point estimates in [`backEnd/evaluation-results/phase5-evaluation.json`](../backEnd/evaluation-results/phase5-evaluation.json) are:
 
 | Metric | Aggregate |
 |---|---:|
-| Accuracy | 0.9113 |
-| Precision | 0.4481 |
-| Recall | 0.2177 |
-| F1 | 0.2869 |
-| ROC AUC | 0.8875 |
-| PR AUC | 0.5774 |
-| Brier score | 0.0640 |
-| Calibration error | 0.0644 |
+| Accuracy | 0.9200 |
+| Precision | 0.7241 |
+| Recall | 0.3443 |
+| F1 | 0.4667 |
+| ROC AUC | 0.8415 |
+| PR AUC | 0.5467 |
+| Brier score | 0.0639 |
+| Calibration error | 0.0385 |
 
-The temporal holdout is intentionally harder: train 480/test 120, TP 16, TN 81, FP 5, FN 18, accuracy 0.8083, precision 0.7619, recall 0.4706, F1 0.5818, ROC AUC 0.8028, PR AUC 0.6475, and Brier score 0.1529. The same artifact reports zero fuzzy-duplicate automatic-rejection attacks and zero connected-group leakage detections for the tested scenarios. These are synthetic research results, not real-world accuracy claims.
+The corrected temporal holdout uses 384 fit, 96 calibration, and 120 test records: TP 13, TN 82, FP 4, FN 21, accuracy 0.7917, precision 0.7647, recall 0.3824, F1 0.5098, ROC AUC 0.7907, PR AUC 0.6381, and Brier score 0.1536. Under the declared fraud-averse 20% planning scenario, calibrated-NB routing catches 45/61 normal-profile fraud cases versus 23/61 under the legacy fixed policy, while increasing legitimate escalations; expected synthetic cost per claim falls from 0.6625 to 0.4725. These are synthetic research trade-offs, not real-world accuracy or cost claims.
 
 ## 13. Backend services and API surface
 
@@ -408,16 +408,16 @@ Useful commands are documented in [`README.md`](../README.md), including `npm ru
 
 The latest recorded repository verification in this workspace reported:
 
-- 124 Solidity tests in the full verification suite; 123 pass plus one instrumentation-only pending coverage case.
+- Full Solidity counts should be read from the latest `npm run verify:all`; the focused stateful suite contains four passing tests across the Phase 5 and Phase 6 files.
 - Contract coverage: approximately 93.64% statements, 64.51% branches, 90% functions, and 94.29% lines.
-- Backend analytics suite and 38 backend unit tests pass.
+- Backend analytics suite and 43 backend unit tests pass in the latest focused run.
 - Frontend ESLint and production build pass.
 - Nine oracle protocol tests pass.
 - ABI/configuration synchronization and exact reproducibility/frozen model-hash checks pass.
 - Contract bytecode sizes after compilation: `InsuranceManager` 24,262/24,576 bytes; `OracleCoordinator` 7,014; `ClaimAdjudicator` 10,818; `PolicyEconomics` 9,484; `EvidenceRegistry` 4,135; `ProtocolDeploymentRegistry` 923; and `PolicyBenefitsManager` 9,981.
 - Production dependency audits report no findings for backend, frontend, oracle, or contract production dependencies. The full Hardhat/toolchain development tree still has transitive findings that must be tracked separately.
 
-External Slither, Forge, Echidna, and Solhint are optional tools and were not available in the recorded environment. The Solidity suite includes stateful/invariant coverage and the repository contains a security/migration verification guide.
+External Slither, Forge, Echidna, and Solhint remain optional. The Hardhat toolchain now includes an executable 10-property invariant catalogue, generated cross-contract sequences, and an isolated eight-mutant functional campaign whose compiler/startup failures are explicitly prevented from counting as killed mutants. This is not formal verification or an independent audit.
 
 ## 17. Security model and honest limitations
 
@@ -441,7 +441,7 @@ External Slither, Forge, Echidna, and Solhint are optional tools and were not av
 5. **Client key custody:** browser IndexedDB and wallet-derived backups are not a production HSM/KMS.
 6. **Contract headroom:** `InsuranceManager` is close to the EIP-170 limit, which is why benefits and economics were split into modules. Future features should not be added casually to the manager.
 7. **Deferred lifecycle:** `CLOSED` remains a retained enum/event concept without a current transition. Maturity is a benefits schedule, not an active claim-closure path.
-8. **Model trade-off:** the current threshold deliberately favors precision/verification safety over high recall in some synthetic profiles. Manual review is the safety valve.
+8. **Model trade-off:** capacity-aware routing improves synthetic fraud capture and scenario cost by sending materially more legitimate cases to review. Provider-held-out threshold recall remains unstable, so the selected operating point is not externally validated.
 9. **Development dependencies:** the production dependency audits are clean, but the Hardhat/toolchain transitive audit still needs ongoing maintenance.
 10. **Local deployment:** the seeded setup is for a local Hardhat demonstration, not a live network deployment or an insurance-ready operational environment.
 

@@ -751,7 +751,7 @@ const verifyHospitalRecord = async (req, res, next) => {
         : comparisonVerified
           ? riskAssessment.recommendation === "MANUAL_REVIEW_RECOMMENDED"
             ? "Fraud or duplicate intelligence requires manual review; it is not an automatic fraud rejection"
-            : "Bernoulli fraud model rejected oracle verification for high fraud probability"
+            : "Authoritative registry integrity rules rejected oracle verification"
           : `Registry verification failed: ${failureSummary || record.fraudLabel}`,
       comparison,
       duplicateIntelligence,

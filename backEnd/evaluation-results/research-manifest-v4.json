@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-08-27T14:11:02.478Z",
+  "source": {
+    "gitCommit": "6d332eb5e0be472182d3e8815e7862cae1b68262",
+    "dirty": true,
+    "branch": "postPreDefence"
+  },
+  "environment": {
+    "node": "v24.16.0",
+    "platform": "win32",
+    "architecture": "x64",
+    "solidity": "0.8.26",
+    "evmVersion": "cancun",
+    "optimizerRuns": 1,
+    "viaIR": true
+  },
+  "packages": {
+    "root": {
+      "name": "block-insure-local-workflow",
+      "version": null,
+      "packageJsonSha256": "564e0b75cf755b522297f19f058532fa16feb4f29b81d6f0d653dabd1098f950"
+    },
+    "backend": {
+      "name": "backend",
+      "version": "1.0.0",
+      "packageJsonSha256": "6a7f3b97aa379ce6566fc41deaedea43d95cb3df42897df7714dd2aa2eba04a8"
+    },
+    "contracts": {
+      "name": "contracts",
+      "version": "1.0.0",
+      "packageJsonSha256": "5e442032902144049daef5aa3621d91528d5ab7d25a588d7b392e77e026469f7"
+    },
+    "frontend": {
+      "name": "frontend",
+      "version": "0.0.0",
+      "packageJsonSha256": "0c7a27037bda63c75f54ec2494ecfafa658a7a65a434f7642b7b3413f23932ff"
+    },
+    "oracle": {
+      "name": "oracle",
+      "version": "1.0.0",
+      "packageJsonSha256": "e2dc27c296cec6909a9d2d472e59e52d0b88932bfe2499963658f4589f467cb8"
+    }
+  },
+  "contracts": {
+    "InsuranceManager": {
+      "compiled": true,
+      "deployedBytecodeBytes": 24262,
+      "artifactSha256": "341d177fd6985fc59d903482dbcc66f58c4e191ae1e60e810c6a664d59b65ee3"
+    },
+    "OracleCoordinator": {
+      "compiled": true,
+      "deployedBytecodeBytes": 7014,
+      "artifactSha256": "76bcbf95e928547361d4ff548003b5716410812b1160bd3860f1756af74897ff"
+    },
+    "ClaimAdjudicator": {
+      "compiled": true,
+      "deployedBytecodeBytes": 10818,
+      "artifactSha256": "30b60e5af757add9190557f9582c286f59ac89415c82e5e0941030bd310c475b"
+    },
+    "PolicyEconomics": {
+      "compiled": true,
+      "deployedBytecodeBytes": 9484,
+      "artifactSha256": "deb87fe82a16f25e95a40b9870c043b3eb617f49d55c939f03033b68b7b8c88a"
+    },
+    "EvidenceRegistry": {
+      "compiled": true,
+      "deployedBytecodeBytes": 4135,
+      "artifactSha256": "e2c0e3e05eb59f057585254c07f21ee30aa9a5b974bca55b0b3d4d5a2eda7e81"
+    },
+    "PolicyBenefitsManager": {
+      "compiled": true,
+      "deployedBytecodeBytes": 9981,
+      "artifactSha256": "543b0eab7e141ae5a6cc10ae22bd1825a781ac1537992b1d28e3bb521bc29ba7"
+    },
+    "ProtocolDeploymentRegistry": {
+      "compiled": true,
+      "deployedBytecodeBytes": 923,
+      "artifactSha256": "0f421698bef3d5ecf51c9ea88d149d2505ccf46acba9e2296853bf6219292257"
+    }
+  },
+  "artifacts": {
+    "fraudModel": {
+      "path": "backEnd/model-params.json",
+      "artifactHash": "6ed00250025a6f1ee9d30c61a5083efba228d1e6a3ab9c7a137839349e98149b",
+      "modelIdentityHash": "0x90a9dff519e97f9b271572407dbfbb95e670286d7d7e7047079f9f1f49a60a46",
+      "fileSha256": "1a26721effcf46f842f66450bc2a25b4cbd6f60007ed66848458a6e007d44d2d"
+    },
+    "triagePolicy": {
+      "path": "backEnd/triage-policy.json",
+      "artifactHash": "b4a35b454991222af3542e351cacbeb0d5e564595bace12e9b85cd2564215c50",
+      "policyIdentityHash": "0xdc689b3765ae36ff70af18485b81ebfd4e88e0c2a1d391f60f8980d80d7054ca",
+      "fileSha256": "773a2c4277effbf9cc546651cba28d054d72567f4dc86f3fab1ca05bc1971164"
+    },
+    "datasets": {
+      "path": "backEnd/datasets/phase5/manifest.json",
+      "manifestHash": "58c749eefb771e568cf043d727d29a33a4f2d0c5fdb1f7875760514e58e8df53",
+      "integrity": {
+        "valid": true,
+        "entries": {
+          "normal": {
+            "file": "normal.jsonl",
+            "records": 600,
+            "expectedSha256": "3aefc2f2627ac53fce37af958fac4169265671403471e34d4d7595948aa89fba",
+            "actualSha256": "3aefc2f2627ac53fce37af958fac4169265671403471e34d4d7595948aa89fba",
+            "valid": true
+          },
+          "high_fraud_stress": {
+            "file": "high_fraud_stress.jsonl",
+            "records": 600,
+            "expectedSha256": "78fe2769fecbe5927686fcf35c69c32f053a4e1ea773b6fe4ede55df3448272b",
+            "actualSha256": "78fe2769fecbe5927686fcf35c69c32f053a4e1ea773b6fe4ede55df3448272b",
+            "valid": true
+          },
+          "provider_compromise": {
+            "file": "provider_compromise.jsonl",
+            "records": 600,
+            "expectedSha256": "fffcd3b70b4ea7e7827b9c55197b5e4cef329af3117161d10356b2df33231efd",
+            "actualSha256": "fffcd3b70b4ea7e7827b9c55197b5e4cef329af3117161d10356b2df33231efd",
+            "valid": true
+          },
+          "temporal_distribution_shift": {
+            "file": "temporal_distribution_shift.jsonl",
+            "records": 600,
+            "expectedSha256": "50588f9f90813417de07df392ab01e955f3b8e1ab5b02d3dadda4b8434439167",
+            "actualSha256": "50588f9f90813417de07df392ab01e955f3b8e1ab5b02d3dadda4b8434439167",
+            "valid": true
+          }
+        }
+      }
+    },
+    "evaluation": {
+      "path": "backEnd/evaluation-results/phase5-evaluation.json",
+      "schemaVersion": 4,
+      "reproducibilityHash": "fec8c5263b1562b46f596965d276a86c6419f30738822c4bf3fa2d70d453004b"
+    },
+    "protocolAssurance": {
+      "invariantCatalogue": {
+        "path": "contracts/test/invariants/protocol-invariants.json",
+        "fileSha256": "e01afb5460b5502850789a4a1655697ee3bf39c50b78caede5e32df08fcf35b1"
+      },
+      "mutationManifest": {
+        "path": "contracts/mutations/manifest.json",
+        "fileSha256": "6e5bd5d9e6f0346d684a7b22c00dfc39dcca60b6929b538eb9ab50444d2fa792"
+      },
+      "mutationCampaign": {
+        "path": "contracts/mutation-results.json",
+        "fileSha256": "0ba041cec9443a516c0fa0eae8f9c7b7d813a47568bdb459d4c1695b8f03b101",
+        "summary": {
+          "requested": 8,
+          "valid": 8,
+          "killed": 8,
+          "survived": 0,
+          "invalid": 0,
+          "timedOut": 0,
+          "infrastructureErrors": 0,
+          "mutationScore": 1
+        }
+      }
+    }
+  },
+  "experimentDefaults": {
+    "datasetSeed": 202605,
+    "groupedEvaluationSeeds": [
+      11,
+      29,
+      47
+    ],
+    "bootstrapIterations": 250,
+    "triageCapacityRates": [
+      0.05,
+      0.1,
+      0.2,
+      0.3,
+      0.5
+    ],
+    "primaryTriageScenario": "fraud_averse",
+    "primaryNominalReviewRate": 0.2
+  },
+  "commands": {
+    "reproduceResearch": "npm --prefix backEnd run research:baseline",
+    "fullVerification": "npm run verify:all",
+    "contractStateful": "npm --prefix contracts run test:stateful",
+    "contractMutationCampaign": "npm --prefix contracts run test:mutations"
+  },
+  "reproducibilityHash": "49c07752d86ee5eb98e5dcb6b570a0f5166e60ac400dcf197cffc2ebc1dcf8c1"
+}

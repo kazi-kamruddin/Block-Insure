@@ -1,0 +1,47 @@
+{
+  "artifactSchemaVersion": 1,
+  "policyVersion": "capacity-cost-triage-v1.0.0",
+  "sourceCommit": "6d332eb5e0be472182d3e8815e7862cae1b68262",
+  "modelIdentityHash": "0x90a9dff519e97f9b271572407dbfbb95e670286d7d7e7047079f9f1f49a60a46",
+  "modelArtifactHash": "6ed00250025a6f1ee9d30c61a5083efba228d1e6a3ab9c7a137839349e98149b",
+  "featureSchemaVersion": "fraud-features-v3",
+  "datasetManifestHash": "58c749eefb771e568cf043d727d29a33a4f2d0c5fdb1f7875760514e58e8df53",
+  "decisionAuthority": {
+    "probabilisticModelMayReject": false,
+    "hardIntegrityRulesRemainAuthoritative": true,
+    "oracleAndManualAdjudicationRemainSettlementAuthorities": true
+  },
+  "costs": {
+    "key": "fraud_averse",
+    "missedFraudCost": 10,
+    "falseEscalationCost": 1,
+    "manualReviewCost": 0.25
+  },
+  "capacity": {
+    "nominalReviewRate": 0.2,
+    "definition": "maximum fraction of non-hard-blocked claims routed to manual review per planning window",
+    "enforcement": "offline-derived operating point; runtime reports policy state but does not claim a live queue guarantee"
+  },
+  "routing": {
+    "hardBlockingFeatures": [
+      "registry_record_missing",
+      "hospital_id_mismatch",
+      "invoice_hash_mismatch",
+      "invalid_record_status",
+      "used_invoice",
+      "cancelled_record",
+      "license_blacklisted"
+    ],
+    "economicReviewThreshold": 0.11363636363636363,
+    "capacityReviewThreshold": 0.21796945267587475,
+    "manualReviewThreshold": 0.21796945267587475,
+    "fuzzyDuplicateAlwaysManual": true
+  },
+  "methodology": {
+    "thresholdSelection": "maximum of cost crossover and calibration-set capacity quantile",
+    "calibrationPartitionOnly": true,
+    "syntheticDataLimitation": true
+  },
+  "artifactHash": "b4a35b454991222af3542e351cacbeb0d5e564595bace12e9b85cd2564215c50",
+  "policyIdentityHash": "0xdc689b3765ae36ff70af18485b81ebfd4e88e0c2a1d391f60f8980d80d7054ca"
+}

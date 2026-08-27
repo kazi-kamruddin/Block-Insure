@@ -146,6 +146,7 @@ cd contracts
 npm test
 npm run coverage
 npm run test:stateful
+npm run test:mutations
 # Optional: requires slither-analyzer to be installed separately
 npm run analyze:slither
 ```
@@ -153,8 +154,7 @@ npm run analyze:slither
 ```powershell
 cd backEnd
 npm test
-npm run evaluate:risk:synthetic
-npm run charts:generate
+npm run research:baseline
 ```
 
 ```powershell
@@ -170,25 +170,33 @@ npm test
 
 ## Research Studies
 
-With MongoDB, the backend, and the local blockchain running:
+The reproducible offline fraud/triage study does not require MongoDB or a
+running blockchain:
+
+```powershell
+cd backEnd
+npm run research:baseline
+```
+
+That command regenerates and verifies the seeded datasets, freezes the
+capacity/cost triage policy against the existing model, runs schema-v4 grouped,
+provider-held-out and temporal evaluation, regenerates charts, and writes a
+research manifest. Runtime-dependent studies remain separate:
 
 ```powershell
 cd backEnd
 npm run seed:mock
-npm run generate:datasets
-npm run freeze:model
-npm run evaluate:phase5
 npm run metrics:collect
 npm run loadtest:claims
 npm run analyze:auditors
-npm run charts:generate
 ```
 
-The Phase 5 commands generate four seeded synthetic registry profiles, freeze
-and hash the Bernoulli model artifact, run grouped/temporal evaluation, and
-write machine-readable research metrics. These commands intentionally generate
-synthetic data and/or test claims. They are separate from the clean local
-simulation workflow above.
+The schema-v4 evaluation uses connected claimant-provider grouping, calibration
+inside training partitions, a strict 64/16/20 temporal fit/calibration/test
+split, explicit provider holdout, component-bootstrap intervals, grouped
+out-of-fold ablations, model baselines, and cost/capacity frontiers. The runtime
+triage policy can defer probabilistic risk to manual review but cannot reject a
+claim without an authoritative integrity failure.
 
 The admin **Thesis Results** dashboard reads generated artifacts from
 `backEnd/evaluation-results`.
@@ -197,6 +205,7 @@ The admin **Thesis Results** dashboard reads generated artifacts from
 
 - [Current protocol security verification](docs/security-verification.md)
 - [Current protocol migration manifest](docs/protocol-v2-migration.json)
+- [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
 - Historical research notes retained for provenance:
   [Section 1](docs/section-1-system-design.md),
   [Section 2](docs/section-2-oracle-security-fraud-model.md), and

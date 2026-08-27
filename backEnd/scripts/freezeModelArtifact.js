@@ -46,8 +46,8 @@ const run = ({ writeOutput = true } = {}) => {
   const trainingRecords = ordered.slice(0, split);
   const calibrationRecords = ordered.slice(split);
   const uncalibratedModel = trainModelParams(trainingRecords, {
-    modelVersion: "bernoulli-fraud-v3.0.0-calibration-fit",
-    trainedAt: "2026-08-15T00:00:00.000Z",
+    modelVersion: "bernoulli-fraud-v3.1.0-calibration-fit",
+    trainedAt: "2026-08-27T00:00:00.000Z",
   });
   const calibrationRows = calibrationRecords.map((record) => ({
     actualFraud: record.actualFraud,
@@ -58,13 +58,13 @@ const run = ({ writeOutput = true } = {}) => {
   }));
   const calibration = {
     ...fitPlattScaling(calibrationRows),
-    trainedOn: "latest 20 percent temporal validation partition",
+    trainedOn: "latest 20 percent chronological calibration partition",
     records: calibrationRows.length,
   };
   const artifact = trainModelParams(trainingRecords, {
-    modelVersion: "bernoulli-fraud-v3.0.0",
-    trainedAt: "2026-08-15T00:00:00.000Z",
-    source: "phase5/normal seed=202605 size=600",
+    modelVersion: "bernoulli-fraud-v3.1.0",
+    trainedAt: "2026-08-27T00:00:00.000Z",
+    source: "phase5/normal seed=202605 size=600; canonical duplicate invoice suffixes",
     gitCommit: resolveSourceCommit(),
     threshold: 0.5,
     calibration,

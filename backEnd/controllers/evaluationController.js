@@ -15,7 +15,6 @@ const backendRoot = path.resolve(__dirname, "..");
 const projectRoot = path.resolve(backendRoot, "..");
 
 const EVALUATION_RESULTS_DIR = path.join(backendRoot, "evaluation-results");
-const LEGACY_SCRIPTS_DIR = path.join(backendRoot, "scripts");
 const GAS_RESULTS_PATH = path.join(projectRoot, "contracts", "gas-comparison-results.csv");
 const THROUGHPUT_RESULTS_PATH = path.join(
   EVALUATION_RESULTS_DIR,
@@ -128,8 +127,6 @@ const getEvaluationSummary = async (req, res, next) => {
   try {
     const result = await readFirstExistingFile([
       path.join(EVALUATION_RESULTS_DIR, "phase5-evaluation.json"),
-      path.join(EVALUATION_RESULTS_DIR, "risk-model-summary.json"),
-      path.join(LEGACY_SCRIPTS_DIR, "risk-model-summary.json"),
     ]);
 
     if (!result) {

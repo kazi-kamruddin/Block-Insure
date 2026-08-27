@@ -376,7 +376,7 @@ async function verifyAgainstRegistry({
   const comparisonVerified = record && comparison.blockingFailureCount === 0;
   const verified =
     Boolean(comparisonVerified) &&
-    riskAssessment.recommendation !== "REJECT_ORACLE_VERIFICATION";
+    riskAssessment.recommendation === "AUTO_VERIFY_RECOMMENDED";
   const comparisonRiskLevel = comparisonVerified
     ? comparison.warningFailureCount > 0
       ? "MEDIUM"

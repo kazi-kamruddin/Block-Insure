@@ -253,6 +253,7 @@ export default function ThesisResultsDashboardPage() {
   );
   const matrix = summary?.confusionMatrix || {};
   const metrics = summary?.metrics || {};
+  const triageOperatingPoint = summary?.triageEvaluation?.recommendedOperatingPoint || null;
   const mostCommonRiskLevel = oracleStats?.mostCommonRiskLevels?.[0];
   const anyLoading =
     summaryQuery.isLoading ||
@@ -406,8 +407,8 @@ export default function ThesisResultsDashboardPage() {
           <span>{summary?.dataset?.totalRecords || 0} held-out records</span>
         </div>
         <p className="muted-text">
-          Decision support only. Human review is required, and model output is
-          not automatic approval or rejection.
+          Probabilistic output routes claims between automatic verification and
+          human review. Only authoritative integrity failures can reject oracle verification.
         </p>
         <DataNotice data={summaryQuery.data} fallback="Run npm run evaluate:risk first" />
         {summaryQuery.error ? (
@@ -440,8 +441,20 @@ export default function ThesisResultsDashboardPage() {
             <strong>{Number(metrics.averagePrecision || 0).toFixed(4)}</strong>
           </div>
           <div>
-            <span>Selected Threshold</span>
-            <strong>{summary?.decisionRule?.selectedThreshold ?? "-"}</strong>
+            <span>Runtime Review Threshold</span>
+            <strong>{summary?.decisionRule?.runtimePolicyThreshold?.toFixed?.(4) ?? "-"}</strong>
+          </div>
+          <div>
+            <span>Recall at 20% Capacity</span>
+            <strong>{formatPercent(triageOperatingPoint?.recallAtCapacity)}</strong>
+          </div>
+          <div>
+            <span>Manual Review Rate</span>
+            <strong>{formatPercent(triageOperatingPoint?.manualReviewRate)}</strong>
+          </div>
+          <div>
+            <span>Expected Cost / Claim</span>
+            <strong>{Number(triageOperatingPoint?.expectedCostPerClaim || 0).toFixed(4)}</strong>
           </div>
         </div>
 
