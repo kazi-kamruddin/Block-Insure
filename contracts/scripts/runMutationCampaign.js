@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { atomicWriteFileSync } = require("../../backEnd/services/researchArtifactService");
 
 const CONTRACTS_ROOT = path.resolve(__dirname, "..");
 const WORKSPACE_ROOT = path.join(CONTRACTS_ROOT, ".mutation-workspace");
@@ -161,7 +162,7 @@ const run = () => {
       mutationScore: valid.length ? killed / valid.length : null,
     },
   };
-  fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  atomicWriteFileSync(OUTPUT_PATH, `${JSON.stringify(report, null, 2)}\n`);
   if (
     report.summary.survived > 0 ||
     report.summary.invalid > 0 ||

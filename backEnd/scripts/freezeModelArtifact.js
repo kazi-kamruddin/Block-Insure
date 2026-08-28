@@ -1,4 +1,3 @@
-const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { generateSyntheticDataset } = require("../services/syntheticRegistryService");
@@ -8,6 +7,7 @@ const { predictBernoulliNaiveBayes } = require("../services/bernoulliNaiveBayesS
 const { extractRecordFeatures } = require("../services/featureEngineeringService");
 const { fitPlattScaling } = require("../services/calibrationService");
 const { calculateTrainingDataHash } = require("../services/modelArtifactService");
+const { atomicWriteFileSync } = require("../services/researchArtifactService");
 
 const OUTPUT_PATH = path.join(__dirname, "..", "model-params.json");
 const REPOSITORY_ROOT = path.join(__dirname, "..", "..");
@@ -77,7 +77,7 @@ const run = ({ writeOutput = true } = {}) => {
   });
   const verification = verifyModelArtifact(artifact);
   if (!verification.valid) throw new Error(verification.errors.join("; "));
-  if (writeOutput) fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+  if (writeOutput) atomicWriteFileSync(OUTPUT_PATH, `${JSON.stringify(artifact, null, 2)}\n`);
   return artifact;
 };
 

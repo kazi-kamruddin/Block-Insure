@@ -1,18 +1,18 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-08-27T13:39:51.757Z",
+  "generatedAt": "2026-08-27T14:48:27.398Z",
   "runtimeModel": {
     "modelVersion": "bernoulli-fraud-v3.1.0",
-    "artifactHash": "6ed00250025a6f1ee9d30c61a5083efba228d1e6a3ab9c7a137839349e98149b",
-    "modelIdentityHash": "0x90a9dff519e97f9b271572407dbfbb95e670286d7d7e7047079f9f1f49a60a46",
-    "evaluatedArtifactHash": "6ed00250025a6f1ee9d30c61a5083efba228d1e6a3ab9c7a137839349e98149b",
+    "artifactHash": "fc8e96b304b3bbedae2c96c02fc963dfff4a7f55db9ded5ca9388ce3c644728c",
+    "modelIdentityHash": "0xb78139bd6fc039f5681bb08cdd95e5f857bdbeafad41b5621129b0a64edcfc61",
+    "evaluatedArtifactHash": "fc8e96b304b3bbedae2c96c02fc963dfff4a7f55db9ded5ca9388ce3c644728c",
     "hashesMatch": true
   },
   "runtimeTriagePolicy": {
     "policyVersion": "capacity-cost-triage-v1.0.0",
-    "artifactHash": "b4a35b454991222af3542e351cacbeb0d5e564595bace12e9b85cd2564215c50",
-    "policyIdentityHash": "0xdc689b3765ae36ff70af18485b81ebfd4e88e0c2a1d391f60f8980d80d7054ca",
-    "modelIdentityHash": "0x90a9dff519e97f9b271572407dbfbb95e670286d7d7e7047079f9f1f49a60a46",
+    "artifactHash": "b54590863b91daddfa68f40c6ac8618bae0e4e2fd2d833dc6e242cb05725fbf5",
+    "policyIdentityHash": "0x5f81bee709e93c0580aaccf8cd4fc10380898cb28002c079888b6a702b223f03",
+    "modelIdentityHash": "0xb78139bd6fc039f5681bb08cdd95e5f857bdbeafad41b5621129b0a64edcfc61",
     "hashesMatch": true
   },
   "datasets": {
@@ -9745,9 +9745,9 @@
         ]
       },
       "performance": {
-        "evaluationTimeMs": 877.1031999999999,
-        "totalInferenceTimeMs": 2.3695000000000164,
-        "meanInferenceTimeMs": 0.003949166666666694,
+        "evaluationTimeMs": 711.118,
+        "totalInferenceTimeMs": 1.3483999999999696,
+        "meanInferenceTimeMs": 0.0022473333333332826,
         "note": "Wall-clock values are descriptive and excluded from reproducibility hashes"
       }
     },
@@ -19780,9 +19780,9 @@
         ]
       },
       "performance": {
-        "evaluationTimeMs": 655.8543000000002,
-        "totalInferenceTimeMs": 1.009900000000016,
-        "meanInferenceTimeMs": 0.0016831666666666932,
+        "evaluationTimeMs": 652.2117000000001,
+        "totalInferenceTimeMs": 1.050599999999804,
+        "meanInferenceTimeMs": 0.0017509999999996732,
         "note": "Wall-clock values are descriptive and excluded from reproducibility hashes"
       }
     },
@@ -28660,9 +28660,9 @@
         ]
       },
       "performance": {
-        "evaluationTimeMs": 644.8423000000003,
-        "totalInferenceTimeMs": 1.2770000000000437,
-        "meanInferenceTimeMs": 0.002128333333333406,
+        "evaluationTimeMs": 640.8171000000002,
+        "totalInferenceTimeMs": 1.5235999999999876,
+        "meanInferenceTimeMs": 0.0025393333333333127,
         "note": "Wall-clock values are descriptive and excluded from reproducibility hashes"
       }
     },
@@ -37585,9 +37585,9 @@
         ]
       },
       "performance": {
-        "evaluationTimeMs": 643.5727999999999,
-        "totalInferenceTimeMs": 1.028400000000147,
-        "meanInferenceTimeMs": 0.001714000000000245,
+        "evaluationTimeMs": 646.0910999999996,
+        "totalInferenceTimeMs": 1.0203999999998814,
+        "meanInferenceTimeMs": 0.001700666666666469,
         "note": "Wall-clock values are descriptive and excluded from reproducibility hashes"
       }
     }
@@ -37658,7 +37658,7 @@
     "researchRecommendedThreshold": 0.11917315659841597,
     "runtimePolicyThreshold": 0.21796945267587475,
     "legacyModelThreshold": 0.5,
-    "triagePolicyIdentityHash": "0xdc689b3765ae36ff70af18485b81ebfd4e88e0c2a1d391f60f8980d80d7054ca",
+    "triagePolicyIdentityHash": "0x5f81bee709e93c0580aaccf8cd4fc10380898cb28002c079888b6a702b223f03",
     "policy": "hard integrity failure rejects oracle verification; calibrated probability only routes manual review",
     "terminology": "fraudProbability is a triage signal; verificationConfidence is a separate on-chain structural score"
   },
@@ -38016,9 +38016,9 @@
     }
   },
   "performance": {
-    "evaluationTimeMs": 877.1031999999999,
-    "totalInferenceTimeMs": 2.3695000000000164,
-    "meanInferenceTimeMs": 0.003949166666666694,
+    "evaluationTimeMs": 711.118,
+    "totalInferenceTimeMs": 1.3483999999999696,
+    "meanInferenceTimeMs": 0.0022473333333332826,
     "note": "Wall-clock values are descriptive and excluded from reproducibility hashes"
   },
   "fraudProbabilityDistribution": [
@@ -38072,7 +38072,7 @@
   },
   "evidenceProofCosts": {
     "treeSize": 512,
-    "buildAndProveMs": 5.011500000000524,
+    "buildAndProveMs": 4.953399999999419,
     "inclusionProofNodes": 9,
     "inclusionProofBytes": 288,
     "consistencyProofNodes": 1,
@@ -45708,5 +45708,5 @@
       ]
     }
   },
-  "reproducibilityHash": "fec8c5263b1562b46f596965d276a86c6419f30738822c4bf3fa2d70d453004b"
+  "reproducibilityHash": "906bb4c4cd29c049e024f47a28caf6e8d0b4c15d7df62ff34a8c79d7f1efe3a9"
 }

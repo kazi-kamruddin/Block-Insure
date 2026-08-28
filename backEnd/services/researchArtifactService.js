@@ -1,4 +1,6 @@
 const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
 const { canonicalize } = require("./modelArtifactService");
 
 const VOLATILE_KEYS = new Set([
@@ -26,8 +28,24 @@ const calculateReproducibilityHash = (artifact) =>
     .update(canonicalize(withoutVolatileMeasurements(artifact)))
     .digest("hex");
 
+const atomicWriteFileSync = (filePath, contents, encoding = "utf8") => {
+  const directory = path.dirname(filePath);
+  fs.mkdirSync(directory, { recursive: true });
+  const temporaryPath = path.join(
+    directory,
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`
+  );
+  try {
+    fs.writeFileSync(temporaryPath, contents, { encoding, mode: 0o600 });
+    fs.renameSync(temporaryPath, filePath);
+  } finally {
+    if (fs.existsSync(temporaryPath)) fs.rmSync(temporaryPath, { force: true });
+  }
+};
+
 module.exports = {
   VOLATILE_KEYS,
+  atomicWriteFileSync,
   calculateReproducibilityHash,
   withoutVolatileMeasurements,
 };

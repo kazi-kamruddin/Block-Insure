@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-08-27T14:30:05.529Z",
+  "generatedAt": "2026-08-27T14:54:20.027Z",
   "source": {
-    "gitCommit": "d02f00ccdf972cafb3b4805c60a3f39e45c2c6a1",
+    "gitCommit": "5b281cc27aa7a48ac91a84cc45347e78892e6720",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -19,28 +19,62 @@
     "root": {
       "name": "block-insure-local-workflow",
       "version": null,
-      "packageJsonSha256": "ffd936fdb1e9917b65653ec6663947894da907f993e09f04a94c0bf0e8a89ca5"
+      "packageJsonSha256": "6f9631747f48626f1146596a33798cf9668ffba2719b4735d22a7c0ce6981f9a",
+      "packageLockSha256": "e99a4deea0b24bb60163a3a929cda712aa4705233c4cd9f9fc2756fa74c744d5"
     },
     "backend": {
       "name": "backend",
       "version": "1.0.0",
-      "packageJsonSha256": "8279e87ba532a7140ae5bc9f57f34068a2d68be67fedfc4066db96f2de5cc210"
+      "packageJsonSha256": "104a74af4fcf3f219c437dfc63ded536c46ada19051062f7587dfdd702c5041b",
+      "packageLockSha256": "98337a57463d72e6bbf171d52cb7c5fc8fbb459cdf311716e3d3f52ad5b9db34"
     },
     "contracts": {
       "name": "contracts",
       "version": "1.0.0",
-      "packageJsonSha256": "5e442032902144049daef5aa3621d91528d5ab7d25a588d7b392e77e026469f7"
+      "packageJsonSha256": "5e442032902144049daef5aa3621d91528d5ab7d25a588d7b392e77e026469f7",
+      "packageLockSha256": "1779d72ab348680e748a250a4190196a9e27d806ae441a4150f6b1b636900e7f"
     },
     "frontend": {
       "name": "frontend",
       "version": "0.0.0",
-      "packageJsonSha256": "0c7a27037bda63c75f54ec2494ecfafa658a7a65a434f7642b7b3413f23932ff"
+      "packageJsonSha256": "0c7a27037bda63c75f54ec2494ecfafa658a7a65a434f7642b7b3413f23932ff",
+      "packageLockSha256": "54386e9ba1cda3c32ee3c5507ad8e8824f0c3282bdf66d4ccbe31d1fbd18aa10"
     },
     "oracle": {
       "name": "oracle",
       "version": "1.0.0",
-      "packageJsonSha256": "e2dc27c296cec6909a9d2d472e59e52d0b88932bfe2499963658f4589f467cb8"
+      "packageJsonSha256": "e2dc27c296cec6909a9d2d472e59e52d0b88932bfe2499963658f4589f467cb8",
+      "packageLockSha256": "5d4d066f339526029fd511ccdf786b5ca9b6a9bc1e1a638e76e515abe1d472bb"
     }
+  },
+  "implementation": {
+    "backEnd/services/phase5EvaluationService.js": "9ab6d6998990f4c6831b271ebc59b382bf6830a047553e126dd0fe2904f93ee7",
+    "backEnd/services/triageEvaluationService.js": "5066e8aaab428eaceb04d1edba2dd669c7d3e423d88877ea30b62277c543fc2c",
+    "backEnd/services/triagePolicyService.js": "8e9c5dd8218d3c3e2d6ef1ddcb7567da888dbe0067a6f0ff4cdf7824dc10d991",
+    "backEnd/services/reserveSimulationService.js": "74c890606ccb58225cfb6af7b878fea7536e26afc09f849a7a24134273aabaa1",
+    "backEnd/services/evidenceBenchmarkService.js": "60d2f371096c8888fe860114a126cc5f2e0b594d41362858899677293dde0f15",
+    "backEnd/services/researchArtifactService.js": "e59a91169545d27ad75770f89949144dc83017e62264a00776cf631eb5c367f8",
+    "backEnd/scripts/evaluatePhase5.js": "2d18c896b8bec5398f813ea2749c1c0fa838b1dcf4603415575338cfb3d359e7",
+    "backEnd/scripts/evaluateReserveAdequacy.js": "779efd5db5cf04b627a144c9b21cabd554b4d70999ca48cc0a8500f9e84d22c4",
+    "backEnd/scripts/evaluateEvidenceLifecycle.js": "b89af0a18e020e28f77298186111a767dfb1099122a6069b8dc3108721a4a7c0",
+    "backEnd/scripts/freezeModelArtifact.js": "dc8841046098c45a6d56a28dcdbaf514ad5a0fdd5bc434cf1008267183fc2936",
+    "backEnd/scripts/freezeTriagePolicy.js": "9dab4bd54aee6877f14d3f9dbc9fc92cea7e0eeffe64137188fbc8b1b9e5669b",
+    "backEnd/scripts/generateSyntheticDatasets.js": "77e9f5455f6d0fc569749f68693a00074b854942008250e3bc019819680c8dc6",
+    "backEnd/scripts/generateEvaluationCharts.js": "fa922dd9aedd297b0be9ac1afd6642741d129bd729a7005952ebda97a630040c",
+    "backEnd/scripts/generatePhase34Charts.js": "b4dfff7f0e2dcf4024e717f1d0cfb9224da217c191a9a33f1a2df8151808a372",
+    "backEnd/scripts/generateChartManifest.js": "e963bdf148a7a1005609d28af1d188d18bf008c4c0adeb1350545356309a02fa",
+    "backEnd/scripts/generateResearchManifest.js": "852c10c9231431b9858c00a0ccd10ccb17520c232d92b14da6bf66c8ecbc8f7b",
+    "backEnd/test/phase6CapacityTriage.test.js": "1596afa1dfd6fc1b86e2b8e574f9cecbd7c4a9baba8e1d8708574404e9088561",
+    "backEnd/test/phase7ReserveEvidence.test.js": "a5971ea0e016c053eec88e37e38ad5f1a4681cc30a685e669fb336765deaa777",
+    "backEnd/test/phase8OperationalHardening.test.js": "1d2a4b1efed47f825c95cbc63ff7b0980ee64d9116e7b80afc01299ba30a1375",
+    "contracts/hardhat.config.js": "f8dfdbdfb78954f5ae279a328d93c679d6cbab233c6760e4b07bbe9c8ddf5f07",
+    "contracts/mutations/manifest.json": "6e5bd5d9e6f0346d684a7b22c00dfc39dcca60b6929b538eb9ab50444d2fa792",
+    "contracts/scripts/runMutationCampaign.js": "80d4883c3f7f7f861a9c4dbf970c44f35861bc158b9641363b239e6e0e242bf4",
+    "contracts/test/invariants/protocol-invariants.json": "e01afb5460b5502850789a4a1655697ee3bf39c50b78caede5e32df08fcf35b1",
+    "contracts/test/Phase6ProtocolStatefulInvariants.test.js": "707bf5f194c98f76fa5cf581c4c1d6dd9857f7c828f40072eb5a56adbadf620d",
+    "scripts/devAll.js": "258558bd1179f5378a2f981c052e9fd470fa83eeaa78a12009deda79fdb2430e",
+    "scripts/verifyRepository.js": "1d334ad17b8a5e02f9ceb31b285e60cea17c3580b42226f8a513f5d530b3311e",
+    "scripts/runVerification.js": "ba3551af7ce9fedb8b52dddce9a69d464272443b6d2c369bdd0548e875e40fee"
   },
   "contracts": {
     "InsuranceManager": {
@@ -82,15 +116,15 @@
   "artifacts": {
     "fraudModel": {
       "path": "backEnd/model-params.json",
-      "artifactHash": "6ed00250025a6f1ee9d30c61a5083efba228d1e6a3ab9c7a137839349e98149b",
-      "modelIdentityHash": "0x90a9dff519e97f9b271572407dbfbb95e670286d7d7e7047079f9f1f49a60a46",
-      "fileSha256": "1a26721effcf46f842f66450bc2a25b4cbd6f60007ed66848458a6e007d44d2d"
+      "artifactHash": "fc8e96b304b3bbedae2c96c02fc963dfff4a7f55db9ded5ca9388ce3c644728c",
+      "modelIdentityHash": "0xb78139bd6fc039f5681bb08cdd95e5f857bdbeafad41b5621129b0a64edcfc61",
+      "fileSha256": "ef2d82d2cfe2eafcd84d3627656c98061aecd12bfdef69033d8dcd59b68ac706"
     },
     "triagePolicy": {
       "path": "backEnd/triage-policy.json",
-      "artifactHash": "b4a35b454991222af3542e351cacbeb0d5e564595bace12e9b85cd2564215c50",
-      "policyIdentityHash": "0xdc689b3765ae36ff70af18485b81ebfd4e88e0c2a1d391f60f8980d80d7054ca",
-      "fileSha256": "773a2c4277effbf9cc546651cba28d054d72567f4dc86f3fab1ca05bc1971164"
+      "artifactHash": "b54590863b91daddfa68f40c6ac8618bae0e4e2fd2d833dc6e242cb05725fbf5",
+      "policyIdentityHash": "0x5f81bee709e93c0580aaccf8cd4fc10380898cb28002c079888b6a702b223f03",
+      "fileSha256": "8d99ab056125d9e769659fdc0bc2446660f453a883ce7c2d057db3874af78332"
     },
     "datasets": {
       "path": "backEnd/datasets/phase5/manifest.json",
@@ -132,20 +166,20 @@
     "evaluation": {
       "path": "backEnd/evaluation-results/phase5-evaluation.json",
       "schemaVersion": 4,
-      "reproducibilityHash": "fec8c5263b1562b46f596965d276a86c6419f30738822c4bf3fa2d70d453004b"
+      "reproducibilityHash": "906bb4c4cd29c049e024f47a28caf6e8d0b4c15d7df62ff34a8c79d7f1efe3a9"
     },
     "reserveEvaluation": {
       "path": "backEnd/evaluation-results/phase3-reserve-evaluation.json",
       "schemaVersion": 1,
       "reproducibilityHash": "06ebd48e7d8f4a2c7e736bb0fa882ff39e98e710fc6f55ea1a132364b7a63038",
-      "executionFileSha256": "b875d3a6e3df52df0fc37ac43e27cd96863d70aea0f96515114b8f090cbab32f",
+      "executionFileSha256": "51a1766f40cb97a7b1c51ef468ebdcfc70266a7456a91598fdeec637a6847d96",
       "advisoryOnly": true
     },
     "evidenceEvaluation": {
       "path": "backEnd/evaluation-results/phase4-evidence-evaluation.json",
       "schemaVersion": 1,
       "reproducibilityHash": "b2ca6dec0f9201e8d127d757e531ea7cdb0bbef5bcb537426932d8fba99eabc9",
-      "executionFileSha256": "97cb66dd0bbc7c4d680072477bfc38659c9b8978c00d1ecd7d5a1e34c05b6c62",
+      "executionFileSha256": "ebfb02d972e14f84b32c973dfbfaeb9a84e9d4257a364717434fa9f285fea5d6",
       "adversarialDetection": {
         "cases": [
           {
@@ -202,6 +236,11 @@
         "detectionRate": 1
       }
     },
+    "chartOutputs": {
+      "path": "backEnd/evaluation-results/evaluation-charts/chart-manifest.json",
+      "chartCount": 16,
+      "executionFileSha256": "fb632bf87133e5fd277f5319782254843b5c8044516431832066948f91525772"
+    },
     "protocolAssurance": {
       "invariantCatalogue": {
         "path": "contracts/test/invariants/protocol-invariants.json",
@@ -213,7 +252,7 @@
       },
       "mutationCampaign": {
         "path": "contracts/mutation-results.json",
-        "executionFileSha256": "0ba041cec9443a516c0fa0eae8f9c7b7d813a47568bdb459d4c1695b8f03b101",
+        "executionFileSha256": "7cd245af5cf0392aa71353dda143dba6716c7e0d1f49f4fe48e463be2615dd33",
         "summary": {
           "requested": 8,
           "valid": 8,
@@ -257,5 +296,5 @@
     "evidenceLifecycle": "npm --prefix backEnd run evaluate:evidence",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "b845caa0fa23e017a778ec5eec55552fdad5ccb91889e4168d6bb8582198cf39"
+  "reproducibilityHash": "cb3a668c9cb3ad0338c865b36154472696506129d57b2b83f7c6db2e59af7742"
 }

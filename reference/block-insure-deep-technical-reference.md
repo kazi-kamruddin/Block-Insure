@@ -9,7 +9,7 @@
 **Audience:** thesis supervisor, examiner, implementer, reviewer, and future maintainer  
 **Authority rule:** current source code, deployment scripts, tests, and frozen artifacts override older prose
 
-> **Phase 0-4 implementation update (2026-08-27):** authoritative research results now include the schema-v4 fraud artifact, advisory reserve simulation, evidence-lifecycle benchmark, invariant catalogue, and mutation report under `backEnd/evaluation-results` and `contracts/mutation-results.json`. These supersede older fixed-threshold or unevaluated reserve/evidence statements in this long-form background reference.
+> **Phase 0-5 implementation update (2026-08-27):** authoritative research results now include the schema-v4 fraud artifact, advisory reserve simulation, evidence-lifecycle benchmark, invariant catalogue, mutation report, chart manifest, research-source hashes, and structured verification report. Phase 5 adds atomic artifact writes, clean-start diagnostics, dependency-ordered reproduction, and an explicit managed local bootstrap command. These supersede older fixed-threshold, unevaluated reserve/evidence, and manual-only launcher statements in this long-form background reference.
 
 ---
 
@@ -3118,14 +3118,17 @@ Frontend verification includes:
 
 ### 24.6 Recorded suite results
 
-The latest recorded cross-project run reported:
+The latest Phase 5 cross-project verification report records:
 
-- 124 Solidity tests in the full verification suite.
-- 123 passing coverage tests plus one instrumentation-only pending case.
-- 38 backend unit tests plus the analytics suite.
+- 127 passing Solidity tests in the full verification suite.
+- 54 passing backend analytics and unit tests.
 - Nine oracle protocol tests.
 - Passing frontend lint/build.
-- Passing synchronization/reproducibility checks.
+- Passing repository integrity, reproducibility, and runtime synchronization checks.
+
+The separate historical coverage run reported 123 passing instrumented tests plus
+one instrumentation-only pending case; use the structured Phase 5 verification
+report for current non-coverage suite counts.
 
 ### 24.7 Coverage
 

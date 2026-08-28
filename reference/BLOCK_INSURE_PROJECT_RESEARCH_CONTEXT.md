@@ -141,7 +141,7 @@ Controls include CORS allowlists, Helmet, hidden production errors, nonce/login/
 
 - **Implemented:** reproducible local Hardhat chain (`31337`) with MongoDB, backend, frontend, and two oracle workers.
 - `npm run setup:local` resets only project runtime data, funds local accounts, deploys/wires modules, assigns one admin/four auditors/two oracles, creates a default package/benefit schedule, funds reserves, publishes a registry root, synchronizes addresses/ABIs, and verifies clean state.
-- `npm run dev:all` combines backend, frontend, and two oracle processes after a valid chain/deployment exists; the Hardhat node remains a separate prerequisite.
+- `npm run dev:all` combines backend, frontend, and two oracle processes after a valid chain/deployment exists. `npm run dev:bootstrap` can explicitly start a managed Hardhat node, prepare a missing deployment, health-check services, and stop the managed group on unexpected child exit.
 - **Partial:** Hardhat contains a `sepolia` network entry, but there is no tracked Sepolia deployment script, CI/CD pipeline, production secret scheme, hosted database/storage topology, verified contract-address manifest, or evidence of a successful public-testnet deployment.
 - **Not implemented:** production/mainnet/L2 deployment, managed KMS/HSM, production monitoring/SLA, disaster recovery, or regulatory operations.
 
@@ -400,7 +400,7 @@ Mongo models include `User`, `RevokedToken`, `File`, `EvidenceEvent`, `EvidenceT
 - An executable 10-property protocol-invariant catalogue, cross-contract generated state-machine tests, and an isolated eight-mutant functional mutation campaign are implemented. This is empirical assurance, not formal verification.
 - An off-chain advisory reserve experiment performs 5,000-period compound Poisson–lognormal stress simulation with bootstrap shortfall intervals and capital-ratio frontiers; it does not alter `PolicyEconomics`.
 - A 30-repetition evidence benchmark measures AES-GCM, real Recrypt PRE, local content-addressed storage overhead, key rotation/revocation checks, and RFC6962 proofs across three synthetic document sizes, with eight adversarial manipulation checks. It does not measure public IPFS/network latency.
-- The latest focused checks pass 43 backend unit tests and four stateful Solidity tests; full-suite counts should be taken from the most recent `npm run verify:all` output rather than this context file. Six Playwright E2E tests still require a prepared live stack and are outside `verify:all`.
+- The latest focused checks pass 54 backend unit tests and four stateful Solidity tests; full-suite counts should be taken from `verification-results/phase5-verification.json`. Six Playwright E2E tests still require a prepared live stack and are outside `verify:all`.
 
 ### 7.2 Partial or experimental
 
@@ -443,7 +443,7 @@ Mongo models include `User`, `RevokedToken`, `File`, `EvidenceEvent`, `EvidenceT
 
 Recorded Solidity coverage artifact: statements `93.64%`, functions `90.00%`, lines `94.29%`, branches `64.51%`. Branch coverage is the clearest coverage weakness. The synchronization result is current; other recorded test/coverage metrics are artifacts and should be rerun before thesis submission.
 
-`npm run verify:all` also passed on 2026-08-27: 124 Solidity tests, backend analytics plus 38 unit tests, frontend lint and production build, and 9 oracle tests. The six live-stack Playwright tests were not run by that command.
+`npm run verify:all` writes a structured Phase 5 report and currently covers 127 Solidity tests, backend analytics/unit tests, frontend lint and production build, repository/artifact integrity, and 9 oracle tests. `npm run verify:full` additionally checks local ABI/address/environment synchronization. The six live-stack Playwright tests remain separate.
 
 ## 8. Prioritized research opportunities
 

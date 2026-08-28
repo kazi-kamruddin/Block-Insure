@@ -11,6 +11,7 @@ const {
   verifyTriagePolicy,
 } = require("../services/triagePolicyService");
 const modelArtifact = require("../model-params.json");
+const { atomicWriteFileSync } = require("../services/researchArtifactService");
 
 const OUTPUT_PATH = path.join(__dirname, "..", "triage-policy.json");
 const DATASET_MANIFEST_PATH = path.join(__dirname, "..", "datasets", "phase5", "manifest.json");
@@ -35,7 +36,7 @@ const run = ({ writeOutput = true } = {}) => {
   const verification = verifyTriagePolicy(policy);
   if (!verification.valid) throw new Error(verification.errors.join("; "));
   if (writeOutput) {
-    fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
+    atomicWriteFileSync(OUTPUT_PATH, `${JSON.stringify(policy, null, 2)}\n`);
   }
   return policy;
 };

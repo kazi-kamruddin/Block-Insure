@@ -45,52 +45,33 @@ collections, but clean setup gives both the same committed baseline so valid
 claims can reach quorum. Research scripts may deliberately introduce divergent
 data, but the clean workflow never does.
 
-Start a fresh Hardhat chain in the first terminal:
+For a fresh one-terminal development stack, configure the `.env` files once
+and run:
+
+```powershell
+npm run dev:bootstrap
+```
+
+The managed launcher starts Hardhat when needed, waits for RPC readiness,
+runs the clean deployment workflow only when no valid deployment exists, then
+starts and health-checks the backend, frontend, and both oracle workers. Ctrl+C
+stops every process started by the launcher. Because bootstrap invokes the
+clean setup when deployment is absent, it may reset only the configured local
+Block-Insure database.
+
+To reuse an already running and deployed local chain without resetting data:
+
+```powershell
+npm run dev:all
+```
+
+The manual multi-terminal workflow remains available for debugging:
 
 ```powershell
 npm --prefix contracts run node
-```
-
-Once it reports that it is listening on port 8545, run this once from the
-repository root in a second terminal:
-
-```powershell
-npm run setup:local
-```
-
-The command finishes with a clean-start verification. It must report one
-package and zero purchased policies/claims before you start the application.
-The deploy step also synchronizes the new contract address into the backend,
-frontend, and both oracle environment files.
-
-Keep the Hardhat-node terminal open. For separate application terminals, start
-each remaining service with:
-
-```powershell
-cd backEnd
-npm run dev
-```
-
-```powershell
-cd frontEnd
-npm run dev
-```
-
-```powershell
-cd oracle
-npm run dev
 # In another terminal:
-npm run dev:oracle2
-```
-
-Alternatively, once a local deployment exists and that same Hardhat node is
-still running, start the application processes with prefixed logs in one
-terminal. The launcher detects and reuses the existing chain instead of trying
-to bind a second process to port 8545:
-
-```powershell
-npm run preflight
-npm run dev:all
+npm run setup:local
+# Then start services separately or run npm run dev:all.
 ```
 
 Open separate browser profiles (or separate browsers) and connect MetaMask to
@@ -138,6 +119,23 @@ Run the complete repository verification from the project root:
 ```powershell
 npm run verify:all
 ```
+
+This continues through every offline subsystem and writes a structured result
+to `verification-results/phase5-verification.json`. To include local
+environment/ABI/address synchronization, run:
+
+```powershell
+npm run verify:full
+```
+
+For a fast prerequisite and artifact diagnosis:
+
+```powershell
+npm run doctor
+```
+
+On a fresh checkout, install every workspace from its lock file with
+`npm run install:all`.
 
 Or run individual checks:
 
@@ -213,7 +211,8 @@ This produces seeded frequency–severity reserve stress results, real
 AES-GCM/Recrypt/Merkle lifecycle measurements, adversarial evidence checks,
 four SVG figures, and an updated research manifest. Run `npm run research:all`
 from the repository root to reproduce every Phase 0–4 research artifact and
-assurance campaign.
+assurance campaign. Research artifacts use atomic replacement, so interruption
+cannot replace a valid JSON file with a partially written one.
 
 ## Documentation
 
@@ -221,6 +220,7 @@ assurance campaign.
 - [Current protocol migration manifest](docs/protocol-v2-migration.json)
 - [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
 - [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
+- [Phase 5 operational hardening and future-run guide](docs/phase-5-operational-hardening.md)
 - Historical research notes retained for provenance:
   [Section 1](docs/section-1-system-design.md),
   [Section 2](docs/section-2-oracle-security-fraud-model.md), and

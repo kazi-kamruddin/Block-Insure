@@ -4,7 +4,7 @@ const { generateAllSyntheticDatasets } = require("../services/syntheticRegistryS
 const { runLeakageSafeEvaluation } = require("../services/phase5EvaluationService");
 const { runTriageEvaluation, evaluateCapacityPolicy } = require("../services/triageEvaluationService");
 const { toRows } = require("../services/phase5EvaluationService");
-const { calculateReproducibilityHash } = require("../services/researchArtifactService");
+const { atomicWriteFileSync, calculateReproducibilityHash } = require("../services/researchArtifactService");
 const {
   DEFAULT_CAPACITY_RATES,
   DEFAULT_COST_SCENARIOS,
@@ -168,7 +168,7 @@ const run = ({ writeOutput = true, size = 600 } = {}) => {
   result.reproducibilityHash = calculateReproducibilityHash(result);
   if (writeOutput) {
     fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
-    fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+    atomicWriteFileSync(OUTPUT_PATH, `${JSON.stringify(result, null, 2)}\n`);
   }
   return result;
 };

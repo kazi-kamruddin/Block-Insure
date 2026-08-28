@@ -1,6 +1,5 @@
-const fs = require("node:fs");
 const path = require("node:path");
-const { calculateReproducibilityHash } = require("../services/researchArtifactService");
+const { atomicWriteFileSync, calculateReproducibilityHash } = require("../services/researchArtifactService");
 const { evaluateEvidenceLifecycle } = require("../services/evidenceBenchmarkService");
 
 const OUTPUT_PATH = path.join(__dirname, "..", "evaluation-results", "phase4-evidence-evaluation.json");
@@ -33,8 +32,7 @@ const run = ({ writeOutput = true, repetitions = 30 } = {}) => {
   };
   result.reproducibilityHash = calculateReproducibilityHash(reproducibilityBasis(result));
   if (writeOutput) {
-    fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
-    fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+    atomicWriteFileSync(OUTPUT_PATH, `${JSON.stringify(result, null, 2)}\n`);
   }
   return result;
 };

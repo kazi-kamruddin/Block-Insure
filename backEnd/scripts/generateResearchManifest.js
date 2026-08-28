@@ -2,7 +2,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
-const { calculateReproducibilityHash } = require("../services/researchArtifactService");
+const { atomicWriteFileSync, calculateReproducibilityHash } = require("../services/researchArtifactService");
 const { verifyModelArtifact } = require("../services/modelArtifactService");
 const { verifyTriagePolicy } = require("../services/triagePolicyService");
 
@@ -15,6 +15,8 @@ const sha256File = (filePath) =>
   crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
+const readJsonIfExists = (filePath) =>
+  fs.existsSync(filePath) ? readJson(filePath) : null;
 
 const git = (...args) => execFileSync(
   "git",
@@ -65,6 +67,7 @@ const run = ({ writeOutput = true } = {}) => {
   const evaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "phase5-evaluation.json");
   const reserveEvaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "phase3-reserve-evaluation.json");
   const evidenceEvaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "phase4-evidence-evaluation.json");
+  const chartManifestPath = path.join(BACKEND_ROOT, "evaluation-results", "evaluation-charts", "chart-manifest.json");
   const mutationManifestPath = path.join(CONTRACTS_ROOT, "mutations", "manifest.json");
   const mutationResultsPath = path.join(CONTRACTS_ROOT, "mutation-results.json");
   const invariantCataloguePath = path.join(CONTRACTS_ROOT, "test", "invariants", "protocol-invariants.json");
@@ -72,8 +75,9 @@ const run = ({ writeOutput = true } = {}) => {
   const triagePolicy = readJson(triagePath);
   const datasetManifest = readJson(datasetManifestPath);
   const evaluation = readJson(evaluationPath);
-  const reserveEvaluation = readJson(reserveEvaluationPath);
-  const evidenceEvaluation = readJson(evidenceEvaluationPath);
+  const reserveEvaluation = readJsonIfExists(reserveEvaluationPath);
+  const evidenceEvaluation = readJsonIfExists(evidenceEvaluationPath);
+  const chartManifest = readJsonIfExists(chartManifestPath);
   const modelIntegrity = verifyModelArtifact(model);
   const policyIntegrity = verifyTriagePolicy(triagePolicy);
   const datasetIntegrity = verifyDatasets(datasetDirectory, datasetManifest);
@@ -83,17 +87,49 @@ const run = ({ writeOutput = true } = {}) => {
   if (evaluation.schemaVersion !== 4 || !evaluation.reproducibilityHash) {
     throw new Error("Run the schema-v4 Phase 5 evaluation before generating the research manifest");
   }
-  if (!reserveEvaluation.reproducibilityHash || !evidenceEvaluation.reproducibilityHash) {
-    throw new Error("Run the Phase 3 and Phase 4 evaluations before generating the research manifest");
+  if (reserveEvaluation && !reserveEvaluation.reproducibilityHash) {
+    throw new Error("The Phase 3 reserve artifact is missing its reproducibility hash");
+  }
+  if (evidenceEvaluation && !evidenceEvaluation.reproducibilityHash) {
+    throw new Error("The Phase 4 evidence artifact is missing its reproducibility hash");
   }
 
   const packageFiles = {
-    root: path.join(PROJECT_ROOT, "package.json"),
-    backend: path.join(BACKEND_ROOT, "package.json"),
-    contracts: path.join(CONTRACTS_ROOT, "package.json"),
-    frontend: path.join(PROJECT_ROOT, "frontEnd", "package.json"),
-    oracle: path.join(PROJECT_ROOT, "oracle", "package.json"),
+    root: PROJECT_ROOT,
+    backend: BACKEND_ROOT,
+    contracts: CONTRACTS_ROOT,
+    frontend: path.join(PROJECT_ROOT, "frontEnd"),
+    oracle: path.join(PROJECT_ROOT, "oracle"),
   };
+  const implementationFiles = [
+    "backEnd/services/phase5EvaluationService.js",
+    "backEnd/services/triageEvaluationService.js",
+    "backEnd/services/triagePolicyService.js",
+    "backEnd/services/reserveSimulationService.js",
+    "backEnd/services/evidenceBenchmarkService.js",
+    "backEnd/services/researchArtifactService.js",
+    "backEnd/scripts/evaluatePhase5.js",
+    "backEnd/scripts/evaluateReserveAdequacy.js",
+    "backEnd/scripts/evaluateEvidenceLifecycle.js",
+    "backEnd/scripts/freezeModelArtifact.js",
+    "backEnd/scripts/freezeTriagePolicy.js",
+    "backEnd/scripts/generateSyntheticDatasets.js",
+    "backEnd/scripts/generateEvaluationCharts.js",
+    "backEnd/scripts/generatePhase34Charts.js",
+    "backEnd/scripts/generateChartManifest.js",
+    "backEnd/scripts/generateResearchManifest.js",
+    "backEnd/test/phase6CapacityTriage.test.js",
+    "backEnd/test/phase7ReserveEvidence.test.js",
+    "backEnd/test/phase8OperationalHardening.test.js",
+    "contracts/hardhat.config.js",
+    "contracts/mutations/manifest.json",
+    "contracts/scripts/runMutationCampaign.js",
+    "contracts/test/invariants/protocol-invariants.json",
+    "contracts/test/Phase6ProtocolStatefulInvariants.test.js",
+    "scripts/devAll.js",
+    "scripts/verifyRepository.js",
+    "scripts/runVerification.js",
+  ];
   const manifest = {
     schemaVersion: 4,
     generatedAt: new Date().toISOString(),
@@ -111,14 +147,21 @@ const run = ({ writeOutput = true } = {}) => {
       optimizerRuns: 1,
       viaIR: true,
     },
-    packages: Object.fromEntries(Object.entries(packageFiles).map(([name, filePath]) => {
-      const packageJson = readJson(filePath);
+    packages: Object.fromEntries(Object.entries(packageFiles).map(([name, directory]) => {
+      const packagePath = path.join(directory, "package.json");
+      const lockPath = path.join(directory, "package-lock.json");
+      const packageJson = readJson(packagePath);
       return [name, {
         name: packageJson.name,
         version: packageJson.version || null,
-        packageJsonSha256: sha256File(filePath),
+        packageJsonSha256: sha256File(packagePath),
+        packageLockSha256: sha256File(lockPath),
       }];
     })),
+    implementation: Object.fromEntries(implementationFiles.map((relativePath) => [
+      relativePath,
+      sha256File(path.join(PROJECT_ROOT, relativePath)),
+    ])),
     contracts: Object.fromEntries([
       "InsuranceManager",
       "OracleCoordinator",
@@ -151,20 +194,31 @@ const run = ({ writeOutput = true } = {}) => {
         schemaVersion: evaluation.schemaVersion,
         reproducibilityHash: evaluation.reproducibilityHash,
       },
-      reserveEvaluation: {
-        path: "backEnd/evaluation-results/phase3-reserve-evaluation.json",
-        schemaVersion: reserveEvaluation.schemaVersion,
-        reproducibilityHash: reserveEvaluation.reproducibilityHash,
-        executionFileSha256: sha256File(reserveEvaluationPath),
-        advisoryOnly: reserveEvaluation.methodology.advisoryOnly,
-      },
-      evidenceEvaluation: {
-        path: "backEnd/evaluation-results/phase4-evidence-evaluation.json",
-        schemaVersion: evidenceEvaluation.schemaVersion,
-        reproducibilityHash: evidenceEvaluation.reproducibilityHash,
-        executionFileSha256: sha256File(evidenceEvaluationPath),
-        adversarialDetection: evidenceEvaluation.adversarialTests,
-      },
+      reserveEvaluation: reserveEvaluation
+        ? {
+            path: "backEnd/evaluation-results/phase3-reserve-evaluation.json",
+            schemaVersion: reserveEvaluation.schemaVersion,
+            reproducibilityHash: reserveEvaluation.reproducibilityHash,
+            executionFileSha256: sha256File(reserveEvaluationPath),
+            advisoryOnly: reserveEvaluation.methodology.advisoryOnly,
+          }
+        : { path: "backEnd/evaluation-results/phase3-reserve-evaluation.json", available: false },
+      evidenceEvaluation: evidenceEvaluation
+        ? {
+            path: "backEnd/evaluation-results/phase4-evidence-evaluation.json",
+            schemaVersion: evidenceEvaluation.schemaVersion,
+            reproducibilityHash: evidenceEvaluation.reproducibilityHash,
+            executionFileSha256: sha256File(evidenceEvaluationPath),
+            adversarialDetection: evidenceEvaluation.adversarialTests,
+          }
+        : { path: "backEnd/evaluation-results/phase4-evidence-evaluation.json", available: false },
+      chartOutputs: chartManifest
+        ? {
+            path: "backEnd/evaluation-results/evaluation-charts/chart-manifest.json",
+            chartCount: chartManifest.charts.length,
+            executionFileSha256: sha256File(chartManifestPath),
+          }
+        : { path: "backEnd/evaluation-results/evaluation-charts/chart-manifest.json", available: false },
       protocolAssurance: {
         invariantCatalogue: {
           path: "contracts/test/invariants/protocol-invariants.json",
@@ -190,9 +244,13 @@ const run = ({ writeOutput = true } = {}) => {
       triageCapacityRates: [0.05, 0.1, 0.2, 0.3, 0.5],
       primaryTriageScenario: "fraud_averse",
       primaryNominalReviewRate: 0.2,
-      reserveSimulationPeriods: reserveEvaluation.methodology.periods,
-      reserveTargetShortfallProbability: reserveEvaluation.methodology.targetShortfallProbability,
-      evidenceBenchmarkRepetitions: evidenceEvaluation.methodology.repetitions,
+      ...(reserveEvaluation ? {
+        reserveSimulationPeriods: reserveEvaluation.methodology.periods,
+        reserveTargetShortfallProbability: reserveEvaluation.methodology.targetShortfallProbability,
+      } : {}),
+      ...(evidenceEvaluation ? {
+        evidenceBenchmarkRepetitions: evidenceEvaluation.methodology.repetitions,
+      } : {}),
     },
     commands: {
       reproduceResearch: "npm --prefix backEnd run research:baseline",
@@ -206,8 +264,7 @@ const run = ({ writeOutput = true } = {}) => {
   };
   manifest.reproducibilityHash = calculateReproducibilityHash(manifest);
   if (writeOutput) {
-    fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
-    fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    atomicWriteFileSync(OUTPUT_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
   }
   return manifest;
 };
@@ -218,4 +275,4 @@ if (require.main === module) {
   console.log(`Reproducibility hash: ${manifest.reproducibilityHash}`);
 }
 
-module.exports = { run };
+module.exports = { readJsonIfExists, run };

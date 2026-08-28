@@ -394,13 +394,13 @@ The safest clean demo sequence is:
 1. Install the repository dependencies and create the required local .env files.
 2. Start MongoDB and a Hardhat JSON-RPC node.
 3. Run: npm run setup:local
-4. Start the backend, frontend, and two oracle workers separately, or run: npm run dev:all
+4. Run `npm run dev:bootstrap` for a managed one-terminal chain/deployment/service startup, or use `npm run dev:all` to reuse an existing deployment.
 5. Connect a wallet to chain 31337 and use the seeded roles/accounts.
 ```
 
 `setup:local` resets only the Block-Insure runtime database, deploys a fresh chain, grants local roles, creates the default package, deploys/configures extensions, funds the manager and benefits vault, publishes the primary Merkle registry, synchronizes ABIs/configuration, and verifies a clean state. It is intentionally destructive to local demo data; it should not be run against a valuable database.
 
-The launcher no longer starts an empty chain behind the user's back. It verifies that chain ID `31337` is reachable and that the configured `InsuranceManager` has deployed bytecode, then reuses that deployment. If the node/deployment is absent, it tells the operator to start the node and run `setup:local`.
+`dev:all` conservatively reuses only a verified chain/deployment. The explicit `dev:bootstrap` command can start a managed Hardhat node, wait for readiness, run clean setup when deployment is absent, and health-check the application services. Unexpected managed-child exits fail the launcher and stop the group.
 
 Useful commands are documented in [`README.md`](../README.md), including `npm run preflight`, `npm run verify:all`, `npm run verify:sync`, `npm run dev:observe`, and the contract/backend/frontend/oracle test commands. Development observability writes redacted JSONL events to `.dev-logs/events.jsonl`.
 
@@ -410,10 +410,11 @@ The latest recorded repository verification in this workspace reported:
 
 - Full Solidity counts should be read from the latest `npm run verify:all`; the focused stateful suite contains four passing tests across the Phase 5 and Phase 6 files.
 - Contract coverage: approximately 93.64% statements, 64.51% branches, 90% functions, and 94.29% lines.
-- Backend analytics suite and 43 backend unit tests pass in the latest focused run.
+- Backend analytics suite and 54 backend unit tests pass in the latest focused run; take the exact current number from the generated Phase 5 verification report.
 - Frontend ESLint and production build pass.
 - Nine oracle protocol tests pass.
 - ABI/configuration synchronization and exact reproducibility/frozen model-hash checks pass.
+- Phase 5 repository integrity validates lock files, environment templates, datasets, research/source/chart hashes, mutation outcomes, compiled bytecode budgets, and temporary-workspace cleanup. Full verification writes a structured report.
 - Contract bytecode sizes after compilation: `InsuranceManager` 24,262/24,576 bytes; `OracleCoordinator` 7,014; `ClaimAdjudicator` 10,818; `PolicyEconomics` 9,484; `EvidenceRegistry` 4,135; `ProtocolDeploymentRegistry` 923; and `PolicyBenefitsManager` 9,981.
 - Production dependency audits report no findings for backend, frontend, oracle, or contract production dependencies. The full Hardhat/toolchain development tree still has transitive findings that must be tracked separately.
 

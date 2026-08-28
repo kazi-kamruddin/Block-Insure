@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 5,
+  "generatedAt": "2026-08-27T14:54:52.774Z",
+  "node": "v24.16.0",
+  "platform": "win32",
+  "source": {
+    "gitCommit": "5b281cc27aa7a48ac91a84cc45347e78892e6720",
+    "branch": "postPreDefence",
+    "dirty": true
+  },
+  "runtimeSynchronizationIncluded": true,
+  "passed": true,
+  "tasks": [
+    {
+      "key": "contracts",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 8850,
+      "error": null
+    },
+    {
+      "key": "repository_integrity",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 794,
+      "error": null
+    },
+    {
+      "key": "backend",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 3654,
+      "error": null
+    },
+    {
+      "key": "frontend_lint",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 5483,
+      "error": null
+    },
+    {
+      "key": "frontend_build",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 1414,
+      "error": null
+    },
+    {
+      "key": "oracle",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 1080,
+      "error": null
+    },
+    {
+      "key": "runtime_synchronization",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 747,
+      "error": null
+    }
+  ]
+}
