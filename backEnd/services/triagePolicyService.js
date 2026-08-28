@@ -11,6 +11,14 @@ const HARD_BLOCKING_FEATURES = Object.freeze([
   "license_blacklisted",
 ]);
 
+const MANUAL_REVIEW_FEATURES = Object.freeze([
+  "claim_exceeds_registry_bill",
+  "bill_range_anomaly",
+  "date_mismatch",
+  "near_duplicate_advisory",
+  "missing_or_noisy_record",
+]);
+
 const DEFAULT_COST_SCENARIOS = Object.freeze([
   { key: "balanced", missedFraudCost: 5, falseEscalationCost: 1, manualReviewCost: 0.25 },
   { key: "fraud_averse", missedFraudCost: 10, falseEscalationCost: 1, manualReviewCost: 0.25 },
@@ -48,7 +56,7 @@ const buildTriagePolicyPayload = ({
   const capacityThreshold = selectCapacityThreshold(calibrationProbabilities, capacityRate);
   return {
     artifactSchemaVersion: 1,
-    policyVersion: "capacity-cost-triage-v1.0.0",
+    policyVersion: "capacity-cost-triage-v1.1.0",
     sourceCommit,
     modelIdentityHash: modelArtifact.modelIdentityHash,
     modelArtifactHash: modelArtifact.artifactHash,
@@ -67,6 +75,7 @@ const buildTriagePolicyPayload = ({
     },
     routing: {
       hardBlockingFeatures: [...HARD_BLOCKING_FEATURES],
+      manualReviewFeatures: [...MANUAL_REVIEW_FEATURES],
       economicReviewThreshold: economicThreshold,
       capacityReviewThreshold: capacityThreshold,
       manualReviewThreshold: Math.max(economicThreshold, capacityThreshold),
@@ -134,6 +143,13 @@ const routeRiskAssessment = ({
       capacityConstrained: false,
     };
   }
+  if ((policy.routing.manualReviewFeatures || []).some((name) => Boolean(features[name]))) {
+    return {
+      recommendation: "MANUAL_REVIEW_RECOMMENDED",
+      reason: "COMMITTED_ANOMALY_ABSTENTION",
+      capacityConstrained: false,
+    };
+  }
   if (fraudProbability >= policy.routing.manualReviewThreshold) {
     return {
       recommendation: "MANUAL_REVIEW_RECOMMENDED",
@@ -152,6 +168,7 @@ module.exports = {
   DEFAULT_CAPACITY_RATES,
   DEFAULT_COST_SCENARIOS,
   HARD_BLOCKING_FEATURES,
+  MANUAL_REVIEW_FEATURES,
   buildTriagePolicyPayload,
   calculateEconomicReviewThreshold,
   freezeTriagePolicy,

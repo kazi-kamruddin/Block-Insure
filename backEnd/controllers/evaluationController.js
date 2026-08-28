@@ -136,9 +136,10 @@ const getEvaluationSummary = async (req, res, next) => {
       });
     }
 
-    const [reserveEvaluation, evidenceEvaluation] = await Promise.all([
+    const [reserveEvaluation, evidenceEvaluation, hybridEvaluation] = await Promise.all([
       safeReadJson(path.join(EVALUATION_RESULTS_DIR, "phase3-reserve-evaluation.json")),
       safeReadJson(path.join(EVALUATION_RESULTS_DIR, "phase4-evidence-evaluation.json")),
+      safeReadJson(path.join(EVALUATION_RESULTS_DIR, "hybrid-v1-evaluation.json")),
     ]);
     res.status(200).json({
       success: true,
@@ -146,6 +147,7 @@ const getEvaluationSummary = async (req, res, next) => {
         ...JSON.parse(result.contents),
         reserveEvaluation,
         evidenceEvaluation,
+        hybridEvaluation,
       },
       sourceFile: path.relative(projectRoot, result.filePath),
     });

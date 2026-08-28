@@ -1,0 +1,194 @@
+{
+  "artifactSchemaVersion": 3,
+  "modelVersion": "provider-risk-real-v1.0.0",
+  "trainedAt": "2026-08-28T15:42:10.410Z",
+  "source": "Healthcare Provider Fraud Detection Analysis",
+  "gitCommit": "WORKTREE",
+  "trainingDataHash": "de83475c5c012b169ac805b6d030ecdaf00c32f99e88378340e5e8eb674cdc3c",
+  "calibrationDataHash": "732fd1ee1715907be5dd50b58d7cb419344ff1df9ece0a5cd249e7f2f6b1194e",
+  "featureSchemaVersion": "provider-risk-features-v1",
+  "threshold": 0.35,
+  "calibration": {
+    "method": "platt",
+    "version": "platt-v1",
+    "slope": 0.36505127213869937,
+    "intercept": -0.9829746462550797,
+    "trainedOn": "provider-disjoint calibration partition",
+    "records": 905
+  },
+  "trainingSet": {
+    "totalRecords": 3420,
+    "fraudRecords": 324,
+    "legitimateRecords": 3096,
+    "unit": "provider",
+    "sourceClaims": 343537,
+    "smoothing": "Laplace alpha=1"
+  },
+  "algorithm": "BernoulliNB",
+  "alpha": 1,
+  "featureNames": [
+    "high_claim_volume",
+    "high_unique_beneficiary_count",
+    "high_mean_claim_amount",
+    "high_max_claim_amount",
+    "high_inpatient_ratio",
+    "high_procedure_ratio",
+    "high_repeat_claim_ratio",
+    "high_mean_chronic_conditions",
+    "high_beneficiary_activity_ratio"
+  ],
+  "classCounts": {
+    "fraud": 324,
+    "legitimate": 3096
+  },
+  "classPrior": {
+    "fraud": 0.09497369959088252,
+    "legitimate": 0.9050263004091175
+  },
+  "featureProbabilities": {
+    "high_claim_volume": {
+      "fraud": {
+        "present": 0.6809815950920245,
+        "absent": 0.3190184049079755,
+        "presentCount": 221,
+        "classCount": 324
+      },
+      "legitimate": {
+        "present": 0.2078760490639122,
+        "absent": 0.7921239509360878,
+        "presentCount": 643,
+        "classCount": 3096
+      }
+    },
+    "high_unique_beneficiary_count": {
+      "fraud": {
+        "present": 0.6901840490797546,
+        "absent": 0.3098159509202454,
+        "presentCount": 224,
+        "classCount": 324
+      },
+      "legitimate": {
+        "present": 0.20626210458360233,
+        "absent": 0.7937378954163976,
+        "presentCount": 638,
+        "classCount": 3096
+      }
+    },
+    "high_mean_claim_amount": {
+      "fraud": {
+        "present": 0.656441717791411,
+        "absent": 0.34355828220858897,
+        "presentCount": 213,
+        "classCount": 324
+      },
+      "legitimate": {
+        "present": 0.2078760490639122,
+        "absent": 0.7921239509360878,
+        "presentCount": 643,
+        "classCount": 3096
+      }
+    },
+    "high_max_claim_amount": {
+      "fraud": {
+        "present": 0.8312883435582822,
+        "absent": 0.16871165644171782,
+        "presentCount": 270,
+        "classCount": 324
+      },
+      "legitimate": {
+        "present": 0.1946417043253712,
+        "absent": 0.8053582956746288,
+        "presentCount": 602,
+        "classCount": 3096
+      }
+    },
+    "high_inpatient_ratio": {
+      "fraud": {
+        "present": 0.6288343558282209,
+        "absent": 0.3711656441717791,
+        "presentCount": 204,
+        "classCount": 324
+      },
+      "legitimate": {
+        "present": 0.21078114912846999,
+        "absent": 0.78921885087153,
+        "presentCount": 652,
+        "classCount": 3096
+      }
+    },
+    "high_procedure_ratio": {
+      "fraud": {
+        "present": 0.6441717791411042,
+        "absent": 0.35582822085889576,
+        "presentCount": 209,
+        "classCount": 324
+      },
+      "legitimate": {
+        "present": 0.20981278244028406,
+        "absent": 0.790187217559716,
+        "presentCount": 649,
+        "classCount": 3096
+      }
+    },
+    "high_repeat_claim_ratio": {
+      "fraud": {
+        "present": 0.17484662576687116,
+        "absent": 0.8251533742331288,
+        "presentCount": 56,
+        "classCount": 324
+      },
+      "legitimate": {
+        "present": 0.25855390574564235,
+        "absent": 0.7414460942543577,
+        "presentCount": 800,
+        "classCount": 3096
+      }
+    },
+    "high_mean_chronic_conditions": {
+      "fraud": {
+        "present": 0.3282208588957055,
+        "absent": 0.6717791411042945,
+        "presentCount": 106,
+        "classCount": 324
+      },
+      "legitimate": {
+        "present": 0.24402840542285345,
+        "absent": 0.7559715945771466,
+        "presentCount": 755,
+        "classCount": 3096
+      }
+    },
+    "high_beneficiary_activity_ratio": {
+      "fraud": {
+        "present": 0.30368098159509205,
+        "absent": 0.696319018404908,
+        "presentCount": 98,
+        "classCount": 324
+      },
+      "legitimate": {
+        "present": 0.24531956100710137,
+        "absent": 0.7546804389928986,
+        "presentCount": 759,
+        "classCount": 3096
+      }
+    }
+  },
+  "featureThresholds": {
+    "claimCount": 85,
+    "uniqueBeneficiaryCount": 63,
+    "meanClaimAmount": 1725.0631970260224,
+    "maxClaimAmount": 18068,
+    "inpatientRatio": 0.13526570048309178,
+    "procedureRatio": 0.07142857142857142,
+    "repeatClaimRatio": 0.7299270072992701,
+    "meanChronicConditions": 4.933333333333334,
+    "beneficiaryActivityRatio": 0.0673076923076923
+  },
+  "target": {
+    "field": "providerPotentialFraud",
+    "unit": "provider",
+    "interpretation": "Weak provider-level audit-prioritization label; not adjudicated claim fraud"
+  },
+  "artifactHash": "943477f2f0d209f81a4672c65f9acdb3b581c0a9619cde89868bad168033bc49",
+  "modelIdentityHash": "0xf5ab0e8ffece79578b50c64e4c0bd034de31d02efcc966e29c1830a681f34073"
+}

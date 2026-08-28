@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "setup:local": "npm --prefix backEnd run reset:local && npm --prefix contracts run fund:accounts:local && npm --prefix contracts run deploy:local && npm --prefix backEnd run grant:roles && npm --prefix backEnd run fund:local && npm --prefix backEnd run push:merkle && npm --prefix backEnd run verify:clean",
-    "setup:hybrid": "npm --prefix backEnd run reset:hybrid && npm --prefix contracts run fund:accounts:local && npm --prefix contracts run deploy:local && npm --prefix backEnd run grant:roles && npm --prefix backEnd run fund:local && npm --prefix backEnd run push:merkle && npm --prefix backEnd run validate:hybrid",
+    "setup:hybrid": "npm --prefix backEnd run validate:hybrid && npm --prefix backEnd run reset:hybrid && npm --prefix contracts run fund:accounts:local && npm --prefix contracts run deploy:local && npm --prefix backEnd run grant:roles && npm --prefix backEnd run fund:local && npm --prefix backEnd run push:merkle && npm --prefix backEnd run validate:hybrid",
     "preflight": "node scripts/preflight.js",
     "preflight:e2e": "node scripts/e2ePreflight.js",
     "test:e2e": "npm run preflight:e2e && playwright test --grep-invert @workflow",

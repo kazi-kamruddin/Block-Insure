@@ -9,6 +9,10 @@ const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
 const { buildSyntheticRecords } = require("./seedMockData");
 const { HYBRID_DATASET_VERSION } = require("../services/hybridDatasetAdapterService");
+const {
+  loadHybridManifest,
+  verifyRuntimeArtifact,
+} = require("../services/hybridDatasetIntegrityService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -20,27 +24,6 @@ const RUNTIME_PATH = path.join(
   "runtime",
   "hybrid-primary.jsonl"
 );
-const MANIFEST_PATH = path.join(
-  __dirname,
-  "..",
-  "datasets",
-  "hybrid-v1",
-  "manifest.json"
-);
-
-const loadHybridManifest = () => {
-  if (!fs.existsSync(MANIFEST_PATH)) {
-    throw new Error("Hybrid manifest is missing. Run npm run build:hybrid first.");
-  }
-  const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
-  if (manifest.datasetVersion !== HYBRID_DATASET_VERSION) {
-    throw new Error(
-      `Hybrid manifest version ${manifest.datasetVersion} is stale; expected ${HYBRID_DATASET_VERSION}. Run npm run build:hybrid.`
-    );
-  }
-  return manifest;
-};
-
 const readJsonLines = async (filePath) => {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Hybrid runtime dataset missing: ${filePath}. Run npm run build:hybrid first.`);
@@ -58,6 +41,7 @@ const readJsonLines = async (filePath) => {
 
 const buildHybridRuntimeRecords = async () => {
   const manifest = loadHybridManifest();
+  await verifyRuntimeArtifact(manifest);
   const preservedDemoPresets = buildSyntheticRecords().slice(0, 5).map((record) => ({
     ...record,
     baseDataOrigin: "FULLY_SYNTHETIC",
@@ -66,6 +50,7 @@ const buildHybridRuntimeRecords = async () => {
     scenarioInjected: false,
     scenarioType: "NONE",
     scenarioVersion: "legacy-demo-preset-v1",
+    controlledAttackTruth: false,
   }));
   const hybridRecords = await readJsonLines(RUNTIME_PATH);
   if (hybridRecords.length !== manifest.counts.runtimeHybrid) {

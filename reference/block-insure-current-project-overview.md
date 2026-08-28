@@ -293,12 +293,12 @@ The claimant or authorized beneficiary submits a benefit request with the requir
 
 ## 10. Registry, Merkle proofs, and oracle workers
 
-The demonstration hospital registry is deliberately synthetic. A record includes canonical hospital/provider identifiers, license status, patient hash, treatment/diagnosis information, dates, bill/range data, invoice identity, and status fields. The registry service:
+The demonstration hospital registry supports both the original synthetic-only mode and hybrid v1.2. Hybrid runtime mode contains five legacy demo presets plus 4,995 deterministic public-secondary-derived records with controlled Block-Insure scenarios. A record includes canonical hospital/provider identifiers, license status, patient hash, treatment/diagnosis information, dates, bill/range data, invoice identity, provenance, weak provider-risk evidence, and separately identified controlled-attack truth. The registry service:
 
 1. Normalizes fields into a canonical serialization.
 2. Hashes each leaf with SHA-256 and a domain prefix.
 3. Sorts leaves deterministically (invoice hash/number ordering).
-4. Builds a pairwise SHA-256 Merkle tree and publishes the root, tree/schema version, and leaf count.
+4. Builds and caches a pairwise SHA-256 Merkle tree per immutable snapshot, indexes leaves by invoice hash, and publishes the root, tree/schema version, and leaf count.
 5. Keeps separate primary and Oracle-2 snapshots in Mongo for operational source separation.
 
 The two workers run with separate wallets, API keys, snapshot IDs, and event cursors. They poll from their saved chain position, retry safely, verify proofs locally, and then commit/reveal. Operational independence is stronger than one process but is not a cryptographic proof that the underlying source data is independent.
@@ -339,7 +339,7 @@ The classifier is a Bernoulli Naive Bayes model with Laplace smoothing (`alpha=1
 - temporal calibration split: latest 20% (120 records)
 - source commit, training-data hash, artifact hash, and model identity hash: recorded in the JSON artifact
 
-Risk bands are `LOW` below `0.35`, `MEDIUM` from `0.35` to below `0.70`, and `HIGH` at or above `0.70`. They are descriptive and do not decide routing. Runtime routing uses `backEnd/triage-policy.json`, currently `capacity-cost-triage-v1.0.0`: hard-integrity failures reject automatic verification; fuzzy-only anomalies and probabilities at or above approximately `0.2180` recommend manual review; other claims remain eligible for automatic verification. Probability alone cannot reject a claim. The 20% capacity and cost values are declared synthetic planning assumptions rather than a live queue guarantee.
+Risk bands are `LOW` below `0.35`, `MEDIUM` from `0.35` to below `0.70`, and `HIGH` at or above `0.70`. They are descriptive and do not decide routing. Runtime routing uses `backEnd/triage-policy.json`, currently `capacity-cost-triage-v1.1.0`: hard-integrity failures reject automatic verification; proof-bound amount/date/noise/near-duplicate anomalies and probabilities at or above approximately `0.2180` recommend manual review; other claims remain eligible for automatic verification. Probability alone cannot reject a claim. The 20% capacity and cost values are declared synthetic planning assumptions rather than a live queue guarantee.
 
 ### Phase-5 evaluation artifact
 
@@ -357,6 +357,10 @@ The schema-v4 evaluation uses four synthetic profiles (normal, high-fraud stress
 | Calibration error | 0.0385 |
 
 The corrected temporal holdout uses 384 fit, 96 calibration, and 120 test records: TP 13, TN 82, FP 4, FN 21, accuracy 0.7917, precision 0.7647, recall 0.3824, F1 0.5098, ROC AUC 0.7907, PR AUC 0.6381, and Brier score 0.1536. Under the declared fraud-averse 20% planning scenario, calibrated-NB routing catches 45/61 normal-profile fraud cases versus 23/61 under the legacy fixed policy, while increasing legitimate escalations; expected synthetic cost per claim falls from 0.6625 to 0.4725. These are synthetic research trade-offs, not real-world accuracy or cost claims.
+
+### Hybrid v1.2 evaluation
+
+The offline hybrid study uses all 558,211 unique source claims. It aggregates claims to providers, fits `provider-risk-real-v1.0.0` only on the provider-disjoint training partition, selects its threshold on calibration providers, and tests on 1,085 unseen providers. The held-out result is F1 `0.3868` and ROC AUC `0.879659`; the target is the source's weak provider-level `PotentialFraud` label, not confirmed claim fraud. Separately, paired controlled protocol attacks test `bernoulli-fraud-v3.1.0` plus proof-bound routing: all eight injected scenario types are routed, and `7.79%` of untouched records are escalated. This is a review-routing result, not a fraud-conviction claim. The 5,000-row runtime benchmark verifies 100/100 sampled Merkle proofs.
 
 ## 13. Backend services and API surface
 

@@ -256,6 +256,9 @@ export default function ThesisResultsDashboardPage() {
   const triageOperatingPoint = summary?.triageEvaluation?.recommendedOperatingPoint || null;
   const reserveEvaluation = summary?.reserveEvaluation || null;
   const evidenceEvaluation = summary?.evidenceEvaluation || null;
+  const hybridEvaluation = summary?.hybridEvaluation || null;
+  const providerRiskMetrics = hybridEvaluation?.providerRisk?.testMetrics || null;
+  const attackMetrics = hybridEvaluation?.controlledAttacks?.pairedAttackMetrics || null;
   const combinedReserveStress = reserveEvaluation?.scenarios?.find(
     (scenario) => scenario.key === "combined_stress"
   );
@@ -494,6 +497,43 @@ export default function ThesisResultsDashboardPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="thesis-section card">
+        <div className="thesis-section-head">
+          <h3>Hybrid Real + Controlled Evaluation</h3>
+          <span>{formatNumber(hybridEvaluation?.sourceClaims)} unique public-source claims</span>
+        </div>
+        <p className="muted-text">
+          Provider-held-out risk prediction uses the weak provider-level label;
+          controlled attacks are evaluated separately and are not presented as confirmed claim fraud.
+        </p>
+        <div className="thesis-metric-grid">
+          <div>
+            <span>Real Provider-Risk Model</span>
+            <strong>{hybridEvaluation?.providerRisk?.modelArtifact?.modelVersion || "Not generated"}</strong>
+          </div>
+          <div>
+            <span>Provider-Risk F1</span>
+            <strong>{providerRiskMetrics ? formatPercent(providerRiskMetrics.f1Score) : "-"}</strong>
+          </div>
+          <div>
+            <span>Provider-Risk ROC AUC</span>
+            <strong>{providerRiskMetrics ? Number(providerRiskMetrics.rocAuc).toFixed(4) : "-"}</strong>
+          </div>
+          <div>
+            <span>Attack Routing Recall</span>
+            <strong>{hybridEvaluation ? formatPercent(hybridEvaluation.controlledAttacks.controlledAttackRoutingRecall ?? attackMetrics?.recall) : "-"}</strong>
+          </div>
+          <div>
+            <span>Untouched Escalation Rate</span>
+            <strong>{hybridEvaluation ? formatPercent(hybridEvaluation.controlledAttacks.untouchedEscalationRate ?? hybridEvaluation.controlledAttacks.untouchedMetrics.falsePositiveRate) : "-"}</strong>
+          </div>
+          <div>
+            <span>Evaluation Boundary</span>
+            <strong>Provider risk ≠ claim fraud</strong>
+          </div>
         </div>
       </div>
 

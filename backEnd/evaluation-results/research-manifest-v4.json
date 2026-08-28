@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-08-28T14:21:22.409Z",
+  "generatedAt": "2026-08-28T15:54:16.267Z",
   "source": {
-    "gitCommit": "cdfd6ff4709539835480f1c3d58e1adbfae287a3",
+    "gitCommit": "abd532ce9cfd04712df41c871e64422088b0de09",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -19,13 +19,13 @@
     "root": {
       "name": "block-insure-local-workflow",
       "version": null,
-      "packageJsonSha256": "32aae31de8217d84bfb4a7944fbe899094e30a1260e13a45d6290c64021acadf",
+      "packageJsonSha256": "229155269263042395f609b15a88bcbd9fa14297e293e2b06970ba4539b31cb3",
       "packageLockSha256": "e99a4deea0b24bb60163a3a929cda712aa4705233c4cd9f9fc2756fa74c744d5"
     },
     "backend": {
       "name": "backend",
       "version": "1.0.0",
-      "packageJsonSha256": "0464506ed6ac5b7dcb88325b273d8c7bfdfb4aea22e4846f763a3cbd2e3f3696",
+      "packageJsonSha256": "9c92a926c5ff6d099347c6d165e79e170a6eb033a74dbe52529ca35710d24d56",
       "packageLockSha256": "98337a57463d72e6bbf171d52cb7c5fc8fbb459cdf311716e3d3f52ad5b9db34"
     },
     "contracts": {
@@ -50,10 +50,13 @@
   "implementation": {
     "backEnd/services/phase5EvaluationService.js": "9ab6d6998990f4c6831b271ebc59b382bf6830a047553e126dd0fe2904f93ee7",
     "backEnd/services/triageEvaluationService.js": "5066e8aaab428eaceb04d1edba2dd669c7d3e423d88877ea30b62277c543fc2c",
-    "backEnd/services/triagePolicyService.js": "8e9c5dd8218d3c3e2d6ef1ddcb7567da888dbe0067a6f0ff4cdf7824dc10d991",
+    "backEnd/services/triagePolicyService.js": "93b1fef5209279c5521f33c6840456485aa68f47fbffea9c07208d3b9b50e663",
     "backEnd/services/reserveSimulationService.js": "74c890606ccb58225cfb6af7b878fea7536e26afc09f849a7a24134273aabaa1",
     "backEnd/services/evidenceBenchmarkService.js": "60d2f371096c8888fe860114a126cc5f2e0b594d41362858899677293dde0f15",
-    "backEnd/services/researchArtifactService.js": "e59a91169545d27ad75770f89949144dc83017e62264a00776cf631eb5c367f8",
+    "backEnd/services/researchArtifactService.js": "992a5780ab965e6ec4ef18acbd68eacfc9ee4e56730cf6207b5bd634c269f91b",
+    "backEnd/services/hybridDatasetAdapterService.js": "4c22b70f094f98473dfac9b77c6e646997178e1ded015d70ab9f2e5f14a560d7",
+    "backEnd/services/hybridDatasetIntegrityService.js": "57fc82af7f7eb4a658eb623af1705465b6736eda3e52273c438d4159d9524350",
+    "backEnd/services/merkleRegistryService.js": "fda187cdbbcececadee140fd3c04d3d553dbbe6ee69345b8663d04f9d2c35573",
     "backEnd/scripts/evaluatePhase5.js": "2d18c896b8bec5398f813ea2749c1c0fa838b1dcf4603415575338cfb3d359e7",
     "backEnd/scripts/evaluateReserveAdequacy.js": "779efd5db5cf04b627a144c9b21cabd554b4d70999ca48cc0a8500f9e84d22c4",
     "backEnd/scripts/evaluateEvidenceLifecycle.js": "b89af0a18e020e28f77298186111a767dfb1099122a6069b8dc3108721a4a7c0",
@@ -63,8 +66,13 @@
     "backEnd/scripts/generateEvaluationCharts.js": "fa922dd9aedd297b0be9ac1afd6642741d129bd729a7005952ebda97a630040c",
     "backEnd/scripts/generatePhase34Charts.js": "b4dfff7f0e2dcf4024e717f1d0cfb9224da217c191a9a33f1a2df8151808a372",
     "backEnd/scripts/generateChartManifest.js": "e963bdf148a7a1005609d28af1d188d18bf008c4c0adeb1350545356309a02fa",
-    "backEnd/scripts/generateResearchManifest.js": "852c10c9231431b9858c00a0ccd10ccb17520c232d92b14da6bf66c8ecbc8f7b",
-    "backEnd/test/phase6CapacityTriage.test.js": "1596afa1dfd6fc1b86e2b8e574f9cecbd7c4a9baba8e1d8708574404e9088561",
+    "backEnd/scripts/generateResearchManifest.js": "c8c5af3a8e510c8baa50c3c620b2be473b19fb5033d58a9af48a274f9f1c5232",
+    "backEnd/scripts/buildHybridDataset.js": "6b6f1d526676b0077c138cf5780dfaf427ab7cd179ad528cec79f7f135b24ab6",
+    "backEnd/scripts/validateHybridDataset.js": "59465df4e22762b9b6b0744048fc69d15a02c025cbde4156ed45a4d563d22e7a",
+    "backEnd/scripts/evaluateHybridDataset.js": "8da2f64b67a6999970ff9ff2a7584d8041d776f0c33784ab46e11a6a41be20e8",
+    "backEnd/scripts/benchmarkHybridRuntime.js": "2fc9d34e128c960cdbb1a551dd063c57b4cc44a12e237bfcc59883338ee8374f",
+    "oracle/independentAssessment.js": "da8eb0fb4510ba41e1cc4e92b9766ac900c042e168d1f5f51c8f228e1d132b24",
+    "backEnd/test/phase6CapacityTriage.test.js": "d792002c9306650b61f0d4b3c94ad1ab7541dfb1c3815c6d2b299be724768947",
     "backEnd/test/phase7ReserveEvidence.test.js": "a5971ea0e016c053eec88e37e38ad5f1a4681cc30a685e669fb336765deaa777",
     "backEnd/test/phase8OperationalHardening.test.js": "4811262e816b6dbea8ea605b2ec8612634a2f6ba8275c42ffff200a50e2b8569",
     "contracts/hardhat.config.js": "f8dfdbdfb78954f5ae279a328d93c679d6cbab233c6760e4b07bbe9c8ddf5f07",
@@ -73,8 +81,8 @@
     "contracts/test/invariants/protocol-invariants.json": "e01afb5460b5502850789a4a1655697ee3bf39c50b78caede5e32df08fcf35b1",
     "contracts/test/Phase6ProtocolStatefulInvariants.test.js": "707bf5f194c98f76fa5cf581c4c1d6dd9857f7c828f40072eb5a56adbadf620d",
     "scripts/devAll.js": "47545106f687c88986bfc8021461fe25c7b52d02c3e94d62466cba4bb0a90df2",
-    "scripts/verifyRepository.js": "1d334ad17b8a5e02f9ceb31b285e60cea17c3580b42226f8a513f5d530b3311e",
-    "scripts/runVerification.js": "ba3551af7ce9fedb8b52dddce9a69d464272443b6d2c369bdd0548e875e40fee"
+    "scripts/verifyRepository.js": "0169f1ec0835aef572a69744ae4af1291db5921d8d7c032e52762fffc6973b83",
+    "scripts/runVerification.js": "5d431ff5b088ffb63c77183c6a98409a58a6061828bbcad914778b6fcec74707"
   },
   "contracts": {
     "InsuranceManager": {
@@ -122,9 +130,9 @@
     },
     "triagePolicy": {
       "path": "backEnd/triage-policy.json",
-      "artifactHash": "b54590863b91daddfa68f40c6ac8618bae0e4e2fd2d833dc6e242cb05725fbf5",
-      "policyIdentityHash": "0x5f81bee709e93c0580aaccf8cd4fc10380898cb28002c079888b6a702b223f03",
-      "fileSha256": "8d99ab056125d9e769659fdc0bc2446660f453a883ce7c2d057db3874af78332"
+      "artifactHash": "6493364bdbea21da86c8f3ac536f7acf6e4e2009fbcecb9dd5d91b08e7dddd25",
+      "policyIdentityHash": "0x15da865487eeb0cb471859f30d72735dbe394ade055b6f25ab539a4a66401bc7",
+      "fileSha256": "99cac0b4d1ffb52c9fe839bf1cb6ec19353471cd3d39a8d22f9cf8614914add2"
     },
     "datasets": {
       "path": "backEnd/datasets/phase5/manifest.json",
@@ -166,7 +174,45 @@
     "evaluation": {
       "path": "backEnd/evaluation-results/phase5-evaluation.json",
       "schemaVersion": 4,
-      "reproducibilityHash": "906bb4c4cd29c049e024f47a28caf6e8d0b4c15d7df62ff34a8c79d7f1efe3a9"
+      "reproducibilityHash": "2ce547bc830481046981b94e125a324216281f72ebd1b6f72c604cce1c125aae"
+    },
+    "hybridDataset": {
+      "path": "backEnd/datasets/hybrid-v1/manifest.json",
+      "datasetVersion": "blockinsure-hybrid-v1.2.0",
+      "sourceClaims": 558211,
+      "runtimeHybridRecords": 4995,
+      "fileSha256": "3e29cb4a25425b4e7174f7055a8a672ea406d5e04d82155e8ca68ac3d45941fa",
+      "outputSha256": {
+        "train": "bad8ae17409b2547b50b05483b243c9902f23b303f3d435d244fe8932090eb34",
+        "calibration": "732fd1ee1715907be5dd50b58d7cb419344ff1df9ece0a5cd249e7f2f6b1194e",
+        "testUntouched": "1e9a85db394ea0c48b95e2ac71bc1a630f343c1a0c863d18ab639dbda7aa024d",
+        "testAttacks": "7ddfdd9233331a64d4c1e610e54c6b1c6543a4fc35cb8cdca3ed03da6b6ae07a",
+        "runtimeHybrid": "323136176edc3eef0816617916c5a1ff8fd58051fd13130afdeaac4e32ef887f"
+      }
+    },
+    "hybridEvaluation": {
+      "path": "backEnd/evaluation-results/hybrid-v1-evaluation.json",
+      "schemaVersion": 1,
+      "reproducibilityHash": "0ac223a3ddd83a02c307be65b3ed0a95970c4bc39e61fae76470b5849acc3257",
+      "providerRiskModelVersion": "provider-risk-real-v1.0.0",
+      "controlledAttackRoutingRecall": 1
+    },
+    "providerRiskModel": {
+      "path": "backEnd/evaluation-results/provider-risk-real-v1.0.0.json",
+      "artifactHash": "943477f2f0d209f81a4672c65f9acdb3b581c0a9619cde89868bad168033bc49",
+      "modelIdentityHash": "0xf5ab0e8ffece79578b50c64e4c0bd034de31d02efcc966e29c1830a681f34073",
+      "target": {
+        "field": "providerPotentialFraud",
+        "unit": "provider",
+        "interpretation": "Weak provider-level audit-prioritization label; not adjudicated claim fraud"
+      },
+      "fileSha256": "f90855654cfd554443b8028ce54ee82c8bbe1de7af0287632281e61081a93aa7"
+    },
+    "hybridRuntimeBenchmark": {
+      "path": "backEnd/evaluation-results/hybrid-runtime-benchmark.json",
+      "reproducibilityHash": "356dcbf30643a9d435654bdfca845c24ad59f843ec073db19112d12cc2b00ab3",
+      "leafCount": 5000,
+      "sampledProofsValid": true
     },
     "reserveEvaluation": {
       "path": "backEnd/evaluation-results/phase3-reserve-evaluation.json",
@@ -239,7 +285,7 @@
     "chartOutputs": {
       "path": "backEnd/evaluation-results/evaluation-charts/chart-manifest.json",
       "chartCount": 16,
-      "executionFileSha256": "fb632bf87133e5fd277f5319782254843b5c8044516431832066948f91525772"
+      "executionFileSha256": "323ae8df2c9f31dc1c9485de3cd6f7479686679637f84bb8070e75112744942a"
     },
     "protocolAssurance": {
       "invariantCatalogue": {
@@ -294,7 +340,9 @@
     "contractMutationCampaign": "npm --prefix contracts run test:mutations",
     "reserveAdequacy": "npm --prefix backEnd run evaluate:reserve",
     "evidenceLifecycle": "npm --prefix backEnd run evaluate:evidence",
+    "hybridEvaluation": "npm --prefix backEnd run evaluate:hybrid",
+    "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "4be3e8315348bd142fcc9aa9b332cedb585078677558a2a413aa7bab39f834f4"
+  "reproducibilityHash": "8492196c3aaab67594111f37ba7d2ae24c517bdc236261745c1b3cde8d48ab9e"
 }

@@ -30,7 +30,10 @@ const CLAIM_FILES = [
   { file: "Train_Inpatientdata-1542865627584.csv", setting: "INPATIENT" },
   { file: "Train_Outpatientdata-1542865627584.csv", setting: "OUTPATIENT" },
 ];
-const RUNTIME_HYBRID_RECORDS = 595;
+const RUNTIME_HYBRID_RECORDS = 4995;
+const PROVIDER_WINDOW_DAYS = 30;
+const BENEFICIARY_WINDOW_DAYS = 365;
+const DAY_IN_MS = 86_400_000;
 
 const sha256File = async (filePath) => {
   const hash = crypto.createHash("sha256");
@@ -63,6 +66,40 @@ const percentile = (values, probability) => {
 };
 
 const increment = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+
+const claimTimestamp = (claim) => {
+  const value = clean(claim.AdmissionDt) || clean(claim.ClaimStartDt) || "2009-01-01";
+  const timestamp = new Date(`${value}T00:00:00.000Z`).getTime();
+  return Number.isFinite(timestamp) ? timestamp : new Date("2009-01-01T00:00:00.000Z").getTime();
+};
+
+const appendTimestamp = (map, key, timestamp) => {
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(timestamp);
+};
+
+const lowerBound = (values, target) => {
+  let low = 0;
+  let high = values.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (values[middle] < target) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+};
+
+const priorCount = (timestamps, timestamp) => lowerBound(timestamps || [], timestamp);
+const priorCountWithinDays = (timestamps, timestamp, days) => {
+  const values = timestamps || [];
+  return lowerBound(values, timestamp) - lowerBound(values, timestamp - days * DAY_IN_MS);
+};
+
+const intersectionSize = (left, right) => {
+  let count = 0;
+  for (const value of left) if (right.has(value)) count += 1;
+  return count;
+};
 
 const writeLine = async (stream, value) => {
   if (!stream.write(`${JSON.stringify(value)}\n`)) await once(stream, "drain");
@@ -108,8 +145,14 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
   });
 
   const trainingAmountsBySetting = { INPATIENT: [], OUTPATIENT: [] };
-  const providerCounts = new Map();
-  const partitionBeneficiaryCounts = new Map();
+  const providerDates = new Map();
+  const partitionBeneficiaryDates = new Map();
+  const trainingEvents = [];
+  const beneficiariesBySplit = {
+    train: new Set(),
+    calibration: new Set(),
+    test: new Set(),
+  };
   const sourceCounts = {};
   const splitCountsBySetting = {
     train: { INPATIENT: 0, OUTPATIENT: 0 },
@@ -130,14 +173,20 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
       if (!providerLabels.has(providerId)) throw new Error(`Provider label missing: ${providerId}`);
       if (!beneficiaries.has(beneId)) throw new Error(`Beneficiary missing: ${beneId}`);
       const split = getProviderSplit(providerId, seed);
+      const timestamp = claimTimestamp(claim);
       splitCountsBySetting[split][source.setting] += 1;
+      beneficiariesBySplit[split].add(beneId);
       if (split === "train") {
         trainingAmountsBySetting[source.setting].push(getSourceClaimAmount(claim));
       }
-      increment(providerCounts, providerId);
-      increment(partitionBeneficiaryCounts, `${split}:${beneId}`);
+      appendTimestamp(providerDates, providerId, timestamp);
+      appendTimestamp(partitionBeneficiaryDates, `${split}:${beneId}`, timestamp);
+      if (split === "train") trainingEvents.push({ providerId, beneId, timestamp });
     });
   }
+
+  for (const dates of providerDates.values()) dates.sort((left, right) => left - right);
+  for (const dates of partitionBeneficiaryDates.values()) dates.sort((left, right) => left - right);
 
   const amountRanges = Object.fromEntries(
     Object.entries(trainingAmountsBySetting).map(([setting, values]) => [
@@ -150,15 +199,19 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     ])
   );
   const providerVelocityThreshold = percentile(
-    [...providerCounts.entries()]
-      .filter(([providerId]) => getProviderSplit(providerId, seed) === "train")
-      .map(([, count]) => count),
+    trainingEvents.map(({ providerId, timestamp }) =>
+      priorCountWithinDays(providerDates.get(providerId), timestamp, PROVIDER_WINDOW_DAYS)
+    ),
     0.95
   );
   const claimantVelocityThreshold = percentile(
-    [...partitionBeneficiaryCounts.entries()]
-      .filter(([key]) => key.startsWith("train:"))
-      .map(([, count]) => count),
+    trainingEvents.map(({ beneId, timestamp }) =>
+      priorCountWithinDays(
+        partitionBeneficiaryDates.get(`train:${beneId}`),
+        timestamp,
+        BENEFICIARY_WINDOW_DAYS
+      )
+    ),
     0.95
   );
 
@@ -185,8 +238,6 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     injectedByPartition: { train: 0, calibration: 0, testAttacks: 0 },
     scenarios: Object.fromEntries(CLAIM_SCENARIOS.map((scenario) => [scenario, 0])),
   };
-  const seenBeneficiary = new Map();
-
   for (const source of CLAIM_FILES) {
     await readCsv(path.join(RAW_DIR, source.file), async (claim) => {
       const sourceProviderId = clean(claim.Provider);
@@ -194,18 +245,30 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
       const providerPotentialFraud = providerLabels.get(sourceProviderId);
       const split = getProviderSplit(sourceProviderId, seed);
       const partitionBeneficiaryKey = `${split}:${sourceBeneId}`;
+      const timestamp = claimTimestamp(claim);
+      const providerWindowCount = priorCountWithinDays(
+        providerDates.get(sourceProviderId),
+        timestamp,
+        PROVIDER_WINDOW_DAYS
+      );
+      const beneficiaryWindowCount = priorCountWithinDays(
+        partitionBeneficiaryDates.get(partitionBeneficiaryKey),
+        timestamp,
+        BENEFICIARY_WINDOW_DAYS
+      );
       const baseRecord = buildBaseHybridRecord({
         claim,
         beneficiary: beneficiaries.get(sourceBeneId),
         potentialFraud: providerPotentialFraud,
         claimSetting: source.setting,
         amountRange: amountRanges[source.setting],
-        previousClaimCount: seenBeneficiary.get(partitionBeneficiaryKey) || 0,
-        providerVelocityAnomaly: providerCounts.get(sourceProviderId) >= providerVelocityThreshold,
-        claimantVelocityAnomaly:
-          partitionBeneficiaryCounts.get(partitionBeneficiaryKey) >= claimantVelocityThreshold,
+        previousClaimCount: priorCount(
+          partitionBeneficiaryDates.get(partitionBeneficiaryKey),
+          timestamp
+        ),
+        providerVelocityAnomaly: providerWindowCount >= Math.max(providerVelocityThreshold, 1),
+        claimantVelocityAnomaly: beneficiaryWindowCount >= Math.max(claimantVelocityThreshold, 1),
       });
-      increment(seenBeneficiary, partitionBeneficiaryKey);
       if (providerPotentialFraud) manifestCounts.providerPotentialFraudClaims += 1;
 
       if (split === "test") {
@@ -274,12 +337,21 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     )
   );
   const manifest = {
-    manifestSchemaVersion: 2,
+    manifestSchemaVersion: 3,
     datasetVersion: HYBRID_DATASET_VERSION,
     generatedAt: new Date().toISOString(),
     seed,
-    sourceDescription: "Public secondary healthcare-claims benchmark with weak provider-level PotentialFraud labels",
-    labelWarning: "PotentialFraud is provider-level weak risk evidence and is never copied into claim-level actualFraud.",
+    source: {
+      title: "Healthcare Provider Fraud Detection Analysis",
+      platform: "Kaggle",
+      datasetMaintainer: "Rohit Anand Gupta and collaborator",
+      url: "https://www.kaggle.com/datasets/rohitrox/healthcare-provider-fraud-detection-analysis",
+      license: "CC0: Public Domain (as displayed on the Kaggle dataset page)",
+      acquiredAt: "2026-08-28",
+      dataType: "Public secondary Medicare claims benchmark",
+    },
+    sourceDescription: "Public secondary Medicare claims benchmark with weak provider-level PotentialFraud labels",
+    labelWarning: "PotentialFraud is provider-level weak risk evidence and is never copied into controlled claim-attack truth.",
     amountNormalization: {
       version: AMOUNT_NORMALIZATION_VERSION,
       divisorUsdPerDemoUnit: AMOUNT_NORMALIZATION_DIVISOR,
@@ -298,12 +370,25 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     totalUniqueClaims: uniqueClaimIds.size,
     providers: providerLabels.size,
     beneficiaries: beneficiaries.size,
-    preprocessingReference: "All amount and velocity thresholds are learned from the training partition only.",
+    preprocessingReference: "Amount and temporal activity thresholds are learned from the provider-disjoint training partition only.",
+    temporalFeaturePolicy: {
+      previousClaimCount: "Strictly earlier claims for the beneficiary inside its provider-derived partition",
+      providerVelocityAnomaly: `Prior ${PROVIDER_WINDOW_DAYS}-day provider claim count at or above the training P95`,
+      claimantVelocityAnomaly: `Prior ${BENEFICIARY_WINDOW_DAYS}-day beneficiary claim count at or above the training P95`,
+      equalTimestampPolicy: "Claims on the same date are not treated as prior claims",
+    },
+    beneficiaryOverlap: {
+      definition: "Unique source beneficiaries appearing through different providers in both named partitions",
+      trainCalibration: intersectionSize(beneficiariesBySplit.train, beneficiariesBySplit.calibration),
+      trainTest: intersectionSize(beneficiariesBySplit.train, beneficiariesBySplit.test),
+      calibrationTest: intersectionSize(beneficiariesBySplit.calibration, beneficiariesBySplit.test),
+      interpretation: "The evaluation is provider-held-out, not fully entity-isolated; beneficiary identifiers are excluded from model features.",
+    },
     amountRangesUsd: amountRanges,
     splitCountsBySetting,
     velocityThresholds: {
-      providerClaimCountP95: providerVelocityThreshold,
-      beneficiaryClaimCountP95: claimantVelocityThreshold,
+      providerPrior30DayClaimCountP95: providerVelocityThreshold,
+      beneficiaryPrior365DayClaimCountP95: claimantVelocityThreshold,
     },
     counts: manifestCounts,
     sourceFiles,

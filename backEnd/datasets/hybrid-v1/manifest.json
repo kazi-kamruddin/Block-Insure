@@ -1,10 +1,19 @@
 {
-  "manifestSchemaVersion": 2,
-  "datasetVersion": "blockinsure-hybrid-v1.1.0",
-  "generatedAt": "2026-08-28T14:11:50.991Z",
+  "manifestSchemaVersion": 3,
+  "datasetVersion": "blockinsure-hybrid-v1.2.0",
+  "generatedAt": "2026-08-28T15:42:10.410Z",
   "seed": 20260828,
-  "sourceDescription": "Public secondary healthcare-claims benchmark with weak provider-level PotentialFraud labels",
-  "labelWarning": "PotentialFraud is provider-level weak risk evidence and is never copied into claim-level actualFraud.",
+  "source": {
+    "title": "Healthcare Provider Fraud Detection Analysis",
+    "platform": "Kaggle",
+    "datasetMaintainer": "Rohit Anand Gupta and collaborator",
+    "url": "https://www.kaggle.com/datasets/rohitrox/healthcare-provider-fraud-detection-analysis",
+    "license": "CC0: Public Domain (as displayed on the Kaggle dataset page)",
+    "acquiredAt": "2026-08-28",
+    "dataType": "Public secondary Medicare claims benchmark"
+  },
+  "sourceDescription": "Public secondary Medicare claims benchmark with weak provider-level PotentialFraud labels",
+  "labelWarning": "PotentialFraud is provider-level weak risk evidence and is never copied into controlled claim-attack truth.",
   "amountNormalization": {
     "version": "usd-demo-scale-v1",
     "divisorUsdPerDemoUnit": 10000,
@@ -35,7 +44,20 @@
   "totalUniqueClaims": 558211,
   "providers": 5410,
   "beneficiaries": 138556,
-  "preprocessingReference": "All amount and velocity thresholds are learned from the training partition only.",
+  "preprocessingReference": "Amount and temporal activity thresholds are learned from the provider-disjoint training partition only.",
+  "temporalFeaturePolicy": {
+    "previousClaimCount": "Strictly earlier claims for the beneficiary inside its provider-derived partition",
+    "providerVelocityAnomaly": "Prior 30-day provider claim count at or above the training P95",
+    "claimantVelocityAnomaly": "Prior 365-day beneficiary claim count at or above the training P95",
+    "equalTimestampPolicy": "Claims on the same date are not treated as prior claims"
+  },
+  "beneficiaryOverlap": {
+    "definition": "Unique source beneficiaries appearing through different providers in both named partitions",
+    "trainCalibration": 39364,
+    "trainTest": 41627,
+    "calibrationTest": 21210,
+    "interpretation": "The evaluation is provider-held-out, not fully entity-isolated; beneficiary identifiers are excluded from model features."
+  },
   "amountRangesUsd": {
     "INPATIENT": {
       "minimum": 3068,
@@ -63,15 +85,15 @@
     }
   },
   "velocityThresholds": {
-    "providerClaimCountP95": 408,
-    "beneficiaryClaimCountP95": 8
+    "providerPrior30DayClaimCountP95": 239,
+    "beneficiaryPrior365DayClaimCountP95": 7
   },
   "counts": {
     "train": 343537,
     "calibration": 105277,
     "testUntouched": 109397,
     "testAttacks": 109397,
-    "runtimeHybrid": 595,
+    "runtimeHybrid": 4995,
     "providerPotentialFraudClaims": 212796,
     "injectedByPartition": {
       "train": 40969,
@@ -115,10 +137,10 @@
     "runtimeHybrid": "runtime/hybrid-primary.jsonl"
   },
   "outputSha256": {
-    "train": "6edd178250fa2f66572976089b3306340679d5b334c885cf6e22ddb430b2d5e9",
-    "calibration": "8cde838ca3d697a1689dc2b2c595cc2b41f1c9dfd9743c15955f3e8aad5185a3",
-    "testUntouched": "14e1c9a8d9c47f366e55bf9ee0ba29eb2b903fdc7b24770f400aec65da202cd2",
-    "testAttacks": "6109f479e29ed34dc218b2af3e6b0a2da0628e3130625c2b20702ce1b84c86e5",
-    "runtimeHybrid": "d45da5d9129e48d528b2eae7be08808a116bf65e1dca22f16f90b5058eb15f58"
+    "train": "bad8ae17409b2547b50b05483b243c9902f23b303f3d435d244fe8932090eb34",
+    "calibration": "732fd1ee1715907be5dd50b58d7cb419344ff1df9ece0a5cd249e7f2f6b1194e",
+    "testUntouched": "1e9a85db394ea0c48b95e2ac71bc1a630f343c1a0c863d18ab639dbda7aa024d",
+    "testAttacks": "7ddfdd9233331a64d4c1e610e54c6b1c6543a4fc35cb8cdca3ed03da6b6ae07a",
+    "runtimeHybrid": "323136176edc3eef0816617916c5a1ff8fd58051fd13130afdeaac4e32ef887f"
   }
 }

@@ -23,6 +23,14 @@ const toBoolean = (value) => {
   return String(value).toLowerCase() === "true";
 };
 
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const boundedInteger = (value, fallback, minimum, maximum) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed)
+    ? Math.min(Math.max(parsed, minimum), maximum)
+    : fallback;
+};
+
 const buildRegistryFilter = (query) => {
   const filter = {};
 
@@ -63,7 +71,7 @@ const buildRegistryFilter = (query) => {
   }
 
   if (query.q) {
-    const expression = new RegExp(query.q, "i");
+    const expression = new RegExp(escapeRegex(String(query.q).slice(0, 100)), "i");
 
     filter.$or = [
       { hospitalId: expression },
@@ -472,8 +480,8 @@ const getAllHospitalRecords = async (req, res, next) => {
     const registrySnapshot = normalizeRegistrySnapshot(req.query.registrySnapshot);
     const RegistryModel = getRegistryModel(registrySnapshot);
     const filter = buildRegistryFilter(req.query);
-    const limit = Math.min(Number(req.query.limit || 100), 500);
-    const page = Math.max(Number(req.query.page || 1), 1);
+    const limit = boundedInteger(req.query.limit, 100, 1, 500);
+    const page = boundedInteger(req.query.page, 1, 1, 1_000_000);
     const skip = (page - 1) * limit;
 
     const [records, summary] = await Promise.all([
@@ -677,7 +685,34 @@ const verifyHospitalRecord = async (req, res, next) => {
       invoiceHash: normalizedInvoiceHash,
       registrySnapshot,
     });
-    const modelRecords = await RegistryModel.find().lean();
+    const candidateDate = record?.admissionDate ? new Date(record.admissionDate) : null;
+    const dateRange = candidateDate
+      ? {
+          $gte: new Date(candidateDate.getTime() - 30 * DAY_IN_MS),
+          $lte: new Date(candidateDate.getTime() + 30 * DAY_IN_MS),
+        }
+      : undefined;
+    const duplicateScopes = [];
+    if (record?.claimantId) duplicateScopes.push({ claimantId: record.claimantId });
+    if (record?.patientHash) duplicateScopes.push({ patientHash: record.patientHash });
+    if (record?.hospitalId) {
+      duplicateScopes.push({
+        hospitalId: record.hospitalId,
+        ...(dateRange ? { admissionDate: dateRange } : {}),
+      });
+    }
+    const [duplicateRecords, runtimeRegistryRecordCount] = await Promise.all([
+      record && duplicateScopes.length
+        ? RegistryModel.find({
+            invoiceHash: { $ne: normalizedInvoiceHash },
+            $or: duplicateScopes,
+          })
+          .sort({ admissionDate: -1 })
+          .limit(250)
+          .lean()
+        : [],
+      RegistryModel.countDocuments({}),
+    ]);
 
     const comparison = buildVerificationComparison({
       record,
@@ -710,9 +745,7 @@ const verifyHospitalRecord = async (req, res, next) => {
             documentText: `${record.diagnosisCode} ${record.treatmentType}`,
             amount: claimAmountEth || record.billAmount,
           },
-          modelRecords
-            .filter((item) => normalizeHash(item.invoiceHash) !== normalizedInvoiceHash)
-            .map((item) => ({
+          duplicateRecords.map((item) => ({
               claimId: item.recordId || item.invoiceNumber,
               claimantId: item.claimantId || item.patientHash,
               providerSignedInvoiceId: item.invoiceHash,
@@ -729,7 +762,8 @@ const verifyHospitalRecord = async (req, res, next) => {
       record,
       comparison,
       query: verificationQuery,
-      records: modelRecords,
+      records: duplicateRecords,
+      runtimeRegistryRecordCount,
       duplicateIntelligence,
     });
     if (

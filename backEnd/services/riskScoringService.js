@@ -28,6 +28,7 @@ const buildRiskAssessment = async ({
   comparison,
   duplicateIntelligence = null,
   records: suppliedRecords,
+  runtimeRegistryRecordCount,
   modelParams = loadedModelArtifact,
   triagePolicy = loadedTriagePolicy,
 }) => {
@@ -107,7 +108,7 @@ const buildRiskAssessment = async ({
       totalRecords: modelParams.trainingSet.totalRecords,
       fraudRecords: modelParams.trainingSet.fraudRecords,
       legitimateRecords: modelParams.trainingSet.legitimateRecords,
-      runtimeRegistryRecords: records.length,
+      runtimeRegistryRecords: runtimeRegistryRecordCount ?? records.length,
       smoothing: modelParams.trainingSet.smoothing,
     },
     duplicateIntelligence,

@@ -1,37 +1,18 @@
 const fs = require("node:fs");
-const crypto = require("node:crypto");
 const path = require("node:path");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const { extractRecordFeatures, FEATURE_NAMES } = require("../services/featureEngineeringService");
 const { buildMerkleTree } = require("../services/merkleRegistryService");
 const { hashInvoiceNumber } = require("../services/hybridDatasetAdapterService");
-const { buildHybridRuntimeRecords, loadHybridManifest } = require("./seedHybridData");
+const { verifyHybridArtifacts } = require("../services/hybridDatasetIntegrityService");
+const { buildHybridRuntimeRecords } = require("./seedHybridData");
 
 const MANIFEST_PATH = path.join(__dirname, "..", "datasets", "hybrid-v1", "manifest.json");
-const RUNTIME_PATH = path.join(
-  __dirname,
-  "..",
-  "datasets",
-  "hybrid-v1",
-  "runtime",
-  "hybrid-primary.jsonl"
-);
-
-const sha256File = async (filePath) => {
-  const hash = crypto.createHash("sha256");
-  for await (const chunk of fs.createReadStream(filePath)) hash.update(chunk);
-  return hash.digest("hex");
-};
-
 const validateHybridDataset = async () => {
   if (!fs.existsSync(MANIFEST_PATH)) {
     throw new Error("Hybrid manifest is missing. Run npm run build:hybrid first.");
   }
-  const manifest = loadHybridManifest();
-  const runtimeHash = await sha256File(RUNTIME_PATH);
-  if (runtimeHash !== manifest.outputSha256.runtimeHybrid) {
-    throw new Error("Hybrid runtime file hash does not match the manifest");
-  }
+  const { manifest } = await verifyHybridArtifacts();
   const records = await buildHybridRuntimeRecords();
   const invoiceNumbers = new Set();
   const invoiceHashes = new Set();
@@ -73,7 +54,7 @@ const validateHybridDataset = async () => {
       if (record.baseDataOrigin !== "PUBLIC_SECONDARY") {
         throw new Error(`Unexpected hybrid base-data origin: ${record.recordId}`);
       }
-      if (Boolean(record.actualFraud) !== Boolean(record.scenarioInjected)) {
+      if (Boolean(record.controlledAttackTruth) !== Boolean(record.scenarioInjected)) {
         throw new Error(`Claim/scenario truth separation failed: ${record.recordId}`);
       }
     }

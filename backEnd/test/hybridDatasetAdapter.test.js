@@ -37,6 +37,7 @@ test("hybrid base records retain provider label without turning it into claim fr
 
   assert.equal(record.providerPotentialFraud, true);
   assert.equal(record.actualFraud, false);
+  assert.equal(record.controlledAttackTruth, false);
   assert.equal(record.scenarioInjected, false);
   assert.equal(record.claimSetting, "INPATIENT");
   assert.equal(record.treatmentType, "HOSPITALIZATION");
@@ -61,8 +62,10 @@ test("scenario injection creates separate controlled claim truth", () => {
 
   assert.equal(injected.scenarioInjected, true);
   assert.equal(injected.actualFraud, true);
+  assert.equal(injected.controlledAttackTruth, true);
   assert.notEqual(injected.scenarioType, "NONE");
   assert.equal(record.actualFraud, false);
+  assert.equal(record.controlledAttackTruth, false);
 });
 
 test("invoice hashing matches the existing frontend convention", () => {

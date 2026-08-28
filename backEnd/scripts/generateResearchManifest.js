@@ -67,6 +67,10 @@ const run = ({ writeOutput = true } = {}) => {
   const evaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "phase5-evaluation.json");
   const reserveEvaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "phase3-reserve-evaluation.json");
   const evidenceEvaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "phase4-evidence-evaluation.json");
+  const hybridDatasetManifestPath = path.join(BACKEND_ROOT, "datasets", "hybrid-v1", "manifest.json");
+  const hybridEvaluationPath = path.join(BACKEND_ROOT, "evaluation-results", "hybrid-v1-evaluation.json");
+  const providerRiskModelPath = path.join(BACKEND_ROOT, "evaluation-results", "provider-risk-real-v1.0.0.json");
+  const hybridRuntimeBenchmarkPath = path.join(BACKEND_ROOT, "evaluation-results", "hybrid-runtime-benchmark.json");
   const chartManifestPath = path.join(BACKEND_ROOT, "evaluation-results", "evaluation-charts", "chart-manifest.json");
   const mutationManifestPath = path.join(CONTRACTS_ROOT, "mutations", "manifest.json");
   const mutationResultsPath = path.join(CONTRACTS_ROOT, "mutation-results.json");
@@ -77,13 +81,28 @@ const run = ({ writeOutput = true } = {}) => {
   const evaluation = readJson(evaluationPath);
   const reserveEvaluation = readJsonIfExists(reserveEvaluationPath);
   const evidenceEvaluation = readJsonIfExists(evidenceEvaluationPath);
+  const hybridDatasetManifest = readJson(hybridDatasetManifestPath);
+  const hybridEvaluation = readJson(hybridEvaluationPath);
+  const providerRiskModel = readJson(providerRiskModelPath);
+  const hybridRuntimeBenchmark = readJson(hybridRuntimeBenchmarkPath);
   const chartManifest = readJsonIfExists(chartManifestPath);
   const modelIntegrity = verifyModelArtifact(model);
   const policyIntegrity = verifyTriagePolicy(triagePolicy);
   const datasetIntegrity = verifyDatasets(datasetDirectory, datasetManifest);
+  const providerRiskIntegrity = verifyModelArtifact(providerRiskModel);
   if (!modelIntegrity.valid) throw new Error(modelIntegrity.errors.join("; "));
   if (!policyIntegrity.valid) throw new Error(policyIntegrity.errors.join("; "));
   if (!datasetIntegrity.valid) throw new Error("One or more Phase 5 dataset hashes do not match the manifest");
+  if (!providerRiskIntegrity.valid) throw new Error(providerRiskIntegrity.errors.join("; "));
+  if (hybridEvaluation.reproducibilityHash !== calculateReproducibilityHash(hybridEvaluation)) {
+    throw new Error("Hybrid evaluation reproducibility hash is stale");
+  }
+  if (hybridRuntimeBenchmark.reproducibilityHash !== calculateReproducibilityHash(hybridRuntimeBenchmark)) {
+    throw new Error("Hybrid runtime benchmark reproducibility hash is stale");
+  }
+  if (hybridEvaluation.sourceClaims !== hybridDatasetManifest.totalUniqueClaims) {
+    throw new Error("Hybrid evaluation claim count does not match the dataset manifest");
+  }
   if (evaluation.schemaVersion !== 4 || !evaluation.reproducibilityHash) {
     throw new Error("Run the schema-v4 Phase 5 evaluation before generating the research manifest");
   }
@@ -108,6 +127,9 @@ const run = ({ writeOutput = true } = {}) => {
     "backEnd/services/reserveSimulationService.js",
     "backEnd/services/evidenceBenchmarkService.js",
     "backEnd/services/researchArtifactService.js",
+    "backEnd/services/hybridDatasetAdapterService.js",
+    "backEnd/services/hybridDatasetIntegrityService.js",
+    "backEnd/services/merkleRegistryService.js",
     "backEnd/scripts/evaluatePhase5.js",
     "backEnd/scripts/evaluateReserveAdequacy.js",
     "backEnd/scripts/evaluateEvidenceLifecycle.js",
@@ -118,6 +140,11 @@ const run = ({ writeOutput = true } = {}) => {
     "backEnd/scripts/generatePhase34Charts.js",
     "backEnd/scripts/generateChartManifest.js",
     "backEnd/scripts/generateResearchManifest.js",
+    "backEnd/scripts/buildHybridDataset.js",
+    "backEnd/scripts/validateHybridDataset.js",
+    "backEnd/scripts/evaluateHybridDataset.js",
+    "backEnd/scripts/benchmarkHybridRuntime.js",
+    "oracle/independentAssessment.js",
     "backEnd/test/phase6CapacityTriage.test.js",
     "backEnd/test/phase7ReserveEvidence.test.js",
     "backEnd/test/phase8OperationalHardening.test.js",
@@ -194,6 +221,34 @@ const run = ({ writeOutput = true } = {}) => {
         schemaVersion: evaluation.schemaVersion,
         reproducibilityHash: evaluation.reproducibilityHash,
       },
+      hybridDataset: {
+        path: "backEnd/datasets/hybrid-v1/manifest.json",
+        datasetVersion: hybridDatasetManifest.datasetVersion,
+        sourceClaims: hybridDatasetManifest.totalUniqueClaims,
+        runtimeHybridRecords: hybridDatasetManifest.counts.runtimeHybrid,
+        fileSha256: sha256File(hybridDatasetManifestPath),
+        outputSha256: hybridDatasetManifest.outputSha256,
+      },
+      hybridEvaluation: {
+        path: "backEnd/evaluation-results/hybrid-v1-evaluation.json",
+        schemaVersion: hybridEvaluation.schemaVersion,
+        reproducibilityHash: hybridEvaluation.reproducibilityHash,
+        providerRiskModelVersion: hybridEvaluation.providerRisk.modelArtifact.modelVersion,
+        controlledAttackRoutingRecall: hybridEvaluation.controlledAttacks.controlledAttackRoutingRecall,
+      },
+      providerRiskModel: {
+        path: "backEnd/evaluation-results/provider-risk-real-v1.0.0.json",
+        artifactHash: providerRiskModel.artifactHash,
+        modelIdentityHash: providerRiskModel.modelIdentityHash,
+        target: providerRiskModel.target,
+        fileSha256: sha256File(providerRiskModelPath),
+      },
+      hybridRuntimeBenchmark: {
+        path: "backEnd/evaluation-results/hybrid-runtime-benchmark.json",
+        reproducibilityHash: hybridRuntimeBenchmark.reproducibilityHash,
+        leafCount: hybridRuntimeBenchmark.tree.leafCount,
+        sampledProofsValid: hybridRuntimeBenchmark.proofSample.allValid,
+      },
       reserveEvaluation: reserveEvaluation
         ? {
             path: "backEnd/evaluation-results/phase3-reserve-evaluation.json",
@@ -259,6 +314,8 @@ const run = ({ writeOutput = true } = {}) => {
       contractMutationCampaign: "npm --prefix contracts run test:mutations",
       reserveAdequacy: "npm --prefix backEnd run evaluate:reserve",
       evidenceLifecycle: "npm --prefix backEnd run evaluate:evidence",
+      hybridEvaluation: "npm --prefix backEnd run evaluate:hybrid",
+      hybridRuntimeBenchmark: "npm --prefix backEnd run benchmark:hybrid",
       reproducePhasesThreeAndFour: "npm --prefix backEnd run research:phase34",
     },
   };

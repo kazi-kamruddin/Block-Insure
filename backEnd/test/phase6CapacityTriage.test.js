@@ -55,6 +55,18 @@ test("probabilistic risk defers to review but cannot reject without a hard integ
   assert.equal(authoritative.recommendation, "REJECT_ORACLE_VERIFICATION");
 });
 
+test("proof-bound claim anomalies abstain to manual review without becoming fraud labels", () => {
+  for (const feature of triagePolicy.routing.manualReviewFeatures) {
+    const decision = routeRiskAssessment({
+      fraudProbability: 0.01,
+      features: { [feature]: true },
+      policy: triagePolicy,
+    });
+    assert.equal(decision.recommendation, "MANUAL_REVIEW_RECOMMENDED");
+    assert.equal(decision.reason, "COMMITTED_ANOMALY_ABSTENTION");
+  }
+});
+
 test("capacity-aware selection never exceeds the declared review budget", () => {
   const predictions = toRows(
     generateSyntheticDataset({ profile: "normal", seed: 771, size: 120 })

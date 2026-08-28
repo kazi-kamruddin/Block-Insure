@@ -1,4 +1,4 @@
-# Block-Insure Hybrid Dataset v1.1
+# Block-Insure Hybrid Dataset v1.2
 
 This dataset adapter combines the public healthcare-claims benchmark files in
 `raw/` with controlled Block-Insure attack scenarios. It preserves the existing
@@ -18,7 +18,8 @@ The expected byte sizes and SHA-256 hashes are recorded in `manifest.json`.
 
 - `providerPotentialFraud` is the source dataset's provider-level weak-risk label.
   It must not be described as confirmed claim fraud.
-- `actualFraud` is set only for a controlled scenario injected by Block-Insure.
+- `controlledAttackTruth` is true only for a controlled scenario injected by
+  Block-Insure. `actualFraud` is retained as a deprecated compatibility alias.
 - `scenarioInjected`, `scenarioType`, and `scenarioVersion` identify that controlled
   ground truth.
 - `baseDataOrigin` and `claimSetting` retain source provenance.
@@ -54,6 +55,8 @@ From `backEnd/`:
 npm run build:hybrid
 npm run validate:hybrid
 npm run reset:hybrid
+npm run evaluate:hybrid
+npm run benchmark:hybrid
 ```
 
 From the repository root, the one-command clean hybrid launch is:
@@ -62,8 +65,8 @@ From the repository root, the one-command clean hybrid launch is:
 npm run dev:hybrid
 ```
 
-`reset:hybrid` installs 600 runtime registry rows in both oracle snapshots:
-five legacy UI presets plus a deterministic, order-independent sample of 595
+`reset:hybrid` installs 5,000 runtime registry rows in both oracle snapshots:
+five legacy UI presets plus a deterministic, order-independent sample of 4,995
 hybrid training rows. Preserving the five
 legacy rows keeps the existing claimant demo presets and end-to-end workflows
 available.
@@ -76,8 +79,25 @@ npm run dev:bootstrap
 
 ## Model boundary
 
-Hybrid v1 is an adapter and evaluation milestone. The deployed
+Hybrid v1.2 keeps two deliberately separate questions. The deployed
 `bernoulli-fraud-v3.1.0` model and its 18-feature protocol interface remain in
-place for compatibility. A future real-provider-risk model must be versioned and
-evaluated separately; its weak provider labels must not be relabelled as
-claim-level fraud.
+place for controlled protocol-irregularity experiments. The separately frozen
+`provider-risk-real-v1.0.0` artifact is trained and tested at provider level
+using every unique public-source claim across provider-disjoint partitions. Its
+weak labels must not be relabelled as claim-level fraud.
+
+The generated evaluation currently reports provider-held-out ROC AUC `0.879659`
+and F1 `0.3868`. Proof-bound rule/model routing captures all eight injected
+scenario types in the paired test set, while `7.79%` of untouched records are
+routed for review. That is an escalation rate, not a false fraud conviction
+rate. The runtime benchmark builds a 5,000-leaf tree and verifies 100 sampled
+proofs; timings are descriptive for the local machine.
+
+## Source and limitations
+
+The raw files come from the Kaggle public-secondary dataset
+[Healthcare Provider Fraud Detection Analysis](https://www.kaggle.com/datasets/rohitrox/healthcare-provider-fraud-detection-analysis),
+listed as CC0 on the dataset page. Beneficiaries can overlap provider-disjoint
+partitions; their identifiers are excluded from model features, and the exact
+overlap counts are disclosed in `manifest.json`. This is not a prospective
+clinical or insurer validation study.

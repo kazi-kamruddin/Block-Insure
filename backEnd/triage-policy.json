@@ -1,6 +1,6 @@
 {
   "artifactSchemaVersion": 1,
-  "policyVersion": "capacity-cost-triage-v1.0.0",
+  "policyVersion": "capacity-cost-triage-v1.1.0",
   "sourceCommit": "5b281cc27aa7a48ac91a84cc45347e78892e6720",
   "modelIdentityHash": "0xb78139bd6fc039f5681bb08cdd95e5f857bdbeafad41b5621129b0a64edcfc61",
   "modelArtifactHash": "fc8e96b304b3bbedae2c96c02fc963dfff4a7f55db9ded5ca9388ce3c644728c",
@@ -32,6 +32,13 @@
       "cancelled_record",
       "license_blacklisted"
     ],
+    "manualReviewFeatures": [
+      "claim_exceeds_registry_bill",
+      "bill_range_anomaly",
+      "date_mismatch",
+      "near_duplicate_advisory",
+      "missing_or_noisy_record"
+    ],
     "economicReviewThreshold": 0.11363636363636363,
     "capacityReviewThreshold": 0.21796945267587475,
     "manualReviewThreshold": 0.21796945267587475,
@@ -42,6 +49,6 @@
     "calibrationPartitionOnly": true,
     "syntheticDataLimitation": true
   },
-  "artifactHash": "b54590863b91daddfa68f40c6ac8618bae0e4e2fd2d833dc6e242cb05725fbf5",
-  "policyIdentityHash": "0x5f81bee709e93c0580aaccf8cd4fc10380898cb28002c079888b6a702b223f03"
+  "artifactHash": "6493364bdbea21da86c8f3ac536f7acf6e4e2009fbcecb9dd5d91b08e7dddd25",
+  "policyIdentityHash": "0x15da865487eeb0cb471859f30d72735dbe394ade055b6f25ab539a4a66401bc7"
 }

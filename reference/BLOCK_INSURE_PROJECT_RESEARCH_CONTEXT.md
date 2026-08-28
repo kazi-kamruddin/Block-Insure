@@ -279,7 +279,7 @@ Core intended invariants include:
 
 ### 5.1 Implemented fraud-risk pipeline
 
-The current runtime model artifact is `bernoulli-fraud-v3.1.0`, feature schema `fraud-features-v3`, legacy classifier threshold `0.5`, Laplace alpha `1`, and Platt calibration fitted on a 120-record latest-temporal validation partition. Training uses 480 records: 49 fraud and 431 legitimate. Runtime routing is governed by the separately hashed `capacity-cost-triage-v1.0.0` policy, bound to that exact model identity and feature schema. Its default synthetic planning scenario uses a 20% non-hard-blocked review capacity, costs `(missed fraud=10, legitimate escalation=1, manual review=0.25)`, and a runtime manual-review threshold of approximately `0.2180`.
+The current runtime model artifact is `bernoulli-fraud-v3.1.0`, feature schema `fraud-features-v3`, legacy classifier threshold `0.5`, Laplace alpha `1`, and Platt calibration fitted on a 120-record latest-temporal validation partition. Training uses 480 records: 49 fraud and 431 legitimate. Runtime routing is governed by the separately hashed `capacity-cost-triage-v1.1.0` policy, bound to that exact model identity and feature schema. Its default synthetic planning scenario uses a 20% non-hard-blocked review capacity, costs `(missed fraud=10, legitimate escalation=1, manual review=0.25)`, and a runtime manual-review threshold of approximately `0.2180`; proof-bound amount/date/noise/near-duplicate anomalies also abstain to manual review.
 
 The 18 binary features are:
 
@@ -296,8 +296,8 @@ Current workflow bands are low `<0.35`, medium `0.35-<0.70`, and high `>=0.70`. 
 
 ```text
 blocking comparison failure                         -> reject automatic verification
-authoritative hard-integrity feature                -> reject automatic verification
-fuzzy-only signal or probability >= policy threshold -> recommend manual review
+authoritative hard-integrity feature                  -> reject automatic verification
+proof-bound advisory anomaly or probability >= threshold -> recommend manual review
 otherwise                                           -> recommend automatic verification
 ```
 
@@ -322,7 +322,7 @@ These numbers are synthetic methodology evidence, not estimates of deployment pe
 
 **Absent or incomplete research mechanisms:**
 
-- No external real claims dataset validation, prospective study, clinician/insurer labeling, fairness audit, or demographic subgroup evaluation.
+- Public-secondary claims are now evaluated through hybrid v1.2: all 558,211 unique claims feed a provider-disjoint weak-label provider-risk study, while controlled protocol attacks remain separate. This is not prospective clinical/insurer validation, confirmed claim-fraud labeling, or a fairness audit.
 - Cost/capacity-aware triage, logistic regression, class-weighted logistic regression, rule-only, random, and perfect-reference baselines are implemented. Costs and capacity remain synthetic planning assumptions; no live queue scheduler or insurer-derived cost study exists.
 - No boosted-tree/graph/anomaly baseline is integrated into the current schema-v4 study.
 - No SHAP/counterfactual explanation pipeline; current feature flags are interpretable but not a complete XAI evaluation.

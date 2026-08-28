@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-28T15:50:21.921Z",
+  "datasetVersion": "blockinsure-hybrid-v1.2.0",
+  "sourceClaims": 558211,
+  "methodology": {
+    "hybridArchitecture": "Real public-secondary provider-risk evaluation plus controlled synthetic protocol-attack evaluation",
+    "providerHeldOut": true,
+    "beneficiaryOverlap": {
+      "definition": "Unique source beneficiaries appearing through different providers in both named partitions",
+      "trainCalibration": 39364,
+      "trainTest": 41627,
+      "calibrationTest": 21210,
+      "interpretation": "The evaluation is provider-held-out, not fully entity-isolated; beneficiary identifiers are excluded from model features."
+    },
+    "noClaimFraudRelabeling": true
+  },
+  "providerRisk": {
+    "modelArtifact": {
+      "modelVersion": "provider-risk-real-v1.0.0",
+      "modelIdentityHash": "0xf5ab0e8ffece79578b50c64e4c0bd034de31d02efcc966e29c1830a681f34073",
+      "artifactHash": "943477f2f0d209f81a4672c65f9acdb3b581c0a9619cde89868bad168033bc49",
+      "threshold": 0.35,
+      "target": {
+        "field": "providerPotentialFraud",
+        "unit": "provider",
+        "interpretation": "Weak provider-level audit-prioritization label; not adjudicated claim fraud"
+      }
+    },
+    "methodology": {
+      "unit": "provider",
+      "providerDisjoint": true,
+      "allClaimsAggregated": true,
+      "thresholdSelection": "Best calibration-partition F1 on 0.01 increments",
+      "labelBoundary": "Weak provider-level audit-prioritization label; not adjudicated claim fraud"
+    },
+    "partitions": {
+      "train": {
+        "claims": 343537,
+        "providers": 3420
+      },
+      "calibration": {
+        "claims": 105277,
+        "providers": 905
+      },
+      "test": {
+        "claims": 109397,
+        "providers": 1085
+      }
+    },
+    "calibrationMetrics": {
+      "confusionMatrix": {
+        "truePositive": 53,
+        "trueNegative": 739,
+        "falsePositive": 68,
+        "falseNegative": 45
+      },
+      "accuracy": 0.8751,
+      "precision": 0.438,
+      "recall": 0.5408,
+      "specificity": 0.9157,
+      "falsePositiveRate": 0.0843,
+      "f1Score": 0.484,
+      "f2Score": 0.5166,
+      "matthewsCorrelationCoefficient": 0.4169,
+      "rocAuc": 0.864454,
+      "prAuc": 0.469453,
+      "brierScore": 0.07399239943894051,
+      "calibrationError": 0.03868505982306327
+    },
+    "testMetrics": {
+      "confusionMatrix": {
+        "truePositive": 41,
+        "trueNegative": 914,
+        "falsePositive": 87,
+        "falseNegative": 43
+      },
+      "accuracy": 0.8802,
+      "precision": 0.3203,
+      "recall": 0.4881,
+      "specificity": 0.9131,
+      "falsePositiveRate": 0.0869,
+      "f1Score": 0.3868,
+      "f2Score": 0.4418,
+      "matthewsCorrelationCoefficient": 0.3324,
+      "rocAuc": 0.879659,
+      "prAuc": 0.357647,
+      "brierScore": 0.06149551225802427,
+      "calibrationError": 0.05088717378642795
+    }
+  },
+  "controlledAttacks": {
+    "modelVersion": "bernoulli-fraud-v3.1.0",
+    "modelBoundary": "Synthetic-trained protocol irregularity model; evaluated separately from provider-risk-real-v1.0.0",
+    "routingThreshold": 0.21796945267587475,
+    "metricInterpretation": "Positive means rejected or escalated for review; it does not mean convicted as fraud",
+    "untouchedMetrics": {
+      "confusionMatrix": {
+        "truePositive": 0,
+        "trueNegative": 100877,
+        "falsePositive": 8520,
+        "falseNegative": 0
+      },
+      "accuracy": 0.9221,
+      "precision": 0,
+      "recall": 0,
+      "specificity": 0.9221,
+      "falsePositiveRate": 0.0779,
+      "f1Score": 0,
+      "f2Score": 0,
+      "matthewsCorrelationCoefficient": 0,
+      "rocAuc": 0,
+      "prAuc": 0,
+      "brierScore": 0.07972624088972201,
+      "calibrationError": 0.112697597579192
+    },
+    "pairedAttackMetrics": {
+      "confusionMatrix": {
+        "truePositive": 54705,
+        "trueNegative": 50466,
+        "falsePositive": 4226,
+        "falseNegative": 0
+      },
+      "accuracy": 0.9614,
+      "precision": 0.9283,
+      "recall": 1,
+      "specificity": 0.9227,
+      "falsePositiveRate": 0.0773,
+      "f1Score": 0.9628,
+      "f2Score": 0.9848,
+      "matthewsCorrelationCoefficient": 0.9255,
+      "rocAuc": 0.95705,
+      "prAuc": 0.920748,
+      "brierScore": 0.07308437730434718,
+      "calibrationError": 0.09945306608020309
+    },
+    "untouchedEscalationRate": 0.0778814775542291,
+    "controlledAttackRoutingRecall": 1,
+    "meanInjectedProbabilityIncrease": 0.21676029395442906,
+    "scenarioDetection": {
+      "NOISY_RECORD": {
+        "records": 6737,
+        "detected": 6737,
+        "recall": 1
+      },
+      "DATE_MISMATCH": {
+        "records": 6789,
+        "detected": 6789,
+        "recall": 1
+      },
+      "INFLATED_AMOUNT": {
+        "records": 6879,
+        "detected": 6879,
+        "recall": 1
+      },
+      "PROVIDER_COMPROMISE": {
+        "records": 6702,
+        "detected": 6702,
+        "recall": 1
+      },
+      "USED_INVOICE": {
+        "records": 6785,
+        "detected": 6785,
+        "recall": 1
+      },
+      "BLACKLISTED_HOSPITAL": {
+        "records": 6940,
+        "detected": 6940,
+        "recall": 1
+      },
+      "NEAR_DUPLICATE": {
+        "records": 6874,
+        "detected": 6874,
+        "recall": 1
+      },
+      "CANCELLED_RECORD": {
+        "records": 6999,
+        "detected": 6999,
+        "recall": 1
+      }
+    }
+  },
+  "performance": {
+    "evaluationTimeMs": 8007.2481,
+    "note": "Wall-clock measurement is descriptive and excluded from the reproducibility hash"
+  },
+  "reproducibilityHash": "0ac223a3ddd83a02c307be65b3ed0a95970c4bc39e61fae76470b5849acc3257"
+}

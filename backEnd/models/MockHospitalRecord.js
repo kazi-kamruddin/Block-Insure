@@ -164,7 +164,9 @@ const mockHospitalRecordSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Deprecated compatibility alias retained for the synthetic Phase 5 model.
     actualFraud: { type: Boolean, required: true, default: false, index: true },
+    controlledAttackTruth: { type: Boolean, required: true, default: false, index: true },
     providerVelocityAnomaly: { type: Boolean, default: false },
     claimantVelocityAnomaly: { type: Boolean, default: false },
     nearDuplicateAdvisory: { type: Boolean, default: false },
@@ -227,5 +229,7 @@ mockHospitalRecordSchema.index({
   hospitalId: 1,
   invoiceHash: 1,
 });
+mockHospitalRecordSchema.index({ claimantId: 1, admissionDate: -1 });
+mockHospitalRecordSchema.index({ hospitalId: 1, admissionDate: -1 });
 
 module.exports = mongoose.model("MockHospitalRecord", mockHospitalRecordSchema);

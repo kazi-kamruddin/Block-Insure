@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-28T15:53:02.573Z",
+  "datasetVersion": "blockinsure-hybrid-v1.2.0",
+  "runtimeRecords": 5000,
+  "hybridRecords": 4995,
+  "preservedDemoRecords": 5,
+  "tree": {
+    "version": "blockinsure-registry-merkle-v3",
+    "rootHash": "0x351b271e73eba9bf690514eca06caa69a2c376a68c26b92355281c196c196768",
+    "leafCount": 5000,
+    "depth": 13,
+    "cachedRuntimeBehavior": "One tree per immutable registry snapshot; proof lookup uses an invoice-hash index"
+  },
+  "proofSample": {
+    "requested": 100,
+    "tested": 100,
+    "verified": 100,
+    "allValid": true
+  },
+  "performance": {
+    "coldTreeBuildMs": 90.71330000000012,
+    "meanProofBuildMs": 0.0036200000000098953,
+    "meanProofVerificationMs": 0.023850000000004458,
+    "heapDeltaBytes": 23431952,
+    "interpretation": "Descriptive local measurement; excluded from the reproducibility hash"
+  },
+  "reproducibilityHash": "356dcbf30643a9d435654bdfca845c24ad59f843ec073db19112d12cc2b00ab3"
+}

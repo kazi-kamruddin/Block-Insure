@@ -11,6 +11,8 @@ const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("./abi/InsuranceManager.json");
 const OracleCoordinatorArtifact = require("./abi/OracleCoordinator.json");
 const { verifyRegistryProof } = require("./merkleProof");
+const { independentlyAssessRecord } = require("./independentAssessment");
+const triagePolicy = require("../backEnd/triage-policy.json");
 const {
   buildCommitment,
   buildResultHash,
@@ -209,29 +211,43 @@ const classifyResponse = (request, claim, response) => {
     proofValid &&
     normalizeHash(proof.canonicalRecord?.invoiceHash) === normalizeHash(claim.invoiceHash) &&
     String(proof.canonicalRecord?.hospitalId || "") === String(claim.hospitalId);
-  const hospitalVerified = response.verified === true;
+  const independent = recordMatchesClaim
+    ? independentlyAssessRecord({
+        record: proof.canonicalRecord,
+        claim: {
+          hospitalId: claim.hospitalId,
+          invoiceHash: claim.invoiceHash,
+          claimAmountEth: ethers.formatEther(claim.claimAmount),
+          claimType: claim.claimType,
+          incidentDate: claim.incidentDate.toString(),
+        },
+        modelArtifact: runtimeModelArtifact,
+        triagePolicy,
+      })
+    : null;
 
   let verificationCode = "VERIFIED";
   if (!snapshotMatches) verificationCode = "SNAPSHOT_ID_MISMATCH";
   else if (!proofValid) verificationCode = "INVALID_MERKLE_PROOF";
   else if (!rootMatches) verificationCode = "REGISTRY_ROOT_MISMATCH";
   else if (!recordMatchesClaim) verificationCode = "CLAIM_RECORD_MISMATCH";
-  else if (!hospitalVerified) verificationCode = "HOSPITAL_REJECTED";
+  else if (!independent?.verified) verificationCode = independent?.verificationCode || "INDEPENDENT_ASSESSMENT_FAILED";
 
   const verified = verificationCode === "VERIFIED";
   return {
     verified,
     verificationCode,
-    hospitalVerified,
+    backendAdvisoryVerified: response.verified === true,
+    independentAssessment: independent,
     snapshotMatches,
     proofValid,
     rootMatches,
     recordMatchesClaim,
     localRoot,
     leafHash: proofValid ? proof.leafHash : ethers.ZeroHash,
-    riskLevel: verified ? response.riskLevel || "LOW" : "HIGH",
+    riskLevel: independent?.riskLevel || "HIGH",
     remarks: verified
-      ? response.message || "Hospital record and committed proof matched"
+      ? "Oracle independently verified the committed registry record"
       : verificationCode,
   };
 };

@@ -55,10 +55,10 @@ test("rejects a proof whose canonical record was tampered with", () => {
   );
 });
 
-test("binds hybrid provenance and controlled-scenario metadata to the proof", () => {
+test("binds hybrid provenance and verdict-relevant risk metadata to the proof", () => {
   const hybridRecord = {
     ...canonicalRecord,
-    datasetProfile: "blockinsure-hybrid-v1.1.0",
+    datasetProfile: "blockinsure-hybrid-v1.2.0",
     baseDataOrigin: "PUBLIC_SECONDARY",
     claimSetting: "OUTPATIENT",
     providerPotentialFraud: true,
@@ -70,6 +70,20 @@ test("binds hybrid provenance and controlled-scenario metadata to the proof", ()
     sourceProcedureCode: "99214",
     amountNormalizationVersion: "usd-to-eth-v1",
     amountNormalizationDivisor: 10000,
+    previousClaimCount: 2,
+    providerVelocityAnomaly: false,
+    claimantVelocityAnomaly: true,
+    nearDuplicateAdvisory: false,
+    isMissingOrNoisy: false,
+    dataQuality: "COMPLETE",
+    recurringLegitimate: true,
+    fraudSignals: {
+      usedInvoice: false,
+      cancelledRecord: false,
+      inflatedAmount: false,
+      blacklistedHospital: false,
+      dateMismatch: false,
+    },
   };
   const leafHash = hashCanonicalRecord(hybridRecord);
 

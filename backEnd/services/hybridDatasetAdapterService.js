@@ -1,7 +1,7 @@
 const crypto = require("node:crypto");
 const { ethers } = require("ethers");
 
-const HYBRID_DATASET_VERSION = "blockinsure-hybrid-v1.1.0";
+const HYBRID_DATASET_VERSION = "blockinsure-hybrid-v1.2.0";
 const SCENARIO_VERSION = "blockinsure-scenario-v1";
 const AMOUNT_NORMALIZATION_VERSION = "usd-demo-scale-v1";
 const AMOUNT_NORMALIZATION_DIVISOR = 10000;
@@ -252,6 +252,7 @@ const buildBaseHybridRecord = ({
     scenarioVersion: SCENARIO_VERSION,
     fraudLabel: "LEGITIMATE",
     actualFraud: false,
+    controlledAttackTruth: false,
     fraudSignals: {
       usedInvoice: false,
       cancelledRecord: false,
@@ -294,6 +295,7 @@ const injectScenario = (record, { seed = DEFAULT_SEED, rate = 0.12 } = {}) => {
     scenarioType,
     scenarioVersion: SCENARIO_VERSION,
     actualFraud: true,
+    controlledAttackTruth: true,
     syntheticSource: SCENARIO_VERSION,
   };
 

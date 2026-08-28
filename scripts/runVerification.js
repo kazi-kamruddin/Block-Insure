@@ -21,6 +21,7 @@ const git = (...args) => execFileSync(
 ).trim();
 
 const tasks = [
+  { key: "hybrid_dataset_integrity", command: process.execPath, args: [npmCli, "--prefix", "backEnd", "run", "validate:hybrid"] },
   { key: "contracts", command: process.execPath, args: [npmCli, "--prefix", "contracts", "test"] },
   { key: "repository_integrity", command: process.execPath, args: ["scripts/verifyRepository.js"] },
   { key: "backend", command: process.execPath, args: [npmCli, "--prefix", "backEnd", "test"] },

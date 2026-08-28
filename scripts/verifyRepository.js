@@ -71,16 +71,27 @@ const verifyResearchArtifacts = (failures) => {
   const phase5 = readJson("backEnd/evaluation-results/phase5-evaluation.json");
   const reserve = readJson("backEnd/evaluation-results/phase3-reserve-evaluation.json");
   const evidence = readJson("backEnd/evaluation-results/phase4-evidence-evaluation.json");
+  const hybrid = readJson("backEnd/evaluation-results/hybrid-v1-evaluation.json");
+  const providerRiskModel = readJson("backEnd/evaluation-results/provider-risk-real-v1.0.0.json");
+  const hybridBenchmark = readJson("backEnd/evaluation-results/hybrid-runtime-benchmark.json");
   const researchManifest = readJson("backEnd/evaluation-results/research-manifest-v4.json");
   const datasetManifest = readJson("backEnd/datasets/phase5/manifest.json");
+  const hybridDatasetManifest = readJson("backEnd/datasets/hybrid-v1/manifest.json");
   const mutation = readJson("contracts/mutation-results.json");
   assert(verifyModelArtifact(model).valid, "Frozen fraud model integrity failed", failures);
   assert(verifyTriagePolicy(triage).valid, "Frozen triage-policy integrity failed", failures);
+  assert(verifyModelArtifact(providerRiskModel).valid, "Frozen provider-risk model integrity failed", failures);
   assert(triage.modelIdentityHash === model.modelIdentityHash, "Triage policy is not bound to the frozen model", failures);
   assert(phase5.schemaVersion === 4, "Fraud evaluation schemaVersion must be 4", failures);
   assert(phase5.reproducibilityHash === calculateReproducibilityHash(phase5), "Fraud evaluation reproducibility hash is stale", failures);
   assert(reserve.reproducibilityHash === calculateReproducibilityHash(reserve), "Reserve evaluation reproducibility hash is stale", failures);
   assert(evidence.reproducibilityHash === calculateReproducibilityHash(reproducibilityBasis(evidence)), "Evidence evaluation reproducibility hash is stale", failures);
+  assert(hybrid.reproducibilityHash === calculateReproducibilityHash(hybrid), "Hybrid evaluation reproducibility hash is stale", failures);
+  assert(hybridBenchmark.reproducibilityHash === calculateReproducibilityHash(hybridBenchmark), "Hybrid runtime benchmark reproducibility hash is stale", failures);
+  assert(hybrid.sourceClaims === hybridDatasetManifest.totalUniqueClaims, "Hybrid evaluation does not cover every unique public-source claim", failures);
+  assert(hybridDatasetManifest.counts.runtimeHybrid === 4995, "Hybrid runtime sample must contain 4,995 hybrid records", failures);
+  assert(hybridBenchmark.runtimeRecords === 5000, "Hybrid runtime benchmark must cover 5,000 records", failures);
+  assert(hybridBenchmark.proofSample?.allValid === true, "Hybrid runtime benchmark contains a failed Merkle proof", failures);
   for (const dataset of Object.values(datasetManifest.datasets || {})) {
     assert(sha256File(path.join("backEnd/datasets/phase5", dataset.file)) === dataset.sha256, `Dataset hash mismatch: ${dataset.file}`, failures);
   }

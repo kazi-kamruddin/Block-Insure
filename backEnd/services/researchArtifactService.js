@@ -9,6 +9,10 @@ const VOLATILE_KEYS = new Set([
   "totalInferenceTimeMs",
   "meanInferenceTimeMs",
   "buildAndProveMs",
+  "coldTreeBuildMs",
+  "meanProofBuildMs",
+  "meanProofVerificationMs",
+  "heapDeltaBytes",
   "executionFileSha256",
 ]);
 

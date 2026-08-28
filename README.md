@@ -75,11 +75,13 @@ the hybrid registry, place the four required public CSV files under
 npm run dev:hybrid
 ```
 
-This rebuilds and validates the hybrid adapter, preserves five synthetic demo
-presets required by the existing claim UI, samples 595 public-secondary claim
-rows, deploys the local contracts, and commits the resulting registry Merkle
-root. The source `PotentialFraud` value remains a weak provider-risk label; only
-controlled Block-Insure scenario injection supplies claim-level attack truth.
+This validates the prepared hybrid artifacts before resetting local state,
+preserves five synthetic demo presets required by the existing claim UI, loads
+4,995 deterministic public-secondary-derived registry rows (5,000 total),
+deploys the local contracts, and commits the resulting registry Merkle root.
+Run `npm --prefix backEnd run build:hybrid` first when the raw CSVs change. The
+source `PotentialFraud` value remains a weak provider-risk label; only controlled
+Block-Insure scenario injection supplies claim-level attack truth.
 The original synthetic-only workflow remains available through
 `npm run dev:bootstrap`. See
 [the hybrid dataset contract](backEnd/datasets/hybrid-v1/README.md) for its
@@ -216,6 +218,18 @@ split, explicit provider holdout, component-bootstrap intervals, grouped
 out-of-fold ablations, model baselines, and cost/capacity frontiers. The runtime
 triage policy can defer probabilistic risk to manual review but cannot reject a
 claim without an authoritative integrity failure.
+
+The hybrid study consumes all 558,211 unique public-secondary claims offline,
+trains and tests the separate `provider-risk-real-v1.0.0` weak-label model on
+provider-disjoint partitions, and evaluates the existing protocol model against
+paired controlled attacks. It does not relabel provider risk as confirmed claim
+fraud. Reproduce the hybrid evaluation and 5,000-row Merkle benchmark with:
+
+```powershell
+cd backEnd
+npm run evaluate:hybrid
+npm run benchmark:hybrid
+```
 
 The admin **Thesis Results** dashboard reads generated artifacts from
 `backEnd/evaluation-results`.
