@@ -7,7 +7,9 @@ const {
 const { closeActor, createActorContext } = require("../support/walletBridge");
 
 test.describe("@workflow policyholder transaction journey", () => {
-  test("User buys a policy and submits uniquely encrypted claim evidence", async ({ browser }) => {
+  test.describe.configure({ mode: "serial" });
+
+  test("Policy purchase, encrypted claim, oracle adjudication, and payout settlement", async ({ browser }) => {
     const session = await createActorContext(browser, "user");
     try {
       await loginActor(session.page, session.actor);
@@ -32,27 +34,177 @@ test.describe("@workflow policyholder transaction journey", () => {
         .toBeGreaterThan(1);
       await policySelect.selectOption({ index: 1 });
 
-      await session.page.getByLabel("Claim amount in ETH").fill("0.1");
+      await session.page.getByLabel("Test data preset").selectOption({
+        label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH",
+      });
+      const latestBlock = await session.provider.getBlock("latest");
+      if (!latestBlock) throw new Error("Latest local block is unavailable");
       const incidentInput = session.page.getByLabel("Incident date/time");
       await incidentInput.evaluate((input) => input.setAttribute("step", "1"));
-      await incidentInput.fill(localDateTimeValue(new Date(Date.now() - 2_000)));
-      await session.page.getByLabel("Claim type").fill("HOSPITALIZATION");
-      await session.page.getByLabel("Hospital ID").fill("HOSP-001");
-      await session.page
-        .getByLabel("Invoice number")
-        .fill(`E2E-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`);
+      await incidentInput.fill(localDateTimeValue(new Date(Number(latestBlock.timestamp) * 1000)));
       await session.page.getByLabel("Claim document").setInputFiles(uniqueEvidenceFile());
 
       await session.page.getByRole("button", { name: "Submit Claim" }).click();
-      await expect(session.page.locator(".success-text")).toContainText(
+      const successMessage = session.page.locator(".success-text");
+      await expect(successMessage).toContainText(
         "submitted and its encrypted evidence was reconciled successfully",
         { timeout: 120_000 }
       );
+      const claimId = (await successMessage.textContent())?.match(/Claim #(\d+)/)?.[1];
+      expect(claimId, "The reconciled claim success message should include its claim ID").toBeTruthy();
       const uploadedDocument = session.page
         .getByRole("heading", { name: "Uploaded Document" })
         .locator("..");
       await expect(uploadedDocument).toBeVisible();
       await expect(uploadedDocument).toContainText("AES-256-GCM");
+
+      const adminSession = await createActorContext(browser, "admin");
+      try {
+        await loginActor(adminSession.page, adminSession.actor);
+        await adminSession.page.goto(`/admin/claims/${claimId}`);
+        await expect(
+          adminSession.page.getByRole("heading", { name: "Admin Claim Detail" })
+        ).toBeVisible();
+
+        const currentStatus = adminSession.page.locator(
+          ".admin-claim-sidebar p strong"
+        ).first();
+        await expect(currentStatus).toHaveText("DUPLICATE_CHECKED");
+        await adminSession.page
+          .getByRole("button", { name: "Request Oracle Verification" })
+          .click();
+        await expect(adminSession.page.locator(".success-text")).toContainText(
+          "Oracle verification requested successfully"
+        );
+
+        await expect
+          .poll(
+            async () => {
+              await adminSession.page
+                .getByRole("button", { name: "Refresh Claim" })
+                .click();
+              return (await currentStatus.textContent())?.trim();
+            },
+            {
+              message: "The two oracle workers should approve the registered claim",
+              timeout: 90_000,
+              intervals: [1_000, 2_000, 3_000],
+            }
+          )
+          .toBe("PAYOUT_READY");
+      } finally {
+        await closeActor(adminSession);
+      }
+
+      await session.page.goto(`/user/claims/${claimId}`);
+      const withdrawButton = session.page.getByRole("button", {
+        name: "Withdraw Payment",
+      });
+      await expect(withdrawButton).toBeVisible();
+      await withdrawButton.click();
+      await expect(session.page.getByText("SETTLED", { exact: true })).toBeVisible();
+    } finally {
+      await closeActor(session);
+    }
+  });
+
+  test("Oracle failure is resolved by assigned auditor consensus and settled", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const session = await createActorContext(browser, "user");
+    try {
+      await loginActor(session.page, session.actor);
+      await session.page.goto("/user/policies/buy");
+      await session.page.getByRole("button", { name: "Buy Policy" }).first().click();
+      await expect(session.page.locator(".success-text")).toContainText(
+        "policy purchased successfully"
+      );
+
+      await session.page.goto("/user/claims/new");
+      const policySelect = session.page.getByLabel("Policy", { exact: true });
+      await expect.poll(() => policySelect.locator("option").count()).toBeGreaterThan(1);
+      const policyOptionCount = await policySelect.locator("option").count();
+      await policySelect.selectOption({ index: policyOptionCount - 1 });
+
+      const latestBlock = await session.provider.getBlock("latest");
+      if (!latestBlock) throw new Error("Latest local block is unavailable");
+      const incidentInput = session.page.getByLabel("Incident date/time");
+      await incidentInput.evaluate((input) => input.setAttribute("step", "1"));
+      await incidentInput.fill(localDateTimeValue(new Date(Number(latestBlock.timestamp) * 1000)));
+      await session.page.getByLabel("Claim amount in ETH").fill("0.1");
+      await session.page.getByLabel("Claim type").fill("HOSPITALIZATION");
+      await session.page.getByLabel("Hospital ID").fill("HOSP-NOT-REGISTERED");
+      await session.page
+        .getByLabel("Invoice number")
+        .fill(`E2E-MANUAL-${Date.now()}`);
+      await session.page.getByLabel("Claim document").setInputFiles(uniqueEvidenceFile());
+      await session.page.getByRole("button", { name: "Submit Claim" }).click();
+
+      const successMessage = session.page.locator(".success-text");
+      await expect(successMessage).toContainText(
+        "submitted and its encrypted evidence was reconciled successfully",
+        { timeout: 120_000 }
+      );
+      const claimId = (await successMessage.textContent())?.match(/Claim #(\d+)/)?.[1];
+      expect(claimId, "The manual-review claim should expose its claim ID").toBeTruthy();
+
+      const adminSession = await createActorContext(browser, "admin");
+      try {
+        await loginActor(adminSession.page, adminSession.actor);
+        await adminSession.page.goto(`/admin/claims/${claimId}`);
+        const currentStatus = adminSession.page
+          .locator(".admin-claim-sidebar p strong")
+          .first();
+        await expect(currentStatus).toHaveText("DUPLICATE_CHECKED");
+        await adminSession.page
+          .getByRole("button", { name: "Request Oracle Verification" })
+          .click();
+        await expect
+          .poll(
+            async () => {
+              await adminSession.page.getByRole("button", { name: "Refresh Claim" }).click();
+              return (await currentStatus.textContent())?.trim();
+            },
+            { timeout: 90_000, intervals: [1_000, 2_000, 3_000] }
+          )
+          .toBe("ORACLE_FAILED");
+
+        await adminSession.page
+          .getByRole("button", { name: "Send to Manual Review" })
+          .click();
+        await expect(currentStatus).toHaveText("MANUAL_REVIEW");
+      } finally {
+        await closeActor(adminSession);
+      }
+
+      for (const actorName of ["auditor1", "auditor2", "auditor3"]) {
+        const auditorSession = await createActorContext(browser, actorName);
+        try {
+          await loginActor(auditorSession.page, auditorSession.actor);
+          await auditorSession.page.goto(`/auditor/vote/${claimId}`);
+          await expect(
+            auditorSession.page.getByRole("heading", { name: "Auditor Vote" })
+          ).toBeVisible();
+          const validVoteButton = auditorSession.page.getByRole("button", {
+            name: "Valid Claim",
+            exact: true,
+          });
+          await expect(validVoteButton).toBeEnabled();
+          await validVoteButton.click();
+          await expect(auditorSession.page.locator(".success-text")).toContainText(
+            "Valid Claim vote recorded on-chain"
+          );
+        } finally {
+          await closeActor(auditorSession);
+        }
+      }
+
+      await session.page.goto(`/user/claims/${claimId}`);
+      const withdrawButton = session.page.getByRole("button", {
+        name: "Withdraw Payment",
+      });
+      await expect(withdrawButton).toBeVisible();
+      await withdrawButton.click();
+      await expect(session.page.getByText("SETTLED", { exact: true })).toBeVisible();
     } finally {
       await closeActor(session);
     }

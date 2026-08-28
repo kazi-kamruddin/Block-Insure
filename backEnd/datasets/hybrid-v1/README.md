@@ -67,9 +67,15 @@ npm run dev:hybrid
 
 `reset:hybrid` installs 5,000 runtime registry rows in both oracle snapshots:
 five legacy UI presets plus a deterministic, order-independent sample of 4,995
-hybrid training rows. Preserving the five
-legacy rows keeps the existing claimant demo presets and end-to-end workflows
-available.
+hybrid training rows. During local reset only, the five compatibility presets'
+treatment dates are aligned to the new deployment's blockchain clock. Their
+identities and amounts stay fixed, and the generated research JSONL artifacts
+are not modified. This keeps fresh policy purchases compatible with the live
+claim, Oracle, Auditor, and settlement demonstrations.
+
+The clean reset also removes generated local Oracle event cursors. A deterministic
+Hardhat redeployment can reuse contract addresses and block numbers, so retaining
+a cursor from the previous chain could otherwise skip new Oracle requests.
 
 To return to the original synthetic-only local state, run the normal bootstrap:
 

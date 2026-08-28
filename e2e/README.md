@@ -12,9 +12,10 @@ assigned to the selected test actor.
 - Role-specific navigation and cross-role redirect protection
 - Admin role synchronization and policy-package pages
 - Auditor registry, voting queue, and document-verification pages
-- Optional real User workflow: purchase a policy, generate a unique PNG evidence
-  file in memory, encrypt it in the browser, upload it through the application,
-  submit the claim on-chain, and reconcile its evidence metadata
+- State-changing registered-claim workflow: policy purchase, browser encryption,
+  evidence reconciliation, two-oracle approval, payout allocation, and withdrawal
+- State-changing exception workflow: oracle failure, Admin routing, three assigned
+  Auditor approvals, payout allocation, and withdrawal
 
 The Oracle workers are not controlled through browser pages. The E2E preflight
 validates both Oracle wallets and the running workers process claims in the same
@@ -37,16 +38,18 @@ npm run test:e2e
 npm run test:e2e:headed
 ```
 
-To run the state-changing policy purchase and claim/evidence upload journey:
+To run both state-changing adjudication and settlement journeys:
 
 ```powershell
 npm run test:e2e:workflow
 ```
 
 The workflow command uses the Pinata mode configured in `e2e/.env`. With
-`E2E_PINATA_MODE=real`, it uploads one small encrypted test artifact to the real
+`E2E_PINATA_MODE=real`, it uploads two small encrypted test artifacts to the real
 configured Pinata account and changes the current local blockchain/database
-state. Run it after a clean `setup:local` when you want deterministic results.
+state. Run it after a clean `setup:hybrid` (or start with `dev:hybrid`) when you
+want deterministic results. The workflow covers both automatic Oracle approval
+and Oracle failure followed by assigned-Auditor consensus.
 
 Failures retain a screenshot, video, and Playwright trace in `test-results/`.
 Open the HTML report with:

@@ -1,7 +1,10 @@
 require("dotenv").config();
 
 const dns = require("dns");
+const fs = require("fs");
 const mongoose = require("mongoose");
+const path = require("path");
+const { ethers } = require("ethers");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
@@ -52,6 +55,30 @@ const collections = [
   ["voting finalizations", VotingFinalization],
 ];
 
+const getChainReferenceDate = async () => {
+  const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+  try {
+    const latestBlock = await provider.getBlock("latest");
+    if (!latestBlock) throw new Error("Latest local block is unavailable");
+    return new Date(Number(latestBlock.timestamp) * 1000);
+  } finally {
+    provider.destroy();
+  }
+};
+
+const resetLocalOracleCursors = () => {
+  const stateDirectory = path.resolve(__dirname, "..", "..", "oracle", ".oracle-state");
+  if (!fs.existsSync(stateDirectory)) return 0;
+
+  const cursorFiles = fs
+    .readdirSync(stateDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /^cursor-\d+\.json$/.test(entry.name));
+  for (const entry of cursorFiles) {
+    fs.unlinkSync(path.join(stateDirectory, entry.name));
+  }
+  return cursorFiles.length;
+};
+
 async function main() {
   if (!process.argv.includes("--yes")) {
     throw new Error("Refusing to clear data without --yes.");
@@ -87,8 +114,11 @@ async function main() {
       console.log(`Removed ${result.deletedCount} ${label}.`);
     }
 
+    const removedOracleCursors = resetLocalOracleCursors();
+    console.log(`Removed ${removedOracleCursors} local oracle event cursors.`);
+
     const registryRecords = hybridMode
-      ? await buildHybridRuntimeRecords()
+      ? await buildHybridRuntimeRecords({ demoReferenceDate: await getChainReferenceDate() })
       : buildSyntheticRecords();
     await MockHospitalRecord.deleteMany({});
     await MockHospitalRecordOracle2.deleteMany({});

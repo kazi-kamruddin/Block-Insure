@@ -32,11 +32,20 @@ const buildResultHash = ({ request, verified, verificationCode, leafHash }) =>
     )
   );
 
+const normalizePrivateKey = (privateKey) => {
+  const value = String(privateKey || "").trim();
+  const normalized = value.startsWith("0x") ? value : `0x${value}`;
+  if (!ethers.isHexString(normalized, 32)) {
+    throw new Error("Oracle private key must contain exactly 32 bytes");
+  }
+  return normalized;
+};
+
 const buildSalt = ({ privateKey, requestId, oracleAddress }) =>
   ethers.keccak256(
     ethers.solidityPacked(
       ["bytes32", "uint256", "address"],
-      [privateKey, requestId, oracleAddress]
+      [normalizePrivateKey(privateKey), requestId, oracleAddress]
     )
   );
 
@@ -61,4 +70,5 @@ module.exports = {
   buildResultHash,
   buildSalt,
   codeHash,
+  normalizePrivateKey,
 };

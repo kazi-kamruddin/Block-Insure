@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-08-28T15:54:16.267Z",
+  "generatedAt": "2026-08-28T16:56:18.173Z",
   "source": {
-    "gitCommit": "abd532ce9cfd04712df41c871e64422088b0de09",
+    "gitCommit": "adc60d590290bf5f87c53a4df423fa490659141c",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -19,13 +19,13 @@
     "root": {
       "name": "block-insure-local-workflow",
       "version": null,
-      "packageJsonSha256": "229155269263042395f609b15a88bcbd9fa14297e293e2b06970ba4539b31cb3",
+      "packageJsonSha256": "94fecdbd45a7f3dcbad449a795731105f289ee60dcd844f95a89dbd7f19eb590",
       "packageLockSha256": "e99a4deea0b24bb60163a3a929cda712aa4705233c4cd9f9fc2756fa74c744d5"
     },
     "backend": {
       "name": "backend",
       "version": "1.0.0",
-      "packageJsonSha256": "9c92a926c5ff6d099347c6d165e79e170a6eb033a74dbe52529ca35710d24d56",
+      "packageJsonSha256": "62216c0aa0fbaf5bfd9aa65a1fa650988d23626018c356e1517fcc8aa5dd87ce",
       "packageLockSha256": "98337a57463d72e6bbf171d52cb7c5fc8fbb459cdf311716e3d3f52ad5b9db34"
     },
     "contracts": {
@@ -344,5 +344,5 @@
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "8492196c3aaab67594111f37ba7d2ae24c517bdc236261745c1b3cde8d48ab9e"
+  "reproducibilityHash": "7471584a224ac460455a6e85bb1e9b9a7cba7374e79f33fab16b200797423d58"
 }

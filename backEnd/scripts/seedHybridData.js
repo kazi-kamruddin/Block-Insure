@@ -39,10 +39,31 @@ const readJsonLines = async (filePath) => {
   return records;
 };
 
-const buildHybridRuntimeRecords = async () => {
+const alignDemoPresetDates = (records, referenceDate) => {
+  if (!referenceDate) return records;
+  const reference = new Date(referenceDate);
+  if (Number.isNaN(reference.getTime())) throw new Error("Invalid demo preset reference date");
+  const hour = 60 * 60 * 1000;
+  const admissionDate = new Date(reference.getTime() - 24 * hour).toISOString();
+  const dischargeDate = new Date(reference.getTime() - 2 * hour).toISOString();
+  const invoiceDate = new Date(reference.getTime() - hour).toISOString();
+  return records.map((record) => ({
+    ...record,
+    occurredAt: admissionDate,
+    admissionDate,
+    dischargeDate,
+    invoiceDate,
+    syntheticSource: "phase-5-demo-preset-v2-runtime-aligned",
+  }));
+};
+
+const buildHybridRuntimeRecords = async ({ demoReferenceDate = null } = {}) => {
   const manifest = loadHybridManifest();
   await verifyRuntimeArtifact(manifest);
-  const preservedDemoPresets = buildSyntheticRecords().slice(0, 5).map((record) => ({
+  const preservedDemoPresets = alignDemoPresetDates(
+    buildSyntheticRecords().slice(0, 5),
+    demoReferenceDate
+  ).map((record) => ({
     ...record,
     baseDataOrigin: "FULLY_SYNTHETIC",
     claimSetting: "SYNTHETIC",
@@ -92,6 +113,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  alignDemoPresetDates,
   buildHybridRuntimeRecords,
   loadHybridManifest,
   readJsonLines,

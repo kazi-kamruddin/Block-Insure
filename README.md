@@ -76,9 +76,10 @@ npm run dev:hybrid
 ```
 
 This validates the prepared hybrid artifacts before resetting local state,
-preserves five synthetic demo presets required by the existing claim UI, loads
+preserves five runtime-aligned compatibility presets required by the claim UI, loads
 4,995 deterministic public-secondary-derived registry rows (5,000 total),
-deploys the local contracts, and commits the resulting registry Merkle root.
+deploys the local contracts, commits the resulting registry Merkle root, and
+verifies that both Mongo registry snapshots match the on-chain commitment.
 Run `npm --prefix backEnd run build:hybrid` first when the raw CSVs change. The
 source `PotentialFraud` value remains a weak provider-risk label; only controlled
 Block-Insure scenario injection supplies claim-level attack truth.
@@ -103,6 +104,13 @@ the accounts corresponding to the configured `ADMIN_PRIVATE_KEY` and
 other funded Hardhat account for the policyholder profile; its first login is
 created as a normal `USER`. Do not run `demo:populate` or
 `loadtest:claims` when you want an empty simulation.
+
+After `dev:hybrid` reports ready, `npm run test:e2e` checks public and role-isolated
+pages. `npm run test:e2e:workflow` runs two complete state-changing demonstrations:
+automatic two-Oracle approval and Oracle failure resolved by three assigned
+Auditors. Both journeys finish with claimant withdrawal and `SETTLED` status.
+`demo:populate` is a legacy synthetic-only fixture and must not be used to verify
+the hybrid registry because it replaces the runtime registry records.
 
 Administrators cannot approve, reject, settle, close, or decide appeals. Exact
 oracle success allocates a payout automatically. Oracle failure can be routed

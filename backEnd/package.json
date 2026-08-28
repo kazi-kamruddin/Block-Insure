@@ -17,6 +17,7 @@
     "reset:local": "node scripts/resetLocalData.js --yes",
     "reset:hybrid": "node scripts/resetLocalData.js --yes --hybrid",
     "verify:clean": "node scripts/verifyCleanStart.js",
+    "verify:hybrid-runtime": "node scripts/verifyCleanStart.js --hybrid",
     "seed:mock": "node scripts/seedMockData.js",
     "build:hybrid": "node scripts/buildHybridDataset.js",
     "validate:hybrid": "node scripts/validateHybridDataset.js",

@@ -56,6 +56,7 @@ async function getActiveRoleMembers(contract, role) {
 }
 
 async function main() {
+  const hybridMode = process.argv.includes("--hybrid");
   const provider = new ethers.JsonRpcProvider(requireEnv("RPC_URL"));
   const contract = new ethers.Contract(
     requireEnv("VITE_CONTRACT_ADDRESS"),
@@ -191,7 +192,7 @@ async function main() {
       if (count !== 0) failures.push(`expected 0 ${label}, found ${count}`);
     }
 
-    const expectedRegistryCount = buildSyntheticRecords().length;
+    const expectedRegistryCount = hybridMode ? 5000 : buildSyntheticRecords().length;
     const [primaryRegistryCount, oracle2RegistryCount] = await Promise.all([
       MockHospitalRecord.countDocuments({}),
       MockHospitalRecordOracle2.countDocuments({}),
@@ -225,7 +226,7 @@ async function main() {
     throw new Error(`Clean-start verification failed: ${failures.join("; ")}`);
   }
 
-  console.log("Clean-start verification passed: one Admin, four uninitialized Auditors, two Oracles, one package, zero policies/claims/votes, funded settlement reserve, no prior runtime activity, and a published healthcare registry baseline.");
+  console.log(`Clean-start verification passed: one Admin, four uninitialized Auditors, two Oracles, one package, zero policies/claims/votes, funded settlement reserve, no prior runtime activity, and a published ${hybridMode ? "5,000-record hybrid" : "synthetic"} healthcare registry baseline.`);
 }
 
 main().catch((error) => {

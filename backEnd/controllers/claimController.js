@@ -499,7 +499,11 @@ const authorizeClaimSubmission = async (req, res, next) => {
     ) {
       throw createError("Incident date is outside the policy coverage period");
     }
-    if (canonicalIncidentDate > Math.floor(Date.now() / 1000)) {
+    const latestBlock = await contract.runner?.provider?.getBlock("latest");
+    const authoritativeNow = latestBlock?.timestamp
+      ? Number(latestBlock.timestamp)
+      : Math.floor(Date.now() / 1000);
+    if (canonicalIncidentDate > authoritativeNow) {
       throw createError("Incident date cannot be in the future");
     }
     if (BigInt(claimAmountWei) > policy.coverageAmount) {

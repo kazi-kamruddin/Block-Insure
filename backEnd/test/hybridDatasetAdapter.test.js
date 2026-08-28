@@ -9,6 +9,7 @@ const {
   injectScenario,
   parseCsvLine,
 } = require("../services/hybridDatasetAdapterService");
+const { alignDemoPresetDates } = require("../scripts/seedHybridData");
 
 const claim = {
   BeneID: "BENE1",
@@ -90,4 +91,17 @@ test("runtime sampling is deterministic, bounded, and independent of source orde
 
   assert.equal(forward.length, 3);
   assert.deepEqual(forward, reverse);
+});
+
+test("runtime demo presets align to the local deployment window without changing identity", () => {
+  const original = [{
+    invoiceNumber: "INV-HOSP-001-001",
+    admissionDate: "2023-01-01T00:00:00.000Z",
+  }];
+  const reference = "2026-08-28T12:00:00.000Z";
+  const [aligned] = alignDemoPresetDates(original, reference);
+  assert.equal(aligned.invoiceNumber, original[0].invoiceNumber);
+  assert.equal(aligned.admissionDate, "2026-08-27T12:00:00.000Z");
+  assert.equal(aligned.dischargeDate, "2026-08-28T10:00:00.000Z");
+  assert.equal(aligned.invoiceDate, "2026-08-28T11:00:00.000Z");
 });

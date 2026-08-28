@@ -515,10 +515,30 @@ async function submitOracleConfirmation({
   const startedAt = Date.now();
   await waitFor(coordinator.commitOracleResult(requestId, commitment));
 
-  return { coordinator, request, salt, oracleResponse, startedAt };
+  return {
+    coordinator,
+    request,
+    salt,
+    oracleResponse,
+    startedAt,
+    requestId,
+    claimId,
+    oracleType,
+    oracleInstanceId,
+  };
 }
 
-async function revealDemoOracle({ coordinator, request, salt, oracleResponse, startedAt }) {
+async function revealDemoOracle({
+  coordinator,
+  request,
+  salt,
+  oracleResponse,
+  startedAt,
+  requestId,
+  claimId,
+  oracleType,
+  oracleInstanceId,
+}) {
   const receipt = await waitFor(
     coordinator.revealOracleResult(
       request.requestId,
