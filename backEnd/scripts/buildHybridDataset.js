@@ -12,6 +12,7 @@ const {
   SCENARIO_VERSION,
   buildBaseHybridRecord,
   clean,
+  createDeterministicSampler,
   getProviderSplit,
   getSourceClaimAmount,
   injectScenario,
@@ -31,10 +32,9 @@ const CLAIM_FILES = [
 ];
 const RUNTIME_HYBRID_RECORDS = 595;
 
-const sha256File = (filePath) => {
+const sha256File = async (filePath) => {
   const hash = crypto.createHash("sha256");
-  const data = fs.readFileSync(filePath);
-  hash.update(data);
+  for await (const chunk of fs.createReadStream(filePath)) hash.update(chunk);
   return hash.digest("hex");
 };
 
@@ -75,8 +75,17 @@ const closeStream = async (stream) => {
 
 const createOutput = (fileName) => {
   const filePath = path.join(PROCESSED_DIR, fileName);
-  return { filePath, stream: fs.createWriteStream(filePath, { encoding: "utf8" }) };
+  const temporaryPath = `${filePath}.tmp`;
+  fs.rmSync(temporaryPath, { force: true });
+  return {
+    filePath,
+    temporaryPath,
+    stream: fs.createWriteStream(temporaryPath, { encoding: "utf8" }),
+  };
 };
+
+const publishOutput = ({ filePath, temporaryPath }) =>
+  fs.renameSync(temporaryPath, filePath);
 
 const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
   fs.mkdirSync(PROCESSED_DIR, { recursive: true });
@@ -98,10 +107,15 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     beneficiaries.set(clean(row.BeneID), row);
   });
 
-  const amountsBySetting = { INPATIENT: [], OUTPATIENT: [] };
+  const trainingAmountsBySetting = { INPATIENT: [], OUTPATIENT: [] };
   const providerCounts = new Map();
-  const beneficiaryCounts = new Map();
+  const partitionBeneficiaryCounts = new Map();
   const sourceCounts = {};
+  const splitCountsBySetting = {
+    train: { INPATIENT: 0, OUTPATIENT: 0 },
+    calibration: { INPATIENT: 0, OUTPATIENT: 0 },
+    test: { INPATIENT: 0, OUTPATIENT: 0 },
+  };
   const uniqueClaimIds = new Set();
 
   for (const source of CLAIM_FILES) {
@@ -115,14 +129,18 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
       const beneId = clean(claim.BeneID);
       if (!providerLabels.has(providerId)) throw new Error(`Provider label missing: ${providerId}`);
       if (!beneficiaries.has(beneId)) throw new Error(`Beneficiary missing: ${beneId}`);
-      amountsBySetting[source.setting].push(getSourceClaimAmount(claim));
+      const split = getProviderSplit(providerId, seed);
+      splitCountsBySetting[split][source.setting] += 1;
+      if (split === "train") {
+        trainingAmountsBySetting[source.setting].push(getSourceClaimAmount(claim));
+      }
       increment(providerCounts, providerId);
-      increment(beneficiaryCounts, beneId);
+      increment(partitionBeneficiaryCounts, `${split}:${beneId}`);
     });
   }
 
   const amountRanges = Object.fromEntries(
-    Object.entries(amountsBySetting).map(([setting, values]) => [
+    Object.entries(trainingAmountsBySetting).map(([setting, values]) => [
       setting,
       {
         minimum: percentile(values, 0.05),
@@ -131,8 +149,18 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
       },
     ])
   );
-  const providerVelocityThreshold = percentile([...providerCounts.values()], 0.95);
-  const claimantVelocityThreshold = percentile([...beneficiaryCounts.values()], 0.95);
+  const providerVelocityThreshold = percentile(
+    [...providerCounts.entries()]
+      .filter(([providerId]) => getProviderSplit(providerId, seed) === "train")
+      .map(([, count]) => count),
+    0.95
+  );
+  const claimantVelocityThreshold = percentile(
+    [...partitionBeneficiaryCounts.entries()]
+      .filter(([key]) => key.startsWith("train:"))
+      .map(([, count]) => count),
+    0.95
+  );
 
   const outputs = {
     train: createOutput("train.jsonl"),
@@ -141,7 +169,12 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     testAttacks: createOutput("test-attacks.jsonl"),
   };
   const runtimePath = path.join(RUNTIME_DIR, "hybrid-primary.jsonl");
-  const runtimeStream = fs.createWriteStream(runtimePath, { encoding: "utf8" });
+  const runtimeTemporaryPath = `${runtimePath}.tmp`;
+  fs.rmSync(runtimeTemporaryPath, { force: true });
+  const runtimeSampler = createDeterministicSampler(RUNTIME_HYBRID_RECORDS, {
+    seed,
+    namespace: "runtime-train",
+  });
   const manifestCounts = {
     train: 0,
     calibration: 0,
@@ -152,7 +185,6 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     injectedByPartition: { train: 0, calibration: 0, testAttacks: 0 },
     scenarios: Object.fromEntries(CLAIM_SCENARIOS.map((scenario) => [scenario, 0])),
   };
-  const seenProvider = new Map();
   const seenBeneficiary = new Map();
 
   for (const source of CLAIM_FILES) {
@@ -160,21 +192,22 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
       const sourceProviderId = clean(claim.Provider);
       const sourceBeneId = clean(claim.BeneID);
       const providerPotentialFraud = providerLabels.get(sourceProviderId);
+      const split = getProviderSplit(sourceProviderId, seed);
+      const partitionBeneficiaryKey = `${split}:${sourceBeneId}`;
       const baseRecord = buildBaseHybridRecord({
         claim,
         beneficiary: beneficiaries.get(sourceBeneId),
         potentialFraud: providerPotentialFraud,
         claimSetting: source.setting,
         amountRange: amountRanges[source.setting],
-        previousClaimCount: seenBeneficiary.get(sourceBeneId) || 0,
+        previousClaimCount: seenBeneficiary.get(partitionBeneficiaryKey) || 0,
         providerVelocityAnomaly: providerCounts.get(sourceProviderId) >= providerVelocityThreshold,
-        claimantVelocityAnomaly: beneficiaryCounts.get(sourceBeneId) >= claimantVelocityThreshold,
+        claimantVelocityAnomaly:
+          partitionBeneficiaryCounts.get(partitionBeneficiaryKey) >= claimantVelocityThreshold,
       });
-      increment(seenProvider, sourceProviderId);
-      increment(seenBeneficiary, sourceBeneId);
+      increment(seenBeneficiary, partitionBeneficiaryKey);
       if (providerPotentialFraud) manifestCounts.providerPotentialFraudClaims += 1;
 
-      const split = getProviderSplit(sourceProviderId, seed);
       if (split === "test") {
         await writeLine(outputs.testUntouched.stream, baseRecord);
         manifestCounts.testUntouched += 1;
@@ -198,17 +231,21 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
         manifestCounts.injectedByPartition[split] += 1;
         manifestCounts.scenarios[adapted.scenarioType] += 1;
       }
-      if (split === "train" && manifestCounts.runtimeHybrid < RUNTIME_HYBRID_RECORDS) {
-        await writeLine(runtimeStream, adapted);
-        manifestCounts.runtimeHybrid += 1;
-      }
+      if (split === "train") runtimeSampler.consider(baseRecord.sourceClaimId, adapted);
     });
   }
+
+  const runtimeRecords = runtimeSampler.values();
+  const runtimeStream = fs.createWriteStream(runtimeTemporaryPath, { encoding: "utf8" });
+  for (const record of runtimeRecords) await writeLine(runtimeStream, record);
+  manifestCounts.runtimeHybrid = runtimeRecords.length;
 
   await Promise.all([
     ...Object.values(outputs).map(({ stream }) => closeStream(stream)),
     closeStream(runtimeStream),
   ]);
+  Object.values(outputs).forEach(publishOutput);
+  fs.renameSync(runtimeTemporaryPath, runtimePath);
 
   const outputFiles = {
     train: path.relative(DATASET_DIR, outputs.train.filePath).replaceAll("\\", "/"),
@@ -218,19 +255,26 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     runtimeHybrid: path.relative(DATASET_DIR, runtimePath).replaceAll("\\", "/"),
   };
   const hashes = Object.fromEntries(
-    Object.entries(outputFiles).map(([name, relativePath]) => [
-      name,
-      sha256File(path.join(DATASET_DIR, relativePath)),
-    ])
+    await Promise.all(
+      Object.entries(outputFiles).map(async ([name, relativePath]) => [
+        name,
+        await sha256File(path.join(DATASET_DIR, relativePath)),
+      ])
+    )
   );
   const sourceFiles = Object.fromEntries(
-    requiredFiles.map((file) => [
-      file,
-      { bytes: fs.statSync(path.join(RAW_DIR, file)).size, sha256: sha256File(path.join(RAW_DIR, file)) },
-    ])
+    await Promise.all(
+      requiredFiles.map(async (file) => {
+        const sourcePath = path.join(RAW_DIR, file);
+        return [
+          file,
+          { bytes: fs.statSync(sourcePath).size, sha256: await sha256File(sourcePath) },
+        ];
+      })
+    )
   );
   const manifest = {
-    manifestSchemaVersion: 1,
+    manifestSchemaVersion: 2,
     datasetVersion: HYBRID_DATASET_VERSION,
     generatedAt: new Date().toISOString(),
     seed,
@@ -254,7 +298,9 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     totalUniqueClaims: uniqueClaimIds.size,
     providers: providerLabels.size,
     beneficiaries: beneficiaries.size,
+    preprocessingReference: "All amount and velocity thresholds are learned from the training partition only.",
     amountRangesUsd: amountRanges,
+    splitCountsBySetting,
     velocityThresholds: {
       providerClaimCountP95: providerVelocityThreshold,
       beneficiaryClaimCountP95: claimantVelocityThreshold,
@@ -264,7 +310,10 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     outputFiles,
     outputSha256: hashes,
   };
-  fs.writeFileSync(path.join(DATASET_DIR, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  const manifestPath = path.join(DATASET_DIR, "manifest.json");
+  const manifestTemporaryPath = `${manifestPath}.tmp`;
+  fs.writeFileSync(manifestTemporaryPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  fs.renameSync(manifestTemporaryPath, manifestPath);
   return manifest;
 };
 

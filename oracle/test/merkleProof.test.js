@@ -55,6 +55,36 @@ test("rejects a proof whose canonical record was tampered with", () => {
   );
 });
 
+test("binds hybrid provenance and controlled-scenario metadata to the proof", () => {
+  const hybridRecord = {
+    ...canonicalRecord,
+    datasetProfile: "blockinsure-hybrid-v1.1.0",
+    baseDataOrigin: "PUBLIC_SECONDARY",
+    claimSetting: "OUTPATIENT",
+    providerPotentialFraud: true,
+    providerLabelType: "POTENTIAL_PROVIDER_FRAUD",
+    scenarioInjected: false,
+    scenarioType: "NONE",
+    scenarioVersion: "none",
+    sourceClaimAmountUsd: 2450,
+    sourceProcedureCode: "99214",
+    amountNormalizationVersion: "usd-to-eth-v1",
+    amountNormalizationDivisor: 10000,
+  };
+  const leafHash = hashCanonicalRecord(hybridRecord);
+
+  assert.equal(
+    verifyRegistryProof({
+      found: true,
+      canonicalRecord: { ...hybridRecord, providerPotentialFraud: false },
+      leafHash,
+      rootHash: leafHash,
+      proof: [],
+    }),
+    false
+  );
+});
+
 test("rejects a tampered Merkle path", () => {
   const leftLeaf = hashCanonicalRecord(canonicalRecord);
   const rightLeaf = hashCanonicalRecord({ ...canonicalRecord, invoiceNumber: "INV-002" });

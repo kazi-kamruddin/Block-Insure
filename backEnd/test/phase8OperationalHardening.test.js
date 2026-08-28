@@ -53,6 +53,7 @@ test("managed launcher has bootstrap, readiness, and fail-fast child supervision
   assert.match(source, /waitForHttp/);
   assert.match(source, /stopped unexpectedly/);
   assert.match(source, /setup:local/);
+  assert.match(source, /await runCommand\("\."/);
   assert.match(source, /npm-cli\.js/);
   assert.doesNotMatch(source, /npm\.cmd/);
 });

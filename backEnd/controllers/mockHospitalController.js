@@ -16,7 +16,7 @@ const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const BILL_RANGE_TOLERANCE_RATE = 0.15;
 const BOUNDARY_NOTE =
-  "Synthetic external registry for thesis/demo verification. Production deployments should replace this mock with a hospital API or signed data feed while keeping hashes/Merkle roots on-chain.";
+  "Research-only hybrid external registry combining public secondary claims/provider evidence with controlled synthetic scenarios. Provider PotentialFraud is weak provider-risk evidence, not confirmed claim fraud. Production deployments should use an authorized hospital API or signed data feed while keeping hashes/Merkle roots on-chain.";
 
 const toBoolean = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -35,6 +35,9 @@ const buildRegistryFilter = (query) => {
     "invoiceStatus",
     "fraudLabel",
     "licenseStatus",
+    "datasetProfile",
+    "baseDataOrigin",
+    "claimSetting",
   ];
 
   exactFilters.forEach((field) => {
@@ -44,9 +47,19 @@ const buildRegistryFilter = (query) => {
   });
 
   const hasFraud = toBoolean(query.hasFraud);
+  const providerPotentialFraud = toBoolean(query.providerPotentialFraud);
+  const scenarioInjected = toBoolean(query.scenarioInjected);
 
   if (hasFraud !== undefined) {
     filter.fraudLabel = hasFraud ? { $ne: "LEGITIMATE" } : "LEGITIMATE";
+  }
+
+  if (providerPotentialFraud !== undefined) {
+    filter.providerPotentialFraud = providerPotentialFraud;
+  }
+
+  if (scenarioInjected !== undefined) {
+    filter.scenarioInjected = scenarioInjected;
   }
 
   if (query.q) {
@@ -59,6 +72,8 @@ const buildRegistryFilter = (query) => {
       { treatmentType: expression },
       { district: expression },
       { division: expression },
+      { datasetProfile: expression },
+      { sourceClaimId: expression },
     ];
   }
 
@@ -79,6 +94,10 @@ const getRegistrySummary = async (filter = {}, RegistryModel = getRegistryModel(
     blacklistedHospitals,
     treatmentBreakdown,
     fraudBreakdown,
+    provenanceBreakdown,
+    claimSettingBreakdown,
+    providerPotentialFraud,
+    scenarioInjected,
   ] = await Promise.all([
     RegistryModel.countDocuments(filter),
     RegistryModel.countDocuments({ ...filter, fraudLabel: "LEGITIMATE" }),
@@ -103,6 +122,18 @@ const getRegistrySummary = async (filter = {}, RegistryModel = getRegistryModel(
       { $group: { _id: "$fraudLabel", count: { $sum: 1 } } },
       { $sort: { count: -1, _id: 1 } },
     ]),
+    RegistryModel.aggregate([
+      { $match: filter },
+      { $group: { _id: "$baseDataOrigin", count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+    ]),
+    RegistryModel.aggregate([
+      { $match: filter },
+      { $group: { _id: "$claimSetting", count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+    ]),
+    RegistryModel.countDocuments({ ...filter, providerPotentialFraud: true }),
+    RegistryModel.countDocuments({ ...filter, scenarioInjected: true }),
   ]);
 
   return {
@@ -128,6 +159,16 @@ const getRegistrySummary = async (filter = {}, RegistryModel = getRegistryModel(
       fraudLabel: item._id,
       count: item.count,
     })),
+    provenanceBreakdown: provenanceBreakdown.map((item) => ({
+      baseDataOrigin: item._id,
+      count: item.count,
+    })),
+    claimSettingBreakdown: claimSettingBreakdown.map((item) => ({
+      claimSetting: item._id,
+      count: item.count,
+    })),
+    providerPotentialFraud,
+    scenarioInjected,
   };
 };
 
@@ -273,10 +314,10 @@ const buildVerificationComparison = ({
       {
         registryRecord: buildCheck({
           label: "Registry record",
-          expected: "Existing invoice hash in synthetic registry",
+          expected: "Existing invoice hash in external research registry",
           actual: "Not found",
           matched: false,
-          note: "The invoice hash did not resolve to any synthetic registry record.",
+          note: "The invoice hash did not resolve to any external research registry record.",
         }),
         hospitalId: buildCheck({
           label: "Hospital ID",
@@ -352,7 +393,7 @@ const buildVerificationComparison = ({
         amountSupplied &&
         registryAmountSupplied &&
         claimAmount <= registryBillAmount,
-      note: "Compares the on-chain claim amount with the synthetic invoice bill.",
+      note: "Compares the on-chain claim amount with the external registry invoice bill.",
     }),
     expectedBillRange: buildCheck({
       label: "Treatment bill range",
@@ -467,7 +508,7 @@ const getHospitalRecordById = async (req, res, next) => {
     if (!record) {
       return res.status(404).json({
         success: false,
-        message: "Synthetic healthcare registry record not found",
+        message: "External healthcare registry record not found",
       });
     }
 
@@ -710,7 +751,7 @@ const verifyHospitalRecord = async (req, res, next) => {
         success: true,
         verified: false,
         riskLevel: getHigherRiskLevel("HIGH", riskAssessment.riskLevel),
-        message: "No matching synthetic healthcare registry record found",
+        message: "No matching external healthcare registry record found",
         comparison,
         riskAssessment,
         merkleProof,
@@ -746,8 +787,8 @@ const verifyHospitalRecord = async (req, res, next) => {
       riskLevel,
       message: verified
         ? comparison.warningFailureCount > 0
-          ? "Synthetic healthcare registry record matched with non-blocking warnings"
-          : "Synthetic healthcare registry record matched"
+          ? "External healthcare registry record matched with non-blocking warnings"
+          : "External healthcare registry record matched"
         : comparisonVerified
           ? riskAssessment.recommendation === "MANUAL_REVIEW_RECOMMENDED"
             ? "Fraud or duplicate intelligence requires manual review; it is not an automatic fraud rejection"

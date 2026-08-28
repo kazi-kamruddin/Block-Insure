@@ -136,7 +136,7 @@ const submitAppeal = async (req, res, next) => {
           }],
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
 
     await notifyAdmins({
@@ -185,7 +185,7 @@ const getAppealByClaim = async (req, res, next) => {
             },
           },
         },
-        { new: true }
+        { returnDocument: "after" }
       );
     }
     res.status(200).json({ success: true, appeal: formatAppeal(appeal) });

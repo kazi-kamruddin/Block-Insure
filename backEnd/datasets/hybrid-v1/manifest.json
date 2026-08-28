@@ -1,7 +1,7 @@
 {
-  "manifestSchemaVersion": 1,
-  "datasetVersion": "blockinsure-hybrid-v1",
-  "generatedAt": "2026-08-28T11:42:11.992Z",
+  "manifestSchemaVersion": 2,
+  "datasetVersion": "blockinsure-hybrid-v1.1.0",
+  "generatedAt": "2026-08-28T14:11:50.991Z",
   "seed": 20260828,
   "sourceDescription": "Public secondary healthcare-claims benchmark with weak provider-level PotentialFraud labels",
   "labelWarning": "PotentialFraud is provider-level weak risk evidence and is never copied into claim-level actualFraud.",
@@ -35,6 +35,7 @@
   "totalUniqueClaims": 558211,
   "providers": 5410,
   "beneficiaries": 138556,
+  "preprocessingReference": "All amount and velocity thresholds are learned from the training partition only.",
   "amountRangesUsd": {
     "INPATIENT": {
       "minimum": 3068,
@@ -47,9 +48,23 @@
       "maximum": 1500
     }
   },
+  "splitCountsBySetting": {
+    "train": {
+      "INPATIENT": 25826,
+      "OUTPATIENT": 317711
+    },
+    "calibration": {
+      "INPATIENT": 7132,
+      "OUTPATIENT": 98145
+    },
+    "test": {
+      "INPATIENT": 7516,
+      "OUTPATIENT": 101881
+    }
+  },
   "velocityThresholds": {
-    "providerClaimCountP95": 421,
-    "beneficiaryClaimCountP95": 11
+    "providerClaimCountP95": 408,
+    "beneficiaryClaimCountP95": 8
   },
   "counts": {
     "train": 343537,
@@ -100,10 +115,10 @@
     "runtimeHybrid": "runtime/hybrid-primary.jsonl"
   },
   "outputSha256": {
-    "train": "3e3df1ad3eb9e2f2dc8ed230a61e288643326ce144ab0969d5a3e10e2ae2e827",
-    "calibration": "45115744b92e31d2596a547c142b61e20ba3116f984bad6554a44204ee321bfc",
-    "testUntouched": "16841a1855a8705b0b6464358b659f75a0c2d80a2f86dfd6f9d619a51a1ec38f",
-    "testAttacks": "d68c687df1d5dda8c990b67037e000073a005b4040a6a2513d6f65612b9372d8",
-    "runtimeHybrid": "d15110efb0c7de7a7f1df8424be4452849ee89d2f5bf4607dd912bbc00446cec"
+    "train": "6edd178250fa2f66572976089b3306340679d5b334c885cf6e22ddb430b2d5e9",
+    "calibration": "8cde838ca3d697a1689dc2b2c595cc2b41f1c9dfd9743c15955f3e8aad5185a3",
+    "testUntouched": "14e1c9a8d9c47f366e55bf9ee0ba29eb2b903fdc7b24770f400aec65da202cd2",
+    "testAttacks": "6109f479e29ed34dc218b2af3e6b0a2da0628e3130625c2b20702ce1b84c86e5",
+    "runtimeHybrid": "d45da5d9129e48d528b2eae7be08808a116bf65e1dca22f16f90b5058eb15f58"
   }
 }

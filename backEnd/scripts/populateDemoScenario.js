@@ -17,6 +17,7 @@ const {
 } = require("../services/evidenceChainService");
 const { calculateTextSHA256 } = require("../services/hashService");
 const {
+  TREE_VERSION,
   buildRegistryMerkleProof,
   exportMerkleRoot,
 } = require("../services/merkleRegistryService");
@@ -760,7 +761,7 @@ async function main() {
       coordinator.publishRegistrySnapshot(
         merkleRoot,
         records.length,
-        ethers.keccak256(ethers.toUtf8Bytes("phase-6-registry-merkle-v1"))
+        ethers.keccak256(ethers.toUtf8Bytes(TREE_VERSION))
       )
     );
     console.log("Registry Merkle root pushed on-chain:", merkleRoot);
@@ -774,7 +775,7 @@ async function main() {
       );
 
       if (!record) {
-        throw new Error(`No synthetic registry record found for ${label}`);
+        throw new Error(`No registry record found for ${label}`);
       }
 
       selectedInvoiceNumbers.add(record.invoiceNumber);

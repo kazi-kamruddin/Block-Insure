@@ -31,7 +31,7 @@ const createNotification = async (payload) => {
         },
       },
       {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         setDefaultsOnInsert: true,
       }

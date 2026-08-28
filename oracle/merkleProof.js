@@ -21,6 +21,18 @@ const getCanonicalRecordPayload = (record = {}) => ({
   invoiceStatus: record.invoiceStatus,
   recordStatus: record.recordStatus,
   fraudLabel: record.fraudLabel,
+  datasetProfile: record.datasetProfile,
+  baseDataOrigin: record.baseDataOrigin,
+  claimSetting: record.claimSetting,
+  providerPotentialFraud: record.providerPotentialFraud,
+  providerLabelType: record.providerLabelType,
+  scenarioInjected: record.scenarioInjected,
+  scenarioType: record.scenarioType,
+  scenarioVersion: record.scenarioVersion,
+  sourceClaimAmountUsd: record.sourceClaimAmountUsd,
+  sourceProcedureCode: record.sourceProcedureCode,
+  amountNormalizationVersion: record.amountNormalizationVersion,
+  amountNormalizationDivisor: record.amountNormalizationDivisor,
 });
 
 const hashCanonicalRecord = (record) =>

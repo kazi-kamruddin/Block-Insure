@@ -1,4 +1,4 @@
-# Block-Insure Hybrid Dataset v1
+# Block-Insure Hybrid Dataset v1.1
 
 This dataset adapter combines the public healthcare-claims benchmark files in
 `raw/` with controlled Block-Insure attack scenarios. It preserves the existing
@@ -26,8 +26,10 @@ The expected byte sizes and SHA-256 hashes are recorded in `manifest.json`.
   normalization, not a USD/ETH exchange rate.
 
 The provider-disjoint split is deterministic: 64% train, 16% calibration, and
-20% test. `test-untouched.jsonl` has no injected attacks; `test-attacks.jsonl`
-uses a deterministic 50% injection rate.
+20% test. Amount ranges and velocity thresholds are learned only from the
+training partition. `test-untouched.jsonl` has no injected attacks;
+`test-attacks.jsonl` is its paired counterfactual attack set with a deterministic
+50% injection rate.
 
 ## Generated outputs
 
@@ -40,7 +42,9 @@ uses a deterministic 50% injection rate.
 
 The full generated JSONL files require approximately 1.3 GB. They and the raw
 CSV files are intentionally ignored by Git; the manifest and this documentation
-remain trackable.
+remain trackable. Generated files are written to temporary paths and published
+only after all rows have been produced successfully, so an interrupted build
+does not replace the last complete dataset.
 
 ## Commands
 
@@ -59,7 +63,8 @@ npm run dev:hybrid
 ```
 
 `reset:hybrid` installs 600 runtime registry rows in both oracle snapshots:
-five legacy UI presets plus 595 deterministic hybrid rows. Preserving the five
+five legacy UI presets plus a deterministic, order-independent sample of 595
+hybrid training rows. Preserving the five
 legacy rows keeps the existing claimant demo presets and end-to-end workflows
 available.
 

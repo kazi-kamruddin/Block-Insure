@@ -32,7 +32,7 @@ const getNonce = async (req, res, next) => {
     const user = await User.findOneAndUpdate(
       { walletAddress },
       { walletAddress, nonce, nonceExpiresAt: expirationTime },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
     );
     const resources = [
       `urn:block-insure:role:${user.role.toLowerCase()}`,
@@ -123,7 +123,7 @@ const walletLogin = async (req, res, next) => {
         nonceExpiresAt: { $gt: new Date() },
       },
       { $set: { nonce: "", nonceExpiresAt: null } },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!consumedUser) {
       throw createError("SIWE nonce was already used or expired", 401);
@@ -179,7 +179,7 @@ const logout = async (req, res, next) => {
           expiresAt: new Date(exp * 1000),
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
     res.status(200).json({ success: true, message: "Logout successful" });
   } catch (error) {

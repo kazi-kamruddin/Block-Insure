@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { ethers } = require("ethers");
 const {
   buildBaseHybridRecord,
+  createDeterministicSampler,
   getProviderSplit,
   hashInvoiceNumber,
   injectScenario,
@@ -69,4 +70,21 @@ test("invoice hashing matches the existing frontend convention", () => {
     hashInvoiceNumber("INV-HOSP-001-001"),
     ethers.keccak256(ethers.toUtf8Bytes("INV-HOSP-001-001"))
   );
+});
+
+test("runtime sampling is deterministic, bounded, and independent of source order", () => {
+  const buildSample = (keys) => {
+    const sampler = createDeterministicSampler(3, {
+      seed: 42,
+      namespace: "runtime-test",
+    });
+    keys.forEach((key) => sampler.consider(key, { key }));
+    return sampler.values().map(({ key }) => key);
+  };
+
+  const forward = buildSample(["a", "b", "c", "d", "e", "f"]);
+  const reverse = buildSample(["f", "e", "d", "c", "b", "a"]);
+
+  assert.equal(forward.length, 3);
+  assert.deepEqual(forward, reverse);
 });

@@ -34,7 +34,7 @@ const setUserRole = async () => {
       { walletAddress },
       { walletAddress, role: roleInput },
       {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         setDefaultsOnInsert: true,
       }

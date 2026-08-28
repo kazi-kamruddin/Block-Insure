@@ -62,7 +62,7 @@ const markNotificationRead = async (req, res, next) => {
         ],
       },
       { readAt: new Date() },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!notification) {

@@ -17,6 +17,10 @@ const DEFAULT_FILTERS = {
   recordStatus: "",
   fraudLabel: "",
   licenseStatus: "",
+  baseDataOrigin: "",
+  claimSetting: "",
+  providerPotentialFraud: "",
+  scenarioInjected: "",
 };
 
 function extractRecords(data) {
@@ -159,8 +163,8 @@ export default function HealthcareRegistryPage() {
     localRoot.toLowerCase() === onChainRoot.toLowerCase();
   const total = summary.total || 0;
   const compositionRows = [
-    { label: "Legitimate", value: summary.legitimate || 0 },
-    { label: "Fraud labeled", value: summary.fraudulent || 0 },
+    { label: "Untouched / legitimate", value: summary.legitimate || 0 },
+    { label: "Controlled attack label", value: summary.fraudulent || 0 },
   ].filter((row) => row.value > 0);
   const statusRows = Object.entries(summary.statusCounts || {}).map(
     ([label, value]) => ({
@@ -169,6 +173,14 @@ export default function HealthcareRegistryPage() {
     })
   );
   const fraudRows = getSummaryRows(summary.fraudBreakdown, "fraudLabel");
+  const provenanceRows = getSummaryRows(
+    summary.provenanceBreakdown,
+    "baseDataOrigin"
+  );
+  const claimSettingRows = getSummaryRows(
+    summary.claimSettingBreakdown,
+    "claimSetting"
+  );
 
   function updateFilter(field, value) {
     setDraftFilters((current) => ({
@@ -194,10 +206,10 @@ export default function HealthcareRegistryPage() {
 
   return (
     <section className="page-container page-healthcare-registry">
-      <h2>Synthetic External Registry</h2>
+      <h2>Hybrid External Registry</h2>
       <p>
-        Browse the synthetic hospital, invoice, patient, and treatment records
-        used as the mock external oracle verification source.
+        Browse public-secondary claim adaptations and controlled synthetic
+        scenarios used as the external oracle verification source.
       </p>
 
       <div className="registry-hero card">
@@ -205,11 +217,11 @@ export default function HealthcareRegistryPage() {
           <span className="registry-eyebrow">Current access</span>
           <h3>{role === "ADMIN" ? "Admin registry view" : "Auditor registry view"}</h3>
           <p>
-            These records simulate inaccessible real-world hospital and national
-            health databases for thesis evaluation and oracle verification.
-            A production deployment would replace this mock service with a
-            hospital API or signed data feed while keeping only hashes and
-            Merkle roots on-chain.
+            Public provider-risk labels are weak prioritization evidence, not
+            confirmed claim fraud. Controlled scenario labels provide explicit
+            ground truth for protocol evaluation. A production deployment would
+            replace this research adapter with an authorized hospital API or
+            signed data feed while retaining Merkle commitments.
           </p>
         </div>
       </div>
@@ -280,7 +292,7 @@ export default function HealthcareRegistryPage() {
           <small>{formatPercent(summary.legitimate || 0, total)}</small>
         </div>
         <div className="card">
-          <span>Fraud Labeled</span>
+          <span>Controlled Attack Labels</span>
           <strong>{isLoading ? "..." : summary.fraudulent || 0}</strong>
           <small>{formatPercent(summary.fraudulent || 0, total)}</small>
         </div>
@@ -290,9 +302,22 @@ export default function HealthcareRegistryPage() {
         </div>
       </div>
 
+      <div className="registry-metrics">
+        <div className="card">
+          <span>Weak Provider-Risk Labels</span>
+          <strong>{isLoading ? "..." : summary.providerPotentialFraud || 0}</strong>
+          <small>Provider-level PotentialFraud; not claim truth</small>
+        </div>
+        <div className="card">
+          <span>Injected Scenarios</span>
+          <strong>{isLoading ? "..." : summary.scenarioInjected || 0}</strong>
+          <small>Controlled Block-Insure ground truth</small>
+        </div>
+      </div>
+
       <div className="registry-insight-grid">
         <DistributionBars
-          title="Dataset composition"
+          title="Controlled-label composition"
           rows={compositionRows}
           total={total}
         />
@@ -304,6 +329,16 @@ export default function HealthcareRegistryPage() {
         <DistributionBars
           title="Fraud scenario labels"
           rows={fraudRows}
+          total={total}
+        />
+        <DistributionBars
+          title="Base-data provenance"
+          rows={provenanceRows}
+          total={total}
+        />
+        <DistributionBars
+          title="Claim setting"
+          rows={claimSettingRows}
           total={total}
         />
       </div>
@@ -375,6 +410,57 @@ export default function HealthcareRegistryPage() {
             <option value="ACTIVE">Active</option>
             <option value="SUSPENDED">Suspended</option>
             <option value="BLACKLISTED">Blacklisted</option>
+          </select>
+        </label>
+
+        <label>
+          Data origin
+          <select
+            value={draftFilters.baseDataOrigin}
+            onChange={(event) => updateFilter("baseDataOrigin", event.target.value)}
+          >
+            <option value="">All origins</option>
+            <option value="PUBLIC_SECONDARY">Public secondary</option>
+            <option value="FULLY_SYNTHETIC">Fully synthetic</option>
+          </select>
+        </label>
+
+        <label>
+          Claim setting
+          <select
+            value={draftFilters.claimSetting}
+            onChange={(event) => updateFilter("claimSetting", event.target.value)}
+          >
+            <option value="">All settings</option>
+            <option value="INPATIENT">Inpatient</option>
+            <option value="OUTPATIENT">Outpatient</option>
+            <option value="SYNTHETIC">Synthetic preset</option>
+          </select>
+        </label>
+
+        <label>
+          Provider-risk label
+          <select
+            value={draftFilters.providerPotentialFraud}
+            onChange={(event) =>
+              updateFilter("providerPotentialFraud", event.target.value)
+            }
+          >
+            <option value="">All provider labels</option>
+            <option value="true">PotentialFraud</option>
+            <option value="false">Not PotentialFraud</option>
+          </select>
+        </label>
+
+        <label>
+          Scenario source
+          <select
+            value={draftFilters.scenarioInjected}
+            onChange={(event) => updateFilter("scenarioInjected", event.target.value)}
+          >
+            <option value="">All scenario sources</option>
+            <option value="true">Controlled injection</option>
+            <option value="false">Untouched base record</option>
           </select>
         </label>
 
@@ -505,7 +591,7 @@ export default function HealthcareRegistryPage() {
         </p>
       ) : null}
 
-      {isLoading ? <p>Loading synthetic healthcare registry...</p> : null}
+      {isLoading ? <p>Loading hybrid healthcare registry...</p> : null}
 
       {!isLoading && records.length === 0 ? (
         <p>No registry records matched the selected filters.</p>
@@ -523,7 +609,8 @@ export default function HealthcareRegistryPage() {
                 <th>Bill</th>
                 <th>Dates</th>
                 <th>Status</th>
-                <th>Fraud Label</th>
+                <th>Controlled Label</th>
+                <th>Provenance</th>
               </tr>
             </thead>
             <tbody>
@@ -568,6 +655,20 @@ export default function HealthcareRegistryPage() {
                     >
                       {record.fraudLabel}
                     </span>
+                  </td>
+                  <td>
+                    <strong>{record.baseDataOrigin || "FULLY_SYNTHETIC"}</strong>
+                    <span>{record.claimSetting || "SYNTHETIC"}</span>
+                    <small>
+                      {record.providerPotentialFraud
+                        ? "Weak provider-risk label"
+                        : "No provider-risk label"}
+                    </small>
+                    <small>
+                      {record.scenarioInjected
+                        ? `Injected: ${record.scenarioType}`
+                        : "Untouched base record"}
+                    </small>
                   </td>
                 </tr>
               ))}

@@ -1,7 +1,7 @@
 const crypto = require("node:crypto");
 const { ethers } = require("ethers");
 
-const HYBRID_DATASET_VERSION = "blockinsure-hybrid-v1";
+const HYBRID_DATASET_VERSION = "blockinsure-hybrid-v1.1.0";
 const SCENARIO_VERSION = "blockinsure-scenario-v1";
 const AMOUNT_NORMALIZATION_VERSION = "usd-demo-scale-v1";
 const AMOUNT_NORMALIZATION_DIVISOR = 10000;
@@ -52,6 +52,50 @@ const hashInvoiceNumber = (invoiceNumber) =>
 
 const stableUnit = (value) =>
   Number.parseInt(sha256Hex(value).slice(0, 8), 16) / 0x100000000;
+
+const createDeterministicSampler = (
+  capacity,
+  { seed = DEFAULT_SEED, namespace = "sample" } = {}
+) => {
+  if (!Number.isInteger(capacity) || capacity <= 0) {
+    throw new Error("Deterministic sampler capacity must be a positive integer");
+  }
+
+  const entries = [];
+  let worstIndex = -1;
+  let worstScore = "";
+
+  const refreshWorst = () => {
+    worstIndex = 0;
+    worstScore = entries[0]?.score || "";
+    for (let index = 1; index < entries.length; index += 1) {
+      if (entries[index].score > worstScore) {
+        worstIndex = index;
+        worstScore = entries[index].score;
+      }
+    }
+  };
+
+  return {
+    consider(key, value) {
+      const score = sha256Hex(`${namespace}:${seed}:${key}`);
+      if (entries.length < capacity) {
+        entries.push({ score, value });
+        if (entries.length === capacity) refreshWorst();
+        return;
+      }
+      if (score >= worstScore) return;
+      entries[worstIndex] = { score, value };
+      refreshWorst();
+    },
+    values() {
+      return entries
+        .slice()
+        .sort((left, right) => left.score.localeCompare(right.score))
+        .map(({ value }) => value);
+    },
+  };
+};
 
 const parseCsvLine = (line) => {
   const values = [];
@@ -319,6 +363,7 @@ module.exports = {
   SCENARIO_VERSION,
   buildBaseHybridRecord,
   clean,
+  createDeterministicSampler,
   getProviderSplit,
   getSourceClaimAmount,
   hashInvoiceNumber,

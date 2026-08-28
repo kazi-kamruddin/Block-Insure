@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
 const { buildSyntheticRecords } = require("./seedMockData");
+const { HYBRID_DATASET_VERSION } = require("../services/hybridDatasetAdapterService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -19,6 +20,26 @@ const RUNTIME_PATH = path.join(
   "runtime",
   "hybrid-primary.jsonl"
 );
+const MANIFEST_PATH = path.join(
+  __dirname,
+  "..",
+  "datasets",
+  "hybrid-v1",
+  "manifest.json"
+);
+
+const loadHybridManifest = () => {
+  if (!fs.existsSync(MANIFEST_PATH)) {
+    throw new Error("Hybrid manifest is missing. Run npm run build:hybrid first.");
+  }
+  const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
+  if (manifest.datasetVersion !== HYBRID_DATASET_VERSION) {
+    throw new Error(
+      `Hybrid manifest version ${manifest.datasetVersion} is stale; expected ${HYBRID_DATASET_VERSION}. Run npm run build:hybrid.`
+    );
+  }
+  return manifest;
+};
 
 const readJsonLines = async (filePath) => {
   if (!fs.existsSync(filePath)) {
@@ -36,6 +57,7 @@ const readJsonLines = async (filePath) => {
 };
 
 const buildHybridRuntimeRecords = async () => {
+  const manifest = loadHybridManifest();
   const preservedDemoPresets = buildSyntheticRecords().slice(0, 5).map((record) => ({
     ...record,
     baseDataOrigin: "FULLY_SYNTHETIC",
@@ -46,6 +68,14 @@ const buildHybridRuntimeRecords = async () => {
     scenarioVersion: "legacy-demo-preset-v1",
   }));
   const hybridRecords = await readJsonLines(RUNTIME_PATH);
+  if (hybridRecords.length !== manifest.counts.runtimeHybrid) {
+    throw new Error(
+      `Hybrid runtime row count ${hybridRecords.length} does not match manifest count ${manifest.counts.runtimeHybrid}`
+    );
+  }
+  if (hybridRecords.some((record) => record.datasetProfile !== manifest.datasetVersion)) {
+    throw new Error("Hybrid runtime rows do not match the manifest dataset version");
+  }
   return [...preservedDemoPresets, ...hybridRecords];
 };
 
@@ -60,7 +90,7 @@ const seedHybridData = async () => {
     ]);
     await MockHospitalRecord.insertMany(records);
     await MockHospitalRecordOracle2.insertMany(records);
-    console.log(`Seeded ${records.length} BlockInsure-Hybrid-v1 registry records.`);
+    console.log(`Seeded ${records.length} ${HYBRID_DATASET_VERSION} registry records.`);
     console.log("The first five legacy demo presets remain available to the existing claim UI.");
     console.log("Run npm run seed:mock to restore the original fully synthetic registry.");
   } finally {
@@ -76,4 +106,9 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildHybridRuntimeRecords, readJsonLines, seedHybridData };
+module.exports = {
+  buildHybridRuntimeRecords,
+  loadHybridManifest,
+  readJsonLines,
+  seedHybridData,
+};

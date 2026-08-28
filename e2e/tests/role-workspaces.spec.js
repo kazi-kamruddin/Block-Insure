@@ -76,7 +76,7 @@ test.describe("@smoke role workspaces", () => {
 
       await session.page.goto("/auditor/healthcare-registry");
       await expect(
-        session.page.getByRole("heading", { name: "Synthetic External Registry" })
+        session.page.getByRole("heading", { name: "Hybrid External Registry" })
       ).toBeVisible();
       await expect(session.page.getByText("Auditor registry view")).toBeVisible();
 

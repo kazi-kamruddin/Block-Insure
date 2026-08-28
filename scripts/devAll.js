@@ -53,6 +53,30 @@ function startService(label, directory, args) {
   return child;
 }
 
+function runCommand(directory, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [npmCli, ...args], {
+      cwd: path.join(projectRoot, directory),
+      env: process.env,
+      stdio: "inherit",
+      windowsHide: true,
+    });
+    children.push(child);
+
+    let spawnError;
+    child.once("error", (error) => {
+      spawnError = error;
+    });
+    child.once("close", (code, signal) => {
+      const childIndex = children.indexOf(child);
+      if (childIndex >= 0) children.splice(childIndex, 1);
+      if (spawnError) reject(spawnError);
+      else if (code === 0) resolve();
+      else reject(new Error(`Command exited with ${signal || `code ${code}`}`));
+    });
+  });
+}
+
 function readEnvValue(relativePath, key) {
   const content = fs.readFileSync(path.join(projectRoot, relativePath), "utf8");
   const prefix = `${key}=`;
@@ -189,16 +213,13 @@ async function main() {
     const setupCommand = hybrid ? "setup:hybrid" : "setup:local";
     console.log(
       hybrid
-        ? "[Launcher] Preparing a clean BlockInsure-Hybrid-v1 deployment..."
+        ? "[Launcher] Preparing a clean hybrid-registry deployment..."
         : "[Launcher] Preparing a clean local deployment..."
     );
-    const setup = spawnSync(process.execPath, [npmCli, "run", setupCommand], {
-      cwd: projectRoot,
-      env: process.env,
-      stdio: "inherit",
-    });
-    if (setup.status !== 0 || setup.error) {
-      throw new Error(`Local setup failed${setup.error ? `: ${setup.error.message}` : ""}`);
+    try {
+      await runCommand(".", ["run", setupCommand]);
+    } catch (error) {
+      throw new Error(`Local setup failed: ${error.message}`);
     }
     await verifyLocalDeployment();
   }
@@ -212,7 +233,7 @@ async function main() {
   const backendPort = readEnvValue("backEnd/.env", "PORT") || "5000";
   await Promise.all([
     waitForHttp(`http://127.0.0.1:${backendPort}/health`, "Backend is healthy"),
-    waitForHttp("http://127.0.0.1:5173", "Block-Insure"),
+    waitForHttp("http://localhost:5173", "Block-Insure"),
   ]);
   console.log("[Launcher] Chain/deployment verified and application services are ready. Press Ctrl+C to stop them together.");
 }

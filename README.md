@@ -65,6 +65,26 @@ To reuse an already running and deployed local chain without resetting data:
 npm run dev:all
 ```
 
+### Hybrid healthcare-claims simulation
+
+To run the same claimant, admin, auditor, oracle, and settlement workflows with
+the hybrid registry, place the four required public CSV files under
+`backEnd/datasets/hybrid-v1/raw/` and run:
+
+```powershell
+npm run dev:hybrid
+```
+
+This rebuilds and validates the hybrid adapter, preserves five synthetic demo
+presets required by the existing claim UI, samples 595 public-secondary claim
+rows, deploys the local contracts, and commits the resulting registry Merkle
+root. The source `PotentialFraud` value remains a weak provider-risk label; only
+controlled Block-Insure scenario injection supplies claim-level attack truth.
+The original synthetic-only workflow remains available through
+`npm run dev:bootstrap`. See
+[the hybrid dataset contract](backEnd/datasets/hybrid-v1/README.md) for its
+splits, provenance fields, normalization, generated outputs, and limitations.
+
 The manual multi-terminal workflow remains available for debugging:
 
 ```powershell

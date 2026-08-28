@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-08-28T12:19:43.339Z",
+  "generatedAt": "2026-08-28T14:21:22.409Z",
   "source": {
-    "gitCommit": "d907f9aa2a724dfc5e448bc134a25c6999f27391",
+    "gitCommit": "cdfd6ff4709539835480f1c3d58e1adbfae287a3",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -66,13 +66,13 @@
     "backEnd/scripts/generateResearchManifest.js": "852c10c9231431b9858c00a0ccd10ccb17520c232d92b14da6bf66c8ecbc8f7b",
     "backEnd/test/phase6CapacityTriage.test.js": "1596afa1dfd6fc1b86e2b8e574f9cecbd7c4a9baba8e1d8708574404e9088561",
     "backEnd/test/phase7ReserveEvidence.test.js": "a5971ea0e016c053eec88e37e38ad5f1a4681cc30a685e669fb336765deaa777",
-    "backEnd/test/phase8OperationalHardening.test.js": "1d2a4b1efed47f825c95cbc63ff7b0980ee64d9116e7b80afc01299ba30a1375",
+    "backEnd/test/phase8OperationalHardening.test.js": "4811262e816b6dbea8ea605b2ec8612634a2f6ba8275c42ffff200a50e2b8569",
     "contracts/hardhat.config.js": "f8dfdbdfb78954f5ae279a328d93c679d6cbab233c6760e4b07bbe9c8ddf5f07",
     "contracts/mutations/manifest.json": "6e5bd5d9e6f0346d684a7b22c00dfc39dcca60b6929b538eb9ab50444d2fa792",
     "contracts/scripts/runMutationCampaign.js": "80d4883c3f7f7f861a9c4dbf970c44f35861bc158b9641363b239e6e0e242bf4",
     "contracts/test/invariants/protocol-invariants.json": "e01afb5460b5502850789a4a1655697ee3bf39c50b78caede5e32df08fcf35b1",
     "contracts/test/Phase6ProtocolStatefulInvariants.test.js": "707bf5f194c98f76fa5cf581c4c1d6dd9857f7c828f40072eb5a56adbadf620d",
-    "scripts/devAll.js": "35b81eac569c658ec72de72d561294342f4bbe7d2cc8156ce32891cd3d1fd8b9",
+    "scripts/devAll.js": "47545106f687c88986bfc8021461fe25c7b52d02c3e94d62466cba4bb0a90df2",
     "scripts/verifyRepository.js": "1d334ad17b8a5e02f9ceb31b285e60cea17c3580b42226f8a513f5d530b3311e",
     "scripts/runVerification.js": "ba3551af7ce9fedb8b52dddce9a69d464272443b6d2c369bdd0548e875e40fee"
   },
@@ -296,5 +296,5 @@
     "evidenceLifecycle": "npm --prefix backEnd run evaluate:evidence",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "843d6eeec02cae59ee9294267bb66310fa1a2ac6b45445e941977e86f36539f0"
+  "reproducibilityHash": "4be3e8315348bd142fcc9aa9b332cedb585078677558a2a413aa7bab39f834f4"
 }

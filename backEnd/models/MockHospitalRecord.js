@@ -183,7 +183,7 @@ const mockHospitalRecordSchema = new mongoose.Schema(
     sourceProviderId: { type: String, trim: true, default: "", index: true },
     baseDataOrigin: {
       type: String,
-      enum: ["FULLY_SYNTHETIC", "PUBLIC_SECONDARY", "CONTROLLED_INJECTION"],
+      enum: ["FULLY_SYNTHETIC", "PUBLIC_SECONDARY"],
       default: "FULLY_SYNTHETIC",
       index: true,
     },

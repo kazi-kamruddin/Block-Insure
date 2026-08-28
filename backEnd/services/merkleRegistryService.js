@@ -1,7 +1,7 @@
 const { calculateTextSHA256 } = require("./hashService");
 const { getRegistryModel } = require("./oracleRegistryService");
 
-const TREE_VERSION = "phase-6-registry-merkle-v1";
+const TREE_VERSION = "blockinsure-registry-merkle-v2";
 const HASH_ALGORITHM = "SHA-256";
 
 const normalizeHash = (value) => String(value || "").trim().toLowerCase();
@@ -48,6 +48,18 @@ const getCanonicalRecordPayload = (record) => ({
   invoiceStatus: record.invoiceStatus,
   recordStatus: record.recordStatus,
   fraudLabel: record.fraudLabel,
+  datasetProfile: record.datasetProfile,
+  baseDataOrigin: record.baseDataOrigin,
+  claimSetting: record.claimSetting,
+  providerPotentialFraud: record.providerPotentialFraud,
+  providerLabelType: record.providerLabelType,
+  scenarioInjected: record.scenarioInjected,
+  scenarioType: record.scenarioType,
+  scenarioVersion: record.scenarioVersion,
+  sourceClaimAmountUsd: record.sourceClaimAmountUsd,
+  sourceProcedureCode: record.sourceProcedureCode,
+  amountNormalizationVersion: record.amountNormalizationVersion,
+  amountNormalizationDivisor: record.amountNormalizationDivisor,
 });
 
 const getCanonicalLeafInput = (record) => {
@@ -148,7 +160,7 @@ const getRegistryRecordsForMerkle = async (registrySnapshot = "primary") => {
 
   return RegistryModel.find()
     .select(
-      "hospitalId hospitalName licenseStatus patientHash treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel"
+      "hospitalId hospitalName licenseStatus patientHash treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel datasetProfile baseDataOrigin claimSetting providerPotentialFraud providerLabelType scenarioInjected scenarioType scenarioVersion sourceClaimAmountUsd sourceProcedureCode amountNormalizationVersion amountNormalizationDivisor"
     )
     .lean();
 };
@@ -227,12 +239,19 @@ const buildRegistryMerkleProof = async ({ invoiceHash, registrySnapshot = "prima
       invoiceStatus: leaf.canonicalRecord.invoiceStatus,
       licenseStatus: leaf.canonicalRecord.licenseStatus,
       fraudLabel: leaf.canonicalRecord.fraudLabel,
+      datasetProfile: leaf.canonicalRecord.datasetProfile,
+      baseDataOrigin: leaf.canonicalRecord.baseDataOrigin,
+      claimSetting: leaf.canonicalRecord.claimSetting,
+      providerPotentialFraud: leaf.canonicalRecord.providerPotentialFraud,
+      scenarioInjected: leaf.canonicalRecord.scenarioInjected,
+      scenarioType: leaf.canonicalRecord.scenarioType,
     },
     generatedAt: new Date().toISOString(),
   };
 };
 
 module.exports = {
+  TREE_VERSION,
   buildMerkleTree,
   buildRegistryMerkleProof,
   buildRegistryMerkleRoot,

@@ -105,7 +105,7 @@ const rollbackReorgs = async (provider) => {
       blockNumber: latest.blockNumber,
       blockHash: latest.blockHash,
     },
-    { new: true, upsert: true }
+    { returnDocument: "after", upsert: true }
   );
 };
 
@@ -196,7 +196,7 @@ const indexConfirmedEvents = async () => {
         blockNumber: finalBlock.number,
         blockHash: finalBlock.hash,
       },
-      { new: true, upsert: true }
+      { returnDocument: "after", upsert: true }
     );
     indexedBlocks += blocks.length;
   }
