@@ -13,6 +13,11 @@ node_modules/
 dist/
 build/
 coverage/
+
+# Large local hybrid healthcare source and generated row files
+backEnd/datasets/hybrid-v1/raw/*.csv
+backEnd/datasets/hybrid-v1/processed/*.jsonl
+backEnd/datasets/hybrid-v1/runtime/*.jsonl
 playwright-report/
 test-results/
 

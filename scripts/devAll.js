@@ -15,6 +15,7 @@ const npmCli = process.env.npm_execpath || path.join(
 );
 const children = [];
 const bootstrap = process.argv.includes("--bootstrap");
+const hybrid = process.argv.includes("--hybrid");
 let shuttingDown = false;
 
 function prefixStream(stream, label, output) {
@@ -157,8 +158,10 @@ async function main() {
   });
   if (preflight.status !== 0) process.exit(preflight.status || 1);
 
+  let deploymentReady = false;
   try {
     await verifyLocalDeployment();
+    deploymentReady = true;
   } catch (initialError) {
     if (!bootstrap) {
       throw new Error(
@@ -173,8 +176,23 @@ async function main() {
       startService("Chain", "contracts", ["run", "node"]);
       await waitFor(() => jsonRpc("eth_chainId"), "Local Hardhat chain");
     }
-    console.log("[Launcher] Preparing a clean local deployment...");
-    const setup = spawnSync(process.execPath, [npmCli, "run", "setup:local"], {
+  }
+
+  if (bootstrap && (hybrid || !deploymentReady)) {
+    try {
+      await jsonRpc("eth_chainId");
+    } catch {
+      console.log("[Launcher] Starting a managed local Hardhat chain...");
+      startService("Chain", "contracts", ["run", "node"]);
+      await waitFor(() => jsonRpc("eth_chainId"), "Local Hardhat chain");
+    }
+    const setupCommand = hybrid ? "setup:hybrid" : "setup:local";
+    console.log(
+      hybrid
+        ? "[Launcher] Preparing a clean BlockInsure-Hybrid-v1 deployment..."
+        : "[Launcher] Preparing a clean local deployment..."
+    );
+    const setup = spawnSync(process.execPath, [npmCli, "run", setupCommand], {
       cwd: projectRoot,
       env: process.env,
       stdio: "inherit",

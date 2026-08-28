@@ -1,0 +1,109 @@
+{
+  "manifestSchemaVersion": 1,
+  "datasetVersion": "blockinsure-hybrid-v1",
+  "generatedAt": "2026-08-28T11:42:11.992Z",
+  "seed": 20260828,
+  "sourceDescription": "Public secondary healthcare-claims benchmark with weak provider-level PotentialFraud labels",
+  "labelWarning": "PotentialFraud is provider-level weak risk evidence and is never copied into claim-level actualFraud.",
+  "amountNormalization": {
+    "version": "usd-demo-scale-v1",
+    "divisorUsdPerDemoUnit": 10000,
+    "note": "Research normalization, not a currency exchange rate."
+  },
+  "splitPolicy": "Provider-disjoint stable hash split: 64% train, 16% calibration, 20% test",
+  "injectionPolicy": {
+    "version": "blockinsure-scenario-v1",
+    "trainRate": 0.12,
+    "calibrationRate": 0.12,
+    "testUntouchedRate": 0,
+    "testAttacksRate": 0.5,
+    "scenarios": [
+      "USED_INVOICE",
+      "CANCELLED_RECORD",
+      "INFLATED_AMOUNT",
+      "DATE_MISMATCH",
+      "BLACKLISTED_HOSPITAL",
+      "NEAR_DUPLICATE",
+      "PROVIDER_COMPROMISE",
+      "NOISY_RECORD"
+    ]
+  },
+  "sourceCounts": {
+    "INPATIENT": 40474,
+    "OUTPATIENT": 517737
+  },
+  "totalUniqueClaims": 558211,
+  "providers": 5410,
+  "beneficiaries": 138556,
+  "amountRangesUsd": {
+    "INPATIENT": {
+      "minimum": 3068,
+      "median": 8068,
+      "maximum": 31068
+    },
+    "OUTPATIENT": {
+      "minimum": 10,
+      "median": 80,
+      "maximum": 1500
+    }
+  },
+  "velocityThresholds": {
+    "providerClaimCountP95": 421,
+    "beneficiaryClaimCountP95": 11
+  },
+  "counts": {
+    "train": 343537,
+    "calibration": 105277,
+    "testUntouched": 109397,
+    "testAttacks": 109397,
+    "runtimeHybrid": 595,
+    "providerPotentialFraudClaims": 212796,
+    "injectedByPartition": {
+      "train": 40969,
+      "calibration": 12600,
+      "testAttacks": 54705
+    },
+    "scenarios": {
+      "USED_INVOICE": 13551,
+      "CANCELLED_RECORD": 13781,
+      "INFLATED_AMOUNT": 13622,
+      "DATE_MISMATCH": 13415,
+      "BLACKLISTED_HOSPITAL": 13652,
+      "NEAR_DUPLICATE": 13502,
+      "PROVIDER_COMPROMISE": 13325,
+      "NOISY_RECORD": 13426
+    }
+  },
+  "sourceFiles": {
+    "Train-1542865627584.csv": {
+      "bytes": 87094,
+      "sha256": "09315a0e0c262ddfb91df15df76b196a80de2ff1001fad46b362b562df2e7e43"
+    },
+    "Train_Beneficiarydata-1542865627584.csv": {
+      "bytes": 11444821,
+      "sha256": "1fb7fb14efeaae04b970bfeb3176cdf938c755748217377109081d6dae01ecfd"
+    },
+    "Train_Inpatientdata-1542865627584.csv": {
+      "bytes": 8572555,
+      "sha256": "395bc2d01a102bf44a26ba4b36c63e7086943eaf2d5d1489c776bf47d1613ac0"
+    },
+    "Train_Outpatientdata-1542865627584.csv": {
+      "bytes": 77391090,
+      "sha256": "f532ed7e25f50d6abf3ba89ceeb2a23e2a352792f90d086b13999a561fd23889"
+    }
+  },
+  "outputFiles": {
+    "train": "processed/train.jsonl",
+    "calibration": "processed/calibration.jsonl",
+    "testUntouched": "processed/test-untouched.jsonl",
+    "testAttacks": "processed/test-attacks.jsonl",
+    "runtimeHybrid": "runtime/hybrid-primary.jsonl"
+  },
+  "outputSha256": {
+    "train": "3e3df1ad3eb9e2f2dc8ed230a61e288643326ce144ab0969d5a3e10e2ae2e827",
+    "calibration": "45115744b92e31d2596a547c142b61e20ba3116f984bad6554a44204ee321bfc",
+    "testUntouched": "16841a1855a8705b0b6464358b659f75a0c2d80a2f86dfd6f9d619a51a1ec38f",
+    "testAttacks": "d68c687df1d5dda8c990b67037e000073a005b4040a6a2513d6f65612b9372d8",
+    "runtimeHybrid": "d15110efb0c7de7a7f1df8424be4452849ee89d2f5bf4607dd912bbc00446cec"
+  }
+}

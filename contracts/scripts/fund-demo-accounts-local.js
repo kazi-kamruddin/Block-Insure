@@ -6,6 +6,10 @@ require("dotenv").config({
   path: path.join(__dirname, "..", "..", "backEnd", ".env"),
   override: false,
 });
+require("dotenv").config({
+  path: path.join(__dirname, "..", "..", "e2e", ".env"),
+  override: false,
+});
 
 function getAddressFromPrivateKey(privateKey) {
   if (!privateKey) {
@@ -69,6 +73,14 @@ function getAccountsToFund() {
     "auditorTwoAccount",
     process.env.AUDITOR_WALLET_ADDRESS_2 ||
       getAddressFromPrivateKey(process.env.DEMO_AUDITOR_PRIVATE_KEY_2)
+  );
+
+  addAccount(
+    accounts,
+    seen,
+    "e2eUserAccount",
+    getAddressFromPrivateKey(process.env.E2E_USER_PRIVATE_KEY) ||
+      "0x0Bd6E65d2C8a48fF1136D061CAF39bCe669Ed0fd"
   );
 
   addAccount(

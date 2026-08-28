@@ -24,6 +24,7 @@ const IndexerCheckpoint = require("../models/IndexerCheckpoint");
 const {
   buildSyntheticRecords,
 } = require("./seedMockData");
+const { buildHybridRuntimeRecords } = require("./seedHybridData");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -60,7 +61,22 @@ async function main() {
     throw new Error("MONGODB_URI is missing in backEnd/.env");
   }
 
-  await mongoose.connect(process.env.MONGODB_URI);
+  const hybridMode = process.argv.includes("--hybrid");
+  let connectionError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await mongoose.connect(process.env.MONGODB_URI);
+      connectionError = null;
+      break;
+    } catch (error) {
+      connectionError = error;
+      if (attempt < 3) {
+        console.warn(`MongoDB connection attempt ${attempt} failed; retrying...`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+  }
+  if (connectionError) throw connectionError;
 
   try {
     const databaseName = mongoose.connection.name || "configured database";
@@ -71,13 +87,17 @@ async function main() {
       console.log(`Removed ${result.deletedCount} ${label}.`);
     }
 
-    const registryRecords = buildSyntheticRecords();
+    const registryRecords = hybridMode
+      ? await buildHybridRuntimeRecords()
+      : buildSyntheticRecords();
     await MockHospitalRecord.deleteMany({});
     await MockHospitalRecordOracle2.deleteMany({});
     await MockHospitalRecord.insertMany(registryRecords);
     await MockHospitalRecordOracle2.insertMany(registryRecords);
 
-    console.log(`Rebuilt ${registryRecords.length} synthetic healthcare registry records for both oracle snapshots.`);
+    console.log(
+      `Rebuilt ${registryRecords.length} ${hybridMode ? "hybrid" : "synthetic"} healthcare registry records for both oracle snapshots.`
+    );
     console.log("MongoDB runtime data is clean. No policies, claims, appeals, or user activity are created by this script.");
   } finally {
     await mongoose.connection.close();

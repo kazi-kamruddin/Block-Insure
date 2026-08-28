@@ -1,0 +1,72 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { ethers } = require("ethers");
+const {
+  buildBaseHybridRecord,
+  getProviderSplit,
+  hashInvoiceNumber,
+  injectScenario,
+  parseCsvLine,
+} = require("../services/hybridDatasetAdapterService");
+
+const claim = {
+  BeneID: "BENE1",
+  ClaimID: "CLM1",
+  ClaimStartDt: "2009-01-02",
+  ClaimEndDt: "2009-01-04",
+  Provider: "PRV1",
+  InscClaimAmtReimbursed: "5000",
+  DeductibleAmtPaid: "100",
+  ClmAdmitDiagnosisCode: "4019",
+  ClmProcedureCode_1: "9901",
+};
+
+test("CSV parser preserves quoted commas and escaped quotes", () => {
+  assert.deepEqual(parseCsvLine('"A","B, C","D""E"'), ["A", "B, C", 'D"E']);
+});
+
+test("hybrid base records retain provider label without turning it into claim fraud", () => {
+  const record = buildBaseHybridRecord({
+    claim,
+    beneficiary: { DOB: "1940-01-01", Gender: "1", Race: "2" },
+    potentialFraud: true,
+    claimSetting: "INPATIENT",
+    amountRange: { minimum: 1000, maximum: 10000 },
+  });
+
+  assert.equal(record.providerPotentialFraud, true);
+  assert.equal(record.actualFraud, false);
+  assert.equal(record.scenarioInjected, false);
+  assert.equal(record.claimSetting, "INPATIENT");
+  assert.equal(record.treatmentType, "HOSPITALIZATION");
+  assert.equal(record.invoiceHash, ethers.keccak256(ethers.toUtf8Bytes(record.invoiceNumber)));
+});
+
+test("provider split is stable and provider-disjoint", () => {
+  const first = getProviderSplit("PRV1", 71);
+  assert.equal(getProviderSplit("PRV1", 71), first);
+  assert.ok(["train", "calibration", "test"].includes(first));
+});
+
+test("scenario injection creates separate controlled claim truth", () => {
+  const record = buildBaseHybridRecord({
+    claim,
+    beneficiary: { DOB: "1940-01-01" },
+    potentialFraud: false,
+    claimSetting: "OUTPATIENT",
+    amountRange: { minimum: 100, maximum: 1000 },
+  });
+  const injected = injectScenario(record, { seed: 9, rate: 1 });
+
+  assert.equal(injected.scenarioInjected, true);
+  assert.equal(injected.actualFraud, true);
+  assert.notEqual(injected.scenarioType, "NONE");
+  assert.equal(record.actualFraud, false);
+});
+
+test("invoice hashing matches the existing frontend convention", () => {
+  assert.equal(
+    hashInvoiceNumber("INV-HOSP-001-001"),
+    ethers.keccak256(ethers.toUtf8Bytes("INV-HOSP-001-001"))
+  );
+});

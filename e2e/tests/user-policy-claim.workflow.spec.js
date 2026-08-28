@@ -26,7 +26,7 @@ test.describe("@workflow policyholder transaction journey", () => {
       await session.page.goto("/user/claims/new");
       await expect(session.page.getByRole("heading", { name: "Submit Claim" })).toBeVisible();
 
-      const policySelect = session.page.getByLabel("Policy");
+      const policySelect = session.page.getByLabel("Policy", { exact: true });
       await expect
         .poll(() => policySelect.locator("option").count())
         .toBeGreaterThan(1);

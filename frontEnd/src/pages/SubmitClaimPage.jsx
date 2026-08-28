@@ -595,6 +595,7 @@ export default function SubmitClaimPage() {
         <label>
           Policy
           <select
+            aria-label="Policy"
             value={policyId}
             onChange={(event) => handlePolicyChange(event.target.value)}
             required
@@ -613,6 +614,7 @@ export default function SubmitClaimPage() {
         <label>
           Test data preset
           <select
+            aria-label="Test data preset"
             defaultValue=""
             onChange={(event) => applyMockPreset(event.target.value)}
           >

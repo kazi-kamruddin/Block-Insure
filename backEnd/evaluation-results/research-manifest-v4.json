@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-08-27T14:54:20.027Z",
+  "generatedAt": "2026-08-28T12:19:43.339Z",
   "source": {
-    "gitCommit": "5b281cc27aa7a48ac91a84cc45347e78892e6720",
+    "gitCommit": "d907f9aa2a724dfc5e448bc134a25c6999f27391",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -19,13 +19,13 @@
     "root": {
       "name": "block-insure-local-workflow",
       "version": null,
-      "packageJsonSha256": "6f9631747f48626f1146596a33798cf9668ffba2719b4735d22a7c0ce6981f9a",
+      "packageJsonSha256": "32aae31de8217d84bfb4a7944fbe899094e30a1260e13a45d6290c64021acadf",
       "packageLockSha256": "e99a4deea0b24bb60163a3a929cda712aa4705233c4cd9f9fc2756fa74c744d5"
     },
     "backend": {
       "name": "backend",
       "version": "1.0.0",
-      "packageJsonSha256": "104a74af4fcf3f219c437dfc63ded536c46ada19051062f7587dfdd702c5041b",
+      "packageJsonSha256": "0464506ed6ac5b7dcb88325b273d8c7bfdfb4aea22e4846f763a3cbd2e3f3696",
       "packageLockSha256": "98337a57463d72e6bbf171d52cb7c5fc8fbb459cdf311716e3d3f52ad5b9db34"
     },
     "contracts": {
@@ -72,7 +72,7 @@
     "contracts/scripts/runMutationCampaign.js": "80d4883c3f7f7f861a9c4dbf970c44f35861bc158b9641363b239e6e0e242bf4",
     "contracts/test/invariants/protocol-invariants.json": "e01afb5460b5502850789a4a1655697ee3bf39c50b78caede5e32df08fcf35b1",
     "contracts/test/Phase6ProtocolStatefulInvariants.test.js": "707bf5f194c98f76fa5cf581c4c1d6dd9857f7c828f40072eb5a56adbadf620d",
-    "scripts/devAll.js": "258558bd1179f5378a2f981c052e9fd470fa83eeaa78a12009deda79fdb2430e",
+    "scripts/devAll.js": "35b81eac569c658ec72de72d561294342f4bbe7d2cc8156ce32891cd3d1fd8b9",
     "scripts/verifyRepository.js": "1d334ad17b8a5e02f9ceb31b285e60cea17c3580b42226f8a513f5d530b3311e",
     "scripts/runVerification.js": "ba3551af7ce9fedb8b52dddce9a69d464272443b6d2c369bdd0548e875e40fee"
   },
@@ -296,5 +296,5 @@
     "evidenceLifecycle": "npm --prefix backEnd run evaluate:evidence",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "cb3a668c9cb3ad0338c865b36154472696506129d57b2b83f7c6db2e59af7742"
+  "reproducibilityHash": "843d6eeec02cae59ee9294267bb66310fa1a2ac6b45445e941977e86f36539f0"
 }

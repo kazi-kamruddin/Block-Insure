@@ -2,7 +2,11 @@ import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
 
 export default function AuditorLayout() {
-  const { isConnected, role, workspace } = useWallet();
+  const { isConnected, isRestoringSession, role, workspace } = useWallet();
+
+  if (isRestoringSession) {
+    return <div className="route-loading" role="status">Restoring wallet session...</div>;
+  }
 
   if (!isConnected) {
     return <Navigate to="/" replace />;

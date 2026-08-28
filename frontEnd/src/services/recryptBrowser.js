@@ -2,7 +2,7 @@ import initWasm from "@ironcorelabs/recrypt-wasm-binding/recrypt_wasm_binding_bg
 import * as binding from "@ironcorelabs/recrypt-wasm-binding/recrypt_wasm_binding_bg.js";
 
 const instance = await initWasm({
-  imports: { "./recrypt_wasm_binding_bg.js": binding },
+  "./recrypt_wasm_binding_bg.js": binding,
 });
 binding.__wbg_set_wasm(instance.exports);
 instance.exports.__wbindgen_start();
@@ -97,6 +97,14 @@ export class Api256 {
       privateKey: new Uint8Array(keyPair.privateKey),
       publicKey: new Uint8Array(keyPair.publicKey),
     };
+  }
+
+  generatePlaintext() {
+    return new Uint8Array(this.api.generatePlaintext());
+  }
+
+  deriveSymmetricKey(plaintext) {
+    return new Uint8Array(this.api.deriveSymmetricKey(plaintext));
   }
 
   generateTransformKey(fromPrivateKey, toPublicKey, privateSigningKey) {
