@@ -22,3 +22,13 @@ Phase 3/4 authoritative artifacts are `phase3-reserve-evaluation.json` and
 `npm run research:phase34`. Reserve results are synthetic/advisory; evidence
 storage timing uses a local content-addressed adapter and excludes public IPFS
 network latency.
+
+`hybrid-v1-evaluation.json` with `schemaVersion: 2` is the authoritative hybrid
+evaluation. It contains provider-level bootstrap intervals, four comparator
+baselines, feature-group ablations, and paired model/rule/combined routing
+ablations. The provider label is weak provider risk; controlled injection is the
+only claim-level ground truth in this artifact.
+
+The paper-facing, cross-study snapshot is generated at repository root with
+`npm run research:paper-evidence` and written to `paper-evidence/`. It references
+these authoritative JSON artifacts rather than replacing them.

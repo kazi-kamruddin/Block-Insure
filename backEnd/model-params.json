@@ -3,7 +3,7 @@
   "modelVersion": "bernoulli-fraud-v3.1.0",
   "trainedAt": "2026-08-27T00:00:00.000Z",
   "source": "phase5/normal seed=202605 size=600; canonical duplicate invoice suffixes",
-  "gitCommit": "5b281cc27aa7a48ac91a84cc45347e78892e6720",
+  "gitCommit": "f981db4a2965a0f072e322443b75660c85701ff9",
   "trainingDataHash": "7bb4669e76e54f9c55abc1e32233141e0274aa908ba8449e0a66e030417aeafc",
   "calibrationDataHash": "b2424b890fdad486eec6b4d5569b50a223fcf52d813404309bd8e716223774d1",
   "featureSchemaVersion": "fraud-features-v3",
@@ -311,6 +311,6 @@
       }
     }
   },
-  "artifactHash": "fc8e96b304b3bbedae2c96c02fc963dfff4a7f55db9ded5ca9388ce3c644728c",
-  "modelIdentityHash": "0xb78139bd6fc039f5681bb08cdd95e5f857bdbeafad41b5621129b0a64edcfc61"
+  "artifactHash": "f172016bc1c801b085e20180f7ab204205a1d783b2d8ac3f5d66e40dcb9abe86",
+  "modelIdentityHash": "0xf1ead0b09877c9a7894f109515f0776b3fba8d21e96c8b60963dc2eba8d4ebc1"
 }

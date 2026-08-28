@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-28T15:53:02.573Z",
+  "generatedAt": "2026-08-28T20:57:26.341Z",
   "datasetVersion": "blockinsure-hybrid-v1.2.0",
   "runtimeRecords": 5000,
   "hybridRecords": 4995,
@@ -19,10 +19,10 @@
     "allValid": true
   },
   "performance": {
-    "coldTreeBuildMs": 90.71330000000012,
-    "meanProofBuildMs": 0.0036200000000098953,
-    "meanProofVerificationMs": 0.023850000000004458,
-    "heapDeltaBytes": 23431952,
+    "coldTreeBuildMs": 90.08909999999992,
+    "meanProofBuildMs": 0.004008999999991829,
+    "meanProofVerificationMs": 0.024584999999995034,
+    "heapDeltaBytes": 23554728,
     "interpretation": "Descriptive local measurement; excluded from the reproducibility hash"
   },
   "reproducibilityHash": "356dcbf30643a9d435654bdfca845c24ad59f843ec073db19112d12cc2b00ab3"

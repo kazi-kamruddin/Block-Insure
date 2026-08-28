@@ -92,12 +92,21 @@ place for controlled protocol-irregularity experiments. The separately frozen
 using every unique public-source claim across provider-disjoint partitions. Its
 weak labels must not be relabelled as claim-level fraud.
 
-The generated evaluation currently reports provider-held-out ROC AUC `0.879659`
-and F1 `0.3868`. Proof-bound rule/model routing captures all eight injected
-scenario types in the paired test set, while `7.79%` of untouched records are
-routed for review. That is an escalation rate, not a false fraud conviction
-rate. The runtime benchmark builds a 5,000-leaf tree and verifies 100 sampled
-proofs; timings are descriptive for the local machine.
+The schema-v2 evaluation reports provider-held-out ROC AUC `0.879659` with a
+1,000-repetition provider-bootstrap 95% interval of `0.848782–0.907807`, and F1
+`0.3868` (`0.3011–0.4706`). It includes majority, rule-score, logistic, and
+class-weighted logistic comparators plus feature-group ablations. Logistic
+comparators outperform the frozen Bernoulli model on several metrics; the
+evaluation preserves this result rather than treating the deployed model as
+universally optimal.
+
+The paired routing ablation separates the protocol model, authoritative
+integrity rules, and their combination. Their controlled-attack recalls are
+`55.25%`, `88.74%`, and `100%`, respectively. Combined routing sends `7.79%` of
+untouched records to review and captures all eight injected scenario types.
+That is controlled attack routing and an escalation rate, not a real-world fraud
+conviction rate. The runtime benchmark builds a 5,000-leaf tree and verifies 100
+sampled proofs; timings are descriptive for the local machine.
 
 ## Source and limitations
 

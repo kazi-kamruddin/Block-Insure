@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-28T15:50:27.068Z",
+  "generatedAt": "2026-08-28T20:57:43.229Z",
   "charts": [
     {
       "file": "baseline_f1_comparison.png",
@@ -17,14 +17,14 @@
     {
       "file": "evidence_aes_latency.svg",
       "format": "svg",
-      "bytes": 2030,
-      "sha256": "c481dc667638a656f34350a06ecbe64f3cc24a7f5f3da98b3356098876ab4686"
+      "bytes": 2034,
+      "sha256": "9c64ee23a991cbdb14c8ea6023e04d9c466896fb06f48059035ac73266b546fd"
     },
     {
       "file": "evidence_pre_latency.svg",
       "format": "svg",
-      "bytes": 1803,
-      "sha256": "f0193cba36c28582d08de6c1eed697381af023db8986ffddc2c96e9cdf3e9342"
+      "bytes": 1805,
+      "sha256": "54ae112f05e27db6e3826b52254e6629d22e3f39631f614b5f06b861207fe968"
     },
     {
       "file": "fraud_label_breakdown.png",

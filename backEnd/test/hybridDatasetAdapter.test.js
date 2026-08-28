@@ -10,6 +10,7 @@ const {
   parseCsvLine,
 } = require("../services/hybridDatasetAdapterService");
 const { alignDemoPresetDates } = require("../scripts/seedHybridData");
+const { bootstrapProviderMetrics } = require("../scripts/evaluateHybridDataset");
 
 const claim = {
   BeneID: "BENE1",
@@ -104,4 +105,22 @@ test("runtime demo presets align to the local deployment window without changing
   assert.equal(aligned.admissionDate, "2026-08-27T12:00:00.000Z");
   assert.equal(aligned.dischargeDate, "2026-08-28T10:00:00.000Z");
   assert.equal(aligned.invoiceDate, "2026-08-28T11:00:00.000Z");
+});
+
+test("provider bootstrap intervals are deterministic and retain the provider unit", () => {
+  const predictions = Array.from({ length: 40 }, (_, index) => ({
+    providerId: `PRV-${index}`,
+    actualFraud: index % 5 === 0,
+    fraudProbability: index % 5 === 0 ? 0.8 : 0.1 + (index % 3) * 0.05,
+  }));
+  const options = { repetitions: 40, seed: 17 };
+  const first = bootstrapProviderMetrics(predictions, 0.5, options);
+  const second = bootstrapProviderMetrics(predictions, 0.5, options);
+
+  assert.deepEqual(first, second);
+  assert.equal(first.unit, "provider");
+  assert.equal(first.repetitions, 40);
+  assert.equal(first.metrics.recall.pointEstimate, 1);
+  assert.ok(first.metrics.rocAuc.lower <= first.metrics.rocAuc.pointEstimate);
+  assert.ok(first.metrics.rocAuc.upper >= first.metrics.rocAuc.pointEstimate);
 });

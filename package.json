@@ -24,6 +24,7 @@
     "research:phase012": "npm --prefix backEnd run research:baseline && npm --prefix contracts run test:stateful && npm --prefix contracts run test:mutations && npm --prefix backEnd run research:manifest",
     "research:phase34": "npm --prefix backEnd run research:phase34",
     "research:all": "npm --prefix backEnd run research:artifacts && npm --prefix contracts run test:stateful && npm --prefix contracts run test:mutations && npm --prefix backEnd run research:manifest",
+    "research:paper-evidence": "node scripts/generatePaperEvidence.js",
     "verify:sync": "node scripts/verifySynchronization.js"
   },
   "devDependencies": {

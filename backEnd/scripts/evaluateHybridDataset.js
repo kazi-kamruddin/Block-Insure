@@ -9,6 +9,10 @@ const {
   trainBernoulliNaiveBayes,
 } = require("../services/bernoulliNaiveBayesService");
 const {
+  predictLogisticRegression,
+  trainLogisticRegression,
+} = require("../services/logisticRegressionService");
+const {
   calculateThresholdSensitivity,
   selectBestThreshold,
 } = require("../services/evaluationMetricsService");
@@ -20,6 +24,7 @@ const {
 const { freezeModelArtifact } = require("../services/modelArtifactService");
 const { summarizePredictions } = require("../services/phase5EvaluationService");
 const { loadHybridManifest } = require("../services/hybridDatasetIntegrityService");
+const { createRandom } = require("../services/syntheticRegistryService");
 const deployedModel = require("../model-params.json");
 const triagePolicy = require("../triage-policy.json");
 
@@ -42,6 +47,21 @@ const PROVIDER_FEATURES = [
   "high_mean_chronic_conditions",
   "high_beneficiary_activity_ratio",
 ];
+const PROVIDER_FEATURE_GROUPS = {
+  volume_and_activity: [
+    "high_claim_volume",
+    "high_unique_beneficiary_count",
+    "high_repeat_claim_ratio",
+    "high_beneficiary_activity_ratio",
+  ],
+  financial: ["high_mean_claim_amount", "high_max_claim_amount"],
+  setting_and_clinical: [
+    "high_inpatient_ratio",
+    "high_procedure_ratio",
+    "high_mean_chronic_conditions",
+  ],
+};
+const PROVIDER_BOOTSTRAP = { repetitions: 1000, seed: 20260829 };
 
 const sha256 = (value) => crypto.createHash("sha256").update(String(value)).digest("hex");
 const percentile = (values, probability) => {
@@ -49,6 +69,7 @@ const percentile = (values, probability) => {
   return ordered[Math.min(ordered.length - 1, Math.floor((ordered.length - 1) * probability))] || 0;
 };
 const ratio = (value, total) => value / Math.max(total, 1);
+const round = (value, decimals = 6) => Number(Number(value).toFixed(decimals));
 
 const forEachJsonLine = async (filePath, onRecord) => {
   const reader = readline.createInterface({
@@ -141,6 +162,201 @@ const scoreProviderRows = (model, rows, calibration) => rows.map((row) => ({
   ),
 }));
 
+const scoreProviderRowsWithPredictor = (model, rows, calibration, predict) => rows.map((row) => ({
+  ...row,
+  fraudProbability: calibrateProbability(
+    predict(model, row.features).fraudProbability,
+    calibration
+  ),
+}));
+
+const fitProviderCandidate = ({
+  trainRows,
+  calibrationRows,
+  testRows,
+  featureNames,
+  train,
+  predict,
+}) => {
+  const model = train({ rows: trainRows, featureNames });
+  const rawCalibration = scoreProviderRowsWithPredictor(
+    model,
+    calibrationRows,
+    { method: "none" },
+    predict
+  );
+  const calibration = {
+    ...fitPlattScaling(rawCalibration),
+    trainedOn: "provider-disjoint calibration partition",
+    records: calibrationRows.length,
+  };
+  const calibrationPredictions = scoreProviderRowsWithPredictor(
+    model,
+    calibrationRows,
+    calibration,
+    predict
+  );
+  const selectedThreshold = selectBestThreshold(
+    calculateThresholdSensitivity(calibrationPredictions, 0.01)
+  );
+  const testPredictions = scoreProviderRowsWithPredictor(
+    model,
+    testRows,
+    calibration,
+    predict
+  );
+  return {
+    model,
+    calibration,
+    threshold: selectedThreshold.threshold,
+    calibrationMetrics: summarizePredictions(calibrationPredictions, selectedThreshold.threshold),
+    testMetrics: summarizePredictions(testPredictions, selectedThreshold.threshold),
+    testPredictions,
+  };
+};
+
+const ruleScoreProviderRows = (rows, featureNames = PROVIDER_FEATURES) => rows.map((row) => ({
+  ...row,
+  fraudProbability: featureNames.reduce(
+    (sum, name) => sum + Number(Boolean(row.features[name])),
+    0
+  ) / featureNames.length,
+}));
+
+const percentileInterval = (values) => ({
+  lower: round(percentile(values, 0.025)),
+  upper: round(percentile(values, 0.975)),
+});
+
+const bootstrapProviderMetrics = (
+  predictions,
+  threshold,
+  { repetitions = PROVIDER_BOOTSTRAP.repetitions, seed = PROVIDER_BOOTSTRAP.seed } = {}
+) => {
+  const random = createRandom(`provider-bootstrap:${seed}`);
+  const metricNames = [
+    "rocAuc",
+    "prAuc",
+    "precision",
+    "recall",
+    "f1Score",
+    "matthewsCorrelationCoefficient",
+  ];
+  const samples = Object.fromEntries(metricNames.map((name) => [name, []]));
+  for (let iteration = 0; iteration < repetitions; iteration += 1) {
+    const resampled = Array.from(
+      { length: predictions.length },
+      () => predictions[Math.floor(random() * predictions.length)]
+    );
+    const metrics = summarizePredictions(resampled, threshold);
+    for (const name of metricNames) samples[name].push(metrics[name]);
+  }
+  const point = summarizePredictions(predictions, threshold);
+  return {
+    method: "Provider-level seeded percentile bootstrap with replacement",
+    unit: "provider",
+    repetitions,
+    seed,
+    confidenceLevel: 0.95,
+    metrics: Object.fromEntries(metricNames.map((name) => [name, {
+      pointEstimate: point[name],
+      ...percentileInterval(samples[name]),
+    }])),
+  };
+};
+
+const evaluateProviderBaselines = ({ trainRows, calibrationRows, testRows }) => {
+  const prevalence = trainRows.filter((row) => row.actualFraud).length / trainRows.length;
+  const majorityTestPredictions = testRows.map((row) => ({
+    ...row,
+    fraudProbability: prevalence,
+  }));
+  const ruleCalibration = ruleScoreProviderRows(calibrationRows);
+  const ruleThreshold = selectBestThreshold(calculateThresholdSensitivity(ruleCalibration, 0.01));
+  const ruleTest = ruleScoreProviderRows(testRows);
+  const candidates = [
+    {
+      key: "majority_negative",
+      label: "Majority-negative prevalence baseline",
+      algorithm: "Constant training prevalence",
+      threshold: 0.5,
+      calibrationMetrics: summarizePredictions(
+        calibrationRows.map((row) => ({ ...row, fraudProbability: prevalence })),
+        0.5
+      ),
+      testMetrics: summarizePredictions(majorityTestPredictions, 0.5),
+    },
+    {
+      key: "rule_score",
+      label: "Unweighted high-risk-feature count",
+      algorithm: "Rule score",
+      threshold: ruleThreshold.threshold,
+      calibrationMetrics: summarizePredictions(ruleCalibration, ruleThreshold.threshold),
+      testMetrics: summarizePredictions(ruleTest, ruleThreshold.threshold),
+    },
+  ];
+  for (const definition of [
+    {
+      key: "logistic_regression",
+      label: "Logistic regression",
+      classWeighted: false,
+    },
+    {
+      key: "class_weighted_logistic",
+      label: "Class-weighted logistic regression",
+      classWeighted: true,
+    },
+  ]) {
+    const candidate = fitProviderCandidate({
+      trainRows,
+      calibrationRows,
+      testRows,
+      featureNames: PROVIDER_FEATURES,
+      train: (options) => trainLogisticRegression({
+        ...options,
+        classWeighted: definition.classWeighted,
+      }),
+      predict: predictLogisticRegression,
+    });
+    candidates.push({
+      key: definition.key,
+      label: definition.label,
+      algorithm: candidate.model.algorithm,
+      threshold: candidate.threshold,
+      calibration: candidate.calibration,
+      calibrationMetrics: candidate.calibrationMetrics,
+      testMetrics: candidate.testMetrics,
+    });
+  }
+  return candidates;
+};
+
+const evaluateProviderFeatureGroups = ({ trainRows, calibrationRows, testRows, primaryMetrics }) =>
+  Object.entries(PROVIDER_FEATURE_GROUPS).map(([group, removedFeatures]) => {
+    const featureNames = PROVIDER_FEATURES.filter((name) => !removedFeatures.includes(name));
+    const candidate = fitProviderCandidate({
+      trainRows,
+      calibrationRows,
+      testRows,
+      featureNames,
+      train: trainBernoulliNaiveBayes,
+      predict: predictBernoulliNaiveBayes,
+    });
+    return {
+      key: `without_${group}`,
+      label: `Without ${group.replaceAll("_", " ")}`,
+      removedFeatures,
+      retainedFeatures: featureNames,
+      threshold: candidate.threshold,
+      testMetrics: candidate.testMetrics,
+      deltaFromPrimary: {
+        rocAuc: round(candidate.testMetrics.rocAuc - primaryMetrics.rocAuc),
+        prAuc: round(candidate.testMetrics.prAuc - primaryMetrics.prAuc),
+        f1Score: round(candidate.testMetrics.f1Score - primaryMetrics.f1Score),
+      },
+    };
+  });
+
 const evaluateProviderRisk = async (manifest) => {
   const [train, calibration, test] = await Promise.all([
     aggregateProviders(path.join(DATASET_DIR, manifest.outputFiles.train)),
@@ -161,6 +377,8 @@ const evaluateProviderRisk = async (manifest) => {
   const calibratedRows = scoreProviderRows(model, calibrationRows, calibrationArtifact);
   const selectedThreshold = selectBestThreshold(calculateThresholdSensitivity(calibratedRows, 0.01));
   const testPredictions = scoreProviderRows(model, testRows, calibrationArtifact);
+  const calibrationMetrics = summarizePredictions(calibratedRows, selectedThreshold.threshold);
+  const testMetrics = summarizePredictions(testPredictions, selectedThreshold.threshold);
   const frozenModel = freezeModelArtifact({
     artifactSchemaVersion: 3,
     modelVersion: "provider-risk-real-v1.0.0",
@@ -195,6 +413,9 @@ const evaluateProviderRisk = async (manifest) => {
       providerDisjoint: true,
       allClaimsAggregated: true,
       thresholdSelection: "Best calibration-partition F1 on 0.01 increments",
+      comparatorPolicy: "Primary Bernoulli NB remains frozen; rule, prevalence, logistic, and class-weighted logistic comparators use the same provider-disjoint partitions and calibration-only threshold selection",
+      uncertainty: "Seeded provider-level percentile bootstrap on the held-out test providers",
+      featureAblation: "Leave-one-feature-group-out Bernoulli NB retraining with calibration-only threshold selection",
       labelBoundary: frozenModel.target.interpretation,
     },
     partitions: {
@@ -202,8 +423,16 @@ const evaluateProviderRisk = async (manifest) => {
       calibration: { claims: calibration.claimCount, providers: calibrationRows.length },
       test: { claims: test.claimCount, providers: testRows.length },
     },
-    calibrationMetrics: summarizePredictions(calibratedRows, selectedThreshold.threshold),
-    testMetrics: summarizePredictions(testPredictions, selectedThreshold.threshold),
+    calibrationMetrics,
+    testMetrics,
+    confidenceIntervals: bootstrapProviderMetrics(testPredictions, selectedThreshold.threshold),
+    baselines: evaluateProviderBaselines({ trainRows, calibrationRows, testRows }),
+    featureGroupAblation: evaluateProviderFeatureGroups({
+      trainRows,
+      calibrationRows,
+      testRows,
+      primaryMetrics: testMetrics,
+    }),
   };
 };
 
@@ -218,11 +447,37 @@ const evaluateControlledAttacks = async (manifest) => {
     const hardBlocked = triagePolicy.routing.hardBlockingFeatures.some((name) => features[name]);
     const anomalyRouted = (triagePolicy.routing.manualReviewFeatures || [])
       .some((name) => features[name]);
+    const ruleDetected = hardBlocked || anomalyRouted;
     return {
       probability,
-      routedProbability: hardBlocked || anomalyRouted ? 1 : probability,
-      detected: hardBlocked || anomalyRouted || probability >= manualThreshold,
+      routedProbability: ruleDetected ? 1 : probability,
+      modelDetected: probability >= manualThreshold,
+      ruleDetected,
+      detected: ruleDetected || probability >= manualThreshold,
     };
+  };
+  const routingAblationPredictions = {
+    model_only: { untouched: [], attacked: [] },
+    integrity_rules_only: { untouched: [], attacked: [] },
+    combined: { untouched: [], attacked: [] },
+  };
+  const addAblationPrediction = (partition, record, result, actualFraud) => {
+    const common = {
+      actualFraud,
+      scenarioType: record.scenarioType || null,
+    };
+    routingAblationPredictions.model_only[partition].push({
+      ...common,
+      fraudProbability: result.probability,
+    });
+    routingAblationPredictions.integrity_rules_only[partition].push({
+      ...common,
+      fraudProbability: result.ruleDetected ? 1 : 0,
+    });
+    routingAblationPredictions.combined[partition].push({
+      ...common,
+      fraudProbability: result.routedProbability,
+    });
   };
   const untouchedScores = new Map();
   const untouchedPredictions = [];
@@ -230,6 +485,7 @@ const evaluateControlledAttacks = async (manifest) => {
     const result = score(record);
     untouchedScores.set(record.sourceClaimId, result.probability);
     untouchedPredictions.push({ actualFraud: false, fraudProbability: result.routedProbability });
+    addAblationPrediction("untouched", record, result, false);
   });
   const attackedPredictions = [];
   const scenarios = {};
@@ -239,6 +495,7 @@ const evaluateControlledAttacks = async (manifest) => {
     const result = score(record);
     const actualFraud = Boolean(record.controlledAttackTruth);
     attackedPredictions.push({ actualFraud, fraudProbability: result.routedProbability });
+    addAblationPrediction("attacked", record, result, actualFraud);
     if (actualFraud) {
       if (!scenarios[record.scenarioType]) scenarios[record.scenarioType] = { records: 0, detected: 0 };
       scenarios[record.scenarioType].records += 1;
@@ -252,6 +509,7 @@ const evaluateControlledAttacks = async (manifest) => {
   return {
     modelVersion: deployedModel.modelVersion,
     modelBoundary: "Synthetic-trained protocol irregularity model; evaluated separately from provider-risk-real-v1.0.0",
+    ablationMethodology: "The same paired test records are scored by the probabilistic model alone, authoritative integrity rules alone, and their deployed union",
     routingThreshold: manualThreshold,
     metricInterpretation: "Positive means rejected or escalated for review; it does not mean convicted as fraud",
     untouchedMetrics: summarizePredictions(untouchedPredictions, manualThreshold),
@@ -269,6 +527,34 @@ const evaluateControlledAttacks = async (manifest) => {
         recall: value.detected / value.records,
       }])
     ),
+    routingAblation: Object.fromEntries(
+      Object.entries(routingAblationPredictions).map(([key, partitions]) => {
+        const attackedPositive = partitions.attacked.filter((row) => row.actualFraud);
+        const scenarioNames = [...new Set(
+          attackedPositive.map((row) => row.scenarioType).filter(Boolean)
+        )].sort();
+        return [key, {
+          label: {
+            model_only: "Probabilistic protocol model only",
+            integrity_rules_only: "Authoritative integrity rules only",
+            combined: "Combined model and integrity-rule routing",
+          }[key],
+          untouchedEscalationRate: partitions.untouched.filter(
+            (row) => row.fraudProbability >= manualThreshold
+          ).length / Math.max(partitions.untouched.length, 1),
+          pairedAttackMetrics: summarizePredictions(partitions.attacked, manualThreshold),
+          controlledAttackRoutingRecall: attackedPositive.filter(
+            (row) => row.fraudProbability >= manualThreshold
+          ).length / Math.max(attackedPositive.length, 1),
+          scenarioRecall: Object.fromEntries(scenarioNames.map((scenarioName) => {
+            const rows = attackedPositive.filter((row) => row.scenarioType === scenarioName);
+            return [scenarioName, rows.filter(
+              (row) => row.fraudProbability >= manualThreshold
+            ).length / Math.max(rows.length, 1)];
+          })),
+        }];
+      })
+    ),
   };
 };
 
@@ -278,7 +564,7 @@ const run = async ({ writeOutput = true } = {}) => {
   const providerRisk = await evaluateProviderRisk(manifest);
   const controlledAttacks = await evaluateControlledAttacks(manifest);
   const result = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     datasetVersion: manifest.datasetVersion,
     sourceClaims: manifest.totalUniqueClaims,
@@ -327,7 +613,9 @@ if (require.main === module) {
 
 module.exports = {
   PROVIDER_FEATURES,
+  PROVIDER_FEATURE_GROUPS,
   aggregateProviders,
+  bootstrapProviderMetrics,
   buildProviderThresholds,
   evaluateControlledAttacks,
   evaluateProviderRisk,

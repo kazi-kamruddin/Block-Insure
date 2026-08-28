@@ -239,6 +239,16 @@ npm run evaluate:hybrid
 npm run benchmark:hybrid
 ```
 
+Generate the paper-facing JSON, CSV tables, SVG figures, and assurance summary
+after regenerating and verifying the research artifacts:
+
+```powershell
+npm run research:paper-evidence
+```
+
+The frozen paper evidence, claim boundaries, and section mapping are documented
+in [`paper-evidence/README.md`](paper-evidence/README.md).
+
 The admin **Thesis Results** dashboard reads generated artifacts from
 `backEnd/evaluation-results`.
 
@@ -258,12 +268,10 @@ cannot replace a valid JSON file with a partially written one.
 
 ## Documentation
 
-- [Current protocol security verification](docs/security-verification.md)
+- [Current protocol security and operational verification](docs/phase-5-operational-hardening.md)
 - [Current protocol migration manifest](docs/protocol-v2-migration.json)
 - [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
 - [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
 - [Phase 5 operational hardening and future-run guide](docs/phase-5-operational-hardening.md)
-- Historical research notes retained for provenance:
-  [Section 1](docs/section-1-system-design.md),
-  [Section 2](docs/section-2-oracle-security-fraud-model.md), and
-  [Section 3](docs/section-3-fraud-model-report-quality.md).
+- [Paper evidence freeze and writing map](paper-evidence/README.md)
+- [Deep technical reference](reference/block-insure-deep-technical-reference.md)

@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "generatedAt": "2026-08-28T15:50:21.921Z",
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-28T20:57:24.188Z",
   "datasetVersion": "blockinsure-hybrid-v1.2.0",
   "sourceClaims": 558211,
   "methodology": {
@@ -32,6 +32,9 @@
       "providerDisjoint": true,
       "allClaimsAggregated": true,
       "thresholdSelection": "Best calibration-partition F1 on 0.01 increments",
+      "comparatorPolicy": "Primary Bernoulli NB remains frozen; rule, prevalence, logistic, and class-weighted logistic comparators use the same provider-disjoint partitions and calibration-only threshold selection",
+      "uncertainty": "Seeded provider-level percentile bootstrap on the held-out test providers",
+      "featureAblation": "Leave-one-feature-group-out Bernoulli NB retraining with calibration-only threshold selection",
       "labelBoundary": "Weak provider-level audit-prioritization label; not adjudicated claim fraud"
     },
     "partitions": {
@@ -87,11 +90,384 @@
       "prAuc": 0.357647,
       "brierScore": 0.06149551225802427,
       "calibrationError": 0.05088717378642795
-    }
+    },
+    "confidenceIntervals": {
+      "method": "Provider-level seeded percentile bootstrap with replacement",
+      "unit": "provider",
+      "repetitions": 1000,
+      "seed": 20260829,
+      "confidenceLevel": 0.95,
+      "metrics": {
+        "rocAuc": {
+          "pointEstimate": 0.879659,
+          "lower": 0.848782,
+          "upper": 0.907807
+        },
+        "prAuc": {
+          "pointEstimate": 0.357647,
+          "lower": 0.263143,
+          "upper": 0.459932
+        },
+        "precision": {
+          "pointEstimate": 0.3203,
+          "lower": 0.2403,
+          "upper": 0.4056
+        },
+        "recall": {
+          "pointEstimate": 0.4881,
+          "lower": 0.375,
+          "upper": 0.6038
+        },
+        "f1Score": {
+          "pointEstimate": 0.3868,
+          "lower": 0.3011,
+          "upper": 0.4706
+        },
+        "matthewsCorrelationCoefficient": {
+          "pointEstimate": 0.3324,
+          "lower": 0.2422,
+          "upper": 0.4222
+        }
+      }
+    },
+    "baselines": [
+      {
+        "key": "majority_negative",
+        "label": "Majority-negative prevalence baseline",
+        "algorithm": "Constant training prevalence",
+        "threshold": 0.5,
+        "calibrationMetrics": {
+          "confusionMatrix": {
+            "truePositive": 0,
+            "trueNegative": 807,
+            "falsePositive": 0,
+            "falseNegative": 98
+          },
+          "accuracy": 0.8917,
+          "precision": 0,
+          "recall": 0,
+          "specificity": 1,
+          "falsePositiveRate": 0,
+          "f1Score": 0,
+          "f2Score": 0,
+          "matthewsCorrelationCoefficient": 0,
+          "rocAuc": 0.5,
+          "prAuc": 0.1083,
+          "brierScore": 0.09674476974640499,
+          "calibrationError": 0.013550450712416534
+        },
+        "testMetrics": {
+          "confusionMatrix": {
+            "truePositive": 0,
+            "trueNegative": 1001,
+            "falsePositive": 0,
+            "falseNegative": 84
+          },
+          "accuracy": 0.9226,
+          "precision": 0,
+          "recall": 0,
+          "specificity": 1,
+          "falsePositiveRate": 0,
+          "f1Score": 0,
+          "f2Score": 0,
+          "matthewsCorrelationCoefficient": 0,
+          "rocAuc": 0.5,
+          "prAuc": 0.0774,
+          "brierScore": 0.07172549370029366,
+          "calibrationError": 0.01731748726655334
+        }
+      },
+      {
+        "key": "rule_score",
+        "label": "Unweighted high-risk-feature count",
+        "algorithm": "Rule score",
+        "threshold": 0.55,
+        "calibrationMetrics": {
+          "confusionMatrix": {
+            "truePositive": 52,
+            "trueNegative": 737,
+            "falsePositive": 70,
+            "falseNegative": 46
+          },
+          "accuracy": 0.8718,
+          "precision": 0.4262,
+          "recall": 0.5306,
+          "specificity": 0.9133,
+          "falsePositiveRate": 0.0867,
+          "f1Score": 0.4727,
+          "f2Score": 0.5058,
+          "matthewsCorrelationCoefficient": 0.4039,
+          "rocAuc": 0.852921,
+          "prAuc": 0.446679,
+          "brierScore": 0.09291317099788451,
+          "calibrationError": 0.10669122160834853
+        },
+        "testMetrics": {
+          "confusionMatrix": {
+            "truePositive": 39,
+            "trueNegative": 912,
+            "falsePositive": 89,
+            "falseNegative": 45
+          },
+          "accuracy": 0.8765,
+          "precision": 0.3047,
+          "recall": 0.4643,
+          "specificity": 0.9111,
+          "falsePositiveRate": 0.0889,
+          "f1Score": 0.3679,
+          "f2Score": 0.4203,
+          "matthewsCorrelationCoefficient": 0.311,
+          "rocAuc": 0.872705,
+          "prAuc": 0.317528,
+          "brierScore": 0.08428059395801224,
+          "calibrationError": 0.12114695340501773
+        }
+      },
+      {
+        "key": "logistic_regression",
+        "label": "Logistic regression",
+        "algorithm": "LogisticRegression",
+        "threshold": 0.28,
+        "calibration": {
+          "method": "platt",
+          "version": "platt-v1",
+          "slope": 1.1246205970745233,
+          "intercept": 0.1690308121445531,
+          "trainedOn": "provider-disjoint calibration partition",
+          "records": 905
+        },
+        "calibrationMetrics": {
+          "confusionMatrix": {
+            "truePositive": 54,
+            "trueNegative": 762,
+            "falsePositive": 45,
+            "falseNegative": 44
+          },
+          "accuracy": 0.9017,
+          "precision": 0.5455,
+          "recall": 0.551,
+          "specificity": 0.9442,
+          "falsePositiveRate": 0.0558,
+          "f1Score": 0.5482,
+          "f2Score": 0.5499,
+          "matthewsCorrelationCoefficient": 0.4931,
+          "rocAuc": 0.872979,
+          "prAuc": 0.466847,
+          "brierScore": 0.07029364006331063,
+          "calibrationError": 0.010600987482867476
+        },
+        "testMetrics": {
+          "confusionMatrix": {
+            "truePositive": 46,
+            "trueNegative": 932,
+            "falsePositive": 69,
+            "falseNegative": 38
+          },
+          "accuracy": 0.9014,
+          "precision": 0.4,
+          "recall": 0.5476,
+          "specificity": 0.9311,
+          "falsePositiveRate": 0.0689,
+          "f1Score": 0.4623,
+          "f2Score": 0.51,
+          "matthewsCorrelationCoefficient": 0.4156,
+          "rocAuc": 0.897844,
+          "prAuc": 0.385694,
+          "brierScore": 0.05562891012065672,
+          "calibrationError": 0.023932964571810426
+        }
+      },
+      {
+        "key": "class_weighted_logistic",
+        "label": "Class-weighted logistic regression",
+        "algorithm": "ClassWeightedLogisticRegression",
+        "threshold": 0.35,
+        "calibration": {
+          "method": "platt",
+          "version": "platt-v1",
+          "slope": 0.8721798287641828,
+          "intercept": -1.5656020260746466,
+          "trainedOn": "provider-disjoint calibration partition",
+          "records": 905
+        },
+        "calibrationMetrics": {
+          "confusionMatrix": {
+            "truePositive": 54,
+            "trueNegative": 762,
+            "falsePositive": 45,
+            "falseNegative": 44
+          },
+          "accuracy": 0.9017,
+          "precision": 0.5455,
+          "recall": 0.551,
+          "specificity": 0.9442,
+          "falsePositiveRate": 0.0558,
+          "f1Score": 0.5482,
+          "f2Score": 0.5499,
+          "matthewsCorrelationCoefficient": 0.4931,
+          "rocAuc": 0.879381,
+          "prAuc": 0.505608,
+          "brierScore": 0.06993664679999732,
+          "calibrationError": 0.025528011490112745
+        },
+        "testMetrics": {
+          "confusionMatrix": {
+            "truePositive": 46,
+            "trueNegative": 930,
+            "falsePositive": 71,
+            "falseNegative": 38
+          },
+          "accuracy": 0.8995,
+          "precision": 0.3932,
+          "recall": 0.5476,
+          "specificity": 0.9291,
+          "falsePositiveRate": 0.0709,
+          "f1Score": 0.4577,
+          "f2Score": 0.5077,
+          "matthewsCorrelationCoefficient": 0.4107,
+          "rocAuc": 0.89868,
+          "prAuc": 0.396625,
+          "brierScore": 0.05849930328304194,
+          "calibrationError": 0.04605691666488478
+        }
+      }
+    ],
+    "featureGroupAblation": [
+      {
+        "key": "without_volume_and_activity",
+        "label": "Without volume and activity",
+        "removedFeatures": [
+          "high_claim_volume",
+          "high_unique_beneficiary_count",
+          "high_repeat_claim_ratio",
+          "high_beneficiary_activity_ratio"
+        ],
+        "retainedFeatures": [
+          "high_mean_claim_amount",
+          "high_max_claim_amount",
+          "high_inpatient_ratio",
+          "high_procedure_ratio",
+          "high_mean_chronic_conditions"
+        ],
+        "threshold": 0.26,
+        "testMetrics": {
+          "confusionMatrix": {
+            "truePositive": 48,
+            "trueNegative": 863,
+            "falsePositive": 138,
+            "falseNegative": 36
+          },
+          "accuracy": 0.8396,
+          "precision": 0.2581,
+          "recall": 0.5714,
+          "specificity": 0.8621,
+          "falsePositiveRate": 0.1379,
+          "f1Score": 0.3556,
+          "f2Score": 0.4598,
+          "matthewsCorrelationCoefficient": 0.3075,
+          "rocAuc": 0.778131,
+          "prAuc": 0.21137,
+          "brierScore": 0.06799827604069027,
+          "calibrationError": 0.057277514007302674
+        },
+        "deltaFromPrimary": {
+          "rocAuc": -0.101528,
+          "prAuc": -0.146277,
+          "f1Score": -0.0312
+        }
+      },
+      {
+        "key": "without_financial",
+        "label": "Without financial",
+        "removedFeatures": [
+          "high_mean_claim_amount",
+          "high_max_claim_amount"
+        ],
+        "retainedFeatures": [
+          "high_claim_volume",
+          "high_unique_beneficiary_count",
+          "high_inpatient_ratio",
+          "high_procedure_ratio",
+          "high_repeat_claim_ratio",
+          "high_mean_chronic_conditions",
+          "high_beneficiary_activity_ratio"
+        ],
+        "threshold": 0.42,
+        "testMetrics": {
+          "confusionMatrix": {
+            "truePositive": 29,
+            "trueNegative": 966,
+            "falsePositive": 35,
+            "falseNegative": 55
+          },
+          "accuracy": 0.9171,
+          "precision": 0.4531,
+          "recall": 0.3452,
+          "specificity": 0.965,
+          "falsePositiveRate": 0.035,
+          "f1Score": 0.3919,
+          "f2Score": 0.3625,
+          "matthewsCorrelationCoefficient": 0.352,
+          "rocAuc": 0.868205,
+          "prAuc": 0.352464,
+          "brierScore": 0.06108560600562404,
+          "calibrationError": 0.04391209999873187
+        },
+        "deltaFromPrimary": {
+          "rocAuc": -0.011454,
+          "prAuc": -0.005183,
+          "f1Score": 0.0051
+        }
+      },
+      {
+        "key": "without_setting_and_clinical",
+        "label": "Without setting and clinical",
+        "removedFeatures": [
+          "high_inpatient_ratio",
+          "high_procedure_ratio",
+          "high_mean_chronic_conditions"
+        ],
+        "retainedFeatures": [
+          "high_claim_volume",
+          "high_unique_beneficiary_count",
+          "high_mean_claim_amount",
+          "high_max_claim_amount",
+          "high_repeat_claim_ratio",
+          "high_beneficiary_activity_ratio"
+        ],
+        "threshold": 0.44,
+        "testMetrics": {
+          "confusionMatrix": {
+            "truePositive": 46,
+            "trueNegative": 932,
+            "falsePositive": 69,
+            "falseNegative": 38
+          },
+          "accuracy": 0.9014,
+          "precision": 0.4,
+          "recall": 0.5476,
+          "specificity": 0.9311,
+          "falsePositiveRate": 0.0689,
+          "f1Score": 0.4623,
+          "f2Score": 0.51,
+          "matthewsCorrelationCoefficient": 0.4156,
+          "rocAuc": 0.894464,
+          "prAuc": 0.370565,
+          "brierScore": 0.05982877202898184,
+          "calibrationError": 0.03961635812200979
+        },
+        "deltaFromPrimary": {
+          "rocAuc": 0.014805,
+          "prAuc": 0.012918,
+          "f1Score": 0.0755
+        }
+      }
+    ]
   },
   "controlledAttacks": {
     "modelVersion": "bernoulli-fraud-v3.1.0",
     "modelBoundary": "Synthetic-trained protocol irregularity model; evaluated separately from provider-risk-real-v1.0.0",
+    "ablationMethodology": "The same paired test records are scored by the probabilistic model alone, authoritative integrity rules alone, and their deployed union",
     "routingThreshold": 0.21796945267587475,
     "metricInterpretation": "Positive means rejected or escalated for review; it does not mean convicted as fraud",
     "untouchedMetrics": {
@@ -178,11 +554,118 @@
         "detected": 6999,
         "recall": 1
       }
+    },
+    "routingAblation": {
+      "model_only": {
+        "label": "Probabilistic protocol model only",
+        "untouchedEscalationRate": 0.00003656407396912164,
+        "pairedAttackMetrics": {
+          "confusionMatrix": {
+            "truePositive": 30225,
+            "trueNegative": 54689,
+            "falsePositive": 3,
+            "falseNegative": 24480
+          },
+          "accuracy": 0.7762,
+          "precision": 0.9999,
+          "recall": 0.5525,
+          "specificity": 0.9999,
+          "falsePositiveRate": 0.0001,
+          "f1Score": 0.7117,
+          "f2Score": 0.6068,
+          "matthewsCorrelationCoefficient": 0.6177,
+          "rocAuc": 0.953678,
+          "prAuc": 0.95816,
+          "brierScore": 0.2903885467667681,
+          "calibrationError": 0.3507457243990296
+        },
+        "controlledAttackRoutingRecall": 0.5525089114340553,
+        "scenarioRecall": {
+          "BLACKLISTED_HOSPITAL": 0.10461095100864554,
+          "CANCELLED_RECORD": 1,
+          "DATE_MISMATCH": 0.3150684931506849,
+          "INFLATED_AMOUNT": 0,
+          "NEAR_DUPLICATE": 1,
+          "NOISY_RECORD": 0,
+          "PROVIDER_COMPROMISE": 1,
+          "USED_INVOICE": 1
+        }
+      },
+      "integrity_rules_only": {
+        "label": "Authoritative integrity rules only",
+        "untouchedEscalationRate": 0.07784491348025997,
+        "pairedAttackMetrics": {
+          "confusionMatrix": {
+            "truePositive": 48545,
+            "trueNegative": 50469,
+            "falsePositive": 4223,
+            "falseNegative": 6160
+          },
+          "accuracy": 0.9051,
+          "precision": 0.92,
+          "recall": 0.8874,
+          "specificity": 0.9228,
+          "falsePositiveRate": 0.0772,
+          "f1Score": 0.9034,
+          "f2Score": 0.8937,
+          "matthewsCorrelationCoefficient": 0.8107,
+          "rocAuc": 0.9051,
+          "prAuc": 0.872719,
+          "brierScore": 0.09491119500534749,
+          "calibrationError": 0.09491119500534752
+        },
+        "controlledAttackRoutingRecall": 0.8873960332693538,
+        "scenarioRecall": {
+          "BLACKLISTED_HOSPITAL": 1,
+          "CANCELLED_RECORD": 1,
+          "DATE_MISMATCH": 1,
+          "INFLATED_AMOUNT": 1,
+          "NEAR_DUPLICATE": 1,
+          "NOISY_RECORD": 1,
+          "PROVIDER_COMPROMISE": 0.0808713816771113,
+          "USED_INVOICE": 1
+        }
+      },
+      "combined": {
+        "label": "Combined model and integrity-rule routing",
+        "untouchedEscalationRate": 0.0778814775542291,
+        "pairedAttackMetrics": {
+          "confusionMatrix": {
+            "truePositive": 54705,
+            "trueNegative": 50466,
+            "falsePositive": 4226,
+            "falseNegative": 0
+          },
+          "accuracy": 0.9614,
+          "precision": 0.9283,
+          "recall": 1,
+          "specificity": 0.9227,
+          "falsePositiveRate": 0.0773,
+          "f1Score": 0.9628,
+          "f2Score": 0.9848,
+          "matthewsCorrelationCoefficient": 0.9255,
+          "rocAuc": 0.95705,
+          "prAuc": 0.920748,
+          "brierScore": 0.07308437730434718,
+          "calibrationError": 0.09945306608020309
+        },
+        "controlledAttackRoutingRecall": 1,
+        "scenarioRecall": {
+          "BLACKLISTED_HOSPITAL": 1,
+          "CANCELLED_RECORD": 1,
+          "DATE_MISMATCH": 1,
+          "INFLATED_AMOUNT": 1,
+          "NEAR_DUPLICATE": 1,
+          "NOISY_RECORD": 1,
+          "PROVIDER_COMPROMISE": 1,
+          "USED_INVOICE": 1
+        }
+      }
     }
   },
   "performance": {
-    "evaluationTimeMs": 8007.2481,
+    "evaluationTimeMs": 10733.451799999999,
     "note": "Wall-clock measurement is descriptive and excluded from the reproducibility hash"
   },
-  "reproducibilityHash": "0ac223a3ddd83a02c307be65b3ed0a95970c4bc39e61fae76470b5849acc3257"
+  "reproducibilityHash": "526943f75823bf9b7738a013883d620dd90986742f87131ccbeeec2c8895fd0f"
 }
