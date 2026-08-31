@@ -1,0 +1,800 @@
+JOURNAL OF MEDICAL INTERNET RESEARCH               Mackey et al
+
+Original Paper
+
+Combating Health Care Fraud and Abuse: Conceptualization and
+Prototyping Study of a Blockchain Antifraud Framework
+
+Tim Ken Mackey1,2,3,4*, MAS, PhD; Ken Miyachi2,5,6*, BS; Danny Fung2, BS; Samson Qian2, BS; James Short2, PhD
+
+1UC San Diego - School of Medicine, Department of Anesthesiology and Division of Infectious Diseases and Global Public Health, La Jolla, CA,
+United States
+2San Diego Supercomputer Center, BlockLAB, La Jolla, CA, United States
+3Global Health Policy and Data Institute, San Diego, CA, United States
+4UC San Diego - Extension, Department of Healthcare Research and Policy, La Jolla, CA, United States
+5LedgerSafe Corporation, San Diego, CA, United States
+6Institute of Electrical and Electronics Engineers, San Diego, CA, United States
+*these authors contributed equally
+
+Corresponding Author:
+Tim Ken Mackey, MAS, PhD
+UC San Diego - School of Medicine
+Department of Anesthesiology and Division of Infectious Diseases and Global Public Health
+8950 Villa La Jolla Drive
+A124
+La Jolla, CA, 92037
+United States
+Phone: 1 9514914161
+Email: tmackey@ucsd.edu
+
+Abstract
+
+Background: An estimated US $2.6 billion loss is attributed to health care fraud and abuse. With traditional health care claims
+verification and reimbursement, the health care provider submits a claim after rendering services to a patient, which is then verified
+and reimbursed by the payer. However, this process leaves out a critical stakeholder: the patient for whom the services are actually
+rendered. This lack of patient participation introduces a risk of fraud and abuse. Blockchain technology enables secure data
+management with transparency, which could mitigate this risk of health care fraud and abuse.
+
+Objective: The aim of this study is to develop a framework using blockchain to record claims data and transactions in an
+immutable format and to enable the patient to act as a validating node to help detect and prevent health care fraud and abuse.
+
+Methods: We developed a health care fraud and abuse blockchain technical framework and prototype using key blockchain
+tools and application layers including consensus algorithms, smart contracts, tokens, and governance based on digital identity on
+the Ethereum platform (Ethereum Foundation).
+
+Results: Our technical framework maps to the claims adjudication process and focuses on Medicare claims, with the US Centers
+for Medicare and Medicaid Services (CMS) as the central authority. A prototype of the framework system was developed using
+the blockchain platform Ethereum (Ethereum Foundation), with its design features, workflow, smart contract functions, system
+architecture, and software implementation outlined. The software stack used to build the system consisted of a front-end user
+interface framework, a back-end processing server, and a blockchain network. React was used for the user interface framework,
+and NodeJS and an Express server were used for the back-end processing server; Solidity was the smart contract language used
+to interact with a local Ethereum blockchain network.
+
+Conclusions: The proposed framework and the initial prototype have the potential to improve the health care claims process
+by using blockchain technology for secure data storage and consensus mechanisms, which make the claims adjudication process
+more patient-centric for the purposes of identifying and preventing health care fraud and abuse. Future work will focus on the
+use of synthetic or historic CMS claims data to assess the real-world viability of the framework.
+
+(J Med Internet Res 2020;22(9):e18623) doi: 10.2196/18623
+
+               http://www.jmir.org/2020/9/e18623/  J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 1
+                                                                    (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                                           Mackey et al
+
+KEYWORDS
+fraud; blockchain; medical informatics; delivery of healthcare; Medicare; information science
+
+Introduction                                                        is filed, the DOJ then has the option to intervene and join one
+                                                                    or all of the counts of a pending qui tam action. If the claim
+Background                                                          concludes in a prosecution and settlement, then the
+                                                                    whistleblower may be entitled to 15% to 30% of what is
+Fraud and abuse is a major financial, legal, and policy challenge   recovered, a clear incentive for reporting, although blowing the
+in the US $3.5 trillion United States health care system, with      whistle may come at a high personal and professional cost
+the Department of Justice (DOJ) and the Department of Health        [5,11].
+and Human Services (HHS) reporting recoveries estimated at
+US $2.6 billion in the fiscal year 2019 alone [1]. In fact,         This current system of relying on whistleblowers to detect and
+recoveries for health care fraud and abuse have steadily risen      report fraud and abuse is subject to certain challenges, including
+in the past 5 years, with settlements consistently exceeding US     court cases, some of which limit the protection for prospective
+$2 billion over the past decade [2]. In 2018, the DOJ announced     whistleblowers [5,12]. Furthermore, prosecutions based on
+the largest national health care fraud takedown in history, which   whistleblowers’ reports are not always successful, are often
+included over 601 defendants charged across 58 federal districts    skewed toward prosecution of higher-amount cases, and by
+and involved 165 health care professionals, equating to a total     nature are reactive and punitive rather than proactive in
+of US $2 billion in false billings, including illegal distribution  preventing fraud and abuse. Hence, new technology approaches
+of opioids and narcotics [3].                                       are needed to enable better resilience, provenance, and
+                                                                    verifiability of health care claims that may be susceptible to
+Health care fraud and abuse involve all sectors of the health       fraud and abuse, an activity that is aligned with antifraud and
+care industry, including drug and device manufacturers,             program integrity priorities currently being pursued by the US
+hospitals, pharmacies, physicians, wholesalers, distributors,       Centers for Medicare and Medicaid Services (CMS).
+laboratories, and payers. Arguably, the most significantly
+impacted group is payers, including public agencies such as         Objective
+Medicare, Medicaid, and Tricare as well as private payers, who
+are defrauded of billions in health care claims yearly [4,5].       One technology with the potential to address these challenges
+Fraudulent health care occurs in different forms, including         is blockchain, a distributed ledger technology with use cases
+kickbacks, false claims (eg, billing for services not rendered,     across several industries, including the energy sector,
+upcoding, and provisioning of medically unnecessary services),      transportation, finance, and health care [13]. Blockchain use
+and illegal self-referrals [5,6]. Fraud and abuse have a direct     cases in health care are beginning to mature, primarily to
+negative impact on health care utilization as it leads to a waste   improve the governance of health care data and processes
+of limited resources and potentially endangers patients by          [14-16]. One of the primary uses involves improving
+providing them unnecessary care or precluding their access to       management; enabling sharing; and improving exchange of
+medically needed services, which can lead to a higher risk of       patient health data, consumer health data, and genomic data
+all-cause mortality and emergency hospitalization [4,6].            [15,17-20]. This also extends to the use of blockchain for clinical
+                                                                    research to improve trial data management and electronic
+Enforcement against health care fraud and abuse comes in the        consent [21]. Use cases in other health care sectors are also
+form of well-established legal mechanisms focused on                taking shape, including blockchain for pharmaceutical supply
+penalizing such actions, including (1) the False Claims Act,        chain challenges (eg, detection of falsified medicines) and
+United States Code (USC) section 3729 to 3733; (2) the              integration with medical devices and the internet of things
+Antikickback statute, 42 USC section 1320a to 7b(b); (3) the        [22,23]. Many of these uses focus on patient-centric approaches
+Physician Self-Referral Act (Stark law); (4) the Exclusion          to manage and preserve the privacy of health care data with
+Statute; and (5) the Civil Monetary Penalty Law [5,7].              blockchain [24-27].
+Prosecution for fraud and abuse can lead to civil (monetary)
+penalties (including triple damages) for each claim or service,     Importantly, incorporating blockchain into a systems software
+and in some cases, criminal penalties, including possible           architecture can enable immutability, consensus, create
+exclusion from federal and state reimbursement programs. These      incentives, and manage external data into a self-executing
+legal frameworks serve as a strong deterrent to fraud and abuse     system with transparent rules across multiple stakeholders [14].
+schemes, but detection and prevention remains an ongoing            On the basis of these benefits, we proposed a technical
+challenge.                                                          framework for a blockchain-based system that includes 3 key
+                                                                    stakeholder groups in the health care claims workflow process
+Although efforts have been made to automate the detection of        to enable a more proactive antifraud and abuse system. Although
+fraud and abuse through computational methods involving data        several companies are exploring blockchain to enhance health
+mining of Medicare and Medicaid reimbursement claims data           care reimbursement and revenue cycle management, few have
+sets, most of the fraud and abuse prosecutions continue to          explicitly assessed whether the technology can improve claims
+originate from whistleblowers [8-10]. Whistleblowers are            verification and better enable the detection and prevention of
+incentivized to report fraud and abuse activities through qui tam   health care fraud and abuse [28,29]. Hence, this paper will
+provisions that allow private individuals acting as realtors to     explore the utility of blockchain by developing a fraud and
+bring a suit on behalf of the government [5,11]. Once a lawsuit
+
+               http://www.jmir.org/2020/9/e18623/                   J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 2
+                                                                                     (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                               Mackey et al
+
+abuse technical design framework and prototype built on the        the public domain, and the study did not involve any interaction
+blockchain environment Ethereum.                                   with the users. User indefinable information was removed from
+                                                                   the study results.
+Methods
+                                                                   Results
+Overview
+                                                                   General Design
+Blockchain’s core utility is as a distributed database of
+transactions, securely connected in chronological order, enabling  The proposed solution to improve health care fraud and abuse
+efficient and cost-reducing improvements to current systems        detection will utilize a hybrid or consortium permissioned
+and business processes [14]. Driving the efficiency of these       blockchain model that incorporates relevant stakeholders in the
+blockchain processes is the enforcement and execution of rules     claims and reimbursement workflow, a transactional process
+by software, a shared governance environment, and use of smart     that currently does not involve the patient (Figure 1). A
+contracts to create a more transparent and rule-based system       consortium blockchain consists of both public and private
+that can tackle issues of trust, such as addressing fraud and      blockchain characteristics by restricting participation to certain
+abuse. Furthermore, health care information and communication      trusted users who act as nodes on the blockchain and are
+technology systems are increasingly moving toward more             required to meet the criteria set forth by the consortium.
+patient-centric designs, not only for receiving the input from
+the patient but also for involving the patient in the design and   Importantly, a consortium-based blockchain model enables a
+solution implementation process [14,27,30].                        high throughput of information to be validated and stored on
+                                                                   the blockchain. This is due to the restricted number of validation
+Our blockchain technical framework leverages key principles        nodes that both process and distribute information throughout
+of establishing trust through shared accountability and            the system. In contrast, the Bitcoin blockchain can process
+governance and enables the patient to be a stakeholder in          approximately 8 transactions per second, and the public
+addressing health care fraud and abuse. The primary aims of        Ethereum blockchain can only process approximately 15
+the blockchain solution are to (1) improve detection of potential  transactions per second, partly owing to the massive number of
+fraudulent and illegal health care transactions and                nodes connected to their respective networks. This is not
+reimbursements, (2) create a more inclusive process for            sufficient for a health care fraud detection system, which
+validating claims deploying a patient-centric approach, and (3)    requires significantly more than 100 transactions per second.
+enhance efficiency in the claims adjudication process through      The consortium blockchain model enables the system to scale
+smart contract automation.                                         to process large number of transactions while restricting
+                                                                   participation and enhancing the security of entities who can
+To conceptualize this approach, we adopted the fit-for-purpose     access and interact with the system.
+theoretical framework as published by Mackey et al [14] for
+designing health blockchain use cases that outline design and      Our technical framework includes all subgroups (eg, providers,
+technical principles. These features are outlined below and are    payers, and patients) that are eligible to provide or receive
+also described in the context of our early prototype version of    services through Medicare. We focus on Medicare as it is the
+the technical framework. On the basis of the central need for      largest public payer system in the United States (with projections
+an environment that enables shared governance, we                  that Medicare expenditures will increase from US $705 billion
+conceptualized our technical framework and prototype on the        in 2017 to US $1.436 billion in 2027) and as many of the legal
+Ethereum decentralized platform, which enables 3 specific          frameworks associated with health care fraud and abuse only
+technical features that map to our use case, including (1)         apply to public sector reimbursement, although states may have
+democratic autonomous organizations (DAOs), (2) smart              their own laws and regulations when it comes to the private pay
+contract execution environment, and (3) tokens via the ERC-20      or the employer insurance–based market [31]. We primarily
+token standard.                                                    focus on Medicare claims under Parts A and B, but not C
+                                                                   (Medicare Advantage), as these are capitated payments.
+Hence, our design framework and prototype are based on the
+combination of fit-for-purpose design principles and feature       Next, we discuss the framework’s core design features of shared
+layers on Ethereum.                                                data governance, interoperability, the smart contract claims
+                                                                   validation process, proposed system architecture, and privacy
+Ethics Approval and Consent to Participate                         considerations.
+
+Ethics approval and consent to participate was not required for
+this study. All information collected from this study was from
+
+               http://www.jmir.org/2020/9/e18623/                  J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 3
+                                                                                    (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                Mackey et al
+
+Figure 1. Visualization of the current process for Centers for Medicare and Medicaid Services claims reimbursement and proposed blockchain framework.
+CMS: Centers for Medicare and Medicaid Services.
+
+Shared Data Governance                                              delegate and determine participation permission and access to
+                                                                    different subgroups and determine validation rules in the
+The first step in setting up a shared governance system is to       network. For example, CMS may determine that there must be
+define the membership of the distributed community that will        complete agreement among the associated patient, provider,
+participate in the consortium technical framework. A DAO will       and CMS for a claim to be confirmed and validated.
+govern the framework with its subgroups of providers, payers,
+and patients based on verification that they are eligible to        The DAO participants will act as authority nodes, which will
+provide and receive Medicare services. Validating membership        validate the claims data that are proposed to be written to the
+in these DAO subgroups will be accomplished by                      blockchain. Importantly, the permissions structure for the
+cross-referencing information directly from CMS Medicare            validation procedure will be claims and patient-specific, with
+identifier data (see Multimedia Appendix 1 [14] for more details    only the relevant provider, organization and beneficiary gaining
+on DAO subgroup matching). This will include matching CMS           access to identifiable reimbursement claims data, subject to
+information on eligible providers (eg, clinicians accepting         identity verification. Data join fields (when contents of one
+Medicare-approved payments), eligible provider organizations        database or table are joined based on a common attribute field),
+(eg, health care facilities accepting Medicare patients and         including type of payment (eg, fee-for-service and prospective
+clearinghouse organizations authorized to bill on their behalf),    payment systems), medical billing codes (eg, International
+and eligible Medicare beneficiaries (eg, patients).                 Statistical Classification of Diseases and Related Health
+                                                                    Problems-ICD-10, Current Procedural Terminology-CPT,
+Furthermore, although blockchain is generally described as a        Diagnosis Related Group-DRG, and Healthcare Common
+decentralized network, this use case relies on a central payer to   Procedure Coding System-HCPCS level 1 and 2 codes), and
+make a final adjudication decision on claims. Hence, the central    National Provider Identifier and patient’s Medicare ID number
+authority of this consortium blockchain will be CMS, although       of Medicare Beneficiary Identifier, can be used to validate
+the process of claim validation will be shared by the DAO. In       identity and permissions for claims verification processes.
+this role, CMS will have privileges to add providers, gain access
+to universal claim information from providers and their             This validation of participating nodes will help prevent
+associated patients, and adjudicate claims based on CMS’ own        fraudulent actors from submitting claims (including ghost
+set of rules and regulations that meet specific statutory criteria  patients, ie, patients who do not exist or never received services,
+to validate that a service was actually billed and received by the  and providers and organizations debarred from Medicare
+patient appropriately. The framework also allows CMS to             participation). An example of how this would apply to a medical
+                                                                    equipment claim is provided in Figure 2.
+
+               http://www.jmir.org/2020/9/e18623/                   J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 4
+                                                                                     (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                Mackey et al
+
+Figure 2. An example of a claim for a durable medical equipment, where a health care provider submits a claim for a walker that is supplied by a
+durable medical equipment provider, with the identity of the provider, durable medical equipment provider, and patient beneficiary validated by CMS.
+The claim is then either validated or rejected based on whether the patient actually receives the correct medical equipment. In this example, CMS was
+billed for a wheelchair, but the patient received a walker and validated that the claim was incorrect, leading to a potential denial of claim and detection
+of a false claim. CMS: Centers for Medicare and Medicaid Services.
+
+Interoperability and System Integration                             To better ensure broader health informatics interoperability, our
+                                                                    technical framework is also intended to ingest data solely related
+Key to the functioning of processes to validate participating       to the electronic claims submission process for Medicare Part
+nodes and health care claims is establishing the interoperability   A and B using the Accredited Standards Committee X12
+of the system to interact with off-chain databases and systems,     standard transmission format (also known as Health Insurance
+including CMS databases of verified Medicare providers and          Portability and Accountability Act [HIPAA] 5010), although it
+beneficiaries, medical coding and billing systems (including        could also integrate into electronic health records (EHRs)
+front-end and back-end billing and health care electronic data      systems using the Health Level Seven International Fast
+interchange), revenue cycle management systems, and current         Healthcare Interoperability Resources (HL7 FHIR) standard.
+Medicare billing and antifraud solutions. Integration with CMS      Finally, to enable interoperability while maintaining privacy, a
+databases of validated providers and beneficiaries, either through  secure off-chain key-value store, which can only be accessed
+a data clearinghouse model (ie, not directly integrated with CMS    and modified through a trusted execution environment within
+systems but using a third-party data clearinghouse) or through      the system, will map the address or identifiers of users in our
+existing application programming interface (APIs; with query        framework to the CMS identifiers. Validation of correctness
+function such as the CMS Data portal API in JavaScript Object       and integrity between an off-chain database and the blockchain
+Notation-JSON) to directly query CMS or provider databases,         network may be performed using 2 patterns known as the
+will be a priority. In addition, integration with new CMS           challenge response pattern and the off-chain signature pattern
+patient-centered initiatives, such as the Medicare’s Blue Button    (Figure 3 and Multimedia Appendix 1) [32].
+2.0 (explained later in the Discussion section), will also be
+explored.
+
+               http://www.jmir.org/2020/9/e18623/                   J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 5
+                                                                                     (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                                                                     Mackey et al
+
+Figure 3. Process for validating data off-chain in proposed framework. CMS: Centers for Medicare and Medicaid Services.
+
+Smart Contract Claims Validation Process                             the patient who received the services, and CMS which acts as
+                                                                     the payer for services) and will also be tied to the user’s identity.
+For the desired utility of our technical framework, it is necessary  POA validation nodes should have their identity validated with
+to map the Medicare claims submission, adjudication, and             CMS (as explained above) in the DAO, and their validation
+reimbursement processes to our framework’s data governance           privileges can be revoked in cases of fraudulent behavior or if
+and smart contract feature layer. Below, we describe the basic       they are disbarred from Medicare. The rules of validation will
+claims workflow for the proposed framework that maps to the          be determined by the DAO to ensure that all stakeholders are
+key procedures of verifying Medicare eligibility, creating a         accounted for. For example, the DAO may determine that over
+claim, submitting a claim, patient verification, and final           90% of all authority nodes must validate information before
+adjudication. The proposed claims workflow, which will be            being written to the blockchain.
+automated by smart contracts in the framework, is described in
+Table 1.                                                             As the central authority on our framework, CMS will set the
+                                                                     rules for smart contracts, the parameters of consensus at each
+Importantly, at each step of the Medicare claims adjudication        step, and the permission and data governance structure for the
+process, smart contracts will govern how information is shared,      network, subject to federal laws such as 42 USC section 1395
+what data are required, and how consensus is established for         and the following, 42 Code of Federal Regulations section 400
+what is written to the blockchain. For consensus of validating       and the following, and HIPAA. The provider will have access
+and writing to the blockchain, our framework utilizes a              to the framework and smart contract layer to add patients,
+proof-of-authority (POA) consensus mechanism. POA, a                 provide services, and file claims based on the services they have
+modified version of proof of stake, uses the validator’s identity    rendered and where they have submitted a claim on behalf of a
+as a form of stake to validate blocks to be written to the           Medicare beneficiary. Patients will have access to view the
+blockchain. In this sense, consensus of decisions on validating      services and associated claims that have been submitted with
+a claim for the network (eg, submission of claim, viewing claim,     their digital beneficiary identity (eg, Medicare number) and
+and final validation of claim) will be visible to all stakeholders   have a role in validating those claims.
+involved in the claim (ie, the provider who rendered services,
+
+               http://www.jmir.org/2020/9/e18623/                    J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 6
+                                                                                      (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                                              Mackey et al
+
+Table 1. Description of mapping the framework’s smart contract processes to the Centers for Medicare and Medicaid Services general claims adjudication
+process.
+
+Step Claims process                                Description
+
+1  Patient onboarding                              Patient registers and onboards at the provider location, confirms Medicare eligibility, and schedules an appoint-
+                                                   ment—written to chain
+
+2  Node validation                                 Patient, provider, and/or organization is validated for eligibility for Medicare services and benefits—query
+                                                   network and written to chain
+
+3  Superbill creation                              Medicare eligible services are provided to the patient by a health care provider and organization and a “superbill”
+                                                   (comprising claim codes and patient information) is created—written to chain
+
+4  Claims submission                               Provider submits claim directly to CMSa or uses a third party (ie, clearinghouse)—written to chain
+
+5  Beneficiary validation                          Patient beneficiary to the claim is queried to validate the services received upon a filed claim—written to chain
+
+6  Claims adjudication                             Payer (CMS) adjudicates the claims with validation information from both the provider and patient records
+                                                   and executes proof-of-authority consensus across other validating nodes (ie, patient and provider)—consensus
+                                                   results—written to chain
+
+7  Electronic remit advice form Payer (CMS) assesses whether to accept, deny, or reject a claim and provides payment information via an
+
+                                                   electronic remit advice form—written to chain
+
+aCMS: Centers for Medicare and Medicaid Services.                    payer, provider, and patient) and will map directly to the smart
+                                                                     contract claims adjudication function inputs (Figure 5). The
+Prototype System Architecture                                        roles of the system will be determined by a registration process
+                                                                     in which users’ credentials will be validated against CMS
+Our technical framework consists of a web application (front         registries, confirming proper identification and roles in the
+end), blockchain network, and off-chain database storage (back       Medicare reimbursement process. For example, a patient of the
+end). The web application will display the system information        system must provide their Medicare beneficiary number, which
+on a graphical user interface (GUI). The blockchain network          will be cross-referenced off-chain against the Medicare database
+will validate and record all transactions that occur in the system.  to validate access to the system. Upon proper registration, the
+The off-chain database storage will store information regarding      user credentials will be stored as well as their associated role,
+user credentials as validated by CMS as well as protected health     which will be validated with input information from a log-in
+information (PHI) or personally identifiable information (PII)       GUI.
+not stored on the blockchain network but already present in
+existing clinical and EHR systems.                                   The payer (ie, CMS) GUI presents information about the
+                                                                     providers and claims. The current implementation breaks down
+The system will implement a hybrid consortium blockchain             the claims into 2 lists, verified claims and unverified claims,
+model, wherein authorization is required to join the network.        for the payer to distinguish whether a patient has verified a
+POA consensus will enable validation power among different           Medicare claim submitted. The provider GUI presents
+stakeholders in the system in a distributed manner to mitigate       information regarding patients and allows providers to write
+collusion and false records among patient and provider               information to the blockchain regarding both providing a service
+workflows. Different read and write permissions will be given        and filing a corresponding Medicare claim. The patient GUI
+to different stakeholders in the network depending on the smart      presents information regarding the current filed claims made
+contract claims adjudication processes previously outlined. All      on their behalf and allows a patient to confirm or dispute
+transactions will be indexed in a system administration database     whether they were provided the health care service or benefit
+to audit and enable efficient queries of aggregated data from        associated with the claim.
+the entirety of the network.
+                                                                     Users designated with the payer role also have access to onboard
+A prototype of this blockchain Medicare fraud and abuse              providers who have been verified and registered in the system,
+framework can be explored and run by downloading and                 pay and/or adjudicate a claim, and read all the claim information
+following instructions from our GitHub Repository (San Diego         regarding providers and patients that have been registered and
+Supercomputer Center-BlockLAB Medicare-Claim-                        validated with their organization or agency (in our case, CMS).
+Verification). The software stack used to build the system           Users designated with the provider role have access to onboard
+consists of a front-end user interface, a back-end processing        verified patients and have access to read patient information
+server, and a blockchain network (Figure 4). The blockchain          that has been registered with their entity only. Users designated
+application can be executed by running a local Ethereum              with the patient role only have access to confirm or dispute
+blockchain via Ganache; deploying smart contracts onto the           claims associated with their verified Medicare digital identity
+Ethereum blockchain via Truffle; installing all NodeJS packages;     in the system.
+and running the NodeJS application, which is connected to the
+Ethereum network through Web3.                                       The data storage of the current implementation can be
+                                                                     categorized into on-chain storage, which is data written to the
+The front end of the web application will comprise 3 separate
+GUIs corresponding to the different roles in the system (eg,
+
+               http://www.jmir.org/2020/9/e18623/                                                 J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 7
+                                                                                                                   (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                               Mackey et al
+
+blockchain, and off-chain storage, which is data stored in a       Finally, patient verification is a crucial step to adjudicate
+traditional database (structured query language-SQL or not only    Medicare claims under our framework. To further incentivize
+SQL-NoSQL) external to the blockchain network. On-chain            patients to participate in the blockchain-based validation process,
+data comprise entity relationship information, such as which       we have implemented an ERC-20 token to encourage active
+payer-provider relationships and provider-patient relationships    patient-generated claims validation (see Multimedia Appendix
+need to be validated as part of the claim adjudication process.    1 for details on ERC-20 tokens). The ERC-20 token is meant
+On-chain data also comprise information regarding the              to have dual utility within our framework to encourage patient
+adjudication of services provided and claims submitted. The        validation of claims and to incentivize other population health
+on-chain information is stored on Solidity smart contracts, which  benefits. Further research will explore different utilities for the
+are deployed to a private Ethereum blockchain and are used to      ERC-20 token to maximize patient participation, such as
+populate the GUIs of the web application via event listeners       allowing use of tokens to lower patient cost sharing (ie, co-pays)
+and Solidity contract calls (Multimedia Appendix 1). Off-chain     and incentivizing other health behaviors (eg, issued tokens for
+data comprise user credential information, PHI, Medicare data,     claims validation used to lower the cost of prescription drugs
+and other information needed to authenticate and integrate into    and for fitness club memberships).
+the Medicare claims adjudication workflow, as previously
+discussed.
+
+Figure 4. Overall system architecture of the framework, with React used for the user interface and NodeJS and an Express server used for the back-end
+processing server. Solidity was the smart contract language used to interact with a local Ethereum blockchain network. The Application Programming
+Interface is a set of functions and procedures allowing communication between the front-end user interface, back end server, blockchain network as
+well as access to functions and data of the system. The Ethereum Virtual Machine is the runtime environment for smart contracts in Ethereum. JavaScript
+Object Notation remote procedure protocol is a specification that defines several data structures and the rules around their processing. Interaction with
+the Ethereum blockchain starts with sending a request via JSON RPC. API: Application Programming Interface; EVM: Ethereum Virtual Machine;
+JSON: JavaScript Object Notation; RPC: remote procedure protocol.
+
+               http://www.jmir.org/2020/9/e18623/                  J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 8
+                                                                                    (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                      Mackey et al
+
+Figure 5. Description of the framework’s smart contract function inputs.
+
+Privacy Considerations                                                    which needs access to such data; and the patient who is the sole
+                                                                          beneficiary of the claim.
+As patient claims data are subject to privacy and confidentiality
+under HIPAA, no PHI or PII will be written to the public                  All PHI will be stored off-chain isolated in existing systems
+Ethereum blockchain. Instead, access to all patient-level claims          with identified join and match data attribute fields the only event
+data will be restricted to permissions validated to the identity          queried (such as Medicare claim number or Medicare
+of providers and organizations of the DAO with specified roles            Beneficiary Identifier). The information that will be written to
+involved in the claim (ie, HIPAA covered entities); any                   the chain is simply the adjudication of the claim information
+organization subject to a HIPAA business associate agreement,             itself, with encrypted data regarding any patient identifiers,
+                                                                          wherein management of public and private keys to access
+
+               http://www.jmir.org/2020/9/e18623/                         J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 9
+                                                                                           (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                  Mackey et al
+
+third-party databases will be needed to correlate any claim           also be accomplished by traditional systems, but these are
+information with PHI or PII. Properly deidentified claims and         generally controlled by a centralized entity. Health care
+associated metadata can be written to a separate public chain         insurance systems involve multiple stakeholders with different
+of the framework for inspection by all stakeholders, including        incentives. Stakeholders are often forced to trust an entity based
+regulators and law enforcement, which can use these data to           on perceived compliance with applicable regulations. Trust in
+detect larger patterns of fraud and abuse and suspicious claims       the health care claims system could be significantly improved
+or reimbursement activities through existing data mining and          by automating the execution of rule-based logic through smart
+predictive analytics approaches.                                      contracts. For example, a specific action can be automatically
+                                                                      invoked if a patient disputes a health care claim in our system,
+Discussion                                                            whereas current systems require detection and auditing of fraud
+                                                                      mostly retrospectively.
+Principal Findings
+                                                                      Our framework also focuses on a patient-centric design, which
+The purpose of our blockchain fraud and abuse technical               is compatible with government-wide initiatives led by CMS,
+framework and prototype is to enable a shared governance              including the MyHealthEData initiative (which aims to provide
+approach to addressing health care fraud and abuse, while also        patients with more access and control of their health care records
+empowering patients with the option and authority to become           from a device or mobile app of their choice) and the Medicare’s
+active participants in the claims verification process. We base       Blue Button 2.0 (which enables patients to access and share
+this central design principle on 2 key facts: (1) for certain health  claims data) [34]. Importantly, Medicare’s Blue Button initiative
+care claims, patients are best suited to verify whether appropriate   provides Medicare beneficiaries with claims data in a universal
+health care services have actually been rendered, and (2) patient     and secure format, which can be integrated into our proposed
+verification or lack of verification of claims provides an            framework. Although Blue Button 2.0 provides access to claims
+important indicator of potential fraud and abuse risk, which can      data to providers, it does not provide methods for beneficiaries
+later be confirmed by investigation and can also enable targeted      to validate claims or report possible fraud and abuse directly to
+fraud and abuse prevention that is more proactive than current        CMS mediated by technology. Hence, our patient-centric
+approaches. Hence, our framework focuses on a patient-centered        blockchain framework complements this and other CMS data
+design to address health care fraud and abuse by engaging the         access initiatives, while also ensuring that patients are not just
+patient as a key stakeholder in the claims verification process.      consumers of their claims data but can also take action in the
+                                                                      event of a discrepancy.
+We chose blockchain over existing technologies, such as cloud
+computing or traditional database storage methods, as our focus       Central to our approach is also the fact that health care fraud
+is on shared validation of claims in a distributed and immutable      detection has traditionally been implemented via reactive
+ledger that is supported by cryptography. Central to this model       systems that analyze fraudulent claims activity after a claim has
+is establishing trust in a shared governance approach across          already been submitted and has likely been paid. These
+multiple parties in the same transaction that also enables the        traditional systems can be costly (as defrauded amount may
+patient to be an additional validating node in this process. These    never be recovered or requires lengthy litigation) and rarely
+core features, along with the technology application layers           have incorporated any patient feedback when validating the
+enabled by blockchain (eg, smart contracts, digital identity,         integrity of a Medicare claim. Here, blockchain technology
+tokens, and consensus mechanisms), are why blockchain                 offers a potential solution by creating a tamper-evident and
+architecture is ideal for this use case.                              near-immutable audit log of health care claims and transaction
+                                                                      data that can be viewed and agreed upon in a distributed ledger
+Specifically, blockchain improves both the security and data          by providers, payers (eg, CMS), and patients to collectively
+integrity of the information stored in a system. However,             verify claims and work collaboratively to identify fraud and
+blockchain technology is not suited for all systems as a data         abuse.
+storage solution. To determine the viability of blockchain
+technology for a health care fraud detection system, we used a        Our framework also aligns with specific programmatic priorities
+structured methodology and flowchart published by Wust and            of HHS to combat health care fraud and abuse, including
+Gervais [33] to determine whether a blockchain is the                 initiatives to reduce fraud, waste, and improper payments across
+appropriate technical solution. Properties such as public             its different agencies. The Affordable Care Act (ACA) has
+verifiability, transparency, privacy, integrity, redundancy, and      provided resources to CMS to improve prevention of fraud,
+the anchor of trust are all considered when determining whether       waste, and improper payments through its CMS Fraud
+a blockchain is a viable technology for a given problem. The          Prevention Initiative and Fraud Prevention toolkit that enables
+decision flowchart applied to our fraud and abuse framework           enhanced collaboration with state and law enforcement partners
+is available in Multimedia Appendix 1. By applying this               using predictive modeling technology. Furthermore, the ACA
+methodology, we concluded that a consortium permissioned              has empowered CMS to jointly develop many Medicare,
+blockchain is an appropriate technical solution to solve the          Medicaid, and Children’s Health Insurance Program antifraud
+problems posed to current health care fraud detection systems.        policies, leading to enhanced screening requirements for new
+                                                                      providers and suppliers, a concept that aligns well with our
+Furthermore, the use of smart contracts on the blockchain             stakeholder blockchain validation approach [35,36]. The overall
+enables an agreed-upon rule set to be automatically executed          objective of these approaches is to enable health care programs
+based on events. This automated event-driven architecture can
+
+               http://www.jmir.org/2020/9/e18623/                     J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 10
+                                                                                         (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                 Mackey et al
+
+to do less paying-and-chasing of fraudulent claims and do more       If our approach was implemented to augment the current health
+proactive and transparent fraud prevention [35].                     care fraud detection system and was able to prevent just 1% of
+                                                                     the current lost value, it would have saved the US health care
+CMS also has plans to develop a preventative model that will         system over US $25 million. Furthermore, by automating a
+help identify potential fraud before it occurs by utilizing          larger portion of the health care fraud detection system,
+analytical techniques to improve payment accuracy by                 cumbersome and tedious tasks such as the human review of
+identifying, in real time, atypical trends that could be indicators  health care claims could be reduced. Hence, incorporating a
+of waste or fraud to appropriately intervene, again representing     trust-based technology such as blockchain into health care fraud
+a good use case for patient validation data that can improve the     detection systems can have economic benefits and technical
+precision of the proposed analytical models [35]. The rules          utility but needs further testing with real-world or synthetic data
+provide new CMS enforcement tools to fight fraud, such as the        to assess feasibility.
+ability to suspend payments in cases of credible allegations of
+fraud that could arise from a patient, and requires a more           However, there are also certain limitations and challenges
+rigorous screening process for providers and suppliers enrolled      associated with implementing our proposed Medicare blockchain
+in Medicare, including possible cross-termination for federal        fraud and abuse prevention system. First, full participation from
+and state health programs [35]. Using these tools, Medicare and      all stakeholders in the Medicare claims lifecycle (eg, CMS,
+state agencies will be watching for trends that may indicate         providers, and patients) will require a comprehensive process
+significant potential for health care fraud and can temporarily      of integrating with existing information technology systems,
+stop enrollment of a category or geographic area of providers        identification of interoperability challenges, and ensuring the
+or suppliers that has been identified as high risk.                  use of appropriate data standards (such as Blue Button 2.0,
+                                                                     Accredited Standards Committee X12, and HL7 FHIR).
+Finally, HHS has been given new authority to prevent                 However, integrating provider billing and revenue management
+problematic providers from participating in Medicare.                cycle systems, existing Medicare databases and APIs, and a
+Specifically, the ACA increased the federal sentencing               front end that can interact with the patient will likely prove
+guidelines related to health care frauds involving US $1 million     challenging.
+or more in losses to federal health care programs to create more
+disincentives for this activity. With this new authority also        Furthermore, abuse of the framework system itself must be
+comes the responsibility of both determining and proving that        considered and mitigated. For example, there may be an attempt
+a health care fraud has occurred. Hence, the collection of current   to manipulate the consensus between all stakeholders regarding
+CMS’ antifraud goals, initiatives, and authorities provides an       a record of events. This includes situations where the beneficiary
+opportunity to develop a blockchain-based Medicare fraud             may be complicit with a fraud and abuse scheme, a situation
+detection system that aligns with these objectives for the           where patient validation may actually lead to incorrect
+purposes of integrating and developing a fraud and abuse             adjudication of a fraudulent claim. This is of specific concern
+prevention model modernized for today’s health care and              when a patient may have a clear incentive to participate and
+technology offerings.                                                benefit from fraud and abuse, such as in the context of opioid
+                                                                     use disorder and drug diversion [37]. Our system will take
+Possible Benefits, Limitations, and Challenges                       multiple measures to identify and proactively prevent cases
+                                                                     where both the provider and patient cooperate in fraud and
+The potential benefits of our framework focus on creating            abuse, with modifications to the smart contract claims
+verified claims transaction logs and more efficient and validated    adjudication process and consensus mechanism specific to
+workflows. First, instead of waiting for fraud and abuse to occur    high-risk claims and patient profiles. However, adding the
+and then reacting to it retrospectively, the system will be          patient to validation may also enhance anomaly detection when
+designed to actively detect and prevent potential fraud and abuse    unusual validation behavior occurs and could also act as a
+and other noncriminal activities (eg, overbilling, unintentional     cryptographically hashed affirmation and evidence of
+upcoding, and billing errors) using a layer of patient validation    wrongdoing by a provider or patient for use in prosecution.
+that is not currently available in legacy claims adjudication
+systems.                                                             Owing to the different incentives available to providers, payers,
+                                                                     and patients, a proper and mutually agreed upon consensus
+It will also add a layer of aggregated data to detect more           algorithm will need to be implemented to address many of these
+systemic forms of fraud and abuse that can be mined for              challenges. In addition, we have discussed the use of ERC-20
+geographic areas, vulnerable patient populations, and specific       tokens in our framework to incentivize patients to verify claims.
+health care providers that may be prone to fraud and abuse           Along with ensuring that claims data are represented in a way
+activities. This claims workflow data generated by the               that patients can understand and verify (including the translation
+framework, which can also be properly deidentified, could be         of claims codes in lay terms and education on health literacy),
+written to a public chain for the purpose of data mining and         proper incentives need to be in place to encourage patients to
+research. In addition, cryptographically validated                   validate claims correctly. Tokens may also disincentivize bad
+multistakeholder claims data (eg, the claim submitted, validating    behavior. For example, if a patient is complicit in a fraud and
+the identities of stakeholders, and consensus established about      abuse scheme, token payments can be withheld, and even
+the claim) could also enable more efficient machine learning         possible additional penalties could be applied to a patient’s
+approaches to detect patterns and risk factors of fraud and abuse    validated Medicare identity. Hence, the tokenomics of reporting
+not available from current static claims data.
+
+               http://www.jmir.org/2020/9/e18623/                    J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 11
+                                                                                        (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                                        Mackey et al
+
+fraud and abuse and the benefits to the patient and Medicare focus on reference models for different payer and provider
+
+itself, need further design and testing.                         network consortium types.
+
+The framework we developed builds upon an emerging body          Conclusions
+of innovation seeking to transform the health care data and
+claims workflows using blockchain technology. However, all       Our blockchain framework proposes a tamper-evident and
+these proposals, including our own framework, face barriers to   near-immutable audit log of health care claims and transaction
+adoption and implementation that require further                 data that can be viewed and agreed upon in a distributed ledger
+experimentation, assessment, and active collaboration with the   by providers, health care organizations, payers, regulators, and
+health care community. In fact, although our framework focuses   most importantly patients to verify claims for the purposes of
+on CMS and Medicare, a similar consortium blockchain design      limiting the loss of more than US $2 billion to health care fraud
+tailored to a private payer’s own closed network of providers    and abuse every year. Future studies of our proposed framework
+and beneficiaries might represent a more pragmatic approach      and prototype will need to focus on using synthetic or historic
+to detecting fraud and abuse and enable better integration with  CMS claims data to assess the real-world viability of the
+more centralized systems. Future work on our framework will      framework.
+
+Acknowledgments
+The authors thank the San Diego Supercomputer Center for support and the AEEC Innovation Lab for feedback and support on
+the research presented.
+
+The authors received funding from the San Diego Supercomputer Center BlockLAB and greatly acknowledge this support.
+
+Authors' Contributions
+TM, KM, DF, and SQ collected data and built the prototype for this study. TM and KM designed the study. All authors conducted
+the data analyses, wrote the manuscript, and approved the final manuscript.
+
+Conflicts of Interest
+KM is the principal owner of the blockchain startup company LedgerSafe. TM is the CEO and cofounder of S-3 Research, LLC,
+a big data startup company funded by the National Institutes of Health–National Institute on Drug Abuse that also conducts
+research on blockchain technology related to public health challenges including the opioid crisis. LedgerSafe and S-3 Research,
+LLC had no financial role in this study. The authors report no other conflict of interest associated with this manuscript.
+
+Multimedia Appendix 1
+
+Details on technical framework.
+[DOCX File , 17 KB-Multimedia Appendix 1]
+
+References
+
+1. Justice Department Recovers over $3 Billion from False Claims Act Cases in Fiscal Year 2019. US Department of Justice.
+       2019. URL: https://www.justice.gov/opa/pr/justice-department-recovers-over-3-billion-false-claims-act-cases-fiscal-year-2019
+       [accessed 2020-08-14]
+
+2. Livingston S. Feds Amassed $2.6 Billion From 2019 Healthcare Fraud Cases. Modern Healthcare. 2019. URL: https://www.
+       modernhealthcare.com/legal/feds-amassed-26-billion-2019-healthcare-fraud-cases [accessed 2020-08-14]
+
+3. National Health Care Fraud Takedown Results in Charges Against 601 Individuals Responsible for Over $2 Billion in
+       Fraud Losses. US Department of Justice. 2019. URL: https://www.justice.gov/opa/pr/
+       national-health-care-fraud-takedown-results-charges-against-601-individuals-responsible-over [accessed 2020-08-14]
+
+4. Shrank WH, Rogstad TL, Parekh N. Waste in the US health care system: estimated costs and potential for savings. J Am
+       Med Assoc 2019 Oct 7:- epub ahead of print. [doi: 10.1001/jama.2019.13978] [Medline: 31589283]
+
+5. Mackey T, Liang B. Off label promotion reform: a legislative proposal addressing vulnerable patient drug access and
+       limiting inappropriate pharmaceutical marketing. J Law Reform 2011;45(1):- [FREE Full text]
+
+6. Nicholas LH, Hanson C, Segal JB, Eisenberg MD. Association between treatment by fraud and abuse perpetrators and
+       health outcomes among medicare beneficiaries. JAMA Intern Med 2019 Oct 28:- epub ahead of print. [doi:
+       10.1001/jamainternmed.2019.4771] [Medline: 31657838]
+
+7. Office of Inspector General (OIG)‚ HHS. Medicare and state health care programs: fraud and abuse; revisions to the safe
+       harbors under the anti-kickback statute and civil monetary penalty rules regarding beneficiary inducements. Final rule. Fed
+       Regist 2016 Dec 7;81(235):88368-88409 [FREE Full text] [Medline: 27992158]
+
+8. Herland M, Khoshgoftaar TM, Bauder RA. Big Data fraud detection using multiple medicare data sources. J Big Data 2018
+       Sep 4;5(1):21. [doi: 10.1186/s40537-018-0138-3]
+
+               http://www.jmir.org/2020/9/e18623/                J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 12
+                                                                                    (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH               Mackey et al
+
+9. Joudaki H, Rashidian A, Minaei-Bidgoli B, Mahmoodi M, Geraili B, Nasiri M, et al. Using data mining to detect health
+       care fraud and abuse: a review of literature. Glob J Health Sci 2014 Aug 31;7(1):194-202 [FREE Full text] [doi:
+       10.5539/gjhs.v7n1p194] [Medline: 25560347]
+
+10. Joudaki H, Rashidian A, Minaei-Bidgoli B, Mahmoodi M, Geraili B, Nasiri M, et al. Improving fraud and abuse detection
+       in general physician claims: a data mining study. Int J Health Policy Manag 2015 Nov 10;5(3):165-172 [FREE Full text]
+       [doi: 10.15171/ijhpm.2015.196] [Medline: 26927587]
+
+11. Kesselheim AS, Studdert DM. Whistleblower-initiated enforcement actions against health care fraud and abuse in the
+       United States, 1996 to 2005. Ann Intern Med 2008 Sep 2;149(5):342-349. [doi: 10.7326/0003-4819-149-5-200809020-00009]
+       [Medline: 18765704]
+
+12. Chung A. Supreme Court Declines to Broaden Whistleblower Protections. Reuters. 2018. URL: https://www.reuters.com/
+       article/us-usa-court-whistleblower-idUSKCN1G51Y3 [accessed 2020-08-14]
+
+13. Casino F, Dasaklis T, Patsakis C. A systematic literature review of blockchain-based applications: current status, classification
+       and open issues. Telemat Inform 2019 Mar;36:55-81. [doi: 10.1016/j.tele.2018.11.006]
+
+14. Mackey TK, Kuo T, Gummadi B, Clauson KA, Church G, Grishin D, et al. 'Fit-for-purpose?' - challenges and opportunities
+       for applications of blockchain technology in the future of healthcare. BMC Med 2019 Mar 27;17(1):68 [FREE Full text]
+       [doi: 10.1186/s12916-019-1296-7] [Medline: 30914045]
+
+15. Kuo T, Kim H, Ohno-Machado L. Blockchain distributed ledger technologies for biomedical and health care applications.
+       J Am Med Inform Assoc 2017 Nov 1;24(6):1211-1220 [FREE Full text] [doi: 10.1093/jamia/ocx068] [Medline: 29016974]
+
+16. Agbo C, Mahmoud Q, Eklund J. Blockchain technology in healthcare: a systematic review. Healthcare (Basel) 2019 Apr
+       4;7(2):56 [FREE Full text] [doi: 10.3390/healthcare7020056] [Medline: 30987333]
+
+17. Zhang A, Lin X. Towards secure and privacy-preserving data sharing in e-health systems via consortium blockchain. J
+       Med Syst 2018 Jun 28;42(8):140. [doi: 10.1007/s10916-018-0995-5] [Medline: 29956061]
+
+18. Chen Y, Ding S, Xu Z, Zheng H, Yang S. Blockchain-based medical records secure storage and medical service framework.
+       J Med Syst 2018 Nov 22;43(1):5. [doi: 10.1007/s10916-018-1121-4] [Medline: 30467604]
+
+19. Zheng X, Sun S, Mukkamala RR, Vatrapu R, Ordieres-Meré J. Accelerating health data sharing: a solution based on the
+       internet of things and distributed ledger technologies. J Med Internet Res 2019 Jun 6;21(6):e13583 [FREE Full text] [doi:
+       10.2196/13583] [Medline: 31172963]
+
+20. Esmaeilzadeh P, Mirzaei T. The potential of blockchain technology for health information exchange: experimental study
+       from patients' perspectives. J Med Internet Res 2019 Jun 20;21(6):e14184 [FREE Full text] [doi: 10.2196/14184] [Medline:
+       31223119]
+
+21. Benchoufi M, Ravaud P. Blockchain technology for improving clinical research quality. Trials 2017 Jul 19;18(1):335
+       [FREE Full text] [doi: 10.1186/s13063-017-2035-z] [Medline: 28724395]
+
+22. Sylim P, Liu F, Marcelo A, Fontelo P. Blockchain technology for detecting falsified and substandard drugs in distribution:
+       pharmaceutical supply chain intervention. JMIR Res Protoc 2018 Sep 13;7(9):e10163 [FREE Full text] [doi: 10.2196/10163]
+       [Medline: 30213780]
+
+23. Dwivedi A, Srivastava G, Dhar S, Singh R. A decentralized privacy-preserving healthcare blockchain for IoT. Sensors
+       (Basel) 2019 Jan 15;19(2):326 [FREE Full text] [doi: 10.3390/s19020326] [Medline: 30650612]
+
+24. Gordon WJ, Catalini C. Blockchain technology for healthcare: facilitating the transition to patient-driven interoperability.
+       Comput Struct Biotechnol J 2018;16:224-230 [FREE Full text] [doi: 10.1016/j.csbj.2018.06.003] [Medline: 30069284]
+
+25. Hylock RH, Zeng X. A blockchain framework for patient-centered health records and exchange (HealthChain): evaluation
+       and proof-of-concept study. J Med Internet Res 2019 Aug 31;21(8):e13592 [FREE Full text] [doi: 10.2196/13592] [Medline:
+       31471959]
+
+26. O'Donoghue O, Vazirani AA, Brindley D, Meinert E. Design choices and trade-offs in health care blockchain
+       implementations: systematic review. J Med Internet Res 2019 May 10;21(5):e12426 [FREE Full text] [doi: 10.2196/12426]
+       [Medline: 31094344]
+
+27. Ghafur S, Schneider E. Engaging Patients Using Digital Technology — Learning from Other Industries. NEJM Catalyst.
+       2019. URL: https://catalyst.nejm.org/doi/abs/10.1056/CAT.19.0654 [accessed 2020-08-25]
+
+28. Bresnick J. Five Blockchain Use Cases for Healthcare Payers, Providers. HealthITAnalytics. 2017. URL: https:/
+       /healthitanalytics.com/news/five-blockchain-use-cases-for-healthcare-payers-providers [accessed 2020-08-14]
+
+29. Khatoon A. A blockchain-based smart contract system for healthcare management. Electronics 2020 Jan 3;9(1):94. [doi:
+       10.3390/electronics9010094]
+
+30. Chu L, Shah A, Rouholiman D, Riggare S, Gamble J. Patient-Centric Strategies in Digital Health. Cham, Switzerland:
+       Springer; 2018:43-54.
+
+31. Sisko AM, Keehan SP, Poisal JA, Cuckler GA, Smith SD, Madison AJ, et al. National health expenditure projections,
+       2018-27: economic and demographic trends drive spending and enrollment growth. Health Aff (Millwood) 2019
+       Mar;38(3):491-501. [doi: 10.1377/hlthaff.2018.05499] [Medline: 30785832]
+
+32. Eberhardt J, Tai S. On or off the blockchain? Insights on off-chaining computation and data. In: Service-Oriented and Cloud
+       Computing. Cham, Switzerland: Springer; 2017.
+
+               http://www.jmir.org/2020/9/e18623/  J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 13
+                                                                      (page number not for citation purposes)
+XSL•FO
+
+RenderX
+JOURNAL OF MEDICAL INTERNET RESEARCH                                                            Mackey et al
+
+33. Wust K, Gervais A. Do you Need a Blockchain? In: Crypto Valley Conference on Blockchain Technology. 2018 Presented
+       at: CVCBT'18; June 20-22, 2018; Zug, Switzerland URL: https://www.researchgate.net/deref/http%3A%2F%2Fdx.doi.
+       org%2F10.1109%2FCVCBT.2018.
+       00011?_sg%5B0%5D=31HfyjHuwAwMCMclG2v-D_CZTjw4ZLZvkz-betGYQf65FW-vA6wlO9mXlqTuF-_u7daEfr5QqSDOX5TGSabGMrTF-A.
+       4yIiOsuOWeOMaEKQyhYDreetEOLNQTLE4L6nwnPlxgtE0tjUEcNzC710E8M12ibGmiqnLotBPp0hG5kTojks8g [doi:
+       10.1109/cvcbt.2018.00011]
+
+34. Trump Administration Announces MyHealthEData Initiative to Put Patients at the Center of the US Healthcare System.
+       CMS. 2018. URL: https://www.cms.gov/newsroom/press-releases/
+       trump-administration-announces-myhealthedata-initiative-put-patients-center-us-healthcare-system [accessed 2020-08-14]
+
+35. CMS Fraud Prevention Initiative: New Tools to Fight Fraud and Protect Taxpayer Dollars. CMS. 2018. URL: https://www.
+       cms.gov/outreach-and-education/outreach/partnerships/downloads/backgrounderfraudpreventioninitiative.pdf [accessed
+       2020-08-14]
+
+36. Medicare Fraud & Abuse: Prevent, Detect, Report. CMS. 2019. URL: https://www.cms.gov/Outreach-and-Education/
+       Medicare-Learning-Network-MLN/MLNProducts/Downloads/Fraud-Abuse-MLN4649244.pdf [accessed 2020-08-14]
+
+37. Raghavendra M. Can blockchain technologies help tackle the opioid epidemic: a narrative review. Pain Med 2019 Oct
+       1;20(10):1884-1889. [doi: 10.1093/pm/pny315] [Medline: 30848821]
+
+Abbreviations
+
+         ACA: Affordable Care Act
+         API: application programming interface
+         CMS: Centers for Medicare and Medicaid Services
+         DAO: democratic autonomous organization
+         DOJ: Department of Justice
+         EHR: electronic health record
+         GUI: graphical user interface
+         HHS: Health and Human Services
+         HIPAA: Health Insurance Portability and Accountability Act
+         HL7 FHIR: Health Level Seven International Fast Healthcare Interoperability Resources
+         PHI: protected health information
+         PII: personally identifiable information
+         POA: proof-of-authority
+         SQL: structured query language
+         USC: United States Code
+
+          Edited by G Eysenbach; submitted 09.03.20; peer-reviewed by FC Wang, T Ueno; comments to author 12.06.20; revised version
+          received 02.07.20; accepted 26.07.20; published 10.09.20
+
+          Please cite as:
+          Mackey TK, Miyachi K, Fung D, Qian S, Short J
+          Combating Health Care Fraud and Abuse: Conceptualization and Prototyping Study of a Blockchain Antifraud Framework
+          J Med Internet Res 2020;22(9):e18623
+          URL: http://www.jmir.org/2020/9/e18623/
+          doi: 10.2196/18623
+          PMID:
+
+©Tim Ken Mackey, Ken Miyachi, Danny Fung, Samson Qian, James Short. Originally published in the Journal of Medical
+Internet Research (http://www.jmir.org), 10.09.2020. This is an open-access article distributed under the terms of the Creative
+Commons Attribution License (https://creativecommons.org/licenses/by/4.0/), which permits unrestricted use, distribution, and
+reproduction in any medium, provided the original work, first published in the Journal of Medical Internet Research, is properly
+cited. The complete bibliographic information, a link to the original publication on http://www.jmir.org/, as well as this copyright
+and license information must be included.
+
+               http://www.jmir.org/2020/9/e18623/  J Med Internet Res 2020 | vol. 22 | iss. 9 | e18623 | p. 14
+                                                                      (page number not for citation purposes)
+XSL•FO
+
+RenderX
+

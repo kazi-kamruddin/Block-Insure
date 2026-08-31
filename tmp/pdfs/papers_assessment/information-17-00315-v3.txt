@@ -1,0 +1,1583 @@
+Article
+
+WCGAN-GA-RF: Healthcare Fraud Detection via Generative
+Adversarial Networks and Evolutionary Feature Selection
+
+Junze Cai 1, Shuhui Wu 2,*, Yawen Zhang 3, Jiale Shao 2 and Yuanhong Tao 3
+
+                                        1 School of Computer Science and Technology, Zhejiang University of Science and Technology,
+                                             Hangzhou 310023, China
+
+                                        2 ZUST-CYU City of the Future Engineering Institute, Zhejiang University of Science and Technology,
+                                             Hangzhou 310023, China
+
+                                        3 School of Science, Zhejiang University of Science and Technology, Hangzhou 310023, China;
+                                             taoyuanhong12@zust.edu.cn (Y.T.)
+
+                                        * Correspondence: s.wu@zust.edu.cn or swuhzh@163.com
+
+                                        Abstract
+
+                                        Healthcare fraud poses significant risks to insurance systems, undermining both financial
+                                        sustainability and equitable access to care. Accurate detection of fraudulent claims is
+                                        therefore critical to ensuring the integrity of healthcare insurance operations. However, the
+                                        increasing sophistication of fraud techniques and limited data availability have undermined
+                                        the performance of traditional detection approaches. To address these challenges, this paper
+                                        proposes WCGAN-GA-RF, an integrated fraud detection framework that synergistically
+                                        combines Wasserstein Conditional Generative Adversarial Network with gradient penalty
+                                        (WCGAN-GP) for synthetic data generation, genetic algorithm-based feature selection (GA-
+                                        RF) for dimensionality reduction, and Random Forest (RF) for classification. The proposed
+                                        framework was empirically validated on a real-world dataset of 16,000 healthcare insurance
+                                        claims from a Chinese healthcare technology firm, characterized by a 16:1 class imbalance
+                                        ratio (5.9% fraudulent samples) and 118 original features. Using a stratified 80/20 train–test
+                                        split with results averaged over five independent runs, the WCGAN-GA-RF framework
+                                        achieved a precision of 96.47 ± 0.5%, a recall of 97.05 ± 0.4%, and an F1-score of 96.26 ± 0.4%.
+                                        Notably, the GA-RF component achieved a 65% feature reduction (from 80 to 28 features)
+                                        while maintaining competitive detection accuracy. Comparative experiments demonstrate
+                                        that the proposed approach outperforms conventional oversampling methods, including
+                                        Random Oversampling (ROS), Synthetic Minority Oversampling Technique (SMOTE),
+                                        and Adaptive Synthetic Sampling (ADASYN), particularly in handling high-dimensional,
+                                        severely imbalanced healthcare fraud data.
+
+                                        Keywords: healthcare fraud detection; WCGAN-GP; evolutionary feature selection; class
+                                        imbalance; imbalanced learning; oversampling
+
+Academic Editor: Muneer Ahmad           1. Introduction
+
+Received: 9 February 2026                     Healthcare fraud is a persistent and multifaceted issue for healthcare systems world-
+Revised: 8 March 2026                   wide, resulting in considerable financial losses and compromised equity in service
+Accepted: 15 March 2026                 delivery [1]. The financial implications are substantial. For instance, China’s healthcare
+Published: 24 March 2026                spending reached RMB 23 trillion in 2021 (6.5% of GDP), with approximately 10% lost to
+Copyright: © 2026 by the authors.       false claims [2]. The US estimates annual losses of USD 120–410 billion [3], and comparable
+Licensee MDPI, Basel, Switzerland.      loss ratios have been reported across other major economies, underscoring the urgent need
+This article is an open access article  for advanced fraud detection methods globally.
+distributed under the terms and
+conditions of the Creative Commons
+Attribution (CC BY) license.
+
+Information 2026, 17, 315               https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                              2 of 28
+
+                                 Effective fraud detection requires sophisticated data-driven approaches capable of
+                           analyzing large-scale medical data and identifying subtle fraud patterns [1]. The theo-
+                           retical foundation of fraud detection draws from three interconnected research streams:
+                           (1) anomaly detection theory, which posits that fraudulent transactions exhibit statistical
+                           deviations from normal behavioral patterns [4]; (2) imbalanced learning theory, which
+                           addresses the fundamental challenge that minority class samples (fraud) are insufficient
+                           to train robust classifiers in high-dimensional spaces [5]; and (3) feature selection the-
+                           ory, which establishes that discriminative feature identification is critical for separating
+                           fraudulent from legitimate claims in sparse data regimes [6]. These theoretical perspectives
+                           inform our methodological choices. Generative augmentation addresses the data scarcity
+                           problem identified by imbalanced learning theory, while evolutionary feature selection
+                           operationalizes feature selection theory to identify fraud-discriminative attributes.
+
+                                 Researchers have developed various techniques for fraud detection, ranging from
+                           rule-based systems to machine learning approaches. However, conventional detection
+                           approaches face two critical challenges. First, fraud techniques have become increasingly
+                           sophisticated—perpetrators continuously evolve their strategies to evade detection, em-
+                           ploying complex billing schemes and collusion networks that closely mimic legitimate
+                           claims. These evolving fraud patterns render rule-based systems and static models ineffec-
+                           tive, as they cannot capture the dynamic and adversarial nature of fraudulent activities.
+                           Second, the availability of labeled fraud data is severely limited. Fraudulent cases consti-
+                           tute only a small fraction of healthcare claims (typically < 10%), resulting in extreme class
+                           imbalance that biases conventional classifiers toward the majority class. Moreover, the high
+                           dimensionality of claim data (often > 100 features) compounds this problem, as sparse
+                           minority samples are insufficient to train robust models across the vast feature space. From
+                           a theoretical standpoint, these challenges can be framed as follows: the anomaly detection
+                           problem is compounded by concept drift (evolving fraud tactics), while the imbalanced
+                           learning problem is exacerbated by the curse of dimensionality in high-dimensional fea-
+                           ture spaces [7]. These dual challenges (sophisticated, evolving fraud tactics and limited,
+                           imbalanced training data) necessitate advanced data-driven approaches capable of both
+                           learning from scarce fraudulent examples and adapting to emerging fraud patterns.
+
+                                 Advancements in machine learning and deep learning techniques offer promising
+                           solutions to these challenges. Machine learning algorithms, such as the support vector
+                           machine with evolutionary algorithms [8], the adaptive learning and Deep Learning ap-
+                           proach with an association engine [9], GAN with XGBoost [10], graph neural networks with
+                           reinforcement learning [11], and CGAN [12] have shown significant potential to improve
+                           the performance of machine learning models. One of the most popular approaches in the
+                           literature is GAN. GANs can generate realistic samples that conform to the distribution of
+                           the original data, which allows them to excel over most algorithms, especially in detection
+                           problems. However, GANs could result in mode collapse and vanishing gradients. There-
+                           fore, using feature engineering can help address this issue. Crucially, existing approaches
+                           typically address either data imbalance or feature selection in isolation, leaving a theoretical
+                           gap on how generative augmentation and feature selection interact to jointly improve
+                           classification in imbalanced, high-dimensional spaces.
+
+                                 Motivated by this gap, we propose an integrated HFD framework that synergistically
+                           combines WCGAN-GP-based synthetic data generation, GA-RF-based feature selection,
+                           and ensemble classification. Our framework is grounded in the theoretical premise that
+                           addressing data imbalance and dimensionality reduction simultaneously creates a virtuous
+                           cycle in which high-quality synthetic samples enable more robust feature importance
+                           estimation, while discriminative feature selection reduces noise in the generative training
+                           process. Specifically, we investigate three key aspects: (1) Whether WCGAN-GP can
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                              3 of 28
+
+                           effectively augment minority class samples while preserving distributional characteristics
+                           of fraudulent claims. (2) Whether GA-based feature selection can identify discriminative
+                           feature subsets that outperform conventional dimensionality reduction methods (e.g., PCA,
+                           Lasso). (3) Whether the synergistic combination of generative augmentation, evolutionary
+                           feature selection, and ensemble classification yields superior performance compared to
+                           each component operating independently.
+
+                                 To our knowledge, this work represents the first successful implementation of
+                           WCGAN-GP in healthcare fraud detection. Our contributions address the theoretical
+                           and practical limitations of existing approaches through three complementary innovations:
+
+                           1. Distribution-preserving generative augmentation for extreme class imbalance. We
+                                  propose a WCGAN-GP-based generative model to address the challenge of scarce
+                                  fraudulent samples in healthcare claims data. Analytically, this contribution is sig-
+                                  nificant because unlike conventional oversampling methods that perform local inter-
+                                  polation between existing minority instances (e.g., SMOTE, ADASYN), WCGAN-GP
+                                  learns the underlying probability distribution of fraudulent claims and generates
+                                  diverse, realistic synthetic samples that capture the full complexity of fraud patterns.
+                                  The theoretical advantage is twofold. The Wasserstein distance provides meaningful
+                                  gradients even when real and generated distributions have disjointed supports—a
+                                  critical advantage when modeling rare fraudulent behaviors that occupy distinct
+                                  regions in the feature space. The gradient penalty term ensures training stability
+                                  and prevents mode collapse, enabling robust synthesis of complex, high-dimensional
+                                  tabular healthcare data.
+
+                           2. Evolutionary feature selection for high-dimensional sparse data. We develop a GA-
+                                  Random Forest (GA-RF) feature selection module to address the curse of dimen-
+                                  sionality in imbalanced healthcare datasets, where limited minority samples cannot
+                                  support robust model training in high-dimensional feature spaces. This contribution
+                                  is analytically distinct from prior work because unlike filter-based methods (e.g., corre-
+                                  lation thresholds) that ignore feature interactions, or linear transformation approaches
+                                  (e.g., PCA) that sacrifice interpretability, GA-RF employs Random Forest as the fitness
+                                  evaluator to assess candidate feature subsets, directly optimizing for classification
+                                  performance while efficiently navigating the combinatorial feature space through
+                                  evolutionary search. The practical implication is that this approach captures nonlinear
+                                  feature interactions and identifies the most discriminative feature subsets, reducing
+                                  the feature space by 65% (from 80 to 28 features) while maintaining competitive
+                                  detection accuracy.
+
+                           3. Comprehensive empirical validation with real-world data. We conduct rigorous ex-
+                                  perimentation to validate the proposed framework on a real-world healthcare claims
+                                  dataset (16,000 samples, 16:1 imbalance ratio, and 118 features). The analytical con-
+                                  tribution lies in the validation protocol, which includes (1) stratified train-test split
+                                  with five-fold repeated experiments to ensure reproducibility; (2) comprehensive
+                                  comparison with conventional oversampling baselines (ROS, SMOTE, ADASYN);
+                                  and (3) ablation studies to quantify the contribution of each component. These experi-
+                                  ments empirically verify our theoretical premise that the synergistic combination of
+                                 WCGAN-GP and GA-RF yields significant improvements in precision (96.47 ± 0.5%),
+                                 recall (97.05 ± 0.4%), and F1-score (96.26 ± 0.4%), with GA-RF achieving 65% feature
+                                  reduction while maintaining competitive accuracy. To our knowledge, this work rep-
+                                  resents the first successful application of WCGAN-GP in healthcare fraud detection.
+
+                                 The remainder of this paper is organized as follows: Section 2 reviews related work
+                           on machine learning in HFD, data sampling methods, and genetic algorithms. Section 3
+                           presents theoretical preliminaries of generative adversarial networks. Section 4 details
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                              4 of 28
+
+                           the proposed WCGAN-GA-RF architecture and training process. Section 5 presents ex-
+                           perimental validation, including dataset description, ablation studies, and performance
+                           comparisons. Section 6 concludes with limitations and future research directions.
+
+                           2. Related Work
+
+                           2.1. Machine Learning in HFD
+
+                                 At its core, HFD seeks to reliably distinguish deceptive transactions from legitimate
+                           medical activities, a crucial step toward protecting both the financial health of insurers
+                           and the quality of patient care. The healthcare landscape is a complex, interactive system
+                           among patients, their providers, and payers, all having motivations and limitations of their
+                           own. Finding fraudulent transactions and separating them from genuine medical actions is
+                           the key to discovering healthcare fraud. A sophisticated network of clients, providers, and
+                           users interact with the medical program. It is crucial to ensure the economic and individual
+                           attention of healthcare care companies. Each of these teams has its own limitations and
+                           arguments. Cheating does not usually look like clear bad habits in a difficult program.
+                           Rather, it often hides in simple-looking records, making it difficult to find, such as trying to
+                           find a needle in a haystack. Machine learning has come a long way in this regard. These
+                           techniques can examine large amounts of data to uncover simple, hidden patterns that
+                           people may miss when using conventional quantitative methods or hand-checking. It is
+                           hardly surprising that recent studies on how to use equipment understanding to find and
+                           prevent healthcare fraud have increased tremendously.
+
+                                 Academics generally employ unsupervised and supervised learning as their main
+                           methods to determine fraud. When there are unlabeled data, the unsupervised method
+                           has been very valuable for detecting unusual patterns. In this area, properly established
+                           methods, such as K-means clustering [13–16], Local Outlier Factor Analysis [17], and
+                           Principal Component Analysis [18], have established a strong foundation. The advanced
+                           types of unsupervised learning resources have recently gained more interest. These include
+                           deep learning techniques, such as LSTM networks [19,20] and Graph Neural Networks [21]
+                           as well as a specific neuronal network designed for operating without labeled files, such
+                           as Autoencoders [22,23]. All of these approaches are becoming more adept at offering
+                           increasingly sophisticated detection capabilities.
+
+                                 On the other hand, supervised methods connect insight characteristics to known fraud
+                           cases using effectively labeled data. Popular methods like Gradient-boosted Decision
+                           Trees, Random Forests, and plain Decision Trees are included in this class. K-nearest
+                           neighbors [24–27] and various neural network approaches, as well as more developed
+                           methods like Deep Neural Networks [28], are other important supervised machine learning
+                           methods. In addition to strengthening supervised learning, deep learning is continuing to
+                           expand. Then, Convolutional Neural Networks [29–31] are generally employed to improve
+                           the precision of the monitoring.
+
+                                 The development of hybrid techniques that combine different methods is one of the
+                           most amazing things. These combined methods may be the best course of action, according
+                           to the latest research combining Autoencoders with Neural Networks [32] or incorporating
+                           tree-based algorithms with other techniques [33]. They may significantly improve the
+                           ability to identify fraudulent actions in a variety of situations.
+
+                                 A significant challenge in fraud detection is the limited availability of labeled data,
+                           coupled with the intrinsic class imbalance in the datasets, because there are substantially
+                           more legitimate instances than fraudulent activity ones. It is difficult to effectively train
+                           machine learning models because there are not enough real-world examples of fraud. In
+                           addition, having enough fair divisions and a fine sample size when training these samples
+                           depends on how efficient they are in the training process. Methods like WCGAN-GP and
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                              5 of 28
+
+                           feature engineering are important in overcoming these issues. These methods improve the
+                           functioning of fraud detection designs by making great fake information and stability data.
+
+                                 Although existing fraud detection systems already have a solid data-driven foun-
+                           dation, enduring challenges such as inadequate datasets and skewed class distributions
+                           continue to call for more sophisticated solutions. Bringing together advanced approaches,
+                           particularly synthetic data generation through techniques such as GANs and refined feature
+                           engineering, appears promising to raise both the accuracy and trustworthiness of HFD.
+
+                           2.2. Data Sampling Methods in HFD
+
+                                 A persistent issue in the detection of healthcare fraud is the pronounced imbalance in
+                           datasets, where legitimate medical claims dramatically outnumber confirmed cases of fraud.
+                           Due to uneven distribution, it is hard to establish reliable machine learning models. To
+                           address class imbalance, academics typically employ four strategies: (A) oversampling in
+                           the minority class group, (B) undersampling to refine majority class examples, (C) adjusting
+                           the weight of each instance in their loss functions, and (D) generating synthetic samples
+                           using GANs. Each of these approaches has advantages and disadvantages. Generally, how
+                           effective they are depending significantly on the nature of the dataset and the specific fraud
+                           detection scenario at hand.
+
+                                 (A) Oversampling: Oversampling strategies seek to correct uneven class distributions
+                           by improving the presence of minority categories in training data. Random Oversam-
+                           pling (ROS), one of the most common methods, simply duplicates existing minority-class
+                           samples. More advanced synthetic oversampling techniques generate new instances by
+                           algorithmically interpolating between observed minority samples. The Synthetic Minority
+                           Oversampling Technique (SMOTE) and its variations, such as Borderline SMOTE and
+                           Adaptive Synthetic Sampling, are widely used approaches by strategically interpolating
+                           between existing examples [34–36]. In HFD systems, these techniques are frequently em-
+                           ployed. However, it is important to note that oversampling carries certain risks. It can
+                           either present unrepresentative synthetic cases or cause model overfitting, especially when
+                           the created samples do not capture the real pattern in the underlying data.
+
+                                 (B) Undersampling: Undersampling addresses class imbalance by reducing instances
+                           from the majority class. While likely reducing computational costs, it may also result
+                           in the loss of valuable data and compromise model generalization. Methods such as
+                           BalanceCascade [37] and EasyEnsemble [38] have been introduced to address this problem.
+                           Both techniques have been demonstrated as effective in preserving information while
+                           reducing the majority class samples in domains such as healthcare.
+
+                                 (C) Weighting: An alternative method for solving class imbalance is by focusing more
+                           on minority class samples in the training [39–41]. This is either by adjusting the weights
+                           of classes inside the loss function or by designing loss functions. Nevertheless, one of the
+                           main issues is that they are sensitive to exact hyperparameter choices, which in most cases
+                           require a lot of tuning. Even in scenarios of extreme imbalances, weighting approaches
+                           might not be effective enough since they fail to expand the literal amount of minority
+                           examples. In its turn, this has been answered by some recent research into learning in
+                           transformed high-dimensional spaces, where the role of a better representation of features
+                           can be utilized by allowing models to capture patterns using less data on minority classes.
+
+                                 (D) GANs-Based Methods: GANs have been found to have potential in solving the
+                           issue of class imbalance by generating synthetic samples of the minority class. In HFD,
+                           GAN-based methods are used to create realistic cases of fraud to augment real-world
+                           data to optimize the performance of supervised models. As an illustration, the structured
+                           Conditional Tabular GAN has been used to over-sample minority classes data, which
+                           causes improved results with classifiers [12]. Another method uses GANs to produce
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                              6 of 28
+
+                           synthetic samples labeled with anomaly scores, which are then used to train supervised
+                           detection systems [42]. Despite these advantages, GAN-based approaches face several
+                           challenges in healthcare fraud detection, including (1) training instability and mode collapse
+                           when modeling complex, high-dimensional tabular data; (2) difficulty in capturing the full
+                           distribution of rare fraudulent patterns; and (3) risk of generating low-quality synthetic
+                           samples that degrade classifier performance. These challenges motivate our adoption of
+                           WCGAN-GP with Wasserstein distance and gradient penalty mechanisms.
+
+                                 In addition to solving the issue of class imbalance, the reduction in dimensionality is a
+                           key factor in improving the effectiveness and efficiency of fraud diagnosis. Methods such as
+                           Principal Component Analysis (PCA), Linear Discriminant Analysis (LDA), and Quadratic
+                           Discriminant Analysis (QDA) reduce the size of feature spaces and retain important patterns
+                           of discrimination. The other direction of research is the choice of significant features.
+                           The important indicators of fraud are located using different techniques, among which
+                           are greedy search techniques and spectral-based selection techniques. Dimensionality
+                           reduction can be used together with semantic embedding and other sophisticated feature
+                           engineering techniques to build a more thorough analytical system that further improves
+                           the performance of the models.
+
+                           2.3. Genetic Algorithms in HFD
+
+                                 Previous methods for accessing healthcare insurance fraud tended to involve a mixture
+                           of many computational structures. One such study [43] combined a genetic algorithm
+                           and a K-Nearest Neighbor (KNN) classifier to study the professional profiles of general
+                           practitioners. In this approach, the genetic algorithm method was applied to identify the
+                           best feature weights, which in turn improved KNN. The model is applicable in the detection
+                           of healthcare fraud, as it has performed excellently in modeling activities. It developed
+                           another impactful study [44] in which it proposed a fuzzy clustering method with the
+                           Salp Swarm Algorithm (SSA) to calculate the best cluster centers and eliminate outliers by
+                           undersampling. Through these studies, it is clear that the mixture of different approaches
+                           would be a great boost in fraud detection.
+
+                                 As the healthcare sector expanded, it faced a parallel increase in fraudulent activi-
+                           ties, creating significant challenges for its healthy development. In response, academics
+                           in [45] developed an improved adaptive genetic algorithm (IAGA) coupled with a back-
+                           propagation neural network. This IAGA-BP framework was developed to enhance the
+                           network’s starting weight options. It helps in solving well-known issues, such as con-
+                           vergence to local minima, slow training speed, and sensitivity to specific data samples.
+                           This process was tested more quickly and accurately than traditional genetic techniques
+                           using historical automobile insurance claims as a test. It becomes more difficult to de-
+                           tect fraud because of the complex relationships between doctors, patients, and compa-
+                           nies in the medical industry. Another study [8] adopted a dynamic weighted search
+                           space strategy based on an evolutionary algorithm, hybridized with a support vector
+                           machine using a modified whale optimization algorithm (MWOA). This approach was
+                           rigorously tested with several evaluation metrics. The strategy first extracted anomalies
+                           from the information before using powerful tools like CATBoost (https://catboost.ai),
+                           XGBoost (https://xgboost.readthedocs.io), scikit-learn (Random Forest, Decision Tree:
+                           https://scikit-learn.org), and LightGBM (https://lightgbm.readthedocs.io). This improved
+                           the reliability of healthcare claim predictions.
+
+                                 A study develops a new technique known as the Deep Emended Genetic Algorithm
+                           (DEGA) to combat the growing problem of fake online transactions [46]. By incorporating
+                           a few key new innovations, including better ways to combine and choose data, adaptable
+                           changes to various circumstances, and a system that encourages competition to find the
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                       7 of 28
+
+                           best options, this approach improves the ability to detect fraud. Working in tandem with
+                           DEGA, a classification system that employs dual sigmoid loss functions to better manage
+                           datasets with significantly imbalanced labels.
+
+                                 While these prior studies demonstrate the potential of genetic algorithms in fraud
+                           detection, they primarily employ GA for hyperparameter tuning or hybrid model opti-
+                           mization. In contrast, our proposed GA-RF method leverages evolutionary optimization
+                           specifically for feature subset selection in severely imbalanced, high-dimensional healthcare
+                           datasets. Unlike wrapper methods that are computationally prohibitive for large feature
+                           spaces, GA-RF directly optimizes for classification performance while efficiently exploring
+                           the combinatorial feature space. This approach is particularly suited for healthcare fraud
+                           detection where (1) the minority class (fraudulent claims) is extremely sparse, requiring
+                           discriminative feature selection to improve signal-to-noise ratio; and (2) nonlinear fea-
+                           ture interactions are prevalent, necessitating a search strategy that can capture complex
+                           dependencies beyond simple correlation measures.
+
+                           3. Preliminaries
+
+                                 This section establishes the theoretical foundations for our proposed framework. We
+                           present the mathematical background of generative adversarial networks and their variants,
+                           with specific emphasis on how these techniques address the challenges of healthcare fraud
+                           detection, including (1) severe class imbalance where fraudulent claims constitute less
+                           than 1% of all claims; (2) high-dimensional sparse feature spaces arising from complex
+                           medical coding systems; and (3) the need for generating realistic synthetic fraud samples
+                           that preserve the statistical properties of genuine fraud patterns. Understanding these
+                           theoretical underpinnings is essential for appreciating the design choices in our WCGAN-
+                           GA-RF framework presented in Section 4.
+
+                           3.1. Generative Adversarial Networks
+
+                                 GANs [47] have attracted a lot of interest because they have been successful in a
+                           variety of fields and are a powerful tool for deep generative modeling. The core idea
+                           revolves around a competitive training paradigm between two neural networks: the
+                           generator G and the discriminator D. Here, G takes random noise z, which is usually
+                           sampled from a straightforward distribution Pz, such as uniform or Gaussian, and produces
+                           synthetic outputs G(z) designed to resemble samples from the true data distribution Pdata.
+                           Meanwhile, D acts as a critic, learning to differentiate actual data examples x from those
+                           produced by G. This adversarial process is captured in the following mini-max objective:
+
+                           min  max  L(D,  G)  =  Ex∼Pdata (x) [log  D(x)]  +  Ez∼Pz (z) [log(1  −  D(G(z)))].
+
+                             G    D
+
+                           When the discriminator is trained to maximize the following expression,
+
+                                                  −Ex∼Pdata(x)[log D(x)] − Ez∼Pz(z)[log(1 − D(G(z)))],
+
+                           the generator is actually trying to reduce the Jensen–Shannon divergence between the
+                           real data distribution Pdata and its own generated data distribution Pdata. The JSD offers a
+                           symmetric and interpretable measure of how close two distributions are, forming a key
+                           part of the theoretical basis for GANs.
+
+                                 The main weakness of the original GAN architecture [47] is that it does not know what
+                           kind of data it generates in particular categories. This is especially important when the
+                           data are highly imbalanced, in which case more examples of under-represented classes will
+                           be needed. Conventional GANs have a silent and strong memory of complicated patterns
+                           of data, yet they cannot guide the generation procedure to specific classes.
+
+                                                                               https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                            8 of 28
+
+                                 Due to this drawback, CGANs were created, which add instructions to the generation
+                           process. The key innovation is to provide each network with additional information,
+                           usually in the form of category labels y. The discriminator does two functions. It determines
+                           whether the samples belong to the requested group and whether the samples are realistic.
+                           This refined training becomes familiar to the generator in which he creates samples that are
+                           capable of fitting specific categories. The ability provides CGANs with a special potential
+                           to solve the problem of data imbalance using focused data augmentation [48]. CGAN is
+                           based on the original GAN in that it retains a similar dynamic training architecture but
+                           incorporates conditional components. The mathematical formulation is the following:
+
+                           min  max  L(D,  G)  =  Ex∼Pdata (x) [log  D(x|y)]  +    Ez∼Pz (z) [log(1  −  D(G(z|y)))]
+
+                             G    D
+
+                           where the vertical bar | denotes conditioning, meaning the discriminator evaluates x given
+                           the class label y, and the generator produces samples conditioned on y. This conditioning
+                           on y enables controlled generation. In practice, this means that the model not only gains the
+                           ability to produce samples of desired types, but also benefits from more reliable training
+                           dynamics compared to standard GANs [49].
+
+                           3.2. Wasserstein GANs with Gradient Penalty
+
+                                 While the original GAN has been around for some time, it continues to face challenges
+                           that limit its unstable gradients and mode collapse. The study [50] suggests that many of
+                           these issues originate from the use of JSD to measure the similarity between distributions.
+                           One particular weakness appears when the actual and generated distributions do not overlap.
+                           In this case, the JSD stays fixed at log 2, causing the generator’s gradients to disappear. As
+                           a result, the generator stops receiving useful feedback and cannot be improved through
+                           training. At the same time, the generator’s loss function is often influenced by what is known
+                           as reverse KL divergence, pushing it toward what [51] refers to as “safe” sampling behavior.
+                           This tendency causes the model to generate only a narrow set of plausible outputs rather than
+                           exploring the full variety of the target data, which is referred to as mode collapse.
+
+                                 WGAN addresses these challenges by optimizing the Earth-Mover (EM) distance
+                           (also called the Wasserstein-1 distance) instead of the JSD. When using the EM distance,
+                           the distance between a given distribution and Pdata can be calculated even if neither of
+                           them has any overlap with the other. Therefore, the problems mentioned above can be
+                           addressed. Although calculating the EM distance is troublesome in real-world applica-
+                           tions, the study [50] proposed that the EM distance can be approximated by changing the
+                           objective of GAN to Equation (1) as long as D is a k-Lipschitz function. This constraint
+                           can be enforced by weight clipping, which limits the weights of D to a compact interval
+                           [−0.01, 0.01]:
+
+                                min  max       L(D,  G)  =  Ex∼Pdata (x) [ D( x)]  −  Ez∼Pz (z) [ D(G(z))].          (1)
+
+                                  G    D
+
+                                 Although WGANs marked clear progress in the development of generative mod-
+                           els, researchers soon observed practical drawbacks in their use of weight clipping. The
+                           study [52] indicates that this technique tends to limit what the discriminator can learn and
+                           may still cause the gradients to become negligibly small during training. In response, they
+                           designed WGAN-GP, a revised version that imposes a gradient penalty instead of reducing
+                           the weights of the network.
+
+                                 Intuitively, the gradient penalty works as follows: to ensure stable training, the
+                           discriminator’s gradients should remain well-behaved (specifically, the norm should be
+                           close to one). If the gradients become too large or too small, the training becomes unstable.
+                           The gradient penalty term measures how far the gradient norm deviates from one and
+
+                                                                                      https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                          9 of 28
+
+                           adds a penalty to the loss function accordingly. This is analogous to adding a “smoothing”
+                           constraint that prevents the discriminator from changing too abruptly.
+
+                                 The selection of WGAN-GP over other GAN variants is motivated by three critical
+                           requirements in HFD: (1) Training stability: Healthcare claim data exhibit high dimen-
+                           sionality (80 features in our dataset) and severe imbalance (fraud rate < 1%), which
+                           exacerbate the training instability of standard GANs. WGAN-GP’s Wasserstein distance
+                           provides more stable gradients during training, preventing mode collapse where the gen-
+                           erator produces limited diversity in synthetic fraud samples. (2) Sample quality: The
+                           gradient penalty mechanism ensures that synthetic fraud samples maintain statistical
+                           similarity to genuine fraud patterns, which is essential for effective downstream classi-
+                           fication. (3) Conditional generation capability: By incorporating class labels (fraud vs.
+                           legitimate), WCGAN-GP enables targeted augmentation of the minority fraudulent class
+                           without wasting computational resources on generating majority class samples that are
+                           already abundant.
+
+                                 Inspired by these outcomes, we leverage the WCGAN-GP setup to handle imbalanced
+                           data in HFD. The method optimizes the following objective:
+
+                           min  max  L(D,  G)  =  −Ex∼Pdata (x) [ D( x)]  +  Ez∼Pz (z) [ D(G(z))]  (2)
+
+                             G    D
+
+                                               + λ · Exˆ (∥∇xˆ D(xˆ)∥2 − 1)2                       (3)
+
+                           where xˆ is the linear interpolation between real and generated data samples, while λ is the
+                           gradient penalty coefficient (implemented as gamma in the program code), ∇xˆ D(xˆ ) is the
+                           discriminator gradient with respect to the interpolated data points. The gradient penalty is
+                           computationally implemented by incorporating a regularization term into the discriminator’s
+                           loss function, which penalizes the norm of the discriminator’s output gradient.
+
+                                 This section has presented the theoretical foundations of GANs, CGANs, and WGAN-
+                           GP. The evolution from basic GANs to conditional variants addresses the need for targeted
+                           class augmentation, while the Wasserstein distance with gradient penalty resolves training
+                           instability issues. These theoretical advancements provide the mathematical basis for our
+                           WCGAN-GP component in Section 4, which combines conditional generation with stable
+                           training dynamics to effectively augment minority fraud samples in healthcare claims data.
+
+                           3.3. Theoretical Framework for Component Interaction
+
+                                 This subsection articulates the theoretical framework explaining how the three compo-
+                           nents of our WCGAN-GA-RF framework—generative augmentation (WCGAN-GP), evolu-
+                           tionary feature selection (GA-RF), and ensemble classification (RF)—interact synergistically
+                           to address the challenges of imbalanced, high-dimensional healthcare fraud detection. We
+                           formalize this interaction through testable hypotheses grounded in learning theory.
+
+                                 The three components form a cascading pipeline with bidirectional benefits:
+
+                           1. WCGAN-GP → GA-RF: Generative augmentation creates a more balanced training
+                                  distribution, enabling more robust estimation of feature importance. In severely
+                                  imbalanced settings (<6% fraud rate), standard feature importance measures are
+                                  biased toward features that discriminate the majority class. By augmenting minority
+                                  class samples, WCGAN-GP allows the Random Forest fitness evaluator in GA-RF to
+                                  identify features that are genuinely discriminative for fraud detection, rather than
+                                  features that merely distinguish the abundant legitimate claims.
+
+                           2. GA-RF → RF Classifier: Feature selection reduces noise and computational burden
+                                  while preserving discriminative power. The selected 28-feature subset captures the
+                                  essential fraud patterns identified through evolutionary search, enabling the Random
+                                  Forest classifier to train more efficiently and generalize better to unseen fraud cases.
+
+                                                                             https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                             10 of 28
+
+                           3. Implicit feedback loop: The quality of synthetic samples generated by WCGAN-GP is
+                                  indirectly validated through the downstream classification performance. If synthetic
+                                  samples introduce artifacts or noise, GA-RF will struggle to identify consistent dis-
+                                  criminative features, and the final RF classifier will exhibit degraded performance on
+                                  the test set. This implicit feedback mechanism provides a quality control signal for
+                                  the generative process.
+                                 According to this theoretical construct, we suggest the following empirically testable
+
+                           hypotheses that inform our experimental validation:
+
+                           • H1 (Generative Augmentation Effectiveness): WCGAN-GP-generated synthetic
+                                 samples achieve higher classification performance than methods of interpolation-
+                                 based oversampling (SMOTE, ADASYN) since Wasserstein distance learning is able
+                                 to fit the entire distribution of fraudulent claims as opposed to local interpolation
+                                 between samples.
+                                 Prediction: WCGAN-GP obtains greater F1-scores on the minority group than SMOTE
+                                 and ADASYN, especially in high-dimensional feature spaces where the minority
+                                 group is in a sparse form.
+
+                           • H2 (Feature Selection Synergy): GA-based feature selection identifies more discrimi-
+                                 native feature subsets when applied to WCGAN-GP-augmented data compared to
+                                 original imbalanced data, because balanced training data enable unbiased feature
+                                 importance estimation.
+                                 Prediction: The feature subset selected by GA-RF on WCGAN-GP-augmented data
+                                 have higher classification accuracy using fewer features than individual applications
+                                 of GA-RF on original imbalanced data or on the SMOTE/ADASYN-augmented data.
+
+                           • H3 (Component Synergy): The end-to-end WCGAN-GA-RF pipeline is more effec-
+                                 tive than ablated systems in which various components are ablated or substituted,
+                                 demonstrating the critical nature of the synergistic combination.
+                                 Prediction: (1) WCGAN-GA-RF (full) > WCGAN + RF (no feature selection);
+                                 (2) WCGAN-GA-RF > GA-RF + SMOTE (generative augmentation replaced);
+                                 (3) WCGAN-GA-RF > Baseline (no augmentation, no feature selection).
+
+                           • H4 (Amplified Advantage under Severe Imbalance): The performance advantage
+                                 of WCGAN-GA-RF over baseline methods will become more pronounced as class
+                                 imbalance severity increases, because generative augmentation becomes increasingly
+                                 valuable when minority class samples are critically scarce.
+                                 Prediction: The performance gap between WCGAN-GA-RF and SMOTE/ADASYN is
+                                 larger at 16:1 imbalance ratio than at 4:1 or 8:1 imbalance ratio.
+
+                                 These hypotheses are grounded in established learning theory. H1 follows from the
+                           theoretical advantage of distribution learning over interpolation. Wasserstein distance pro-
+                           vides meaningful gradients for learning complex, multi-modal distributions of fraudulent
+                           claims. H2 is justified by the observation that feature importance estimates are unreliable
+                           when minority class samples are sparse [5]. H3 captures the synergistic interaction posited
+                           by our framework. Each component addresses a distinct challenge, and their combination
+                           creates a virtuous cycle. H4 stems from the curse of dimensionality. As imbalance severity
+                           increases, the minority class occupies an increasingly sparse region of the feature space,
+                           making generative augmentation more valuable than local interpolation methods.
+
+                           4. Proposed Framework
+
+                           4.1. Framework Overview
+                                 Figure 1 illustrates the complete workflow of our proposed WCGAN-GA-RF framework.
+
+                           The system operates in three sequential stages: (1) The WCGAN-GP component takes Gaus-
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                             11 of 28
+
+                           sian noise z and class labels y as input to generate synthetic minority class samples, which
+                           are combined with the original training data to form a balanced dataset. (2) Feature Selection:
+                           The GA-RF module employs evolutionary optimization to identify the most discriminative
+                           feature subset from the augmented data, reducing dimensionality from 80 to 28 features while
+                           preserving classification performance. (3) Classification: The selected features are used to train
+                           a Random Forest classifier, which makes final predictions on the test set. The dotted lines
+                           indicate data flow, while solid lines represent model training processes.
+
+                           Figure 1. The proposed WCGAN-GA-RF framework operates in three sequential stages: (1) WCGAN-
+                           GP generates synthetic minority class samples to address data imbalance; (2) GA-RF identifies the
+                           most discriminative feature subset through evolutionary search; and (3) Random Forest classifier
+                           makes final fraud predictions using the selected features.
+
+                                 The dataset is first stratified and split into training (80%) and test (20%) sets, ensuring
+                           that minority class distribution is preserved in both splits. Data augmentation, feature
+                           selection, and model training are performed exclusively on the training set. The test set
+                           remains completely held out until final evaluation to prevent data leakage.
+
+                           4.2. WCGAN-GP Architecture
+
+                                 The WCGAN-GP framework serves as the foundational component within the fraud
+                           detection system, specifically engineered to produce quality-enhanced synthetic data sam-
+                           ples to mitigate the challenges of dataset imbalance. The architectural design incorporates
+                           neural network-based implementations for the generative and discriminative components,
+                           capitalizing on their efficacy in feature extraction and pattern recognition tasks. The gener-
+                           ative module is structured with four convolutional layers incorporating ReLU activation
+                           functions, complemented by dual fully connected layers responsible for synthesizing ar-
+                           tificial data instances. The discriminative component in parallel has a similar structural
+                           arrangement, but incorporates a sigmoid activation layer to support binary classification
+                           functions. The architectural layout enables mining complex data patterns and multi-level
+                           feature representation, which is imperative in making a valid distinction between valid
+                           and fraudulent financial activities. The generator and discriminator/critic architectures are
+                           detailed in Table 1.
+
+                                 We propose a solution to the issue of data imbalance in the form of CGAN networks.
+                           In the CGAN, the generator and the discriminator are trained on additional information
+                           about class labels. This conditioning information can ensure that the generator generates
+                           samples that are consistent with this additional information, whereas the discriminator can
+                           determine the authenticity of the samples depending on the input data and the condition.
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                             12 of 28
+
+                           CGAN presents contingent input to control the augmentation process. This is a monitored
+                           technique that enables CGAN to control the discrepancy between positive and negative
+                           data samples. CGAN guaranties the production of high-quality samples with a particular
+                           category or attribute feature.
+
+                           Table 1. Generator and discriminator/critic architecture.
+
+                           Layers              Generator                              Discriminator/Critic
+
+                           Input Layer (Noise Dim + Label)  —                         (n + Label)                                  —
+
+                           Hidden layer1  128               Leaky-ReLU                128          Leaky-ReLU
+
+                           Hidden layer2  64                Leaky-ReLU                64           Leaky-ReLU
+
+                           Output layer   n                 Tanh                      1                                            Linear
+
+                           Note: n denotes the number of features in the dataset (after preprocessing, n = 80), and Noise dim is the dimension
+
+                           of the random noise vector z (set to 100). Label refers to the class label for conditional generation.
+
+                                 These training processes are essential for generating high-quality synthetic fraud
+                           samples in healthcare claims. During generator training (Figure 2), the network learns
+                           to transform random noise into realistic healthcare claim patterns that resemble genuine
+                           fraud cases, conditioned on minority class labels to address the severe imbalance in fraud
+                           detection datasets. The discriminator training (Figure 3) ensures that only convincing
+                           synthetic samples are produced by continuously challenging the generator to improve.
+                           This adversarial dynamic is critical for healthcare fraud detection because (1) genuine
+                           fraud patterns are rare and difficult to obtain, making synthetic augmentation necessary;
+                           (2) the quality of synthetic samples directly impacts downstream classification perfor-
+                           mance; and (3) conditional generation ensures that the augmented samples belong to the
+                           underrepresented fraudulent class rather than the majority legitimate class.
+
+                                 Figure 2 shows that the input layer of the generator comprises a Gaussian random
+                           noise vector z and a fault label y. The label y offers auxiliary information to regulate the
+                           formation of data of particular classes. This method makes it easy to augment the data by
+                           allowing training of single models, regardless of the number of fault classes. The input
+                           sequence undergoes two different layers of multiplication before being doubled in size.
+                           The initial neural network configuration comprises 16 units and 16 feature maps, whereas
+                           the subsequent neural network configuration comprises 8 units and a single feature map.
+                           The discriminator consists of two one-dimensional neural network layers featuring 8 and
+                           16 neurons, respectively, arranged sequentially following the input layer, as shown in
+                           Figure 3. The feature maps are flattened to form a fully connected layer. The output layer
+                           subsequently provides two prediction labels: data source and fault class.
+
+                                 A significant challenge in training most generative adversarial models is mode collapse,
+                           where the generated samples lack diversity. To address this, we adopt the WCGAN-GP
+                           loss function (Equation (2)) with the following theoretical justification:
+
+                           • Wasserstein distance (LWD): Provides meaningful gradients even when real and
+                                 generated distributions have disjoint supports—critical for fraud detection where the
+                                 minority class occupies a sparse region in the 80-dimensional feature space.
+
+                           • Gradient penalty (LGP): Enforces the 1-Lipschitz constraint necessary for Wasserstein
+                                 distance estimation. The penalty ∥∇xˆ D(xˆ)∥2 − 1)2 prevents discriminator gradients
+                                 from becoming too sharp (causing mode collapse) or too flat (causing gradient vanish-
+                                 ing), which is essential for tabular healthcare data with varying feature scales.
+
+                                                                                      https://doi.org/10.3390/info17040315
+Information 2026, 17, 315  13 of 28
+
+                           Figure 2. The generator learns to produce realistic synthetic fraud samples by transforming random
+                           noise into data that can fool the discriminator, guided by class labels to ensure targeted minority
+                           class augmentation.
+
+                           Figure 3. The discriminator learns to distinguish between genuine healthcare claims and synthetic samples,
+                           providing gradient feedback to improve the generator’s ability to produce realistic fraud patterns.
+
+                                 The gradient penalty coefficient λ is set to 10, following the theoretical recommenda-
+                           tion of Gulrajani et al. [52], who proved that this value satisfies the Lipschitz constraint with
+                           high probability. We empirically validated this choice through preliminary experiments
+                           with λ ∈ {1, 5, 10, 20} on a held-out validation set, measuring (1) training stability (variance
+                           of generator loss), (2) mode coverage (number of distinct fraud patterns generated), and
+                           (3) downstream classification performance. λ = 10 achieved the optimal trade-off, with
+                           stable gradients and maximum pattern diversity. The classification weight is implicitly set
+                           to 1.0 to ensure equal emphasis on realism and conditional generation.
+
+                                 Such equations have a structural similarity to the loss function used in CGAN. The
+                           major difference is that it substitutes the initial binary cross-entropy loss with the Wasser-
+                           stein distance loss, following the addition of a gradient penalty loss term to enforce the
+                           Lipschitz constraint [53–55].
+
+                                 To ensure the stability of the WCGAN-GP training, several optimization strategies are
+                           implemented as follows.
+                           (A) Batch Normalization: Batch normalization is used in both the generator and the discrim-
+
+                                  inator and helps resolve problems with starting points, causes gradient propagation
+                                  across the layers, and stops the generator from collapsing to a single output mode.
+                           (B) Activation Functions:
+                                  (i) In the output layer of the generator, the Tanh function maps the inputs to the
+
+                                          range [−1, 1]. This function exhibits stronger nonlinearity and a wider output
+                                           range near zero, enhancing the generator’s expressive power.
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                14 of 28
+
+                                  (ii) The ReLU function is adopted for the remaining layers of the generator to
+                                           prevent gradient vanishing in deep networks.
+
+                                  (iii) The Leaky-ReLU function is used in other discriminator layers to address the
+                                           issue of dead neurons associated with ReLU, thus improving network stability
+                                           and generalization.
+
+                           (C) Optimizer: The Adam optimizer is selected for iterative parameter updates, with the
+                                  discriminator’s learning rate set to 0.0004, four times higher than the generator’s.
+
+                                 The detailed training procedure for the WCGAN-GP model is summarized in Algorithm 1.
+
+                           Algorithm 1 WCGAN-GP training for healthcare fraud detection
+
+                           Require: Training data: features X ∈ Rn×d, labels Y ∈ {0, 1}; Hyperparameters: λ = 10
+
+                             (gradient penalty coefficient), α = 1.0 (classification weight), ncritic = 5 (critic iterations
+                             per generator update), batch size m = 64, learning rates lrD = 0.0004, lrG = 0.0001,
+                             Adam parameters β1 = 0.5, β2 = 0.999
+                           Ensure: Trained generator G for synthetic minority class sample generation
+
+                           Initialize: Generator Gθ and critic Dϕ with random weights
+                           while training loss has not converged do
+
+                           for j = 1 to ncritic do                                     ▷ Update critic ncritic times
+
+                           Sample mini-batch: {Xreal, Yreal} from training data
+
+                           Sample noise vectors: Z ∼ N (0, I) of size m × 100
+
+                           Generate synthetic samples: Xfake = G(Z, Yreal)
+                           Calculate Wasserstein distance:
+
+                              LWD = E[D(Xreal, Yreal)] − E[D(Xfake, Yreal)]
+                           Calculate gradient penalty:
+
+                             Sample ε ∼ Uniform(0, 1)
+                             Interpolate: Xˆ = εXreal + (1 − ε)Xfake
+                             GP = λ · E[(∥∇Xˆ D(Xˆ , Yreal)∥2 − 1)2]
+                           Total critic loss:
+
+                                  LD = −LWD + GP
+                               Update critic: ϕ ← Adam(∇ϕ LD, ϕ, lrD, β1, β2)
+                           end for
+
+                           Update generator:
+
+                               Sample new noise and labels: Z ∼ N (0, I), Yfake
+                               Generate synthetic samples: Xfake = G(Z, Yfake)
+                               Generator loss: LG = −E[D(Xfake, Yfake)]
+                               Update generator: θ ← Adam(∇θ LG, θ, lrG, β1, β2)
+
+                           end while
+
+                                 The discriminator maximizes the loss function by assigning high probabilities to actual
+                           data samples D(x) and low probabilities to generated samples D(G(z)). A noise vector is fed
+                           into the generator during generator training to produce generated samples. The generator
+                           updates its parameters based on the discriminator’s feedback, with the aim of maximizing
+                           D(G(z)). Through this adversarial process, the generator learns to produce samples that the
+                           discriminator cannot distinguish from real data, achieving the goal of class prediction.
+
+                                 CGANs use auxiliary conditional information and supervised learning to help facili-
+                           tate the generation of the targeted sample, in contrast to GANs that only produce generation
+                           output. The problems caused by having too many positive samples in comparison with
+                           negative samples are greatly reduced by this innovative design. In order to effectively
+                           design the conditional frequency distribution in the information, the CGAN framework
+                           connects its generative and discriminative components. This characteristic guaranties out-
+                           standing fidelity and categorical specificity in the synthesis of samples with predetermined
+                           attributes or class labels. The proposed loss function is formulated in Equation (4):
+
+                                                                                  https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                              15 of 28
+
+                           min  max  L(D,  G)  =  Ex∼Pdata (x) [log  D(x|y)]  +  Ez∼Pdata (z) [log(1  −  D(G(z|y)))].  (4)
+
+                             G    D
+
+                                 CGAN can be characterized by high training instability, which results in mode crashes.
+                           The mode crash occurs when the generator produces limited and repetitive samples, failing
+                           to capture the diversity of the real data distribution. This occurrence indicates the problems
+                           CGAN may face when learning and generating complex data distributions, as the generator
+                           has trouble mining and simulating the real data distribution to the full extent.
+
+                                 To address the instability of CGAN, we introduced the Wasserstein distance and the gradi-
+                           ent penalty term to stabilize the training process and improve sample quality. The Wasserstein
+                           distance measures the difference between real and synthetic data distributions, providing a
+                           more stable training signal. The incorporation of CGAN and the Wasserstein distance and
+                           gradient penalty term combines the advantages of Wasserstein CGAN and gradient penalties
+                           with a CGAN, resulting in higher training stability and improved sample quality.
+
+                                 The study [52] introduced Wasserstein GAN and gradient penalty, while WCGAN-
+                           GP integrates the conditional information of CGAN with the Wasserstein distance and
+                           the gradient penalties. Conditional information y, typically represented as a one-hot
+                           encoded class label or attribute vector, guides the generator in producing samples with
+                           specific characteristics. The Wasserstein distance provides a stable training signal, while
+                           the gradient penalties enforce the Lipschitz constraint, preventing the discriminator from
+                           becoming too sensitive. As a result, WCGAN-GP retains the ability to guide generation
+                           and mitigates issues like gradient vanishing and training instability, promoting better
+                           convergence. We introduced the Wasserstein distance and the gradient penalty term
+                           to stabilize the training process and improve sample quality. The Wasserstein distance
+                           measures the difference between real and synthetic data distributions, providing a more
+                           stable training signal. WCGANs-GP combines the advantages of Wasserstein CGANs with
+                           gradient penalties, resulting in higher training stability and improved sample quality.
+
+                                 The definition of the ablation condition was then completed and the ablated model
+                           was used for multiple experiments for training and evaluation.
+
+                           4.3. Evolutionary Feature Selection
+
+                                 Selection and refinement of the input variables are crucial in determining the predic-
+                           tive accuracy and computational efficiency of both machine learning and deep learning
+                           frameworks. The inclusion of extraneous or extensive feature collections not only imposes
+                           unnecessary computational burdens, but also potentially degrades model performance.
+                           In order to extract and preserve a collection of impartial factors that have a significant
+                           statistical connection with the goal measure, dimensionality reduction techniques are used.
+                           These optimized feature subsets later form the foundation for model development. Inter-
+                           dependent variables, which provide useless information to the method, introduce noise,
+                           increase overfitting tendencies, and produce less accurate predictive models. Eliminat-
+                           ing features with negligible explanatory power yields multiple benefits, encompassing
+                           improved model transparency, enhanced data representation capabilities, and optimized
+                           predictive performance. In addition, this scheme makes it easier to make reduced models
+                           with better operational effectiveness.
+
+                                 Various dimensionality reduction techniques have been developed, encompassing
+                           Principal Component Analysis, t-distributed Stochastic Neighbor integration, Linear Dis-
+                           criminant Analysis, and Wrapper-based methods. GA demonstrate superior characteristics
+                           to Principal Component Analysis and Autoencoder-based approaches in feature selection,
+                           particularly in their capacity to process nonlinear relationships, evaluate feature importance,
+                           preserve interpretability, and exhibit resilience to noisy data and anomalous observations.
+                           GA-based feature selection implements an evolutionary optimization process that system-
+
+                                                                                 https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                             16 of 28
+
+                           atically explores the feature space, terminating when convergence criteria are satisfied or
+                           the optimization metric reaches a plateau.
+
+                                 We propose the GA-RF method for feature selection, which combines evolutionary
+                           optimization with ensemble classification to identify and preserve the most discriminative
+                           features. Unlike filter-based methods that rely on statistical measures or wrapper methods
+                           that are computationally prohibitive for high-dimensional data, GA-RF directly optimizes
+                           for classification performance while efficiently exploring the combinatorial feature space.
+
+                                 The GA-based feature selection is defined as a binary optimization problem in which a
+                           chromosome represents a candidate feature subset. Specifically, a chromosome is encoded
+                           as a binary vector b = [b1, b2, . . . , bn] ∈ {0, 1}n, where bi = 1 indicates that the i-th feature is
+                           selected and bi = 0 indicates exclusion. The fitness function is precisely defined as follows:
+
+                           Fitness(b) = α · F1RF(b) + β ·  1  −  |b|  (5)
+                                                                  n
+
+                           where F1RF(b) denotes the F1-score achieved by a Random Forest classifier trained on the
+                           feature subset encoded by b, |b| = ∑in=1 bi is the number of selected features, n = 118 is
+                           the total number of features in the original dataset.
+
+                                 Theoretical justification for the fitness function design:
+
+                           • F1-score term (α · F1RF(b)): We use F1-score rather than accuracy because (1) in imbal-
+                                 anced fraud detection datasets, accuracy is misleading—the majority class (legitimate
+                                 claims) dominates, making a trivial “all legitimate” classifier achieve >94% accuracy
+                                 and (2) F1-score balances precision (avoiding false positives that accuse legitimate
+                                 providers) and recall (catching actual fraud), which is essential for healthcare fraud
+                                 detection where both types of errors have significant costs.
+
+                           • Sparsity term (β · (1 − |b|/n)): Encourages compact feature subsets to improve general-
+                                 ization and interpretability.
+
+                           • Theoretical motivation: The curse of dimensionality states that as feature count increases,
+                                 the data becomes increasingly sparse, requiring exponentially more samples to achieve
+                                 reliable estimates. For our 16:1 imbalanced dataset with limited fraud samples, reducing
+                                 from 118 to 28 features significantly improves the sample-to-feature ratio.
+
+                           • Weight selection (α = 0.9, β = 0.1): We prioritize classification performance while still
+                                 providing sufficient pressure for feature reduction. This asymmetric weighting reflects
+                                 the practical reality that detection accuracy is paramount, but model interpretability
+                                 and computational efficiency are also valuable for real-world deployment.
+
+                                 The GA-RF algorithm proceeds through the following steps: (1) Initialization: We
+                           generate an initial population of size P = 50 chromosomes, with each feature selected
+                           randomly with probability 0.5; (2) Evaluation: The fitness of each chromosome is calcu-
+                           lated using Equation (5) through 5-fold cross-validation on the training set; (3) Selection:
+                           We use tournament selection with tournament size three to select parent chromosomes;
+                           (4) Crossover: Uniform crossover is performed with probability pc = 0.8 to produce off-
+                           spring; (5) Mutation: Bit-flip mutation is applied with probability pm = 0.01 per gene;
+                           and (6) Replacement: The population is replaced with offspring while preserving the top
+                           10% elite individuals. This process runs for a maximum of G = 100 generations or until
+                           convergence, defined as no improvement in the best fitness for 20 consecutive generations.
+
+                                 The GA-RF method identified a subset of 28 features, achieving 97.05% recall on the
+                           test dataset. These results demonstrate the approach’s effectiveness in feature selection,
+                           along with strong representativeness and predictive performance. The GA-RF model is par-
+                           ticularly valuable for tasks requiring accurate classification and dimensionality reduction.
+                           The model can explore sequential effects between features and identify non-intuitive opti-
+
+                                                              https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                             17 of 28
+
+                           mal subsets, especially in cases with intricate feature interactions. The GA-RF framework
+                           is illustrated in Figure 4.
+
+                           Figure 4. The GA-RF algorithm identifies the most discriminative feature subset through evolutionary
+                           search, using Random Forest classification performance as fitness to guide the selection process
+                           towards optimal feature reduction.
+
+                           4.4. Prediction
+                                 The healthcare dataset is used to train the HFD model after data sample augmenta-
+
+                           tion and the features extraction. The complex association between input data patterns
+                           and corresponding fault classifications is modeled through a transformation mechanism
+                           implemented within a neural network architecture. The underlying connections between
+                           raw input features and their respective medical labels can be learned using this scheme.
+                           The hierarchical construction of the neural network enables the extraction of more abstract
+                           features, helping to establish a strong tracking relationship between the input space and
+                           the outcomes of fault categorization. The RF algorithms are connected simultaneously after
+                           feature extraction. In addition to providing in-depth analysis of the proposed method-
+                           ology’s performance, the following sections provide in-depth analysis of the proposed
+                           methodology’s effectiveness and an important discussion of model performance metrics.
+
+                           5. Experiments
+
+                           5.1. Dataset Description and Verification Metrics
+                                 This experiment uses a healthcare dataset sourced from Neusoft, a recognized technol-
+
+                           ogy firm that specializes in health insurance systems. The dataset can be accessed online at
+                           http://www.fwwb.org.cn/news/show/462 (accessed on 3 May 2024). For the University
+                           Student Innovation and Entrepreneurship Competition 2024, it was created from scratch. It
+                           contains 16,000 instances, each characterized by 118 attributes, and categorizes genuine
+                           medical claims into four categories: care histories, spending behaviors, cost structures, and
+                           forgery annotations, as shown in Table 2.
+
+                                 Past treatment samples are used mainly to obtain clinic treatment records and monthly
+                           clinic visits. Consumption measures track total monthly expenditures for different groups,
+                           including medication purchases, medical tests, accommodation fees, and subsidy reim-
+                           bursements. To capture spending habits, cost ratios measure the share of care in general
+                           expenses, the proportion of total usage allocated to medicines, and the percentage of patient
+                           out-of-pocket payments. These components provide a comprehensive and reliable basis for
+                           studying different aspects of medical utilization and payment behavior.
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                     18 of 28
+
+                           Table 2. The detailed information of the dataset.
+
+Category     Feature                            Description
+             Monthly visits
+Monthly                                         Number of days visiting hospitals in one month
+healthcare
+treatment                                       Number of months of visit
+                                                Monthly number of healthcare hospitals MAX
+             Monthly number                     Monthly number of visiting hospitals AVG
+             of visits
+                                                Monthly clinic visits MAX
+             Number of months
+             of treatment                       Monthly clinic visits AVG
+
+The amount   Monthly overall                    Number of clinic visits to SUM
+of           amount
+consumption                                     Hospital visit days MAX
+                                                Hospital visit days AVG
+             Drug amount                        Number of months of visit
+
+                           The cost of the      Monthly pooling amount MAX
+                           inspection required
+                                                Monthly pooling amount AVG
+                           Hospitality          Hospital Coordinating gold MAX
+                           Subsidy declaration  Hospital Coordinating gold AVG
+                                                Hospital drug product AVG
+                                                Hospital drug product MAX
+                                                Hospital drug product AVG
+                                                Amount of drug fee incurred SUM
+                                                Drug cost amount SUM
+                                                Declaration amount of drug fee SUM
+                                                Amount of valuable drugs occurred SUM
+                                                Amount of Chinese patent medicine fee incurred SUM
+                                                Amount of Chinese herbal medicine fee incurred SUM
+
+                                                Amount of inspection fee incurred SUM
+
+                                                Amount of the inspection fee SUM
+                                                Declaration amount of the inspection fee SUM
+                                                Precious inspection fee amount SUM
+                                                Amount of treatment cost incurred SUM
+                                                Treatment cost amount SUM
+                                                Declaration amount of treatment fee SUM
+                                                Amount of operation incurred SUM
+                                                Self-cost amount SUM
+                                                Declaration amount of surgery fee SUM
+                                                Amount of bed fee incurred SUM
+                                                Declaration amount of bed fee SUM
+                                                Amount of healthcare materials occurred SUM
+                                                Amount of high-priced material occurrence SUM
+                                                Amount of healthcare materials cost SUM
+                                                Composition transfusion declared amount SUM
+                                                Other amount occurred SUM
+                                                Other declared amounts SUM
+                                                Declaration amount of one-time healthcare materials SUM
+                                                Standard amount of the starting payment line MAX
+                                                Self-proportion proportion above the minimum payment standard SUM
+                                                Individual healthcare assistance SUM
+                                                Max. amount above SUM
+                                                Amount paid by the basic pooling fund SUM
+
+                                                                              https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                 19 of 28
+
+                                    Table 2. Cont.
+
+Category                   Feature                  Description
+Cost ratio
+                                                    Amount paid by Medicaid fund SUM
+                                                    Amount of urban and rural assistance subsidies SUM
+                                                    Basic personal account payment for SUM
+                                                    Non-account payment amount SUM
+                                                    This approved amount is SUM
+                                                    Subsidy approval amount SUM
+                                                    healthcare assistance hospital application for SUM
+                                                    Disabled military allowance SUM
+                                                    Civil Affairs aid subsidy SUM
+                                                    Urban and rural entitled treatment subsidies SUM
+
+                                                    The proportion of drugs in the total amount
+                                                    The proportion of drugs paid for by individuals
+                                                    The total cost of the inspection is proportional to the total amount
+                                                    The proportion of individual payment of inspection fees
+                                                    The proportion of treatment costs in the total amount
+                                                    The proportion of the treatment costs paid by individuals
+
+                                          The dataset is divided into two categories: legitimate samples (denoted as +) and fraud-
+                                    ulent samples (denoted as −). The occurrence rates for legitimate samples are 94.1% (15,056),
+                                    while fraudulent samples have an occurrence rate of 5.9% (944). Thus, a binary classification
+                                    task with an imbalance ratio of 16:1 is defined as the fraud forecast problem. According to this
+                                    ratio, there are approximately 16 legitimate examples for every fraudulent record.
+
+                                          To ensure rigorous and reproducible evaluation, we employ a stratified train-test
+                                    split with the following protocol: (1) Stratified sampling: The dataset is partitioned using
+                                    stratified sampling to preserve the class distribution ratio in both training and test sets,
+                                    ensuring that the minority class is adequately represented in the test set; (2) Random seed:
+                                    We set a fixed random seed (seed = 42) for reproducibility; (3) Data leakage prevention:
+                                    The test set is held out completely during model training, hyperparameter tuning, and
+                                    feature selection. All data augmentation (via WCGAN-GP) and feature selection (via GA-
+                                    RF) are performed exclusively on the training set; (4) Split ratio: The empirical framework
+                                    allocates 80% of the dataset for model training and reserves 20% for evaluation purposes;
+                                    and (5) Multiple runs: To assess performance variability, we report results averaged over
+                                    five independent runs with different random seeds (seeds ∈ {42, 123, 456, 789, 1024}), with
+                                    standard deviations reported in all tables. We note that while k-fold cross-validation is
+                                    commonly used for model selection, we employ hold-out validation in this study because
+                                    (a) the dataset size (n = 16,000) provides sufficient test samples for reliable evaluation;
+                                    (b) the severe class imbalance (16:1) makes stratified hold-out more practical than k-fold
+                                    for ensuring minority class representation in each fold; and (c) the computational cost of
+                                    training WCGAN-GP makes repeated k-fold training prohibitive.
+
+                                          We performed preprocessing activities to ensure correct data analysis and preparation
+                                    for further analysis. The dataset was optimized to identify significant factors in detect-
+                                    ing fraud. Statistics are carefully structured and measured by category, following the
+                                    classification of the data into training and testing subsets.
+
+                                    5.2. WCGAN-GP Evaluation
+
+                                          The experimental data were divided into two groups, that is, training and testing,
+                                    using machine learning protocols, which used a split percentage of 8:2. The imbalance
+                                    in distribution among classes was addressed using four different oversampling methods
+                                    that include ROS, SMOTE, ADASYN, and our WCGAN-GP. The WCGAN-GP approach,
+
+                                                    https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                             20 of 28
+
+                           in particular, was specifically made to generate more high-quality data examples using
+                           Wasserstein distance measures and gradient penalty considerations.
+
+                                 Figure 5 shows the evolution of the loss during WCGAN-GP training, exhibit-
+                           ing a period of initial divergence followed by stable convergence after approximately
+                           10,000 iterations. To quantitatively assess the training dynamics, we analyzed several key
+                           metrics: (1) Convergence speed: Both generator and discriminator losses stabilized within
+                           10,000 iterations, demonstrating efficient training; (2) Loss stability: After convergence, the
+                           generator loss maintained a low variance of 0.15 ± 0.02, while the discriminator loss stabi-
+                           lized at 0.85 ± 0.03; and (3) Loss ratio: The generator-to-discriminator loss ratio converged
+                           to 0.18 ± 0.01, indicating a balanced adversarial dynamic. These quantitative indicators
+                           confirm that the model achieved a stable equilibrium, with neither component dominating
+                           the training process.
+
+                           Figure 5. WCGAN-GP training dynamics showing generator and discriminator loss convergence over
+                           10, 000 iterations. The x-axis uses a scale of 2000 iterations per major tick for enhanced visualization
+                           of training progression. The model achieves stable equilibrium after the initial training phase, with
+                           losses plateauing at Gloss ≈ 0.15 and Dloss ≈ 0.85.
+
+                                 The convergence to a generator loss of 0.15 and discriminator loss of 0.85 after
+                           10,000 iterations, as shown in Figure 5, demonstrates successful model training. A trained
+                           GAN is considered successful when the generator loss plateaus below 0.2 and the discrimi-
+                           nator loss plateaus above 0.8, as these values represent a balanced adversarial interaction
+                           where neither component dominates. This equilibrium enables the GAN to produce highly
+                           realistic synthetic samples while maintaining robust discrimination capabilities.
+
+                                 Table 3 compares the performance metrics (precision, recall, and F1-score) of
+                           four oversampling methods: ROS, SMOTE, ADASYN, and our WCGAN-GP, on the test
+                           set. The metrics were calculated separately for each class, and a weighted average, based
+                           on the class distribution, was used to assess overall model performance. All results are re-
+                           ported as mean ± standard deviation over five independent runs. As shown in Table 3, the
+                           WCGAN-GP method achieved the highest weighted precision of 96.82 ± 0.4%, weighted
+                           recall of 96.94 ± 0.3%, and weighted F1-score of 96.51 ± 0.3%. Notably, WCGAN-GP demon-
+                           strates superior performance on the minority class (fraudulent claims) with a precision of
+                           88.62 ± 1.2% and F1-score of 52.61 ± 0.9%, significantly outperforming traditional over-
+                           sampling methods. In contrast, ADASYN achieved a weighted F1-score of 95.08 ± 0.5%,
+                           while SMOTE performed lower with 94.97 ± 0.6%. The comparative analysis demon-
+                           strates that the adversarial generative network method significantly outperforms SMOTE
+                           and ADASYN in terms of both precision and robustness. These findings demonstrate
+                           that WCGAN-based approaches are highly effective for tasks requiring high precision on
+                           imbalanced data, such as fraud detection.
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                      21 of 28
+
+                                 Our findings indicate that the WCGAN-GP model serves as an effective tool to detect
+                           fraud in imbalanced high-dimensional datasets.
+
+                           Table 3. Comparison of different oversampling methods (mean ± std over give runs). The table
+                           reports precision, recall, and F1-score for (1) majority class (legitimate claims), (2) minority class
+                           (fraudulent claims), and (3) weighted average based on class distribution. The bold values indicate
+                           the best performance in each category.
+
+                                           Method                     Precision      Recall      F1-Score
+
+                           Majority class        ROS  96.98 ± 0.3%               99.37 ± 0.2%  98.17 ± 0.2%
+                                              SMOTE   97.53 ± 0.4%               97.05 ± 0.5%  97.29 ± 0.4%
+                                             ADASYN   97.59 ± 0.4%               97.11 ± 0.5%  97.35 ± 0.4%
+                                           WCGAN-GP   96.97 ± 0.3%               99.79 ± 0.2%  98.40 ± 0.2%
+
+                           Minority class        ROS  75.31 ± 2.1%               38.16 ± 1.8%  50.65 ± 1.5%
+                                              SMOTE   46.11 ± 2.3%               50.66 ± 2.0%  48.28 ± 1.8%
+                                             ADASYN   47.31 ± 2.2%               51.97 ± 1.9%  49.53 ± 1.7%
+                                           WCGAN-GP   88.62 ± 1.2%               37.64 ± 1.5%  52.61 ± 0.9%
+
+                           Weighted              ROS  95.96 ± 0.5%               96.47 ± 0.4%  95.91 ± 0.4%
+                                              SMOTE   95.09 ± 0.7%               94.84 ± 0.6%  94.97 ± 0.6%
+                                             ADASYN   95.21 ± 0.6%               94.97 ± 0.5%  95.08 ± 0.5%
+                                           WCGAN-GP   96.82 ± 0.4%               96.94 ± 0.3%  96.51 ± 0.3%
+
+                           Note: WCGAN-GA-RF is our proposed scheme.
+
+                                 The superior performance of WCGAN-GP over traditional oversampling methods
+                           can be attributed to fundamental differences in synthetic sample generation. SMOTE and
+                           ADASYN rely on linear interpolation between minority class samples, which limits their
+                           ability to capture complex, nonlinear relationships in high-dimensional feature spaces
+                           (118 features in our dataset). This approach becomes increasingly problematic in severely
+                           imbalanced scenarios (16:1 ratio) where the minority class occupies a sparse region of the
+                           feature space. Linear interpolation may generate synthetic samples that fall outside the
+                           true data distribution, introducing noise and reducing model performance. In contrast,
+                           WCGAN-GP learns the underlying data distribution through adversarial training, enabling
+                           it to generate diverse and realistic samples that better represent the complexity of fraud-
+                           ulent claims. The Wasserstein distance provides stable gradients even when the real and
+                           generated distributions have disjointed supports, while the gradient penalty ensures the
+                           discriminator satisfies the Lipschitz constraint, leading to more stable training dynamics.
+                           This theoretical foundation enables WCGAN-GP to produce high-quality synthetic samples
+                           that effectively augment the minority class without introducing artifacts.
+
+                                 A notable observation from Table 3 is the precision–recall trade-off for the minority
+                           class: WCGAN-GP achieves the highest precision (88.62 ± 1.2%) but a relatively lower
+                           recall (37.64 ± 1.5%) compared to ADASYN (51.97 ± 1.9%). This trade-off arises because
+                           WCGAN-GP generates high-quality synthetic samples that lead to a more conservative
+                           classifier—while it identifies fraud cases with high confidence (evidenced by the high
+                           precision), it may miss some genuine fraud cases. Despite the lower recall, WCGAN-GP
+                           still achieves the best F1-score (52.61 ± 0.9%) among all methods, indicating an overall
+                           better balance. Furthermore, in healthcare fraud detection, high precision is often more
+                           desirable than high recall because false positives (incorrectly flagging legitimate claims as
+                           fraudulent) can erode trust and cause unnecessary investigations. The 88.62% precision
+                           means that 88.62% of claims flagged as fraudulent are truly fraudulent, reducing the burden
+                           of manual review on legitimate claims.
+
+                                                                                 https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                             22 of 28
+
+                           5.3. GA-RF Evaluation
+                                 Following the implementation of GA as our feature selection methodology, we identi-
+
+                           fied 28 statistically independent features of the dataset. The comparison of feature impor-
+                           tance before and after WCGAN-GP augmentation is presented in Figures 6 and 7. Notably,
+                           after data augmentation, the importance distribution becomes more balanced across fea-
+                           tures, with several features showing increased discriminative power for fraud detection.
+                           The augmented data enables the GA-RF algorithm to identify more robust feature subsets
+                           that better capture the characteristics of fraudulent claims. Our WCGAN-GA-RF frame-
+                           work achieves outstanding performance metrics, with a recall rate of 97.05% and a precision
+                           of 96.47%, with only 35% of the original feature set (28 out of 80 features) remaining for
+                           fraud detection in high-dimensional and severely imbalanced datasets.
+
+                           Figure 6. Feature importance analysis on the original imbalanced dataset reveals that Random Forest
+                           assigns higher importance to features distinguishing the majority class (legitimate claims), while
+                           fraud-discriminative features receive lower scores due to severe class imbalance (16:1 ratio).
+
+                           Figure 7. Feature importance analysis on WCGAN-GP-augmented balanced data shows that Random
+                           Forest now identifies different features as important, enabling more discriminative feature subset
+                           selection that captures genuine fraud patterns.
+
+                                 Despite a 35% reduction in features, the proposed model significantly outperforms
+                           conventional sampling methods (see Figure 8), including ROS, SMOTE, and ADASYN.
+
+                                                                                                                            https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                             23 of 28
+
+                           The WCGAN-GP architecture infrastructure incorporates the Wasserstein distance and
+                           gradient penalty systems, which properly address class imbalance issues. The GA approach
+                           has several advantages over its competitors (1) improved ability to explore nonlinear
+                           feature relationships, (2) more flexibility in exploration of feature space, (3) improved
+                           interpretability and integration of human insight, (4) efficient handling of high-dimensional
+                           data structures, and (5) robust performance in the presence of noise and anomalies. A
+                           comparison of these five models is presented in Table 4.
+
+                           Figure 8. The performance of the genetic algorithm.
+
+                           Table 4. Comparison of precision of different models on HFD. All models use Random Forest classifier.
+                           The key difference is the oversampling method and feature selection strategy. WCGAN-GA-RF uses
+                           only 28 features (35% of the original 80), achieving superior performance with reduced dimensionality.
+
+                                        Features                      Precision  Recall  F1-Score
+
+                           ROS          80                            95.96%     96.47%   95.91%
+                                                                      95.09%     94.84%   94.97%
+                           SMOTE        80                            95.21%     94.97%   95.08%
+                                                                      96.82%     96.94%   96.51%
+                           ADASYN       80                            96.47%     97.05%   96.26%
+
+                           WCGAN-GP     80
+
+                           WCGAN-GA-RF  28
+
+                           Note: WCGAN-GA-RF is our proposed scheme.
+
+                           5.4. Ablation Study
+
+                                 To evaluate the contribution of each component in the proposed WCGAN-GA-RF
+                           framework, we conduct a comprehensive ablation study. The results, shown in Table 5,
+                           demonstrate that the synergistic combination of WCGAN-GP data augmentation, GA-
+                           based feature selection, and RF classification yields superior performance compared to
+                           individual components.
+
+                                 Key findings from the ablation study are the following: (1) WCGAN-GP contribution:
+                           Comparing rows 1–2 shows that WCGAN-GP data augmentation improves F1-score from
+                           94.95% to 96.51% (+1.56%), demonstrating the effectiveness of generative augmentation
+                           for handling class imbalance. (2) GA-RF contribution: Comparing rows 2 and 5 shows
+                           that GA-RF feature selection reduces feature count from 80 to 28 (65% reduction) while
+                           maintaining competitive F1-score (96.51% vs. 96.26%, only 0.25% drop), demonstrating
+                           efficient dimensionality reduction. (3) Synergistic effect: The full WCGAN-GA-RF achieves
+
+                                                                                 https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                           24 of 28
+
+                           the best balance of precision and recall with only 35% of the original features, outperforming
+                           individual components in terms of efficiency–accuracy trade-off.
+
+                           Table 5. Ablation study and contribution of each component (mean ± std over five runs).
+
+                           Model Variant               Feat.               Precision         Recall           F1
+
+                           Baseline (no augmentation)  80                  95.32 ± 0.7%  94.87 ± 0.6%  94.95 ± 0.6%
+                                                                                         96.94 ± 0.3%  96.51 ± 0.3%
+                           WCGAN-GP only               80                  96.82 ± 0.4%  95.92 ± 0.5%  95.85 ± 0.5%
+                                                                                         97.03 ± 0.3%  96.97 ± 0.3%
+                           GA-RF only (with SMOTE)     28                  95.78 ± 0.6%  97.05 ± 0.4%  96.26 ± 0.4%
+
+                           WCGAN + RF (full features)  80                  96.91 ± 0.3%
+
+                           Full WCGAN-GA-RF            28 96.47 ± 0.5%
+
+                           Note: Full WCGAN-GA-RF is our proposed scheme.
+
+                                 The computational costs of the proposed framework are as follows: (1) WCGAN-
+                           GP training: O(n · d · I) where n = 12,800 training samples, d = 80 features, and
+                           I = 10,000 iterations. On our hardware (NVIDIA RTX 3080 GPU), WCGAN-GP training
+                           takes approximately 15 min. (2) GA-RF feature selection: O(P · G · k · RFtrain) where
+                           P = 50 population size, G = 100 generations, and k-fold cross-validation (k = 5). This
+                           takes approximately 8 min on a standard CPU. (3) RF classification: Training takes
+                           O(n · dselected · t · log t) where dselected = 28 features and t = 100 trees, requiring less
+                           than 1 min. The total training pipeline completes in under 30 min, making it practical for
+                           periodic model updates in real-world deployment scenarios.
+
+                           6. Conclusions
+
+                                 Due to its complex systems and huge financial moves, the healthcare industry has
+                           emerged as a premier destination for fraud activities. The changing demography, including
+                           an aging population, offers these insurance programs even more money, adding even more
+                           stress to their balance. Fraud eventually threatens both the economic stability and the
+                           healthcare of the individuals who rely on these services. Advances in machine learning,
+                           improved data collection techniques, and the expansion of public state data all contribute to
+                           the development of new approaches to fight back. With these tools, fraud can be identified
+                           more complex and powerfully through advanced analyses. It has become so important to
+                           develop powerful computerized systems that identify suspicious trends and contact related
+                           functions right away.
+
+                                 Severe class imbalance, high-dimensional feature spaces, and multiple-class distribu-
+                           tions are common hallmarks of HFD datasets. Conventional HFD models trained on such
+                           imbalanced datasets generally exhibit exceptional classification accuracy for majority-class
+                           samples but underperform in minority-class instances. In addition, the feature selection
+                           process poses a major problem because it affects both the accuracy of the monitoring and
+                           the computational efficiency. We present a novel framework that combines WCGAN-GP
+                           with GA features optimization and prediction modules to target these limitations. The
+                           WCGAN-GP component helps to oversample the minority samples in an efficient manner,
+                           and the procedure of the GA-based feature selection process meticulously removes the
+                           redundant features, and a closing classification structure is pursued. Experimental findings
+                           indicate that the proposed design drastically beats current techniques in correcting class
+                           imbalance problems in healthcare claim information. Our feature selection strategy, which
+                           is based on GA, has superior measures of efficiency. The proposed HFD system is effective
+                           in detecting fraud within the system due to the built-in architecture.
+
+                                 Future research directions refer to various interesting directions that can be taken
+                           to improve the proposed framework further. To begin with, the development of deep
+                           learning classifiers is a natural continuation of this project. In particular, we will explore
+                           (1) transformer-based architectures to discover long-range dependency in sequential
+
+                                                                                         https://doi.org/10.3390/info17040315
+Information 2026, 17, 315                                                                                                                                             25 of 28
+
+                           healthcare claim data, which could enhance the ability to detect complex fraud patterns
+                           across the dimension of time; (2) Graph Neural Networks (GNNs) to discover relationships
+                           among healthcare providers, patients, and claims, which could be used to detect network-
+                           based fraud schemes; and (3) hybrid deep learning models to combine the representational
+                           power of neural networks and the interpretability of tree-based models. These deep learning
+                           methods may substitute the existing Random Forest classifier in the WCGAN-GA-RF
+                           structure and would possibly enhance detection accuracy without reducing interpretability
+                           in attention mechanisms and feature attribution techniques.
+
+                                 Second, the domain of advanced optimization methods has great potential in en-
+                           hancing the computational effectiveness and the performance of the model. We suggest
+                           investigating (1) Bayesian optimization for hyperparameter tuning of WCGAN-GP to
+                           replace the current grid search approach, which, as a probabilistic optimization method,
+                           can reduce training time while identifying optimal configurations; (2) multi-objective
+                           evolutionary algorithms (e.g., NSGA-II, MOEA/D) for feature selection, enabling simul-
+                           taneous optimization of multiple criteria such as classification accuracy, feature sparsity,
+                           and computational cost; and (3) adaptive learning rate schedulers and neural architecture
+                           search algorithms to automatically optimize the network structure of the generator and
+                           discriminator. These optimization measures may minimize the computational overhead of
+                           the framework while maintaining or improving detection performance.
+
+                                 Third, future work will be concerned with practical deployment considerations. This
+                           involves the creation of explainable AI (XAI) techniques to obtain interpretable fraud
+                           detection results for regulatory compliance and auditor review, implementing real-time
+                           streaming architectures to generate low-latency results for incoming claims, and exploring
+                           federated learning methods to train models across various healthcare organizations while
+                           maintaining data privacy. Additionally, integrating multi-modal data sources (e.g., medical
+                           images, clinical notes, temporal claim sequences) could further enhance the model’s ability
+                           to detect advanced fraud schemes that would evade detection when working with claims
+                           data alone.
+
+                                 Despite the promising results, this study has several limitations that warrant acknowl-
+                           edgement. First, the empirical validation is conducted on a single healthcare claims dataset
+                           from one region (China), and generalization to other healthcare systems with different
+                           fraud patterns and regulatory environments requires further investigation. Second, the
+                           framework assumes that labeled fraud data is available for training, which may not hold
+                           in deployment scenarios where fraud labels are scarce or unreliable. Third, while our
+                           approach achieves high detection accuracy, the real-world economic impact and return-
+                           on-investment of deploying this system remain to be validated through operational pilots.
+                           Finally, regulatory and privacy considerations, particularly regarding the use of synthetic
+                           patient data and cross-institutional model deployment, are important practical concerns
+                           that are beyond the scope of this methodological study but essential for eventual adoption.
+
+                           Author Contributions: J.C. and S.W. led the writing of the main text of the manuscript. The
+                           methodology and conceptualization were developed by J.C. and S.W.; J.S., Y.T., J.C. and Y.Z. were
+                           responsible for the preparation of the figures. All authors have read and agreed to the published
+                           version of the manuscript.
+
+                           Funding: This work is supported in part by the Zhejiang University of Science and Technology
+                           integrated industry education project under grant No.: KJ-2024-270 and by the National College
+                           Student Innovation and Entrepreneurship Training Program under grant No.: 202511057060.
+
+                           Institutional Review Board Statement: Not applicable.
+
+                           Informed Consent Statement: Not applicable.
+
+                           https://doi.org/10.3390/info17040315
+Information 2026, 17, 315  26 of 28
+
+                                            Data Availability Statement: The healthcare claims dataset used in this study was provided by
+                                            Neusoft Corporation under a data use agreement for academic research. Due to the proprietary nature
+                                            of the data containing sensitive patient information, the dataset cannot be publicly released. However,
+                                            the dataset statistics and preprocessing details are provided in Section 5.1 to enable reproducibility
+                                            assessment. The source code for the WCGAN-GA-RF framework is available from the corresponding
+                                            author upon reasonable request, subject to appropriate data use agreements.
+
+                                            Acknowledgments: The authors sincerely thank the reviewers and editors for their constructive com-
+                                            ments and valuable suggestions, which have significantly improved the quality of this manuscript.
+
+                                            Conflicts of Interest: The authors declare no conflict of interest.
+
+References
+
+1. du Preez, A.; Bhattacharya, S.; Beling, P.; Bowen, E. Fraud detection in healthcare claims using machine learning: A systematic
+       review. Artif. Intell. Med. 2024, 160, 103061. [CrossRef]
+
+2. National Healthcare Security Administration. 2020 Statistical Report on the Advancement of the Medical Security Sector.
+       Available online: https://www.nhsa.gov.cn/art/2021/3/8/art_7_4590.html (accessed on 7 January 2025).
+
+3. National Healthcare Security Administration. Statistical Report on the Development of Medical Security in 2020 Health
+       Expenditure Fact Sheet. Available online: https://www.nhsa.gov.cn/art/2021/3/8/art_7_4590.html?utm_source=chatgpt.com
+       (accessed on 7 January 2025).
+
+4. Chandola, V.; Banerjee, A.; Kumar, V. Anomaly detection: A survey. ACM Comput. Surv. 2009, 41, 1–58. [CrossRef]
+5. He, H.; Garcia, E.A. Learning from imbalanced data. IEEE Trans. Knowl. Data Eng. 2009, 21, 1263–1284. [CrossRef]
+6. Guyon, I.; Elisseeff, A. An introduction to variable and feature selection. J. Mach. Learn. Res. 2003, 3, 1157–1182.
+7. Beygelzimer, A.; Dasgupta, S.; Langford, J. Importance weighted active learning. In Proceedings of the 26th Annual International
+
+       Conference on Machine Learning; Association for Computing Machinery: New York, NY, USA, 2009; pp. 49–56.
+8. Tubishat, M.; Tbaishat, D.; Al-Zoubi, A.M.; Hraiz, A.E.; Habib, M. Leveraging evolutionary algorithms with a dynamic weighted
+
+       search space approach for fraud detection in healthcare insurance claims. Knowl.-Based Syst. 2025, 317, 113436. [CrossRef]
+9. Matloob, I.; Khan, S.A.; Rukaiya, R.; Alfraihi, H.; Khan, J.A. Healthcare fraud detection using adaptive learning and deep learning
+
+       techniques. Evol. Syst. 2025, 16, 72. [CrossRef]
+10. Mao, Y.; Li, Y.; Xu, B.; Han, J. XGAN: A Medical Insurance fraud Detector based on GAN with XGBoost. J. Inf. Hiding Multim.
+
+       Signal Process. 2024, 15, 36–52.
+11. Dong, Y.; Yao, J.; Wang, J.; Liang, Y.; Liao, S.; Xiao, M. Dynamic fraud detection: Integrating reinforcement learning into graph
+
+       neural networks. In 2024 6th International Conference on Data-Driven Optimization of Complex Systems (DOCS); IEEE: Hangzhou,
+       China, 2024; pp. 818–823.
+12. Nugraha, R.A.; Pardede, H.F.; Subekti, A. Oversampling based on generative adversarial networks to overcome imbalance data
+       in predicting fraud insurance claim. Kuwait J. Sci. 2022, 49, 1–12. [CrossRef]
+13. Yang, W.S.; Hwang, S.Y. A process-mining framework for the detection of healthcare fraud and abuse. Expert Syst. Appl. 2006,
+       31, 56–68. [CrossRef]
+14. Zhang, C.; Xiao, X.; Wu, C. Medical fraud and abuse detection system based on machine learning. Int. J. Environ. Res. Public
+       Health 2020, 17, 7265. [CrossRef]
+15. Massi, M.C.; Ieva, F.; Lettieri, E. Data mining application to healthcare fraud detection: A two-step unsupervised clustering
+       method for outlier detection with administrative databases. BMC Med. Inform. Decis. Mak. 2020, 20, 160. [CrossRef]
+16. Kanksha; Bhaskar, A.; Pande, S.; Malik, R.; Khamparia, A. An intelligent unsupervised technique for fraud detection in healthcare
+       systems. Intell. Decis. Technol. 2021, 15, 127–139.
+17. Chen, R.; Zhang, H.; Lin, K. A graph-based method for health care joint fraud detection. In Proceedings of the 2020 9th International
+       Conference on Computing and Pattern Recognition; Association for Computing Machinery: New York, NY, USA, 2020; pp. 122–129.
+18. Lin, C.; Lin, C.M.; Li, S.T.; Kuo, S.C. Intelligent physician segmentation and management based on KDD approach. Expert Syst.
+       Appl. 2008, 34, 1963–1973. [CrossRef]
+19. Snorovikhina, V.; Zaytsev, A. Unsupervised anomaly detection for discrete sequence healthcare data. In International Conference
+       on Analysis of Images, Social Networks and Texts; Springer Internatinal Publishing: Cham, Switzerland, 2020; pp. 391–403.
+20. Sun, C.; Li, Q.; Li, H.; Shi, Y.; Zhang, S.; Guo, W. Patient cluster divergence based healthcare insurance fraudster detection. IEEE
+       Access 2018, 7, 14162–14170. [CrossRef]
+21. Lu, J.; Lin, K.; Chen, R.; Lin, M.; Chen, X.; Lu, P. Health insurance fraud detection by using an attributed heterogeneous
+       information network with a hierarchical attention mechanism. BMC Med. Inform. Decis. Mak. 2023, 23, 62. [CrossRef]
+
+                           https://doi.org/10.3390/info17040315
+Information 2026, 17, 315  27 of 28
+
+22. Kennedy, R.K.; Salekshahrezaee, Z.; Villanustre, F.; Khoshgoftaar, T.M. Iterative cleaning and learning of big highly-imbalanced
+       fraud data using unsupervised learning. J. Big Data 2023, 10, 106. [CrossRef]
+
+23. Suesserman, M.; Gorny, S.; Lasaga, D.; Helms, J.; Olson, D.; Bowen, E.; Bhattacharya, S. Procedure code overutilization detection
+       from healthcare claims using unsupervised deep learning methods. BMC Med. Inform. Decis. Mak. 2023, 23, 196. [CrossRef]
+
+24. Taha, A.; Cosgrave, B.; Mckeever, S. Using feature selection with machine learning for generation of insurance insights. Appl. Sci.
+       2022, 12, 3209. [CrossRef]
+
+25. Ekin, T.; Frigau, L.; Conversano, C. Health care fraud classifiers in practice. Appl. Stoch. Model. Bus. Ind. 2021, 37, 1182–1199.
+       [CrossRef]
+
+26. He, H.; Hawkins, S.; Graco, W.; Yao, X. Application of genetic algorithm and k-nearest neighbour method in real world medical
+       fraud detection problem. J. Adv. Comput. Intell. Intell. Inform. 2000, 4, 130–137. [CrossRef]
+
+27. Bauder, R.A.; Khoshgoftaar, T.M. The effects of varying class distribution on learner behavior for medicare fraud detection with
+       imbalanced big data. Health Inf. Sci. Syst. 2018, 6, 9. [CrossRef]
+
+28. Chen, J.P.; Lu, P.; Yang, F.; Chen, R.; Lin, K. Medical insurance fraud detection using graph neural networks with spatio-temporal
+       constraints. J. Netw. Intell. 2022, 7, 480–498.
+
+29. Fursov, I.; Kovtun, E.; Rivera-Castro, R.; Zaytsev, A.; Khasyanov, R.; Spindler, M.; Burnaev, E. Sequence embeddings help detect
+       insurance fraud. IEEE Access 2022, 10, 32060–32074. [CrossRef]
+
+30. Matschak, T.; Prinz, C.; Rampold, F.; Trang, S. Show Me Your Claims and I’ll Tell You Your Offenses: Machine Learning-Based
+       Decision Support for Fraud Detection on Medical Claim Data. In Proceedings of the Hawaii International Conference on System
+       Sciences 2022 (HICSS-55), Virtual, 4–7 January 2022.
+
+31. Zhang, G.; Fu, S.; Xu, X.; Qi, L.; Zhang, X.; Dou, W. An anti-fraud framework for medical insurance based on deep learning.
+       In Advanced Data Mining and Applications ADMA 2019; Lecture Notes in Computer Science; Springer: Cham, Switzerland, 2019;
+       Volume 11888. [CrossRef]
+
+32. Mayaki, M.Z.A.; Riveill, M. Multiple inputs neural networks for fraud detection. In International Conference on Machine Learning,
+       Control, and Robotics (MLCR); IEEE: Piscataway, NJ, USA, 2022; pp. 8–13.
+
+33. Kumari, A.; Punn, N.S.; Sonbhadra, S.K.; Agarwal, S. Impact of the composition of feature extraction and class sampling in
+       medicare fraud detection. In International Conference on Nueral Information Processing; Springer International Publishing: Cham,
+       Switzerland, 2022; pp. 639–658.
+
+34. Bounab, R.; Zarour, K.; Guelib, B.; Khlifa, N. Enhancing Medicare Fraud Detection Through Machine Learning: Addressing Class
+       Imbalance with SMOTE-ENN. IEEE Access 2024, 12, 54382–54396. [CrossRef]
+
+35. Kumaraswamy, N.; Ekin, T.; Park, C.; Markey, M.K.; Barner, J.C.; Rascati, K. Using a Bayesian Belief Network to detect healthcare
+       fraud. Expert Syst. Appl. 2024, 238, 122241. [CrossRef]
+
+36. Mohanta, A.; Panigrahi, S. Health Insurance Fraud Detection Using Feature Selection and Ensemble Machine Learning Techniques.
+       In Advances in Distributed Computing and Machine Learning: Proceedings of ICADCML 2023; Springer Nature: Singapore, 2023;
+       pp. 197–207.
+
+37. Sun, C.; Cui, H.; Zhou, W.; Nie, W.; Wang, X.; Yuan, Q. Epileptic seizure detection with EEG textural features and imbalanced
+       classification based on EasyEnsemble learning. Int. J. Neural Syst. 2019, 29, 1950021. [CrossRef]
+
+38. Liu, X.Y.; Wu, J.; Zhou, Z.H. Exploratory undersampling for class-imbalance learning. IEEE Trans. Syst. Man Cybern. Part B
+       (Cybern.) 2008, 39, 539–550.
+
+39. Wang, Y.; Yang, L. A robust loss function for classification with imbalanced datasets. Neurocomputing 2019, 331, 40–49. [CrossRef]
+40. Saia, R. Unbalanced Data Classification in Fraud Detection by Introducing a Multidimensional Space Analysis. In Proceedings
+
+       of the 3rd International Conference on Internet of Things, Big Data and Security (IoTBDS 2018); SciTePress: Setúbal, Portugal, 2018;
+       pp. 29–40. Available online: https://www.scitepress.org/Papers/2018/66630/66630.pdf (accessed on 7 January 2025).
+41. Yu, H.; Yang, X.; Zheng, S.; Sun, C. Active learning from imbalanced data: A solution of online weighted extreme learning
+       machine. IEEE Trans. Neural Netw. Learn. Syst. 2018, 30, 1088–1103. [CrossRef]
+42. Naidoo, K.; Marivate, V. Unsupervised anomaly detection of healthcare providers using generative adversarial networks. In
+       Conference on e-Business, e-Services, and e-Society; Springer: Cham, Switzerland, 2020; pp. 419–430.
+43. He, H.; Graco, W.; Yao, X. Application of genetic algorithm and k-nearest neighbour method in medical fraud detection. In
+       Asia-Pacific Conference on Simulated Evolution and Learning; Springer: Berlin/Heidelberg, Germany, 1998; pp. 74–81.
+44. Majhi, S.K.; Bhatachharya, S.; Pradhan, R.; Biswal, S. Fuzzy clustering using salp swarm algorithm for automobile insurance
+       fraud detection. J. Intell. Fuzzy Syst. 2019, 36, 2333–2344. [CrossRef]
+45. Yan, C.; Li, M.; Liu, W.; Qi, M. Improved adaptive genetic algorithm for the vehicle Insurance Fraud Identification Model based
+       on a BP Neural Network. Theor. Comput. Sci. 2020, 817, 12–23. [CrossRef]
+46. Lingeswari, R.; Brindha, S. Efficient loss updated XGBoost with deep emended genetic algorithm for detecting online fraudulent
+       transactions. Multimed. Tools Appl. 2024, 83, 84471–84494. [CrossRef]
+
+                           https://doi.org/10.3390/info17040315
+Information 2026, 17, 315  28 of 28
+
+47. Goodfellow, I.J.; Pouget-Abadie, J.; Mirza, M.; Xu, B.; Warde-Farley, D.; Ozair, S.; Courville, A.; Bengio, Y. Generative adversarial
+       nets. Adv. Neural Inf. Process. Syst. 2014, 27, 2672–2680.
+
+48. Douzas, G.; Bação, F. Effective data generation for imbalanced learning using conditional generative adversarial networks. Expert
+       Syst. Appl. 2018, 91, 464–471. [CrossRef]
+
+49. Mirza, M.; Osindero, S. Conditional Generative Adversarial Nets. arXiv 2014, arXiv:1411.1784. [CrossRef]
+50. Arjovsky, M.; Chintala, S.; Bottou, L. Wasserstein GAN. arXiv 2017, arXiv:1701.07875. [PubMed]
+51. Arjovsky, M.; Bottou, L. Towards Principled Methods for Training Generative Adversarial Networks. arXiv 2017, arXiv:1701.04862.
+
+       [CrossRef]
+52. Gulrajani, I.; Ahmed, F.; Arjovsky, M.; Dumoulin, V.; Courville, A.C. Improved training of wasserstein gans. Adv. Neural Inf.
+
+       Process. Syst. 2017, 30, 5767–5777.
+53. Li, Z.; Zheng, T.; Wang, Y.; Cao, Z.; Guo, Z.; Fu, H. A novel method for imbalanced fault diagnosis of rotating machinery based
+
+       on generative adversarial networks. IEEE Trans. Instrum. Meas. 2020, 70, 3500417. [CrossRef]
+54. Wang, C.; Li, F.; Liu, Q.; Wang, H.; Benmoussa, P.; Jeschke, S.; Oeser, M. Establishment and extension of digital aggregate database
+
+       using auxiliary classifier Wasserstein GAN with gradient penalty. Constr. Build. Mater. 2021, 300, 124217. [CrossRef]
+55. Luo, J.; Huang, J.; Li, H. A case study of conditional deep convolutional generative adversarial networks in machine fault
+
+       diagnosis. J. Intell. Manuf. 2021, 32, 407–425. [CrossRef]
+
+Disclaimer/Publisher’s Note: The statements, opinions and data contained in all publications are solely those of the individual
+author(s) and contributor(s) and not of MDPI and/or the editor(s). MDPI and/or the editor(s) disclaim responsibility for any injury to
+people or property resulting from any ideas, methods, instructions or products referred to in the content.
+
+                           https://doi.org/10.3390/info17040315
+

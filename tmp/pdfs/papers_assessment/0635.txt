@@ -1,0 +1,478 @@
+Proceedings of the Twenty-Ninth International Joint Conference on Artiﬁcial Intelligence (IJCAI-20)
+                                               Special Track on AI in FinTech
+
+   Infochain: A Decentralized, Trustless and Transparent Oracle on Blockchain
+
+            Naman Goel1∗ , Cyril van Schreven1∗ , Aris Filos-Ratsikas2 and Boi Faltings1
+                            1Swiss Federal Institute of Technology, Lausanne (EPFL)
+                                             2University of Liverpool, UK
+
+{naman.goel, boi.faltings}@epﬂ.ch, cyril.schreven@protonmail.com, aris.ﬁlos-ratsikas@liverpool.ac.uk
+
+                         Abstract                                        (SLA) between the service provider and the clients. The SLA
+                                                                         can be coded into a smart contract between the involved par-
+      Blockchain based systems allow various kinds of                    ties which will trigger an automatic payment upon detection
+      ﬁnancial transactions to be executed in a decentral-               of a violation. For instance, if the service guarantees a re-
+      ized manner. However, these systems often rely on                  sponse time of at most 1 second with high probability, fre-
+      a trusted third party (oracle) to get correct informa-             quent slower responses would trigger automatic compensa-
+      tion about the real-world events, which trigger the                tion. An important issue here is, how to determine whether
+      ﬁnancial transactions. In this paper, we identify two              the real-world event has actually happened. In the above ex-
+      biggest challenges in building decentralized, trust-               ample, this means how to determine that the SLA has been
+      less1 and transparent oracles. The ﬁrst challenge                  violated? We use the case of the web service only as a simple
+      is acquiring correct information about the real-                   running example but this is in fact a fundamental challenge in
+      world events without relying on a trusted informa-                 developing information infrastructure for FinTech.
+      tion provider. We show how a peer-consistency in-
+      centive mechanism can be used to acquire truthful                     The need for trusted information about a real-world event
+      information from an untrusted and self-interested                  that triggers some conditional ﬁnancial transactions arises in
+      crowd, even when the crowd has outside incentives                  applications ranging from insurance, banking, trade, gover-
+      to provide wrong informations. The second is a                     nance and law etc. The entities responsible for acquiring such
+      system design and implementation challenge. For                    data about the real-world events are called oracles. Exist-
+      the ﬁrst time, we show how to implement a trust-                   ing solutions include Town Crier and Chainlink among oth-
+      less and transparent oracle in Ethereum. We discuss                ers. Traditionally, oracles are implemented using trusted third
+      various non-trivial issues that arise in implementing              party data sources responsible for acquiring the information.
+      peer-consistency mechanisms in Ethereum, suggest                   However, besides the fact that such an approach is in conﬂict
+      several optimizations to reduce gas cost and pro-                  with the decentralized nature of the blockchain technology, it
+      vide empirical analysis.                                           is also prone to problems such as trustworthiness and cost.
+
+1 Introduction                                                              An alternative solution would be to appeal to the “wisdom
+                                                                         of the crowds” and ask the users themselves about the infor-
+With the increasing popularity of the blockchain technology,             mation (for e.g., the quality of service received). The idea
+the implementation of commercial and governmental sys-                   has also been proposed for outcome resolution in decentral-
+tems has witnessed a large shift towards distributed and de-             ized prediction markets like Augur and Gnosis. While this
+centralized approaches. In particular, the emergence of the              approach is more decentralized in nature, it poses a signif-
+Ethereum platform has given rise to the development of sev-              icant challenge: the agents can not be relied on to provide
+eral applications, often referred to as decentralized apps or            correct information. The task of eliciting information from
+DAPs, which aim to apply this latter principle to many areas             self-interested agents is one of the fundamental problems in
+such as ﬁnance, education, intellectual property or govern-              game theory, and has been extensively studied. In the center
+ment. At the heart of these approaches lies the concept of               of these investigations lies the literature on peer-consistency
+the smart contract, i.e., lines of code that contain the terms           mechanisms [Faltings and Radanovic, 2017]; these are game-
+of the agreement between the involved parties, which are au-             theoretic mechanisms that incentivize agents to report the in-
+tomatically executed once triggered by events happening in               formation truthfully, even if the information is unveriﬁable.
+the real world. For example, consider the case of a web ser-
+vice, which is typically dictated by a service level agreement              In this paper, we propose the employment of peer-
+                                                                         consistency mechanisms for the design of trustless, decentral-
+   ∗The two authors contributed equally.                                 ized oracles. This seems like a natural choice, as the useful-
+    1Trustless is a term increasingly used in the context of decentral-  ness of the oracles is dependent on the quality of the supplied
+ized and blockchain systems meaning not requiring trust.                 information, which needs to be truthfully elicited from the
+                                                                         agents. However, this quest imposes two major challenges:
+
+                                                                            • For a peer-consistency mechanism to actually work, the
+
+4604
+Proceedings of the Twenty-Ninth International Joint Conference on Artiﬁcial Intelligence (IJCAI-20)
+                                               Special Track on AI in FinTech
+
+      agents must be convinced of its incentive properties,        al., 2019] also use peer-consistency for trust-free data trad-
+      contrary to the traditional case, where the implementa-      ing systems but the analysis in this theoretical paper focuses
+      tion of the mechanism is done by a trusted third-party.      on a secure multi-party computation protocol for rewarding
+      How can one implement the incentive scheme in a trans-       information that loses value if revealed. [Adler et al., 2018]
+      parent and trustless manner, what is the cost and how        propose a system for a decentralized oracle but it requires a
+      can we optimize this cost?                                   “random assignment” of questions to agents, which has the
+                                                                   drawback that agents may be asked to answer questions that
+   • In many ﬁnancial settings, agents also have incentives to     they may have no information about.
+      lie about their true observations and provide false infor-
+      mation. In the web service example, the clients would           The literature on peer-consistency is long and extensive
+      have an incentive to always report “bad” response times,     [Miller et al., 2005; Prelec, 2004; Waggoner and Chen, 2014;
+      in order for the conditions of the smart contract to be vi-  Gao et al., 2016; Agarwal et al., 2017; Liu and Chen, 2017;
+      olated in their favor. How large do the incentives have      Goel and Faltings, 2019a; 2019b].; we refer the reader to
+      to be, to counteract the lying incentives, and is the ap-    [Faltings and Radanovic, 2017] for a detailed exposition
+      proach economically feasible?                                of the main results. Most relevant to ours are the re-
+                                                                   sults related to incentives which are dependent on the out-
+In this paper, we address the above questions. We summarise        come, e.g., [Chakraborty and Das, 2016; Chen et al., 2011;
+our contributions below.                                           Freeman et al., 2017]. These differ from our theoretical con-
+                                                                   tributions in the fact that they only apply to the speciﬁc do-
+  1. We design and implement INFOCHAIN, a completely de-           main of prediction markets.
+      centralized peer-consistency based truthful information
+      collection system in Ethereum. We address the follow-        2 Infochain
+      ing technical challenges in its implementation.
+                                                                   To collect truthful information from self-interested agents, we
+         • Writing data and performing computation on              propose a completely decentralized, transparent and trustless
+            Ethereum’s Virtual Machine (EVM) is expensive.         system called Infochain. Infochain enables information re-
+            Information providers must be compensated for          questers to post questions, which can be selected by informa-
+            this cost, increasing the overall cost of informa-     tion providers (agents). The questions can be, for example, of
+            tion acquisition. For the ﬁrst time, we discuss        the following form: “Is the responseTime of web service
+            several non-trivial ways of implementing three         W less than 1 second?”. Once the agents submit informa-
+            different peer-consistency mechanisms in Solidity      tion for the questions they select to answer, their payments
+            (Ethereum’s programming language) and empiri-          in Ether are processed by a smart contract. All the collected
+            cally compare their costs.                             information and payments are stored on a public blockchain
+                                                                   to ensure transparency and immutability.
+         • While transparency is a desired inherent feature of
+            blockchain, the peer-consistency mechanisms are        Peer-consistency. A crucial step in eliciting trustworthy in-
+            compromised if an agent can see the information        formation from self-interested agents is aligning their incen-
+            submitted by their “peers” before submitting their     tives with honest behavior. Unfortunately, a naive incentive
+            own information. We propose to use a commit-           mechanism may invite free riders who submit random infor-
+            reveal protocol to address this challenge.             mation. Designing truthful incentive mechanisms is a hard
+                                                                   problem when there is no way to verify the correctness of the
+         • In order to reduce computation complexity, peer-        information. This issue has been addressed by game theo-
+            consistency mechanisms use only one (or a few)         retic peer-consistency mechanisms [Faltings and Radanovic,
+            randomly selected peer(s) for every agent. How-        2017]. The broad idea in these mechanisms is to reward the
+            ever, if the random peer(s) can be predicted, the      agents by “matching” the information provided by multiple
+            agents get an opportunity to collude and the mech-     agents, while discouraging any collusion. The state of the
+            anisms can be compromised, and this risk is in-        art peer-consistency mechanisms guarantee that truth-telling
+            creased by the transparency of blockchain. We          strategy is the highest paying equilibrium and other equilib-
+            show that under reasonable assumptions, random         ria are less proﬁtable. We consider three fundamental peer-
+            peer selection can still be implemented safely.        consistency mechanisms in this paper.
+
+  2. We analyze the settings when agents have outside incen-         1. The Output Agreement (OA) Mechanism [Waggoner
+      tives to lie. We formally show that even in the presence           and Chen, 2014]: This is perhaps the simplest of all
+      of such outside incentives peer-consistency can be used            peer-consistency mechanisms. In the OA mechanism,
+      to elicit the truth by choosing an appropriate constant to         an agent gets a reward of 1 unit only if her answer for
+      scale the rewards. We show that normally the payments              a question matches the answer of her peer for the same
+      required are a small fraction of the outside incentive.            question. The reward of the agent for a question is the
+                                                                         average over the rewards earned by matching with all
+1.1 Related Work                                                         peers. The ﬁnal reward of the agent is the average of her
+                                                                         rewards from all the questions answered by her.
+Many decentralized systems have been proposed for crowd-
+sourcing and information trading [An et al., 2019; Xiong and         2. The Dasgupta and Ghosh (DG) Mechanism [Das-
+Xiong, 2019; Lu et al., 2018; Li et al., 2018] but none ad-              gupta and Ghosh, 2013]: In the DG mechanism, an
+dresses the issue of providing quality based incentives for
+information. In a recent and independent work, [Kong et
+
+4605
+   Proceedings of the Twenty-Ninth International Joint Conference on Artiﬁcial Intelligence (IJCAI-20)
+                                                  Special Track on AI in FinTech
+
+   Information requester                             Information providers submit  Info providers reveal Payments and deposits of
+   deploys the smart           Information providers answer commitments with
+1                           2  select questions to answer.deposits.                answers and secret keys. requester and providers
+
+   contract (with required                        3                                4     are processed.
+                                                                                      5
+   budget and deposit) and
+
+   posts questions.
+
+                                    Infochain Smart Contract
+
+                                    Figure 1: Infochain Overview
+
+   agent gets a reward of 1 unit if her answer for a question      1. Commit: An agent writes her commitment
+   matches the answer of her peer for the same question                keccak256(y, k) on the chain, where y is the agent’s
+   but also gets a penalty of 1 unit if her answers match              answer for a given question and k is her secret key.
+   the answers of the peer on non-common questions. The
+   DG mechanism requires that two agents, who are peers            2. Reveal: Once all agents who have selected a ques-
+   of one another, must also have some non-common ques-                tion, have ﬁnished submitting their commitments for the
+   tions that are answered by one of them but not by both.             question or the commitment phase expires, they can re-
+   The ﬁnal reward is calculated by averaging as described             veal their respective secret keys and answers. If the com-
+   in the OA mechanism. The Correlated Agreement                       mitment of an agent matches her revealed answer, the
+   mechanism [Shnayder et al., 2016] is a generalization of            answer is written on the chain, otherwise it is discarded.
+   the DG mechanism and exhibits similar computations.
+                                                                 2.2 Cost Optimizations
+3. The Peer Truth Serum for Crowdsourc-
+   ing(PTSC) [Radanovic et al., 2016]: In PTSC,                  Performing computations on Ethereum’s Virtual Machine
+   the reward of an agent i for a question is calculated         (EVM) remains an expensive affair. Computation costs on
+                                                                 EVM are roughly 108 times higher than AWS2. [Ryan, 2017]
+   using the following formula:                                  provides a good summary about the costs of basic arithmetic
+                                                                 operations and writing operations for different data types.
+                    1y=y − 1       if Ri(y) = 0                 Agents who provide information must be compensated for
+   α ·             Ri(y)          if Ri(y) = 0                 this cost, increasing the overall cost of information acquisi-
+                                                                 tion. We discuss below several non-trivial ways of imple-
+   0                                                           menting three different peer-consistency mechanisms in So-
+                                                                 lidity so that the costs can be minimized.
+   where y is the answer submitted by the agent and y is
+                                                                   1. Optimizing Writing Cost: To minimize the costs of
+   the answer submitted by her peer for the same question.             writing on the chain, agents on Infochain combine mul-
+   α is a strictly positive scaling constant.                          tiple answers in the form of a bit vector. This is mo-
+                                                                       tivated by two observations. First, the answers are re-
+   Ri(y) = numi(y)/                 numi(y¯), where numi(y) is         vealed simultaneously and thus, they do not require sep-
+                                                                       arate commitments. Second, the EVM operates on 256
+                          y¯∈{0,1}                                     bit words, thus a single bit vector is much cheaper to
+                                                                       write than other formats.
+   a function that counts occurrences of y in the answers
+                                                                       Proposition 1. With the above scheme, each 256-bit
+   of all agents (except i) across all questions. The ﬁnal             commitment can contain up to 42 answers.
+
+   reward is calculated by averaging discussed earlier.                Proof. Given a hash function H with a 3k bit output,
+                                                                       to commit the k bit message m, Alice generates a ran-
+   Traditionally, these mechanisms are implemented by a cen-           dom k bit string S and sends Bob H(S||m). The prob-
+tralized trusted third party. Implementing them in Infochain,          ability that any S , m exist where m = m such that
+which doesn’t assume any centralization or trust, is challeng-         H(S ||m ) = H(S||m) is ≈ 2−k. The size of the mes-
+ing. In the following subsections, we address the main im-             sage sent is limited to one third the size of the output of
+plementation and theoretical challenges. An overview of In-            the hashing function, thus 85 bits. Each answer requires
+fochain is provided in Figure 1.                                       2 bits: the ﬁrst determines if the question was answered
+                                                                       and the second is the answer. Therefore each commit-
+2.1 Commit-Reveal Protocol                                             ment can contain 42 answers.
+
+Transparency is an inherent feature of blockchain. Thus, all         2https://aws.amazon.com/blockchain/
+the information submitted by an agent is visible to all others.
+The peer-consistency mechanisms guarantee their incentive
+compatibility assuming that an agent can only form a belief
+about what her peers are going to report but doesn’t know the
+actual report of peers. We ensure this in Infochain by making
+the agents follow a commit-reveal protocol:
+
+                                                         4606
+Proceedings of the Twenty-Ninth International Joint Conference on Artiﬁcial Intelligence (IJCAI-20)
+                                               Special Track on AI in FinTech
+
+(a) Writing Cost Optimization  (b) Comput. Cost Optimization (c) Comparing Mechanisms  (d) Random Peer Selection (DG)
+                                                   Figure 2: Experimental Results
+
+      This optimization helps both commit and reveal phases.     nancial activity on Infochain (for e.g. the incentive amounts)
+                                                                 exceed the mining rewards.
+  2. Optimizing Computation Cost: To reduce the cost of
+      computing the rewards, a set of so-called intermediary     2.4 Negative Payments
+      values is introduced. These values naturally appear at
+      intermediary states of reward computation. They will be    The DG mechanism and the PTSC allow negative payments,
+      precomputed and reused for each agent. What these in-      which is implemented in Infochain by making agents submit
+      termediary values are, depends on the peer-consistency     refundable deposits. Information requesters also deposit the
+      mechanism. This approach allows for the computa-           payment budget and an additional refundable deposit. Any
+      tion to traverse the data a minimum number of times.       outstanding deposits of the agents and the requester are re-
+      Since all rewards are computed at the same time, these     turned after the payments and computations costs are settled.
+      intermediary values don’t need to be written on the
+      blockchain and can be kept in memory instead.              3 Experiments
+
+      For an example, consider the PTSC mechanism, which         We now discuss the results of some experiments performed
+      requires relative frequency Ri(y) of the value y while     on Infochain. The performance measure of interest in this
+      excluding the answer given by agent i. This quantity       discussion will be the total amount of gas used. Gas is a unit
+      need not be calculated from scratch for every agent or     measuring the computational work of running transactions or
+      when every new answer is submitted and neither it is       smart contracts in the Ethereum network and is a good proxy
+      required to be written on the chain. The intermediary      for the cost in USD. Infochain has been deployed and tested
+      values (for e.g. running average) can be kept in memory    on the Ropsten Test Network, one of the commonly used pub-
+      and used to calculate or update Ri(y) as required.         lic testing framework for Ethereum smart contracts. To have
+                                                                 no limitations in terms of gas, the results reported in this pa-
+2.3 Random Peer Selection                                        per have been generated on a local instance of Ethereum.
+
+In peer-consistency, we can use only one or a few randomly       Dataset Description. For this experiment, we used a public
+selected peers for reward calculation instead of all peers.      dataset [Zheng et al., 2014] containing real-world quality of
+This is because, in expectation, the rewards of the agents re-   service evaluation from 339 trusted agents for 5,825 web ser-
+main unchanged and thus, the mechanisms with randomly se-        vices. The agents observe the response time (in seconds) of
+lected peers also offer the same incentive compatibility (ex-    the web-services. The real valued observations were placed
+cept that the variance in rewards increases). This is an in-     into two categories (“good” and “bad”), in order to ﬁt them
+teresting tradeoff between computation cost and variance in      to our binary observation setting. We treated a response time
+rewards. However, random peer selection on blockchain is         of at most 1 second as “good” and the rest as “bad”. This
+subtle mainly due to the fact that nothing on the chain is a     dataset acts as the ground truth data that the information re-
+“secret”, including the seed for random number generation.       quester is interested in eliciting from self-interested agents.
+If random peers can be known in advance, it may increase the     We simulated agent behavior as follows: 50% of the agents
+risk of collusion between the agents compromising the incen-     report truthfully, 25% report randomly (i.e. independent of
+tive compatibility of the mechanisms. In Infochain, we use       the ground truth) and the rest report in an adversarial way
+the block timestamps as well as the mining difﬁculty level as    (i.e. opposite of the truth).
+the seed. This avoids using any trusted third party for random
+peer selection. The approach works under the assumption that     Results. In Figure 2a, we show the reduction in writing cost
+the miners will not try to cheat the smart-contract, which is a  due to the proposed optimization discussed in Section 2.2 as
+reasonable assumption given that the miners have no incen-       compared to the baseline implementation (without any pro-
+tive to do so since they risk losing their mining rewards. The   posed optimizations). Tasks in the ﬁgures refer to the ques-
+assumption can be violated in extreme scenarios where the ﬁ-     tions that the agents answer. As expected, the reduction
+                                                                 becomes more signiﬁcant as agents answer more questions
+
+                               4607
+Proceedings of the Twenty-Ninth International Joint Conference on Artiﬁcial Intelligence (IJCAI-20)
+                                               Special Track on AI in FinTech
+
+since the optimization can pack more and more answers into          number of questions to be answered, and each agent selects
+a single write operation. It may be worth noting that the opti-     and answers a few of them. The answer space is deﬁned by a
+mization doesn’t make writing cost independent of the num-          binary variable, e.g., “good service” or “bad service”. We will
+ber of answers as the ﬁgure may suggest. Since the number           use xi ∈ {0, 1} to denote the (private) observation of agent i
+of questions in the ﬁgure doesn’t exceed 42, the cost remains       and yi ∈ {0, 1} to denote its report. Since agents are rational,
+same as number of questions increase. Figure 2b shows the           it might not be the case that yi = xi but rather, yi will be
+reduction in computation cost due to the proposed optimiza-         some function of xi. If yi = xi we will say that the agent is
+tions with varying number of agents and number of questions         being truthful. Another important case is when yi = 0 (re-
+per agent. The ﬁgure was plotted based on the numbers ob-           gardless of xi), where 0 denotes “bad service”. The outcome
+tained with the PTSC mechanism but we observed a similar            oq for a question q is deﬁned as the fraction of the n agents
+trend for the OA and the DG mechanisms. We next compare             who reported 0 as their feedback on that question. Based on
+the cost of the three mechanisms in Figure 2c. While the OA         the announced outcome, the agents (who submitted 0 as feed-
+mechanism and the PTSC mechanism have similar cost, the             back) are issued a refund payment c · oq, i.e., proportional to
+DG mechanism is more costly. This is due to the fact that DG        the value of the outcome.
+mechanism involves more operations, particularly for keep-
+ing track of questions that are not shared between agents. Fi-         Intuitively, the outcome is determined by the agents that
+nally, Figure 2d shows the effect of using randomly selected        claimed to be dissatisﬁed with the service and asked for a
+peers for reward computation in the DG mechanism. We note           refund. In the web service example, this corresponds to the
+that there may be multiple ways to implement sampling with-         fraction of agents who report that the response time of the
+out replacement; for e.g., 1) randomly select a peer, check         service was higher than the guarantee. It should be obvious
+if it is already in the list of previously selected peers and re-   that if we do not provide any extra incentives (i.e., in the ab-
+peat; and 2) sample from the list of not selected peers, update     sence of peer-consistency), every rational agent would report
+the list of not selected peers and repeat. The ﬁrst method is       yi = 0, in order to get compensated. We will prove that with
+not suitable for blockchains as there is no upper bound on the      the appropriate use of PTSC, one can make sure that being
+number of necessary random selections and thus the trans-           truthful is the (only) best option for an agent, assuming that
+action may run out of gas. The results presented here cor-          other agents are also truthful. In game-theoretic terms, we
+respond to the second method. As shown in Figure 2d, the            will prove that being truthful is a strict equilibrium.3 This
+cost is guaranteed to reduce if we randomly select only one         will be achieved via an appropriate choice of the scaling con-
+peer per agent. But when multiple peers are to be selected          stant α in the deﬁnition of PTSC.
+(which is required to reduce variance in rewards), the cost
+may increase to a level higher than the cost of using all peers        We have analyzed similar settings in more detail in another
+without any random selection. The reason for this is that as        paper [Goel et al., 2020] assuming that every agent who sub-
+we select more random peers, the cost of implementing ran-          mit a feedback is eligible for a refund. The following analysis
+dom sampling exceeds the cost of simple implementation of           in this paper is for a special case when only agents who sub-
+just using all the peers.                                           mit 0 as their feedback are eligible for a refund.
+
+4 Countering Lying Incentives                                       Beliefs and Belief Correlation. The most important con-
+                                                                    stituents of the peer-consistency framework are the agents’
+In the previous section, we explained how some popular peer-        beliefs about the observations of their peers. We will let
+consistency mechanisms can be implemented in Ethereum,              Pi(xp = x ), for x ∈ {0, 1}, denote agent i’s (prior) belief
+which is an essential step towards the design of decentral-         about a randomly selected peer p’s observation xp on a ques-
+ized oracles. The other crucial part is to ensure that they         tion being x . A standard assumption in the literature is that
+provide the incentives to the agents to report their observa-       the priors are fully mixed, i.e Pi(xp = x ) > 0, ∀x ∈ {0, 1}.
+tions truthfully, even if their inherent incentives are towards     After the agent makes a private observation xi for a question,
+the other direction. To make this more concrete, consider the       she updates her belief (posterior) about her peer’s observa-
+example of the the web service, mentioned in the Introduc-          tion on that question only, to Pi(xp = x |xi = x). Given the
+tion. Clearly, the agents have an incentive to report “bad ser-     beliefs of the agents, the following quantity will be useful:
+vice” so that they can be compensated by the service provider.
+We will show how one of the peer-consistency mechanisms             β = min Pi(xp = 1|xi = 1) − Pi(xp = 0|xi = 1)
+of Infochain, the PTSC mechanism can actually be tuned to           i  Pi(xp = 1)  Pi(xp = 0)
+counter these outside incentives. We remark that while the
+mechanism is known to be able to handle constant extra in-          Intuitively, the quantity β measures the correlation strength
+centives [Radanovic et al., 2016], like the cost of effort, it was  between the observations of agents. The assumption that
+not known whether it can be used for incentives that depend         β > 0 is standard in the literature of peer-consistency (e.g.,
+on the outcome and the reports of the other agents. We estab-       see [Jurca and Faltings, 2005; Witkowski and Parkes, 2012])
+lish such a result in this section, and we quantify the savings     and in fact, it is a prerequisite for the PTSC mechanism to
+that the employment of the mechanism achieves, compared to          guarantee truthful behavior. The assumption is rather obvious
+the case of not applying any peer-consistency.
+                                                                        3Since the agents only have subjective beliefs about the obser-
+   Formally, we consider settings in which there is a large         vations of others, the appropriate equilibrium concept here is the
+                                                                    subjective equilibrium [Witkowski and Parkes, 2012].
+
+4608
+             Proceedings of the Twenty-Ninth International Joint Conference on Artiﬁcial Intelligence (IJCAI-20)
+                                                            Special Track on AI in FinTech
+
+in binary answer settings: if an agent observes 1, that can only  based on the collected payment. For such cases, we measure
+increase her posterior belief about her stochastically-relevant   the relative saving of this entity as:
+peer also observing 1. We will make the same assumption
+here, and we will use β to quantify the scaling constant α that                     nc − P
+we need to use in PTSC, to overcome the lying incentives.         relative saving:        ,
+                                                                                    nc
+
+We will also need the following quantity:                         where P is the total payment (PTSC payments + outcome
+                                                                  dependent payment) under the scheme to all the agents.
+             γ = max Pi(xp = 0|xi = 1),
+                                                                     One might feel inclined to believe that if agents were not
+                        i                                         strategic, we could hope for a saving of 100%. However, this
+                                                                  will be true only if the outcome is 0, when the service is “bad”
+which measures the maximum over the posterior beliefs of          0% of the time, whereas in reality that may not be the case as
+any agent about her peer’s observation being 0, given that her    we show in the next proposition. We will let P (1) denote the
+own observation was 1.                                            probability that a report on the platform is 1.
+
+Theorem 1. There is a value of the scaling constant α for
+
+which PTSC has a strict truthful equilibrium, even when
+
+agents have outside incentives. In particular, this is guar-      Proposition 2. If agents reported truthfully ignoring the pos-
+                                                                  sible refund payments, the platform could make an expected
+anteed when                                                       relative saving of up to P (1)(2 − P (1)).
+
+                   c · 1 + (n − 1)γ                                  This is of course an ideal case; in the presence of rational
+             α>                                                   agents, we quantify the saving of PTSC as follows.
+
+                           n·β                                    Theorem 3. The expected relative saving in payments made
+                                                                  in the truth-telling equilibrium is at least
+Note that the scaling constant α decreases with increasing n.
+                                                                                                                 α
+4.1 Making PTSC Proﬁtable                                                                P (1)(2 − P (1)) − ,
+
+While we have shown in the above theorem that agents can                                                         c
+be incentivized to be truthful with a large-enough choice of
+the scaling constant of PTSC, the question that still remains     where P (1) is the actual probability of a randomly selected
+is whether this is economically proﬁtable. Are the rewards of     report being 1 in the truthful equilibrium.
+peer-consistency so big that we end up paying more to agents,
+compared to what we would have paid as refund, if they all        Note that as long as the condition P (1)(2 − P (1)) > α/c
+simply reported yi = 0? We answer this question below.            is satisﬁed, the lower bound on the saving is actually a pos-
+First, we quantify the payments of PTSC.                          itive number. Again, due to α’s inverse dependence on n,
+                                                                  the savings get bigger with increasing n and are also always
+Theorem 2. The total expected PTSC payment per agent that         guaranteed to be positive given sufﬁcient value of n.
+is enough to elicit truthful information in the presence of out-
+side incentives is given by α.                                       We refer the reader to [Goel et al., 2020] for a discussion
+                                                                  of the undesired equilibrium where all agents report 0, and
+We note that this is not immediate from Theorem 1, as the         how it can be eliminated when there exists a strictly posi-
+expected payment issued for each agent is                         tive fraction of honest agents. Another simple way to elimi-
+                                                                  nate this undesired equilibrium is to keep open the possibil-
+                         α · E 1y=y − 1                           ity of a trusted veriﬁcation if the fraction of agents report-
+                                 Ri(y)                            ing 0 exceeds a certain threshold. If independent veriﬁcation
+                                                                  doesn’t conﬁrm poor service, agents who reported 0 can suf-
+where expectation is taken with respect to the actual random      fer a penalty that outweighs the refunds by a large margin. A
+variation in the true observations of the agents (for e.g. ran-   credible threat of such veriﬁcation is enough to deter rational
+dom variation in the reception of the service). The theorem       agents from playing the undesired equilibrium.
+follows from the fact that this quantity in expectation can be
+upper bounded by 1.                                               5 Conclusions
+
+   Due to α’s inverse dependence on n, the payments get           In this paper, we presented a novel system called Infochain
+smaller with increasing n. To provide some concrete intu-         that implements decentralized, trustelss and transparent or-
+ition, we remark that the PTSC payment will generally only        acles on the Ethereum blockchain. Contrary to earlier pro-
+be a small fraction of the maximum outside incentive R. For       posals on decentralized crowdsourcing systems, Infochain
+a concrete example, consider a web service that provides a        addresses the issue of truthfulness by implementing game-
+good service 95% of the time; this is a realistic assumption      theoretic peer-consistency mechanisms. We prove that peer-
+for many web-services that stay in business. Furthermore, let     consistency mechanisms can be be used to elicit truthful
+us assume a small correlation in the agents’ observations such    information even when the agents have outside incentives
+that P (xp = 1|xi = 1) = P (xi = 1) + 0.01, and similarly         to misreport the information. For the ﬁrst time, we dis-
+for P (xp = 0|xi = 0). In this case, the PTSC payments per        cussed issues that arise in implementing these mechanisms
+agent are just 1.2% of the refund payments c even when there      in blockchain. The paper also presents an important new cri-
+are just 10 agents answering a question; the fraction quickly     terion for comparing or evaluating these mechanisms by their
+decreases to 0.7% of c when there are 25 agents.                  implementation complexity on the Ethereum blockchain.
+
+   In many applications, the same entity is responsible for
+paying the refunds as well as the PTSC payment. For exam-
+ple, in the web service case, the service provider is respon-
+sible for collecting truthful data and also paying the refund
+
+                                           4609
+Proceedings of the Twenty-Ninth International Joint Conference on Artiﬁcial Intelligence (IJCAI-20)
+                                               Special Track on AI in FinTech
+
+References                                                      [Jurca and Faltings, 2005] Radu Jurca and Boi Faltings. En-
+                                                                   forcing truthful strategies in incentive compatible reputa-
+[Adler et al., 2018] John Adler, Ryan Berryhill, Andreas           tion mechanisms. In International Workshop on Internet
+   Veneris, Zissis Poulos, Neil Veira, and Anastasia Kastania.     and Network Economics, pages 268–277. Springer, 2005.
+   Astraea: A decentralized blockchain oracle. In 2018 IEEE
+   International Conference on Internet of Things (iThings)     [Kong et al., 2019] Yuqing Kong, Yiping Ma, and Yifan Wu.
+   and IEEE Green Computing and Communications (Green-             Securely trading unveriﬁable information without trust.
+   Com) and IEEE Cyber, Physical and Social Computing              arXiv preprint arXiv:1903.07379, 2019.
+   (CPSCom) and IEEE Smart Data (SmartData), pages
+   1145–1152. IEEE, 2018.                                       [Li et al., 2018] Ming Li, Jian Weng, Anjia Yang, Wei Lu,
+                                                                   Yue Zhang, Lin Hou, Jia-Nan Liu, Yang Xiang, and
+[Agarwal et al., 2017] Arpit Agarwal, Debmalya Mandal,             Robert H Deng. Crowdbc: A blockchain-based decentral-
+   David C. Parkes, and Nisarg Shah. Peer prediction with          ized framework for crowdsourcing. IEEE Transactions on
+   heterogeneous users. In Proceedings of the 18th ACM             Parallel and Distributed Systems, 30(6):1251–1266, 2018.
+   Conference on Economics and Computation (EC), 2017.
+                                                                [Liu and Chen, 2017] Yang Liu and Yiling Chen. Machine-
+[An et al., 2019] Baoyi An, Mingjun Xiao, An Liu, Guoju            learning aided peer prediction. In Proceedings of the 2017
+   Gao, and Hui Zhao. Truthful crowdsensed data trading            ACM Conference on Economics and Computation, pages
+   based on reverse auction and blockchain. In International       63–80. ACM, 2017.
+   Conference on Database Systems for Advanced Applica-
+   tions, pages 292–309. Springer, 2019.                        [Lu et al., 2018] Yuan Lu, Qiang Tang, and Guiling Wang.
+                                                                   Zebralancer: Private and anonymous crowdsourcing sys-
+[Chakraborty and Das, 2016] Mithun Chakraborty and San-            tem atop open blockchain. In 2018 IEEE 38th Inter-
+   may Das. Trading on a rigged game: Outcome manipula-            national Conference on Distributed Computing Systems
+   tion in prediction markets. In IJCAI, 2016.                     (ICDCS), pages 853–865. IEEE, 2018.
+
+[Chen et al., 2011] Yiling Chen, Xi Alice Gao, Rick Gold-       [Miller et al., 2005] Nolan Miller, Paul Resnick, and Richard
+   stein, and Ian A Kash. Market manipulation with outside         Zeckhauser. Eliciting informative feedback: The peer-
+   incentives. In AAAI, 2011.                                      prediction method. Management Science, 51(9):1359–
+                                                                   1373, 2005.
+[Dasgupta and Ghosh, 2013] Anirban Dasgupta and Arpita
+   Ghosh. Crowdsourced judgement elicitation with endoge-       [Prelec, 2004] Drazˇen Prelec. A bayesian truth serum for
+   nous proﬁciency. In Proceedings of the 22nd international       subjective data. Science, 306(5695):462–466, 2004.
+   conference on World Wide Web. ACM, 2013.
+                                                                [Radanovic et al., 2016] Goran Radanovic, Boi Faltings, and
+[Faltings and Radanovic, 2017] Boi Faltings and Goran              Radu Jurca. Incentives for effort in crowdsourcing using
+   Radanovic. Game theory for data science: Eliciting              the peer truth serum. ACM Transactions on Intelligent Sys-
+   truthful information. Synthesis Lectures on Artiﬁcial           tems and Technology (TIST), 7(4):48, 2016.
+   Intelligence and Machine Learning, 11(2):1–151, 2017.
+                                                                [Ryan, 2017] Danny Ryan. Calculating costs in ethereum
+[Freeman et al., 2017] Rupert Freeman, Se´bastien Lahaie,          contracts, 2017.
+   and David M Pennock. Crowdsourced outcome determi-
+   nation in prediction markets. In AAAI, 2017.                 [Shnayder et al., 2016] Victor Shnayder, Arpit Agarwal,
+                                                                   Rafael Frongillo, and David C Parkes. Informed truthful-
+[Gao et al., 2016] Alice Gao, James R Wright, and Kevin            ness in multi-task peer prediction. In Proceedings of the
+   Leyton-Brown. Incentivizing evaluation via limited ac-          2016 ACM Conference on Economics and Computation,
+   cess to ground truth: Peer-prediction makes things worse.       pages 179–196. ACM, 2016.
+   In 2nd Workshop on Algorithmic Game Theory and Data
+   Science at EC 2016., 2016.                                   [Waggoner and Chen, 2014] Bo Waggoner and Yiling Chen.
+                                                                   Output agreement mechanisms and common knowledge.
+[Goel and Faltings, 2019a] Naman Goel and Boi Faltings.            In Second AAAI Conference on Human Computation and
+   Deep bayesian trust: A dominant and fair incentive mech-        Crowdsourcing, 2014.
+   anism for crowd. Proceedings of the AAAI Conference on
+   Artiﬁcial Intelligence, 2019.                                [Witkowski and Parkes, 2012] Jens Witkowski and David C
+                                                                   Parkes. Peer prediction without a common prior. In Pro-
+[Goel and Faltings, 2019b] Naman Goel and Boi Faltings.            ceedings of the 13th ACM Conference on Electronic Com-
+   Personalized peer truth serum for eliciting multi-attribute     merce, pages 964–981. ACM, 2012.
+   personal data. In 35th Conference on Uncertainty in Arti-
+   ﬁcial Intelligence, Tel Aviv (UAI 2019). AUAI, 2019.         [Xiong and Xiong, 2019] Wei Xiong and Li Xiong. Smart
+                                                                   contract based data trading mode using blockchain and
+[Goel et al., 2020] Naman Goel, Aris Filos-Ratsikas, and           machine learning. IEEE Access, 2019.
+   Boi Faltings. Peer-prediction in the presence of outcome
+   dependent lying incentives. Proceedings of the 29th In-      [Zheng et al., 2014] Zibin Zheng, Yilei Zhang, and
+   ternational Joint Conference on Artiﬁcial Intelligence (IJ-     Michael R Lyu. Investigating qos of real-world web
+   CAI), 2020.                                                     services. IEEE transactions on services computing,
+                                                                   7(1):32–39, 2014.
+
+4610
+
