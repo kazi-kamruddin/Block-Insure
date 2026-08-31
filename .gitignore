@@ -52,3 +52,4 @@ reference/*
 project overview.docx
 task checklist.md
 paper-evidence/
+contracts/.venv-slither/

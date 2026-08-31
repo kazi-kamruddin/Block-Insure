@@ -15,7 +15,7 @@
     "gas:compare": "node scripts/runHardhat.js run scripts/gasComparison.js",
     "test:stateful": "node scripts/runHardhat.js test test/Phase5StatefulInvariants.test.js test/Phase6ProtocolStatefulInvariants.test.js",
     "test:mutations": "node scripts/runMutationCampaign.js",
-    "analyze:slither": "slither . --config-file slither.config.json"
+    "analyze:slither": "node scripts/runSlither.js"
   },
   "keywords": [],
   "author": "",

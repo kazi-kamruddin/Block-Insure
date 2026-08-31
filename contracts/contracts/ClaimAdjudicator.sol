@@ -308,6 +308,7 @@ contract ClaimAdjudicator is ReentrancyGuard {
         nonReentrant
         returns (uint256 amount)
     {
+        require(claimant != address(0), "Invalid claimant");
         amount = allocatedSettlementWei[claimId];
         require(amount > 0 && fundedSettlement[claimId], "Payout is not funded");
         require(withdrawnSettlementWei[claimId] == 0, "Payout already withdrawn");

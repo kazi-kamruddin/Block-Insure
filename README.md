@@ -175,7 +175,9 @@ npm test
 npm run coverage
 npm run test:stateful
 npm run test:mutations
-# Optional: requires slither-analyzer to be installed separately
+# Optional: requires slither-analyzer to be installed separately. If it is not
+# on PATH, point the runner at the executable for the current PowerShell window:
+$env:SLITHER_BIN = "E:\path\to\slither.exe"
 npm run analyze:slither
 ```
 

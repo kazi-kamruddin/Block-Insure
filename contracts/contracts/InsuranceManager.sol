@@ -141,7 +141,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => uint256) public claimCountPerPolicy;
     mapping(uint256 => uint256) public claimResolvedAt;
 
-    uint256 public maxClaimsPerPolicy = 5;
+    uint256 public constant maxClaimsPerPolicy = 5;
 
     mapping(bytes32 => bool) private usedDocumentHashes;
     mapping(address => mapping(uint256 => mapping(bytes32 => bool))) private userDateClaimTypeUsed;
@@ -618,6 +618,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(msg.value == selectedPackage.premiumAmount, "Incorrect premium amount");
 
         uint256 newPolicyId = policyCounter;
+        policyCounter = newPolicyId + 1;
         uint256 startDate = block.timestamp;
         uint256 endDate = block.timestamp + (selectedPackage.durationDays * 1 days);
         uint256 nextPremiumDueDate = _nextDueDate(startDate, endDate);
@@ -656,8 +657,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             DEFAULT_DEDUCTIBLE_CAP_WEI,
             DEFAULT_INSURER_SHARE_BPS
         );
-
-        policyCounter++;
 
         emit PolicyPurchased(
             newPolicyId,
@@ -817,6 +816,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         claimCountPerPolicy[policyId]++;
 
         uint256 newClaimId = claimCounter;
+        claimCounter = newClaimId + 1;
         bytes32 claimTypeHash = keccak256(bytes(claimType));
 
         policyEconomics.validateAndReserveClaim(
@@ -889,8 +889,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
                 reason = "Duplicate user date claim type";
             }
 
-            claimCounter++;
-
             emit ClaimFlagged(newClaimId, reason);
 
             return newClaimId;
@@ -904,8 +902,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         claims[newClaimId].verificationConfidence = calculatedVerificationConfidence;
         claimBaseVerificationConfidence[newClaimId] = calculatedVerificationConfidence;
         claims[newClaimId].status = ClaimStatus.DUPLICATE_CHECKED;
-
-        claimCounter++;
 
         return newClaimId;
     }
@@ -1033,6 +1029,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             )
         );
 
+        claims[claimId].status = ClaimStatus.ORACLE_PENDING;
         uint256 newRequestId = oracleCoordinator.createRequest(
             claimId,
             queryHash,
@@ -1041,7 +1038,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         );
 
         oracleRequestByClaimId[claimId] = newRequestId;
-        claims[claimId].status = ClaimStatus.ORACLE_PENDING;
 
         emit OracleRequested(newRequestId, claimId, "HOSPITAL");
 
@@ -1173,8 +1169,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             "Manual review routing deadline active"
         );
 
-        claimAdjudicator.startReview(claimId, claimVersion[claimId]);
         claims[claimId].status = ClaimStatus.MANUAL_REVIEW;
+        claimAdjudicator.startReview(claimId, claimVersion[claimId]);
         emit ClaimSentToManualReview(claimId, msg.sender, block.timestamp);
     }
 
@@ -1227,8 +1223,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(claims[claimId].status == ClaimStatus.FUNDING_REQUIRED, "Claim does not need funding");
         uint256 amount = claimAdjudicator.allocatedSettlementWei(claimId);
         require(address(this).balance >= amount, "Settlement remains underfunded");
-        claimAdjudicator.fundPayout{value: amount}(claimId, claims[claimId].claimantWallet);
         claims[claimId].status = ClaimStatus.PAYOUT_READY;
+        claimAdjudicator.fundPayout{value: amount}(claimId, claims[claimId].claimantWallet);
         emit ClaimFundingActivated(claimId, msg.sender, amount);
     }
 
@@ -1268,6 +1264,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         rejectionReason[claimId] = RejectionReason.NONE;
         bool funded = address(this).balance >= insurerPays;
         if (funded) {
+            claims[claimId].status = ClaimStatus.PAYOUT_READY;
             claimAdjudicator.allocatePayout{value: insurerPays}(
                 claimId,
                 claimVersion[claimId],
@@ -1275,8 +1272,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
                 insurerPays,
                 decisionHash
             );
-            claims[claimId].status = ClaimStatus.PAYOUT_READY;
         } else {
+            claims[claimId].status = ClaimStatus.FUNDING_REQUIRED;
             claimAdjudicator.allocatePayout(
                 claimId,
                 claimVersion[claimId],
@@ -1284,7 +1281,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
                 insurerPays,
                 decisionHash
             );
-            claims[claimId].status = ClaimStatus.FUNDING_REQUIRED;
             emit ClaimFundingRequired(claimId, insurerPays, insurerPays - address(this).balance);
         }
 
@@ -1313,9 +1309,9 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         bytes32 decisionHash
     ) internal {
         claims[claimId].status = ClaimStatus.REJECTED;
-        policyEconomics.releaseClaim(claimId);
         rejectionReason[claimId] = reason;
         claimResolvedAt[claimId] = block.timestamp;
+        policyEconomics.releaseClaim(claimId);
         claimAdjudicator.recordRejection(
             claimId,
             claimVersion[claimId],

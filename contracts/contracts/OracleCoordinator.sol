@@ -261,7 +261,8 @@ contract OracleCoordinator {
         });
         requestByClaimId[claimId] = requestId;
 
-        for (uint256 i = 0; i < activeOracles.length; i++) {
+        uint256 oracleCount = activeOracles.length;
+        for (uint256 i = 0; i < oracleCount; i++) {
             eligibleForRequest[requestId][activeOracles[i]] = true;
         }
 
