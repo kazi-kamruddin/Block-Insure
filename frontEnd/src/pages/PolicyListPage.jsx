@@ -5,7 +5,11 @@ import PolicyCard from "../components/PolicyCard";
 import PolicyEligibilitySimulator from "../components/PolicyEligibilitySimulator";
 import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
-import { getPolicyPackages, getRiskPremiumQuote } from "../services/api";
+import {
+  acceptPolicyTerms,
+  getPolicyPackages,
+  getRiskPremiumQuote,
+} from "../services/api";
 import {
   assertCorrectNetwork,
   getConnectedWalletAddress,
@@ -113,6 +117,15 @@ export default function PolicyListPage() {
 
       setBuyingPackageId(policyPackage.packageId);
 
+      if (!policyPackage.policyDocument) {
+        throw new Error("The current policy document could not be loaded.");
+      }
+
+      await acceptPolicyTerms(
+        policyPackage.packageId,
+        policyPackage.policyDocument
+      );
+
       const contract = await getWalletContract();
 
       const tx = await contract.purchasePolicy(policyPackage.packageId, {
@@ -144,7 +157,8 @@ export default function PolicyListPage() {
         {isFetching ? "Refreshing..." : "Refresh Packages"}
       </button>
 
-      <div className="card risk-pricing-card">
+      <details className="card risk-pricing-card research-tools-panel">
+        <summary>Optional research pricing preview</summary>
         <h3>Premium Simulation — Not Applied at Checkout</h3>
         <p className="muted-text">
           Transparent underwriting demo. Final purchase still pays the smart-contract
@@ -225,7 +239,7 @@ export default function PolicyListPage() {
             </label>
           </details>
         </div>
-      </div>
+      </details>
 
       {loadError ? (
         <p className="error-text">

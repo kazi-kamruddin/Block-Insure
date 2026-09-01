@@ -11,6 +11,7 @@ import {
   withdrawPolicyBenefit,
 } from "../services/contractService";
 import { showToast } from "../services/toast";
+import PolicySurrenderEstimator from "./PolicySurrenderEstimator";
 import "../styles/components/PolicyBenefitsPanel.css";
 
 const EMPTY_BENEFICIARY = { account: "", sharePercent: "" };
@@ -173,6 +174,9 @@ export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
             Projections use this schedule and current policy values; they are payable
             only after lifecycle checks and administrator approval.
           </p>
+          {terms.surrenderEnabled ? (
+            <PolicySurrenderEstimator policy={policy} terms={terms} />
+          ) : null}
           {data.termsAcceptanceRequired ? (
             <p className="muted-text">
               Saving beneficiaries or requesting a holder benefit accepts and binds

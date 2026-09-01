@@ -11,6 +11,12 @@ import AdminLayout from "./layouts/AdminLayout";
 import AuditorLayout from "./layouts/AuditorLayout";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
+const PublicPolicyCatalogPage = lazy(
+  () => import("./pages/PublicPolicyCatalogPage")
+);
+const PublicPolicyDetailPage = lazy(
+  () => import("./pages/PublicPolicyDetailPage")
+);
 const UserDashboardPage = lazy(() => import("./pages/UserDashboardPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AuditorDashboardPage = lazy(() => import("./pages/AuditorDashboardPage"));
@@ -84,6 +90,11 @@ export default function App() {
               <Route element={<PublicLayout />}>
               <Route index element={<HomePage />} />
               <Route path="login" element={<HomePage />} />
+              <Route path="policies" element={<PublicPolicyCatalogPage />} />
+              <Route
+                path="policies/:packageId"
+                element={<PublicPolicyDetailPage />}
+              />
 
               <Route path="user" element={<UserLayout />}>
                 <Route index element={<Navigate to="/user/dashboard" replace />} />

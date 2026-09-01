@@ -11,6 +11,7 @@ import {
   getStatusExplanation,
 } from "../utils/claimStatus";
 import "../styles/pages/MyClaimsPage.css";
+import { formatDateTime } from "../utils/dateFormat";
 
 function extractClaims(data) {
   if (Array.isArray(data)) return data;
@@ -134,6 +135,7 @@ export default function MyClaimsPage() {
             <div className="claim-card-metrics">
               <span><strong>{claim.claimAmountEth || claim.claimAmount} ETH</strong> claimed</span>
               <span><strong>{claim.hospitalId}</strong> provider</span>
+              <span><strong>{formatDateTime(claim.incidentDate)}</strong> incident</span>
               <span>
                 <strong>
                   {claim.verificationConfidenceAvailable === false

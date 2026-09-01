@@ -26,5 +26,12 @@ test.describe("@smoke public application", () => {
     ).toBeVisible();
     await expect(page.getByRole("button", { name: /connect wallet/i }).first()).toBeVisible();
     await expect(page.getByText("Role-isolated workspaces")).toBeVisible();
+
+    await page.getByRole("link", { name: "Policies", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Policy Catalog" })).toBeVisible();
+    await page.getByRole("link", { name: "View Full Policy" }).first().click();
+    await expect(page.getByText("Full digital policy document")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Coverage and Waiting Periods" })).toBeVisible();
+    await expect(page.getByText("Browse the complete policy text")).toBeVisible();
   });
 });

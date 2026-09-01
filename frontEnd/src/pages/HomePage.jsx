@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
 import "../styles/pages/HomePage.css";
 
@@ -40,9 +40,9 @@ export default function HomePage() {
                   ? "Connecting wallet..."
                   : "Connect wallet to enter"}
             </button>
-            <a className="home-secondary-action" href="#how-it-works">
-              Explore the workflow
-            </a>
+            <Link className="home-secondary-action" to="/policies">
+              Browse policies
+            </Link>
           </div>
 
           {error ? (

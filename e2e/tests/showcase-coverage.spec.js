@@ -17,17 +17,19 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
 
       await session.page.goto("/user/policies/buy");
       await expect(session.page.getByRole("heading", { name: "Buy Policy" })).toBeVisible();
+      await session.page.getByText("Optional research pricing preview").click();
       await expect(
         session.page.getByRole("heading", { name: "Premium Simulation — Not Applied at Checkout" })
       ).toBeVisible();
       await expect(
-        session.page.getByRole("heading", { name: "Historical Policy Scenario Simulator" })
+        session.page.getByRole("heading", { name: "Coverage Date Estimator" })
       ).toBeVisible();
-      await session.page.getByLabel("Synthetic case").selectOption({
+      await session.page.getByText("Demonstration and disclosure options").click();
+      await session.page.getByLabel("Synthetic demonstration case").selectOption({
         label: "Emergency appendicitis after waiting period",
       });
-      await session.page.getByRole("button", { name: "Evaluate Scenario" }).click();
-      await expect(session.page.getByRole("heading", { name: "Scenario outcome" })).toBeVisible();
+      await session.page.getByRole("button", { name: "Estimate Coverage" }).click();
+      await expect(session.page.getByRole("heading", { name: "Estimated outcome" })).toBeVisible();
       await expect(session.page.getByText("Estimated benefit:")).toBeVisible();
 
       await session.page.goto("/user/policies");
@@ -40,6 +42,7 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
       expect(policyId, "A purchased policy ID should be visible").toBeTruthy();
       await policyCards.first().getByText("Beneficiaries and additional benefits").click();
       await expect(policyCards.first().getByRole("heading", { name: "Current beneficiaries" })).toBeVisible();
+      await expect(policyCards.first().getByRole("heading", { name: "Surrender Value Estimator" })).toBeVisible();
       await expect(policyCards.first().getByRole("button", { name: "Download Policy Terms" })).toBeVisible();
 
       await session.page.goto("/user/claims");

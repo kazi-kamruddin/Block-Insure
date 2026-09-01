@@ -16,6 +16,7 @@ test.describe("@workflow policyholder transaction journey", () => {
 
       await session.page.goto("/user/policies/buy");
       await expect(session.page.getByRole("heading", { name: "Buy Policy" })).toBeVisible();
+      await session.page.getByRole("checkbox", { name: /I have read and agree/ }).first().check();
       await session.page.getByRole("button", { name: "Buy Policy" }).first().click();
       await expect(session.page.locator(".success-text")).toContainText(
         "policy purchased successfully"
@@ -114,6 +115,7 @@ test.describe("@workflow policyholder transaction journey", () => {
     try {
       await loginActor(session.page, session.actor);
       await session.page.goto("/user/policies/buy");
+      await session.page.getByRole("checkbox", { name: /I have read and agree/ }).first().check();
       await session.page.getByRole("button", { name: "Buy Policy" }).first().click();
       await expect(session.page.locator(".success-text")).toContainText(
         "policy purchased successfully"

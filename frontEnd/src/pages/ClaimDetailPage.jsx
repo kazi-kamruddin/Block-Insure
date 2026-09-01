@@ -33,6 +33,7 @@ import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules"
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/ClaimDetailPage.css";
 import { showToast } from "../services/toast";
+import { formatDateTime } from "../utils/dateFormat";
 
 function extractClaim(data) {
   return data?.claim || data?.data?.claim || data?.data || data;
@@ -55,11 +56,6 @@ function formatValue(value) {
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString();
 }
 
 async function hashAppealReason(reason) {
@@ -369,8 +365,9 @@ export default function ClaimDetailPage() {
           </p>
           <p>
             Submitted:{" "}
-            {formatDate(claim.submittedAtFormatted || claim.submittedAt)}
+            {formatDateTime(claim.submittedAt)}
           </p>
+          <p>Incident: {formatDateTime(claim.incidentDate)}</p>
           {claim.fraudReason ? (
             <p className="error-text">
               <strong>Flag reason:</strong> {claim.fraudReason}
@@ -445,8 +442,8 @@ export default function ClaimDetailPage() {
               <p>
                 Status: <span className={`appeal-pill appeal-${appeal.status?.toLowerCase()}`}>{appeal.status}</span>
               </p>
-              <p>Submitted: {formatDate(appeal.submittedAt)}</p>
-              <p>Appeal deadline: {formatDate(appeal.appealDeadline)}</p>
+              <p>Submitted: {formatDateTime(appeal.submittedAt)}</p>
+              <p>Appeal deadline: {formatDateTime(appeal.appealDeadline)}</p>
               <p>Category: {formatValue(appeal.reasonCategory)}</p>
               <p>Reason: {formatValue(appeal.appealReason)}</p>
               <p>Description: {formatValue(appeal.appealDescription)}</p>
@@ -578,7 +575,7 @@ export default function ClaimDetailPage() {
               <h4>Appeal history</h4>
               {appeal.history.map((entry, index) => (
                 <p key={`${entry.status}-${entry.timestamp || index}`}>
-                  {formatDate(entry.timestamp)} - {entry.status} by{" "}
+                  {formatDateTime(entry.timestamp)} - {entry.status} by{" "}
                   {formatValue(entry.actorRole)} {entry.note ? `- ${entry.note}` : ""}
                 </p>
               ))}

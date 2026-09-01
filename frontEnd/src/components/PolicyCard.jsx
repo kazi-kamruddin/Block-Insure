@@ -1,6 +1,13 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+
 import PolicyTermsPanel from "./PolicyTermsPanel";
+import { getPublicPolicyDocumentUrl } from "../services/api";
 
 export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }) {
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const document = policyPackage.policyDocument;
+
   return (
     <div className="card">
       <h3>{policyPackage.name}</h3>
@@ -25,11 +32,38 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
       <p>Duration: {policyPackage.durationDays} days</p>
       <p>Required document: {policyPackage.requiredDocumentType}</p>
       <PolicyTermsPanel terms={policyPackage.policyTerms} />
-
+      <div className="policy-document-actions">
+        <Link to={`/policies/${policyPackage.packageId}`} target="_blank">
+          Read Full Policy
+        </Link>
+        <a
+          href={getPublicPolicyDocumentUrl(policyPackage.packageId, {
+            download: true,
+          })}
+        >
+          Download Terms
+        </a>
+      </div>
+      <label className="policy-acceptance-control">
+        <input
+          type="checkbox"
+          checked={termsAccepted}
+          onChange={(event) => setTermsAccepted(event.target.checked)}
+          disabled={!document || isBuying}
+        />
+        <span>
+          I have read and agree to policy terms v{document?.documentVersion || "-"}.
+        </span>
+      </label>
+      {document ? (
+        <small className="policy-document-hash">
+          Document commitment: {document.documentHash.slice(0, 14)}…
+        </small>
+      ) : null}
       <button
         type="button"
         onClick={() => onBuy(policyPackage)}
-        disabled={isBuying}
+        disabled={isBuying || !termsAccepted || !document}
       >
         {isBuying ? "Buying..." : "Buy Policy"}
       </button>

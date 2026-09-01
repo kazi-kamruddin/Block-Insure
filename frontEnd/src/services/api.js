@@ -71,6 +71,28 @@ export async function getPolicyPackages(params = {}) {
   return response.data;
 }
 
+export async function getPublicPolicyPackage(packageId) {
+  const response = await api.get(`/api/policy-packages/${packageId}`);
+  return response.data;
+}
+
+export async function acceptPolicyTerms(packageId, policyDocument) {
+  const response = await api.post(
+    `/api/policy-packages/${packageId}/acceptance`,
+    {
+      documentVersion: policyDocument.documentVersion,
+      documentHash: policyDocument.documentHash,
+    }
+  );
+  return response.data;
+}
+
+export function getPublicPolicyDocumentUrl(packageId, { download = false } = {}) {
+  return `${API_BASE_URL}/api/policy-packages/${packageId}/document${
+    download ? "?download=1" : ""
+  }`;
+}
+
 export async function getRiskPremiumQuote(packageId, payload) {
   const response = await api.post(
     `/api/policy-packages/${packageId}/risk-premium-quote`,

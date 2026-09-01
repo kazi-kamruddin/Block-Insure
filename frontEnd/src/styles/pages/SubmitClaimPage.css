@@ -15,3 +15,24 @@
 .page-submit-claim .card {
   max-width: 760px;
 }
+
+.policy-date-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.policy-date-summary > div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.policy-date-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}

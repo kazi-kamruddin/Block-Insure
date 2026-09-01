@@ -16,6 +16,7 @@ const File = require("../models/File");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
 const Notification = require("../models/Notification");
+const PolicyTermsAcceptance = require("../models/PolicyTermsAcceptance");
 const OracleHealth = require("../models/OracleHealth");
 const OracleLog = require("../models/OracleLog");
 const RevokedToken = require("../models/RevokedToken");
@@ -48,6 +49,7 @@ const collections = [
   ["indexed blockchain events", IndexedBlockchainEvent],
   ["indexer checkpoints", IndexerCheckpoint],
   ["notifications", Notification],
+  ["policy terms acceptances", PolicyTermsAcceptance],
   ["oracle health records", OracleHealth],
   ["oracle logs", OracleLog],
   ["revoked sessions", RevokedToken],

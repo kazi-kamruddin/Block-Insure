@@ -36,6 +36,7 @@ import {
 import { getClaimIdsByWallet } from "../utils/contractQueries";
 import "../styles/pages/SubmitClaimPage.css";
 import { showToast } from "../services/toast";
+import { formatDateOnly, formatDateTime } from "../utils/dateFormat";
 
 const VALID_MOCK_HOSPITAL_PRESETS = [
   {
@@ -146,11 +147,6 @@ async function resolveSubmittedClaimId(contract, receipt, walletAddress) {
 
 function dateTimeLocalToUnixSeconds(dateTimeValue) {
   return Math.floor(new Date(dateTimeValue).getTime() / 1000);
-}
-
-function formatUnixDate(unixSeconds) {
-  if (!unixSeconds) return "-";
-  return new Date(Number(unixSeconds) * 1000).toLocaleString();
 }
 
 export default function SubmitClaimPage() {
@@ -578,8 +574,11 @@ export default function SubmitClaimPage() {
       {selectedPolicy ? (
         <div className="card">
           <h3>Selected Policy Timing</h3>
-          <p>Start: {formatUnixDate(selectedPolicy.startDate)}</p>
-          <p>End: {formatUnixDate(selectedPolicy.endDate)}</p>
+          <div className="policy-date-summary">
+            <div><span>Coverage begins</span><strong>{formatDateOnly(selectedPolicy.startDate)}</strong></div>
+            <div><span>Coverage ends</span><strong>{formatDateOnly(selectedPolicy.endDate)}</strong></div>
+            <div><span>Selected incident</span><strong>{incidentDateTime ? formatDateTime(incidentDateTime) : "Not selected"}</strong></div>
+          </div>
           <PolicyTermsPanel terms={selectedPolicy.policyTerms} />
           {eligibilityError ? (
             <p className="warning-text">
@@ -645,8 +644,9 @@ export default function SubmitClaimPage() {
         </label>
 
         <label>
-          Incident date/time
+          Incident date and time
           <input
+            aria-label="Incident date/time"
             type="datetime-local"
             step="60"
             value={incidentDateTime}
@@ -655,7 +655,8 @@ export default function SubmitClaimPage() {
           />
           <small>
             Enter when the incident actually occurred. This value is never
-            replaced with the policy purchase time.
+            replaced with the policy purchase time. Dates are shown in your local
+            timezone.
           </small>
         </label>
 

@@ -18,6 +18,7 @@ export default function PublicLayout() {
         </Link>
 
         <div className="nav-links">
+          <Link to="/policies">Policies</Link>
           {isConnected && workspace ? (
             <span className="portal-context">{workspace.label}</span>
           ) : (
