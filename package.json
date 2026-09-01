@@ -6,6 +6,7 @@
     "setup:hybrid": "npm --prefix backEnd run validate:hybrid && npm --prefix backEnd run reset:hybrid && npm --prefix contracts run fund:accounts:local && npm --prefix contracts run deploy:local && npm --prefix backEnd run grant:roles && npm --prefix backEnd run fund:local && npm --prefix backEnd run push:merkle && npm --prefix backEnd run verify:hybrid-runtime",
     "preflight": "node scripts/preflight.js",
     "preflight:e2e": "node scripts/e2ePreflight.js",
+    "preflight:metamask": "npm run preflight:e2e && node scripts/metamaskPreflight.js",
     "test:e2e": "npm run preflight:e2e && playwright test --grep-invert @workflow",
     "test:e2e:headed": "npm run preflight:e2e && playwright test --grep-invert @workflow --headed",
     "test:e2e:workflow": "npm run preflight:e2e && playwright test --grep @workflow --headed",

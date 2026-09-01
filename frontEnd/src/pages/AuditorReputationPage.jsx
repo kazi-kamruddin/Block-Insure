@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { getReadOnlyContract } from "../services/contractService";
+import {
+  getReadOnlyClaimAdjudicator,
+  getReadOnlyContract,
+} from "../services/contractService";
 import { getActiveRoleMembers } from "../utils/contractQueries";
 import "../styles/pages/AuditorReputationPage.css";
 
@@ -24,14 +27,15 @@ function getReliabilityLevel(score) {
 
 async function loadAuditorReputations() {
   const contract = getReadOnlyContract();
+  const adjudicator = await getReadOnlyClaimAdjudicator();
   const auditorRole = await contract.AUDITOR_ROLE();
   const auditors = await getActiveRoleMembers(contract, auditorRole);
 
   return Promise.all(
     auditors.map(async (wallet) => {
       const [reputation, totalVotes] = await Promise.all([
-        contract.auditorReputation(wallet),
-        contract.auditorTotalVotes(wallet),
+        adjudicator.auditorReputation(wallet),
+        adjudicator.auditorTotalVotes(wallet),
       ]);
       const reputationScore = toNumber(reputation);
       const voteCount = toNumber(totalVotes);

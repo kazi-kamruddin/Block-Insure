@@ -54,6 +54,16 @@ export default function AdminCreatePolicyPackagePage() {
     coverageAmountEth: "2",
     durationDays: "365",
     requiredDocumentType: "HOSPITAL_BILL",
+    waitingPeriodDays: "30",
+    reinstatementWaitingPeriodDays: "7",
+    claimDeadlineDays: "365",
+    minimumDocumentCommitments: "1",
+    deductibleRateBps: "1000",
+    deductibleCapEth: "0.1",
+    insurerShareBps: "8000",
+    maximumClaimEth: "2",
+    allowedClaimTypes: "HEALTH",
+    excludedClaimTypes: "COSMETIC",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);

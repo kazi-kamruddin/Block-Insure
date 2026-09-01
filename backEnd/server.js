@@ -187,13 +187,20 @@ app.use((err, req, res, next) => {
     process.env.NODE_ENV !== "production" ||
     process.env.EXPOSE_INTERNAL_ERRORS === "true";
 
-  console.error("Server error:", {
+  const requestFailure = {
     method: req.method,
     path: req.originalUrl,
     statusCode,
     message: err.message,
-    stack: process.env.NODE_ENV === "production" ? undefined : err.stack,
-  });
+  };
+  if (isServerError) {
+    console.error("Server error:", {
+      ...requestFailure,
+      stack: process.env.NODE_ENV === "production" ? undefined : err.stack,
+    });
+  } else if (statusCode !== 404) {
+    console.warn("Request rejected:", requestFailure);
+  }
   writeEvent("Backend", isServerError ? "error" : "warn", err.message);
 
   res.status(statusCode).json({

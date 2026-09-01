@@ -105,6 +105,12 @@ other funded Hardhat account for the policyholder profile; its first login is
 created as a normal `USER`. Do not run `demo:populate` or
 `loadtest:claims` when you want an empty simulation.
 
+Before opening the profiles, run `npm run preflight:metamask`. It validates the
+live services, chain, deployment, roles, and balances, then prints only the
+public address expected in each browser profile. See
+[`docs/manual-metamask-rehearsal-2026-09-01.md`](docs/manual-metamask-rehearsal-2026-09-01.md)
+for the complete multi-terminal sequence and MetaMask prompt checklist.
+
 After `dev:hybrid` reports ready, `npm run test:e2e` checks public and role-isolated
 pages. `npm run test:e2e:workflow` runs two complete state-changing demonstrations:
 automatic two-Oracle approval and Oracle failure resolved by three assigned

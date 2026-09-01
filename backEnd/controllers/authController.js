@@ -18,9 +18,45 @@ const createError = (message, statusCode) => {
   return error;
 };
 
-const requestDomain = (req) => process.env.SIWE_DOMAIN || req.get("host");
-const requestUri = (req) =>
-  process.env.SIWE_URI || `${req.protocol}://${req.get("host")}`;
+const DEFAULT_ALLOWED_SIWE_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+];
+
+const allowedSiweOrigins = () => {
+  const configured = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return configured.length > 0 ? configured : DEFAULT_ALLOWED_SIWE_ORIGINS;
+};
+
+const resolveSiweOrigin = (req) => {
+  if (process.env.SIWE_DOMAIN || process.env.SIWE_URI) {
+    const configuredUri =
+      process.env.SIWE_URI || `${req.protocol}://${process.env.SIWE_DOMAIN}`;
+    return {
+      domain: process.env.SIWE_DOMAIN || new URL(configuredUri).host,
+      uri: configuredUri,
+    };
+  }
+
+  const browserOrigin = req.get("origin");
+  if (browserOrigin && allowedSiweOrigins().includes(browserOrigin)) {
+    const parsedOrigin = new URL(browserOrigin);
+    return { domain: parsedOrigin.host, uri: parsedOrigin.origin };
+  }
+
+  return {
+    domain: req.get("host"),
+    uri: `${req.protocol}://${req.get("host")}`,
+  };
+};
+
+const requestDomain = (req) => resolveSiweOrigin(req).domain;
+const requestUri = (req) => resolveSiweOrigin(req).uri;
 
 const getNonce = async (req, res, next) => {
   try {
@@ -187,4 +223,4 @@ const logout = async (req, res, next) => {
   }
 };
 
-module.exports = { getNonce, logout, walletLogin };
+module.exports = { getNonce, logout, resolveSiweOrigin, walletLogin };
