@@ -9,6 +9,7 @@ import PublicLayout from "./layouts/PublicLayout";
 import UserLayout from "./layouts/UserLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import AuditorLayout from "./layouts/AuditorLayout";
+import HospitalLayout from "./layouts/HospitalLayout";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const PublicPolicyCatalogPage = lazy(
@@ -62,6 +63,13 @@ const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const BenefitClaimPage = lazy(() => import("./pages/BenefitClaimPage"));
 const AdminBenefitsPage = lazy(() => import("./pages/AdminBenefitsPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const HospitalDashboardPage = lazy(
+  () => import("./pages/HospitalDashboardPage")
+);
+const HospitalRecordsPage = lazy(() => import("./pages/HospitalRecordsPage"));
+const HospitalClaimRequestsPage = lazy(
+  () => import("./pages/HospitalClaimRequestsPage")
+);
 
 import "./App.css";
 
@@ -138,6 +146,13 @@ export default function App() {
                 <Route path="vote/:claimId" element={<AuditorVotingPage />} />
                 <Route path="reputation" element={<AuditorReputationPage />} />
                 <Route path="verify-document" element={<AuditorDocumentVerificationPage />} />
+              </Route>
+
+              <Route path="hospital" element={<HospitalLayout />}>
+                <Route index element={<Navigate to="/hospital/dashboard" replace />} />
+                <Route path="dashboard" element={<HospitalDashboardPage />} />
+                <Route path="records" element={<HospitalRecordsPage />} />
+                <Route path="claims" element={<HospitalClaimRequestsPage />} />
               </Route>
 
                 <Route path="*" element={<NotFoundPage />} />

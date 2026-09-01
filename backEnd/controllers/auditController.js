@@ -2,15 +2,18 @@ const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
 const ClaimAdjudicatorArtifact = require("../abi/ClaimAdjudicator.json");
+const HospitalVerificationRegistryArtifact = require("../abi/HospitalVerificationRegistry.json");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const OracleLog = require("../models/OracleLog");
+const HospitalClaimVerification = require("../models/HospitalClaimVerification");
 const {
   getProvider,
   getContractAddress,
   getOracleCoordinator,
   getClaimAdjudicator,
   getReadOnlyContract,
+  getHospitalVerificationRegistry,
 } = require("../services/contractService");
 
 const CLAIM_EVENT_NAMES = new Set([
@@ -47,6 +50,7 @@ const CLAIM_EVENT_NAMES = new Set([
   "ClaimFundingActivated",
   "SettlementWithdrawn",
   "ClaimDecisionRecorded",
+  "HospitalClaimVerified",
 ]);
 
 const serializeValue = (value) => {
@@ -83,16 +87,19 @@ const buildClaimTimeline = async (id) => {
   const contract = getReadOnlyContract();
   const coordinator = await getOracleCoordinator(contract);
   const adjudicator = await getClaimAdjudicator(contract);
+  const hospitalRegistry = getHospitalVerificationRegistry(contract.runner);
   const coordinatorAddress = await coordinator.getAddress();
   const adjudicatorAddress = await adjudicator.getAddress();
+  const hospitalRegistryAddress = await hospitalRegistry.getAddress();
   const interfaces = new Map([
     [contractAddress.toLowerCase(), new ethers.Interface(InsuranceManagerArtifact.abi)],
     [coordinatorAddress.toLowerCase(), new ethers.Interface(OracleCoordinatorArtifact.abi)],
     [adjudicatorAddress.toLowerCase(), new ethers.Interface(ClaimAdjudicatorArtifact.abi)],
+    [hospitalRegistryAddress.toLowerCase(), new ethers.Interface(HospitalVerificationRegistryArtifact.abi)],
   ]);
   const latestBlock = await provider.getBlockNumber();
   const logs = await provider.getLogs({
-    address: [contractAddress, coordinatorAddress, adjudicatorAddress],
+    address: [contractAddress, coordinatorAddress, adjudicatorAddress, hospitalRegistryAddress],
     fromBlock: 0,
     toBlock: latestBlock,
   });
@@ -182,7 +189,7 @@ const formatSettlementExport = (settlement) => {
 
 const buildClaimExport = async (id) => {
   const contract = getReadOnlyContract();
-  const [claim, timeline, oracleLogs, adminActions, appeal, settlementRecord] =
+  const [claim, timeline, oracleLogs, adminActions, appeal, settlementRecord, hospitalVerification] =
     await Promise.all([
       safeContractCall(() => contract.getClaim(id)),
       buildClaimTimeline(id),
@@ -192,6 +199,9 @@ const buildClaimExport = async (id) => {
         .lean(),
       Appeal.findOne({ claimId: id.toString() }).lean(),
       safeContractCall(() => contract.getSettlementRecord(id)),
+      HospitalClaimVerification.findOne({ claimId: id.toString() })
+        .sort({ claimVersion: -1 })
+        .lean(),
     ]);
   const oracleEvents = oracleLogs.map((log) => ({
     requestId: log.requestId,
@@ -225,6 +235,7 @@ const buildClaimExport = async (id) => {
         }
       : null,
     duplicateFlag: timeline.some((event) => event.eventName === "ClaimFlagged"),
+    hospitalVerification,
     statusTimeline: timeline,
     oracleEvents,
     merkleInfo: oracleEvents
@@ -277,6 +288,11 @@ const toMarkdown = (claimExport) => {
     `- Document hash: ${claimExport.document?.documentHash || "N/A"}`,
     `- Document CID: ${claimExport.document?.documentCID || "N/A"}`,
     `- Duplicate flag: ${claimExport.duplicateFlag ? "yes" : "no"}`,
+    "",
+    "## Hospital Verification",
+    claimExport.hospitalVerification
+      ? `- ${claimExport.hospitalVerification.outcome} by ${claimExport.hospitalVerification.hospitalWallet} tx ${claimExport.hospitalVerification.transactionHash}`
+      : "- Pending hospital verification",
     "",
     "## Timeline",
     ...claimExport.statusTimeline.map(

@@ -7,6 +7,7 @@ import {
   authorizeClaimSubmission,
   attachDocumentToClaim,
   getMyPolicies,
+  getNetworkHospitals,
   previewPurchasedPolicyEligibility,
   reconcileClaimSubmission,
   recordClaimSubmissionTransaction,
@@ -184,6 +185,12 @@ export default function SubmitClaimPage() {
   });
 
   const policies = extractPolicies(policiesData);
+  const { data: hospitalNetworkData } = useQuery({
+    queryKey: ["contractedHospitalNetwork"],
+    queryFn: getNetworkHospitals,
+    staleTime: 60_000,
+  });
+  const networkHospitals = hospitalNetworkData?.hospitals || [];
 
   const activePolicies = useMemo(
     () => policies.filter((policy) => policy.isActive !== false),
@@ -337,10 +344,13 @@ export default function SubmitClaimPage() {
 
       setIsSubmitting(true);
 
+      const invoiceHash = hashInvoiceNumber(invoiceNumber.trim());
       const authorization = await authorizeClaimSubmission(policyId, {
         incidentDate: incidentSeconds,
         claimType,
         claimAmountEth: claimAmount,
+        hospitalId,
+        invoiceHash,
         preExistingCondition,
         disclosedAtPurchase,
       });
@@ -397,8 +407,6 @@ export default function SubmitClaimPage() {
       });
 
       const documentHashBytes32 = toBytes32FromBackendSha256(sha256Hash);
-      const invoiceHash = hashInvoiceNumber(invoiceNumber.trim());
-
       const tx = await contract.submitClaim(
         BigInt(policyId),
         parseEth(claimAmount),
@@ -672,12 +680,20 @@ export default function SubmitClaimPage() {
 
         <label>
           Hospital ID
-          <input
-            type="text"
+          <select
+            aria-label="Hospital ID"
             value={hospitalId}
             onChange={(event) => setHospitalId(event.target.value)}
             required
-          />
+          >
+            <option value="">Select a contracted hospital</option>
+            {networkHospitals.map((hospital) => (
+              <option key={hospital.hospitalId} value={hospital.hospitalId}>
+                {hospital.hospitalId} — {hospital.name}
+              </option>
+            ))}
+          </select>
+          <small>Only hospitals contracted with the insurer are claim eligible.</small>
         </label>
 
         <label>

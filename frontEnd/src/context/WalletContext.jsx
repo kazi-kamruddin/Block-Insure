@@ -27,6 +27,10 @@ const ROLE_WORKSPACES = {
     home: "/auditor/dashboard",
     label: "Auditor workspace",
   },
+  HOSPITAL: {
+    home: "/hospital/dashboard",
+    label: "Hospital workspace",
+  },
 };
 
 function normalizeAddress(address) {

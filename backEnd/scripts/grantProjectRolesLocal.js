@@ -4,7 +4,10 @@ const dns = require("dns");
 const mongoose = require("mongoose");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
+const HospitalVerificationRegistryArtifact = require("../abi/HospitalVerificationRegistry.json");
 const User = require("../models/User");
+const { seedHospitalDirectory } = require("../services/hospitalDirectoryService");
+const { HOSPITAL_NETWORK } = require("../config/hospitalNetwork");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -69,6 +72,27 @@ async function syncMongoRole(walletAddress, role) {
   console.log(`Mongo user role synced: ${user.walletAddress} -> ${user.role}`);
 }
 
+async function registerHospitalIfMissing(contract, hospital, nonceState) {
+  const hospitalIdHash = ethers.keccak256(ethers.toUtf8Bytes(hospital.hospitalId));
+  const walletAddress = ethers.getAddress(hospital.walletAddress);
+  const registeredWallet = await contract.hospitalWalletByIdHash(hospitalIdHash);
+  if (registeredWallet.toLowerCase() === walletAddress.toLowerCase()) {
+    console.log(`${hospital.hospitalId} already registered to: ${walletAddress}`);
+    return;
+  }
+  if (registeredWallet !== ethers.ZeroAddress) {
+    throw new Error(`${hospital.hospitalId} is already assigned to ${registeredWallet}`);
+  }
+  const tx = await contract.registerHospitalIdentity(
+    hospital.hospitalId,
+    walletAddress,
+    { nonce: nonceState.current }
+  );
+  console.log(`Registering ${hospital.hospitalId} to ${walletAddress}: ${tx.hash}`);
+  nonceState.current += 1;
+  await tx.wait();
+}
+
 async function main() {
   try {
     const rpcUrl = requireEnv("RPC_URL");
@@ -110,6 +134,11 @@ async function main() {
     const contract = new ethers.Contract(
       contractAddress,
       InsuranceManagerArtifact.abi,
+      adminWallet
+    );
+    const hospitalVerificationRegistry = new ethers.Contract(
+      requireEnv("HOSPITAL_VERIFICATION_REGISTRY_ADDRESS"),
+      HospitalVerificationRegistryArtifact.abi,
       adminWallet
     );
 
@@ -190,6 +219,14 @@ async function main() {
       );
     }
 
+    for (const hospital of HOSPITAL_NETWORK) {
+      await registerHospitalIfMissing(
+        hospitalVerificationRegistry,
+        hospital,
+        nonceState
+      );
+    }
+
     if (process.env.MONGODB_URI) {
       await mongoose.connect(process.env.MONGODB_URI);
 
@@ -204,6 +241,9 @@ async function main() {
       for (const auditorAddress of auditorWalletAddresses) {
         await syncMongoRole(auditorAddress, "AUDITOR");
       }
+
+      const hospitals = await seedHospitalDirectory();
+      console.log(`Mongo hospital identities synced: ${hospitals.length}`);
 
       await mongoose.connection.close();
     } else {

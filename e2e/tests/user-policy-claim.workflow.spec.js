@@ -6,6 +6,22 @@ const {
 } = require("../support/actions");
 const { closeActor, createActorContext } = require("../support/walletBridge");
 
+async function verifyClaimAsHospital(browser, claimId, expectedOutcome) {
+  const hospitalSession = await createActorContext(browser, "hospital");
+  try {
+    await loginActor(hospitalSession.page, hospitalSession.actor);
+    await hospitalSession.page.goto("/hospital/claims");
+    await hospitalSession.page.getByRole("button", { name: new RegExp(`Claim #${claimId}`) }).click();
+    await expect(hospitalSession.page.getByRole("heading", { name: expectedOutcome })).toBeVisible();
+    await hospitalSession.page.getByRole("button", { name: "Verify against hospital record" }).click();
+    const attestationResult = hospitalSession.page.locator(".hospital-attestation-result");
+    await expect(attestationResult).toContainText("On-chain hospital attestation:", { timeout: 60_000 });
+    await expect(attestationResult).toContainText(expectedOutcome);
+  } finally {
+    await closeActor(hospitalSession);
+  }
+}
+
 test.describe("@workflow policyholder transaction journey", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -58,6 +74,8 @@ test.describe("@workflow policyholder transaction journey", () => {
         .locator("..");
       await expect(uploadedDocument).toBeVisible();
       await expect(uploadedDocument).toContainText("AES-256-GCM");
+
+      await verifyClaimAsHospital(browser, claimId, "VERIFIED");
 
       const adminSession = await createActorContext(browser, "admin");
       try {
@@ -134,7 +152,7 @@ test.describe("@workflow policyholder transaction journey", () => {
       await incidentInput.fill(localDateTimeValue(new Date(Number(latestBlock.timestamp) * 1000)));
       await session.page.getByLabel("Claim amount in ETH").fill("0.1");
       await session.page.getByLabel("Claim type").fill("HOSPITALIZATION");
-      await session.page.getByLabel("Hospital ID").fill("HOSP-NOT-REGISTERED");
+      await session.page.getByLabel("Hospital ID").selectOption("HOSP-001");
       await session.page
         .getByLabel("Invoice number")
         .fill(`E2E-MANUAL-${Date.now()}`);
@@ -148,6 +166,8 @@ test.describe("@workflow policyholder transaction journey", () => {
       );
       const claimId = (await successMessage.textContent())?.match(/Claim #(\d+)/)?.[1];
       expect(claimId, "The manual-review claim should expose its claim ID").toBeTruthy();
+
+      await verifyClaimAsHospital(browser, claimId, "NOT FOUND");
 
       const adminSession = await createActorContext(browser, "admin");
       try {

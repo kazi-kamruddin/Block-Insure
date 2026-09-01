@@ -10,12 +10,16 @@ const claim = {
   incidentDate: 1_800_000_000n,
   claimAmount: 200_000_000_000_000_000n,
   claimType: "SURGERY",
+  hospitalId: "HOSP-001",
+  invoiceHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 };
 
 const facts = {
   incidentDate: "1800000000",
   claimAmountWei: "200000000000000000",
   claimType: "surgery",
+  hospitalId: "hosp-001",
+  invoiceHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 };
 
 test("accepts a confirmed claim only when every authorized material fact matches", () => {
@@ -30,6 +34,17 @@ test("accepts a confirmed claim only when every authorized material fact matches
   );
   assert.equal(
     claimMatchesSubmittedFacts(claim, { ...facts, claimType: "DENTAL" }),
+    false
+  );
+  assert.equal(
+    claimMatchesSubmittedFacts(claim, { ...facts, hospitalId: "HOSP-002" }),
+    false
+  );
+  assert.equal(
+    claimMatchesSubmittedFacts(claim, {
+      ...facts,
+      invoiceHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    }),
     false
   );
 });

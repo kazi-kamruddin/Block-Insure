@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 
 import {
   getPolicyBenefitsWalletContract,
+  getHospitalVerificationWalletContract,
   getWalletContract,
   getWalletOracleCoordinator,
 } from "./contractService";
@@ -680,6 +681,10 @@ export async function reconcilePendingAdminTransactions() {
 }
 
 export async function requestOracleVerification(claimId) {
+  const hospitalResult = await getHospitalClaimVerification(claimId);
+  if (!hospitalResult.verification) {
+    throw new Error("The contracted hospital must verify this claim before insurer processing.");
+  }
   const contract = await getWalletContract();
   return executeAdminWalletAction(
     "REQUEST_ORACLE_VERIFICATION",
@@ -720,6 +725,74 @@ export async function getHealthcareRegistryRecords(params = {}) {
   const response = await api.get("/mock/hospital/records", {
     params,
   });
+  return response.data;
+}
+
+export async function getNetworkHospitals() {
+  const response = await api.get("/api/hospitals/network");
+  return response.data;
+}
+
+export async function getMyHospitalProfile() {
+  const response = await api.get("/api/hospitals/me");
+  return response.data;
+}
+
+export async function getMyHospitalRecords(params = {}) {
+  const response = await api.get("/api/hospitals/records", { params });
+  return response.data;
+}
+
+export async function createMyHospitalRecord(record) {
+  const response = await api.post("/api/hospitals/records", record);
+  return response.data;
+}
+
+export async function updateMyHospitalRecord(recordId, updates) {
+  const response = await api.patch(`/api/hospitals/records/${recordId}`, updates);
+  return response.data;
+}
+
+export async function getMyHospitalClaimRequests() {
+  const response = await api.get("/api/hospitals/claim-requests");
+  return response.data;
+}
+
+export async function getMyHospitalClaimRequest(claimId) {
+  const response = await api.get(`/api/hospitals/claim-requests/${claimId}`);
+  return response.data;
+}
+
+export async function submitHospitalClaimVerification(
+  claimId,
+  verified,
+  attestationHash,
+  note = ""
+) {
+  const contract = await getHospitalVerificationWalletContract();
+  const tx = await contract.submitHospitalVerification(
+    claimId,
+    Boolean(verified),
+    attestationHash
+  );
+  await tx.wait();
+  try {
+    const response = await api.post(
+      `/api/hospitals/claim-requests/${claimId}/confirm`,
+      { transactionHash: tx.hash, note }
+    );
+    return { ...response.data, transactionHash: tx.hash };
+  } catch (error) {
+    error.hospitalTransactionHash = tx.hash;
+    error.message =
+      `The on-chain hospital attestation succeeded (${tx.hash}), but backend confirmation is pending. ` +
+      (error.message || "");
+    throw error;
+  }
+}
+
+export async function getHospitalClaimVerification(claimId) {
+  const response = await api.get(`/api/hospitals/claim-verifications/${claimId}`);
   return response.data;
 }
 

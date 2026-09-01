@@ -4,6 +4,8 @@ const path = require("node:path");
 const projectRoot = path.resolve(__dirname, "../..");
 const DEFAULT_LOCAL_USER_PRIVATE_KEY =
   "0x59c6995e998f97a5a0044966f094538ea59f3b31f82b83fe5c7f3099b6a6c0e8";
+const DEFAULT_LOCAL_HOSPITAL_PRIVATE_KEY =
+  "0xf214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897";
 
 function readEnv(relativePath) {
   const filePath = path.join(projectRoot, relativePath);
@@ -65,6 +67,14 @@ function getE2EConfig() {
         role: "ADMIN",
         home: "/admin/dashboard",
         privateKey: requirePrivateKey(backend.ADMIN_PRIVATE_KEY, "ADMIN_PRIVATE_KEY"),
+      },
+      hospital: {
+        role: "HOSPITAL",
+        home: "/hospital/dashboard",
+        privateKey: requirePrivateKey(
+          e2e.E2E_HOSPITAL_PRIVATE_KEY || DEFAULT_LOCAL_HOSPITAL_PRIVATE_KEY,
+          "E2E_HOSPITAL_PRIVATE_KEY"
+        ),
       },
       auditor1: auditorActor(e2e, 1),
       auditor2: auditorActor(e2e, 2),

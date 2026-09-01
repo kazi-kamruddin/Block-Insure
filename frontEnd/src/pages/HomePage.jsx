@@ -177,8 +177,8 @@ export default function HomePage() {
           <h2>One identity. One workspace. Clear authority.</h2>
           <p>
             Connecting a wallet opens only the workspace assigned to that
-            identity. Administrative, policyholder, and auditor responsibilities
-            remain deliberately separate.
+            identity. Administrative, policyholder, hospital, and auditor
+            responsibilities remain deliberately separate.
           </p>
         </div>
 
@@ -197,6 +197,11 @@ export default function HomePage() {
             <span>Auditor</span>
             <h3>Independently examine disputes</h3>
             <p>Inspect timelines and evidence, verify document integrity, vote, and build a reputation record.</p>
+          </article>
+          <article>
+            <span>Hospital</span>
+            <h3>Own patient and invoice records</h3>
+            <p>Use a separate provider wallet and view only records belonging to the contracted hospital identity.</p>
           </article>
         </div>
       </section>

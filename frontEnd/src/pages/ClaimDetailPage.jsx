@@ -126,6 +126,7 @@ export default function ClaimDetailPage() {
   });
 
   const claim = extractClaim(claimData);
+  const hospitalVerification = claimData?.hospitalVerification || null;
   const evidenceChain = extractEvidenceChain(claimData);
   const originalEvidenceDocument = evidenceChain?.documents?.find(
     (document) => document.ipfsCID === claim?.documentCID
@@ -411,6 +412,23 @@ export default function ClaimDetailPage() {
             onRevokeAccess={handleRevokeAccess}
             delegationPending={delegationPending}
           />
+        </div>
+      ) : null}
+
+      {claim ? (
+        <div className="card">
+          <h3>Hospital verification</h3>
+          {hospitalVerification ? (
+            <>
+              <p>Outcome: <strong>{hospitalVerification.outcome}</strong></p>
+              <p>{hospitalVerification.verified
+                ? "The contracted hospital confirmed that the submitted invoice, amount, treatment, and care dates match its source record."
+                : "The contracted hospital reported one or more mismatches. The insurer can review the detailed attestation."}</p>
+              <p><TransactionLink txHash={hospitalVerification.transactionHash} /></p>
+            </>
+          ) : (
+            <p>The claim is waiting for its contracted hospital to verify the source invoice.</p>
+          )}
         </div>
       ) : null}
 

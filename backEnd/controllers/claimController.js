@@ -6,6 +6,9 @@ const {
 const { getEvidenceChainForClaim } = require("../services/evidenceChainService");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 const File = require("../models/File");
+const Hospital = require("../models/Hospital");
+const HospitalClaimVerification = require("../models/HospitalClaimVerification");
+const { formatHospitalVerification } = require("../services/hospitalVerificationService");
 const {
   assignEvidenceChainLink,
 } = require("../services/evidenceChainService");
@@ -293,7 +296,12 @@ const getClaimById = async (req, res, next) => {
     }
 
     const documents = await contract.getClaimDocuments(req.params.claimId);
-    const evidenceChain = await getEvidenceChainForClaim(req.params.claimId);
+    const [evidenceChain, hospitalVerification] = await Promise.all([
+      getEvidenceChainForClaim(req.params.claimId),
+      HospitalClaimVerification.findOne({ claimId: String(req.params.claimId) })
+        .sort({ claimVersion: -1 })
+        .lean(),
+    ]);
 
     res.status(200).json({
       success: true,
@@ -302,6 +310,7 @@ const getClaimById = async (req, res, next) => {
       }),
       documents: documents.map(formatClaimDocument),
       evidenceChain,
+      hospitalVerification: formatHospitalVerification(hospitalVerification),
     });
   } catch (error) {
     next(error);
@@ -454,11 +463,22 @@ const authorizeClaimSubmission = async (req, res, next) => {
     if (
       req.body.incidentDate === undefined ||
       !String(req.body.claimType || "").trim() ||
+      !String(req.body.hospitalId || "").trim() ||
+      !/^0x[a-f\d]{64}$/i.test(String(req.body.invoiceHash || "").trim()) ||
       (req.body.claimAmountWei === undefined && req.body.claimAmountEth === undefined)
     ) {
       throw createError(
-        "incidentDate, claimType, and claimAmount are required for the auditable eligibility snapshot"
+        "incidentDate, claimType, claimAmount, contracted hospitalId, and invoiceHash are required for the auditable eligibility snapshot"
       );
+    }
+
+    const hospitalId = String(req.body.hospitalId).trim().toUpperCase();
+    const contractedHospital = await Hospital.findOne({
+      hospitalId,
+      networkStatus: "CONTRACTED",
+    }).select("hospitalId").lean();
+    if (!contractedHospital) {
+      throw createError("Claims are accepted only from contracted network hospitals", 409);
     }
 
     const policyPackage = await contract.getPolicyPackage(policy.packageId);
@@ -476,6 +496,8 @@ const authorizeClaimSubmission = async (req, res, next) => {
       incidentDate: String(req.body.incidentDate),
       claimType: String(req.body.claimType).trim(),
       claimAmountWei,
+      hospitalId,
+      invoiceHash: String(req.body.invoiceHash).trim().toLowerCase(),
       preExistingCondition: req.body.preExistingCondition === true,
       disclosedAtPurchase: req.body.disclosedAtPurchase === true,
     };

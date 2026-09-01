@@ -69,6 +69,32 @@ test.describe("@smoke role workspaces", () => {
     }
   });
 
+  test("Hospital signs in to an independently scoped provider workspace", async ({ browser }) => {
+    const session = await createActorContext(browser, "hospital");
+    try {
+      await loginActor(session.page, session.actor);
+      await expect(
+        session.page.getByRole("heading", { name: "Dhaka Central Medical Hospital" })
+      ).toBeVisible();
+      await expect(
+        session.page.getByRole("navigation", { name: "Hospital navigation" })
+      ).toBeVisible();
+      await expect(session.page.getByText("Independent hospital verification active")).toBeVisible();
+      await expect(session.page.getByText("HOSP-001", { exact: true })).toBeVisible();
+      await expect(session.page.getByText("INV-HOSP-001-001", { exact: true })).toBeVisible();
+
+      await session.page.goto("/hospital/records");
+      await expect(session.page.getByRole("heading", { name: "Patient and Invoice Records" })).toBeVisible();
+      await session.page.goto("/hospital/claims");
+      await expect(session.page.getByRole("heading", { name: "Claim Verification Requests" })).toBeVisible();
+
+      await session.page.goto("/admin/dashboard");
+      await expect(session.page).toHaveURL(/\/hospital\/dashboard$/);
+    } finally {
+      await closeActor(session);
+    }
+  });
+
   test("Auditor tools load and privileged route isolation is enforced", async ({ browser }) => {
     const session = await createActorContext(browser, "auditor1");
     try {

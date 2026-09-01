@@ -6,6 +6,8 @@ const { ethers } = require("ethers");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
 const { generateSyntheticDataset } = require("../services/syntheticRegistryService");
+const { getHospitalNetworkEntry } = require("../config/hospitalNetwork");
+const { seedHospitalDirectory } = require("../services/hospitalDirectoryService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -25,7 +27,10 @@ const buildSyntheticRecords = () => {
       recordId: `demo-preset-${index + 1}`,
       hospitalId,
       providerId: hospitalId,
-      hospitalName: `Demo Provider ${index + 1}`,
+      hospitalName: getHospitalNetworkEntry(hospitalId).name,
+      division: getHospitalNetworkEntry(hospitalId).division,
+      district: getHospitalNetworkEntry(hospitalId).district,
+      hospitalTier: getHospitalNetworkEntry(hospitalId).hospitalTier,
       treatmentType,
       invoiceNumber,
       invoiceHash: ethers.keccak256(ethers.toUtf8Bytes(invoiceNumber)),
@@ -81,6 +86,7 @@ const seedMockData = async () => {
     ]);
     await MockHospitalRecord.insertMany(records);
     await MockHospitalRecordOracle2.insertMany(buildOracle2Records(records));
+    await seedHospitalDirectory();
     const fraudCount = records.filter((record) => record.actualFraud).length;
     console.log(`Seeded ${records.length} Phase 5 registry records (${fraudCount} latent fraud labels).`);
     console.log("Generated claimant/provider groups, recurring care, fraud clusters, noise, drift, and duplicate variants.");

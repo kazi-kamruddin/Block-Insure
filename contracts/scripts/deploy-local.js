@@ -28,7 +28,8 @@ function syncLocalContractDeployment(
   benefitsDeploymentBlock,
   economicsAddress,
   evidenceRegistryAddress,
-  deploymentRegistryAddress
+  deploymentRegistryAddress,
+  hospitalVerificationRegistryAddress
 ) {
   const projectRoot = path.resolve(__dirname, "..", "..");
   const targets = [
@@ -54,6 +55,11 @@ function syncLocalContractDeployment(
     { file: path.join(projectRoot, "backEnd", ".env"), key: "EVIDENCE_REGISTRY_ADDRESS" },
     { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_EVIDENCE_REGISTRY_ADDRESS" },
   ].forEach(({ file, key }) => updateEnvValue(file, key, evidenceRegistryAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_HOSPITAL_VERIFICATION_REGISTRY_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, hospitalVerificationRegistryAddress));
 
   [
     { file: path.join(projectRoot, "backEnd", ".env"), key: "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS" },
@@ -105,6 +111,7 @@ function syncContractAbi() {
     "PolicyEconomics",
     "EvidenceRegistry",
     "ProtocolDeploymentRegistry",
+    "HospitalVerificationRegistry",
   ].forEach((contractName) => {
     const artifactPath = path.join(
       projectRoot,
@@ -167,6 +174,31 @@ async function main() {
   console.log("InsuranceManager deployed to:", contractAddress);
   console.log("InsuranceManager deployment block:", deploymentBlock);
   console.log("OracleCoordinator deployed to:", await insuranceManager.oracleCoordinator());
+  const HospitalVerificationRegistry = await hre.ethers.getContractFactory(
+    "HospitalVerificationRegistry",
+    adminWallet
+  );
+  const hospitalVerificationRegistry = await HospitalVerificationRegistry.deploy(
+    contractAddress,
+    adminWallet.address
+  );
+  await hospitalVerificationRegistry.waitForDeployment();
+  const hospitalVerificationRegistryAddress =
+    await hospitalVerificationRegistry.getAddress();
+  const oracleCoordinator = await hre.ethers.getContractAt(
+    "OracleCoordinator",
+    await insuranceManager.oracleCoordinator(),
+    adminWallet
+  );
+  await (
+    await oracleCoordinator.configureHospitalVerificationRegistry(
+      hospitalVerificationRegistryAddress
+    )
+  ).wait();
+  console.log(
+    "HospitalVerificationRegistry deployed to:",
+    hospitalVerificationRegistryAddress
+  );
   const modelArtifactPath = path.resolve(__dirname, "..", "..", "backEnd", "model-params.json");
   const modelArtifact = JSON.parse(fs.readFileSync(modelArtifactPath, "utf8"));
   const modelVerification = verifyModelArtifact(modelArtifact);
@@ -278,6 +310,7 @@ async function main() {
     ["PolicyEconomics", economicsAddress, "IPolicyEconomics/1"],
     ["EvidenceRegistry", evidenceRegistryAddress, "IEvidenceRegistry/1"],
     ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/1"],
+    ["HospitalVerificationRegistry", hospitalVerificationRegistryAddress, "IHospitalVerificationRegistry/1"],
   ]) {
     await (
       await deploymentRegistry.registerComponent(
@@ -298,7 +331,8 @@ async function main() {
     benefitsDeploymentBlock,
     economicsAddress,
     evidenceRegistryAddress,
-    deploymentRegistryAddress
+    deploymentRegistryAddress,
+    hospitalVerificationRegistryAddress
   );
   console.log("");
   console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
@@ -309,6 +343,7 @@ async function main() {
   console.log("POLICY_ECONOMICS_ADDRESS =", economicsAddress);
   console.log("EVIDENCE_REGISTRY_ADDRESS =", evidenceRegistryAddress);
   console.log("PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS =", deploymentRegistryAddress);
+  console.log("HOSPITAL_VERIFICATION_REGISTRY_ADDRESS =", hospitalVerificationRegistryAddress);
 }
 
 main().catch((error) => {

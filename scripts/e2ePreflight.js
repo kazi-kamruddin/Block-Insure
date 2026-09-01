@@ -4,12 +4,17 @@ const {
   Contract,
   JsonRpcProvider,
   Wallet,
+  keccak256,
+  toUtf8Bytes,
 } = require("../backEnd/node_modules/ethers");
 const InsuranceManagerArtifact = require("../backEnd/abi/InsuranceManager.json");
+const HospitalVerificationRegistryArtifact = require("../backEnd/abi/HospitalVerificationRegistry.json");
 
 const projectRoot = path.resolve(__dirname, "..");
 const DEFAULT_LOCAL_USER_PRIVATE_KEY =
   "0x59c6995e998f97a5a0044966f094538ea59f3b31f82b83fe5c7f3099b6a6c0e8";
+const DEFAULT_LOCAL_HOSPITAL_PRIVATE_KEY =
+  "0xf214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897";
 
 function readEnv(relativePath) {
   const filePath = path.join(projectRoot, relativePath);
@@ -82,6 +87,12 @@ async function main() {
     "VITE_CONTRACT_ADDRESS",
     "backEnd/.env"
   );
+  const hospitalRegistryAddress = requireValue(
+    failures,
+    backend,
+    "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS",
+    "backEnd/.env"
+  );
 
   const adminPrivateKey = requireValue(
     failures,
@@ -111,6 +122,11 @@ async function main() {
     failures,
     e2e.E2E_USER_PRIVATE_KEY || DEFAULT_LOCAL_USER_PRIVATE_KEY,
     "E2E_USER_PRIVATE_KEY"
+  );
+  const hospitalWallet = loadWallet(
+    failures,
+    e2e.E2E_HOSPITAL_PRIVATE_KEY || DEFAULT_LOCAL_HOSPITAL_PRIVATE_KEY,
+    "E2E_HOSPITAL_PRIVATE_KEY"
   );
   const oracleWallet = oraclePrivateKey
     ? loadWallet(failures, oraclePrivateKey, "ORACLE_PRIVATE_KEY")
@@ -170,13 +186,16 @@ async function main() {
   const browserRoleAddresses = [
     adminWallet?.address,
     userWallet?.address,
+    hospitalWallet?.address,
     ...derivedAuditorAddresses,
   ].filter(Boolean);
   if (
     new Set(browserRoleAddresses.map((address) => address.toLowerCase())).size !==
     browserRoleAddresses.length
   ) {
-    failures.push("Admin, User, and Auditor browser wallets must all be distinct");
+    failures.push(
+      "Admin, User, Hospital, and Auditor browser wallets must all be distinct"
+    );
   }
 
   if (e2e.E2E_PINATA_MODE === "real") {
@@ -218,10 +237,16 @@ async function main() {
           InsuranceManagerArtifact.abi,
           provider
         );
-        const [adminRole, auditorRole, oracleRole] = await Promise.all([
+        const hospitalRegistry = new Contract(
+          hospitalRegistryAddress,
+          HospitalVerificationRegistryArtifact.abi,
+          provider
+        );
+        const [adminRole, auditorRole, oracleRole, hospitalRole] = await Promise.all([
           contract.DEFAULT_ADMIN_ROLE(),
           contract.AUDITOR_ROLE(),
           contract.ORACLE_ROLE(),
+          hospitalRegistry.HOSPITAL_ROLE(),
         ]);
 
         if (
@@ -242,6 +267,18 @@ async function main() {
               failures.push(`Auditor ${index + 1} does not have AUDITOR_ROLE on the current deployment`);
             }
           });
+        }
+
+        if (hospitalWallet) {
+          const hospitalIdHash = keccak256(toUtf8Bytes("HOSP-001"));
+          const [hasHospitalRole, registeredHospital] = await Promise.all([
+            hospitalRegistry.hasRole(hospitalRole, hospitalWallet.address),
+            hospitalRegistry.hospitalWalletByIdHash(hospitalIdHash),
+          ]);
+          if (!hasHospitalRole) failures.push("Hospital wallet does not have HOSPITAL_ROLE on the current deployment");
+          if (registeredHospital.toLowerCase() !== hospitalWallet.address.toLowerCase()) {
+            failures.push("HOSP-001 is not registered to the E2E Hospital wallet");
+          }
         }
 
         const configuredOracles = [oracleWallet, oracleTwoWallet];
@@ -284,7 +321,7 @@ async function main() {
   }
 
   console.log(
-    "[E2E preflight] Admin, User, 4 Auditors, 2 Oracles, services, chain, claim controls, and evidence configuration are ready."
+    "[E2E preflight] Admin, User, Hospital, 4 Auditors, 2 Oracles, services, chain, claim controls, and evidence configuration are ready."
   );
 }
 

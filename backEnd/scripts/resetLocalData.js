@@ -13,6 +13,8 @@ const EvidenceEvent = require("../models/EvidenceEvent");
 const EvidenceGrant = require("../models/EvidenceGrant");
 const EvidenceTreeHead = require("../models/EvidenceTreeHead");
 const File = require("../models/File");
+const Hospital = require("../models/Hospital");
+const HospitalClaimVerification = require("../models/HospitalClaimVerification");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
 const Notification = require("../models/Notification");
@@ -29,6 +31,7 @@ const {
   buildSyntheticRecords,
 } = require("./seedMockData");
 const { buildHybridRuntimeRecords } = require("./seedHybridData");
+const { seedHospitalDirectory } = require("../services/hospitalDirectoryService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -41,6 +44,8 @@ const collections = [
   ["appeals", Appeal],
   ["claim submission attempts", ClaimSubmissionAttempt],
   ["documents", File],
+  ["hospital directory entries", Hospital],
+  ["hospital claim verifications", HospitalClaimVerification],
   ["evidence access logs", EvidenceAccessLog],
   ["evidence events", EvidenceEvent],
   ["evidence grants", EvidenceGrant],
@@ -126,11 +131,12 @@ async function main() {
     await MockHospitalRecordOracle2.deleteMany({});
     await MockHospitalRecord.insertMany(registryRecords);
     await MockHospitalRecordOracle2.insertMany(registryRecords);
+    await seedHospitalDirectory();
 
     console.log(
       `Rebuilt ${registryRecords.length} ${hybridMode ? "hybrid" : "synthetic"} healthcare registry records for both oracle snapshots.`
     );
-    console.log("MongoDB runtime data is clean. No policies, claims, appeals, or user activity are created by this script.");
+    console.log("MongoDB runtime data is clean. Five hospital identities are restored; no policies, claims, appeals, or user activity are created.");
   } finally {
     await mongoose.connection.close();
   }

@@ -4,6 +4,7 @@ import OracleCoordinatorArtifact from "../abi/OracleCoordinator.json";
 import ClaimAdjudicatorArtifact from "../abi/ClaimAdjudicator.json";
 import PolicyEconomicsArtifact from "../abi/PolicyEconomics.json";
 import EvidenceRegistryArtifact from "../abi/EvidenceRegistry.json";
+import HospitalVerificationRegistryArtifact from "../abi/HospitalVerificationRegistry.json";
 import policyBenefitsAbi from "../abi/policyBenefitsAbi";
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
@@ -22,6 +23,8 @@ const POLICY_ECONOMICS_ABI =
   PolicyEconomicsArtifact.abi || PolicyEconomicsArtifact;
 const EVIDENCE_REGISTRY_ABI =
   EvidenceRegistryArtifact.abi || EvidenceRegistryArtifact;
+const HOSPITAL_VERIFICATION_REGISTRY_ABI =
+  HospitalVerificationRegistryArtifact.abi || HospitalVerificationRegistryArtifact;
 
 export const CLAIM_STATUS = {
   0: "SUBMITTED",
@@ -207,6 +210,24 @@ export function toUnixSecondsFromDateInput(dateValue) {
   }
 
   return Math.floor(milliseconds / 1000);
+}
+
+export async function getHospitalVerificationWalletContract() {
+  const manager = await getWalletContract();
+  const coordinator = new ethers.Contract(
+    await manager.oracleCoordinator(),
+    ORACLE_COORDINATOR_ABI,
+    manager.runner
+  );
+  const registryAddress = await coordinator.hospitalVerificationRegistry();
+  if (registryAddress === ethers.ZeroAddress) {
+    throw new Error("Hospital verification registry is not configured");
+  }
+  return new ethers.Contract(
+    registryAddress,
+    HOSPITAL_VERIFICATION_REGISTRY_ABI,
+    manager.runner
+  );
 }
 
 export async function getWalletOracleCoordinator() {

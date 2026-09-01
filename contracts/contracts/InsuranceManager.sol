@@ -1012,7 +1012,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(oracleRequestByClaimId[claimId] == 0, "Oracle request already exists");
 
         Claim memory selectedClaim = claims[claimId];
-
         bytes32 queryHash = keccak256(
             abi.encode(
                 selectedClaim.claimId,

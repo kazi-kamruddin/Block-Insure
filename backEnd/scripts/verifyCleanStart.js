@@ -6,6 +6,7 @@ const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
 const ClaimAdjudicatorArtifact = require("../abi/ClaimAdjudicator.json");
+const HospitalVerificationRegistryArtifact = require("../abi/HospitalVerificationRegistry.json");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
@@ -21,6 +22,8 @@ const OracleHealth = require("../models/OracleHealth");
 const OracleLog = require("../models/OracleLog");
 const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
+const Hospital = require("../models/Hospital");
+const HospitalClaimVerification = require("../models/HospitalClaimVerification");
 const VotingFinalization = require("../models/VotingFinalization");
 const IndexedBlock = require("../models/IndexedBlock");
 const IndexedBlockchainEvent = require("../models/IndexedBlockchainEvent");
@@ -28,6 +31,7 @@ const IndexerCheckpoint = require("../models/IndexerCheckpoint");
 const { buildSyntheticRecords } = require("./seedMockData");
 const { getPolicyPackageIds } = require("../services/contractQueryService");
 const { buildRegistryMerkleRoot } = require("../services/merkleRegistryService");
+const { HOSPITAL_NETWORK } = require("../config/hospitalNetwork");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -73,6 +77,11 @@ async function main() {
     ClaimAdjudicatorArtifact.abi,
     provider
   );
+  const hospitalRegistry = new ethers.Contract(
+    requireEnv("HOSPITAL_VERIFICATION_REGISTRY_ADDRESS"),
+    HospitalVerificationRegistryArtifact.abi,
+    provider
+  );
 
   const [packageIds, policyCounter, claimCounter, reserveWei] = await Promise.all([
     getPolicyPackageIds(contract),
@@ -115,15 +124,17 @@ async function main() {
     new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY")).address.toLowerCase(),
     new ethers.Wallet(requireEnv("ORACLE_PRIVATE_KEY_2")).address.toLowerCase(),
   ].sort();
-  const [adminRole, auditorRole, oracleRole] = await Promise.all([
+  const [adminRole, auditorRole, oracleRole, hospitalRole] = await Promise.all([
     contract.ADMIN_ROLE(),
     contract.AUDITOR_ROLE(),
     contract.ORACLE_ROLE(),
+    hospitalRegistry.HOSPITAL_ROLE(),
   ]);
-  const [activeAdmins, activeAuditors, activeOracles] = await Promise.all([
+  const [activeAdmins, activeAuditors, activeOracles, activeHospitals] = await Promise.all([
     getActiveRoleMembers(contract, adminRole),
     getActiveRoleMembers(contract, auditorRole),
     getActiveRoleMembers(contract, oracleRole),
+    getActiveRoleMembers(hospitalRegistry, hospitalRole),
   ]);
 
   if (
@@ -150,6 +161,25 @@ async function main() {
       `expected configured Oracle wallets ${expectedOracles.join(", ")}, found ${activeOracles.join(", ") || "none"}`
     );
   }
+  const expectedHospitals = HOSPITAL_NETWORK.map((hospital) =>
+    hospital.walletAddress.toLowerCase()
+  ).sort();
+  if (
+    activeHospitals.length !== expectedHospitals.length ||
+    activeHospitals.slice().sort().join(",") !== expectedHospitals.join(",")
+  ) {
+    failures.push(
+      `expected configured Hospitals ${expectedHospitals.join(", ")}, found ${activeHospitals.join(", ") || "none"}`
+    );
+  }
+  for (const hospital of HOSPITAL_NETWORK) {
+    const registeredWallet = await hospitalRegistry.hospitalWalletByIdHash(
+      ethers.keccak256(ethers.toUtf8Bytes(hospital.hospitalId))
+    );
+    if (registeredWallet.toLowerCase() !== hospital.walletAddress.toLowerCase()) {
+      failures.push(`expected ${hospital.hospitalId} to be registered to ${hospital.walletAddress}`);
+    }
+  }
 
   for (const auditor of expectedAuditors) {
     const [auditorReputation, auditorVotes] = await Promise.all([
@@ -173,6 +203,7 @@ async function main() {
       ["appeals", Appeal],
       ["claim submission attempts", ClaimSubmissionAttempt],
       ["documents", File],
+      ["hospital claim verifications", HospitalClaimVerification],
       ["evidence access logs", EvidenceAccessLog],
       ["evidence events", EvidenceEvent],
       ["evidence grants", EvidenceGrant],
@@ -215,8 +246,14 @@ async function main() {
       failures.push("Oracle 2 clean registry root does not match the on-chain commitment");
     }
 
-    const userCount = await User.countDocuments({});
+    const [userCount, hospitalCount, hospitalUserCount] = await Promise.all([
+      User.countDocuments({}),
+      Hospital.countDocuments({ networkStatus: "CONTRACTED" }),
+      User.countDocuments({ role: "HOSPITAL" }),
+    ]);
     if (userCount < 2) failures.push(`expected configured role users, found ${userCount}`);
+    if (hospitalCount !== 5) failures.push(`expected five contracted hospitals, found ${hospitalCount}`);
+    if (hospitalUserCount !== 5) failures.push(`expected five hospital role users, found ${hospitalUserCount}`);
   } finally {
     await mongoose.connection.close();
     provider.destroy();
@@ -226,7 +263,7 @@ async function main() {
     throw new Error(`Clean-start verification failed: ${failures.join("; ")}`);
   }
 
-  console.log(`Clean-start verification passed: one Admin, four uninitialized Auditors, two Oracles, one package, zero policies/claims/votes, funded settlement reserve, no prior runtime activity, and a published ${hybridMode ? "5,000-record hybrid" : "synthetic"} healthcare registry baseline.`);
+  console.log(`Clean-start verification passed: one Admin, five Hospitals, four uninitialized Auditors, two Oracles, one package, zero policies/claims/votes, funded settlement reserve, no prior runtime activity, and a published ${hybridMode ? "5,000-record hybrid" : "synthetic"} healthcare registry baseline.`);
 }
 
 main().catch((error) => {
