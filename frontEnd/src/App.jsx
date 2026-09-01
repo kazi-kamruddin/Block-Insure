@@ -44,6 +44,7 @@ const AdminCreatePolicyPackagePage = lazy(
 );
 const PolicyListPage = lazy(() => import("./pages/PolicyListPage"));
 const MyPoliciesPage = lazy(() => import("./pages/MyPoliciesPage"));
+const PaymentHistoryPage = lazy(() => import("./pages/PaymentHistoryPage"));
 const SubmitClaimPage = lazy(() => import("./pages/SubmitClaimPage"));
 const MyClaimsPage = lazy(() => import("./pages/MyClaimsPage"));
 const ClaimDetailPage = lazy(() => import("./pages/ClaimDetailPage"));
@@ -101,6 +102,7 @@ export default function App() {
                 <Route path="dashboard" element={<UserDashboardPage />} />
                 <Route path="policies" element={<MyPoliciesPage />} />
                 <Route path="policies/buy" element={<PolicyListPage />} />
+                <Route path="payments" element={<PaymentHistoryPage />} />
                 <Route path="claims" element={<MyClaimsPage />} />
                 <Route path="claims/new" element={<SubmitClaimPage />} />
                 <Route path="benefits" element={<BenefitClaimPage />} />

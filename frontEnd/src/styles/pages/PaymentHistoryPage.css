@@ -1,0 +1,138 @@
+.page-payment-history {
+  display: grid;
+  gap: 18px;
+}
+
+.payment-page-heading,
+.payment-filters,
+.scheduled-payment-list > div {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.payment-page-heading h2,
+.payment-page-heading p,
+.payment-ledger-card h3,
+.payment-ledger-card p,
+.certificate-list h3,
+.certificate-list p {
+  margin: 4px 0 0;
+}
+
+.payment-page-heading p,
+.payment-ledger-card p,
+.certificate-list p,
+.payment-summary-grid span,
+.payment-summary-grid small,
+.scheduled-payment-list span {
+  color: var(--muted);
+}
+
+.payment-filters {
+  align-items: end;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto;
+  margin: 0;
+}
+
+.payment-filters label {
+  display: grid;
+  gap: 7px;
+  font-weight: 700;
+}
+
+.payment-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.payment-summary-grid .card {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.payment-summary-grid strong {
+  font-size: 24px;
+}
+
+.payment-ledger-card,
+.scheduled-payments-card {
+  margin: 0;
+}
+
+.payment-ledger-card table {
+  min-width: 980px;
+}
+
+.payment-ledger-card td small {
+  color: var(--muted);
+  display: block;
+  margin-top: 4px;
+}
+
+.payment-status {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 8px;
+}
+
+.payment-status.is-paid {
+  background: color-mix(in srgb, #138a5b 12%, var(--surface));
+  color: #087349;
+}
+
+.payment-status.is-scheduled {
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  color: var(--brand);
+}
+
+.scheduled-payment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.scheduled-payment-list > div {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.scheduled-payment-list > div > div {
+  display: grid;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.certificate-list {
+  display: grid;
+  gap: 12px;
+}
+
+.certificate-card {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .payment-filters,
+  .payment-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .payment-page-heading,
+  .scheduled-payment-list > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .payment-filters,
+  .payment-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -7,6 +7,7 @@ import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
 import {
   acceptPolicyTerms,
+  confirmPremiumPayment,
   getPolicyPackages,
   getRiskPremiumQuote,
 } from "../services/api";
@@ -135,6 +136,9 @@ export default function PolicyListPage() {
       setTxHash(tx.hash);
 
       await tx.wait();
+      await confirmPremiumPayment(tx.hash).catch((confirmationError) => {
+        console.warn("Payment confirmation will be reconciled from chain history", confirmationError);
+      });
 
       const message = `${policyPackage.name} policy purchased successfully.`;
       setSuccessMessage(message);

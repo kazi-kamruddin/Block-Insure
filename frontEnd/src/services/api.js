@@ -153,6 +153,49 @@ export async function getMyPolicies(params = {}) {
   return response.data;
 }
 
+export async function getMyPaymentStatement(params = {}) {
+  const response = await api.get("/api/policies/payments/my", { params });
+  return response.data;
+}
+
+export async function confirmPremiumPayment(transactionHash) {
+  const response = await api.post("/api/policies/payments/confirm", {
+    transactionHash,
+  });
+  return response.data;
+}
+
+function getDownloadFilename(response, fallback) {
+  const disposition = response.headers["content-disposition"] || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return match?.[1] || fallback;
+}
+
+export async function downloadPremiumStatement(params = {}) {
+  const response = await api.get("/api/policies/payments/statement.csv", {
+    params,
+    responseType: "blob",
+  });
+  return {
+    blob: response.data,
+    filename: getDownloadFilename(response, "premium-statement.csv"),
+  };
+}
+
+export async function downloadInsuranceCertificate(policyId, params = {}) {
+  const response = await api.get(`/api/policies/${policyId}/certificate.html`, {
+    params,
+    responseType: "blob",
+  });
+  return {
+    blob: response.data,
+    filename: getDownloadFilename(
+      response,
+      `insurance-certificate-policy-${policyId}.html`
+    ),
+  };
+}
+
 export async function uploadClaimDocument({
   file,
   documentType,

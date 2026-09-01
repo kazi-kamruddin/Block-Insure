@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { getMyPolicies } from "../services/api";
+import { confirmPremiumPayment, getMyPolicies } from "../services/api";
 import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
 import PolicyBenefitsPanel from "../components/PolicyBenefitsPanel";
@@ -76,6 +76,9 @@ export default function MyPoliciesPage() {
           : await payPolicyPremium(policy.policyId, premiumWei);
 
       await tx.wait();
+      await confirmPremiumPayment(tx.hash).catch((confirmationError) => {
+        console.warn("Payment confirmation will be reconciled from chain history", confirmationError);
+      });
       setTransactionHash(tx.hash);
       const message =
         actionType === "reinstate"
@@ -183,6 +186,9 @@ export default function MyPoliciesPage() {
               >
                 Reinstate
               </button> : null}
+              <Link to={`/user/payments?policyId=${policy.policyId}`}>
+                View Payments & Statements
+              </Link>
             </div>
             <PolicyBenefitsPanel policy={policy} onPolicyChanged={refetch} />
             <details className="technical-details">

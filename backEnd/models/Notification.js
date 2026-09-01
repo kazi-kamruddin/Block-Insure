@@ -48,6 +48,18 @@ const notificationSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    policyId: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
+    transactionHash: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+    },
     status: {
       type: String,
       trim: true,

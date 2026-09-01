@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import {
   getMyClaims,
+  getMyPaymentStatement,
   getMyPolicies,
   reconcilePendingClaimSubmissions,
 } from "../services/api";
@@ -92,10 +93,22 @@ export default function UserDashboardPage() {
     enabled: isConnected,
   });
 
+  const {
+    data: paymentData,
+    isLoading: paymentsLoading,
+    isFetching: paymentsFetching,
+    error: paymentsError,
+    refetch: refetchPayments,
+  } = useQuery({
+    queryKey: ["userDashboardPayments", walletAddress],
+    queryFn: () => getMyPaymentStatement(),
+    enabled: isConnected,
+  });
+
   const policies = extractPolicies(policiesData);
   const claims = extractClaims(claimsData);
-  const isRefreshing = policiesFetching || claimsFetching;
-  const dashboardError = policiesError || claimsError;
+  const isRefreshing = policiesFetching || claimsFetching || paymentsFetching;
+  const dashboardError = policiesError || claimsError || paymentsError;
 
   const activePolicies = policies.filter((policy) => policy.isActive !== false);
   const settledClaims = claims.filter(
@@ -158,6 +171,7 @@ export default function UserDashboardPage() {
             onClick={() => {
               refetchPolicies();
               refetchClaims();
+              refetchPayments();
             }}
             disabled={isRefreshing}
           >
@@ -209,6 +223,17 @@ export default function UserDashboardPage() {
           <h3>Open Claims</h3>
           <p className="metric-value">{claimsLoading ? "..." : openClaims.length}</p>
           <p>Claims still moving through verification or review.</p>
+        </div>
+
+        <div className="card">
+          <h3>Fiscal-Year Premiums</h3>
+          <p className="metric-value">
+            {paymentsLoading ? "..." : `${paymentData?.summary?.totalPaidEth || "0.0"} ETH`}
+          </p>
+          <p>
+            Confirmed payments during {paymentData?.fiscalYear?.label || "the current fiscal year"}.
+          </p>
+          <Link to="/user/payments">Open Statements</Link>
         </div>
       </div>
 

@@ -45,6 +45,29 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
       await expect(policyCards.first().getByRole("heading", { name: "Surrender Value Estimator" })).toBeVisible();
       await expect(policyCards.first().getByRole("button", { name: "Download Policy Terms" })).toBeVisible();
 
+      await session.page.goto("/user/payments");
+      await expect(
+        session.page.getByRole("heading", { name: "Payments and Statements" })
+      ).toBeVisible();
+      await expect(
+        session.page.getByRole("heading", { name: "Premium payment ledger" })
+      ).toBeVisible();
+      await expect(session.page.locator(".payment-status.is-paid").first()).toBeVisible();
+      await expect(
+        session.page.getByRole("heading", { name: "Upcoming installments" })
+      ).toBeVisible();
+      await expect(
+        session.page.getByRole("heading", { name: "Certificates of Insurance" })
+      ).toBeVisible();
+      const statementDownloadPromise = session.page.waitForEvent("download");
+      await session.page.getByRole("button", { name: "Download Tax Statement (.csv)" }).click();
+      const statementDownload = await statementDownloadPromise;
+      expect(await statementDownload.suggestedFilename()).toMatch(/premium-statement.*\.csv$/i);
+      const certificateDownloadPromise = session.page.waitForEvent("download");
+      await session.page.getByRole("button", { name: "Download Certificate (.html)" }).first().click();
+      const certificateDownload = await certificateDownloadPromise;
+      expect(await certificateDownload.suggestedFilename()).toMatch(/insurance-certificate.*\.html$/i);
+
       await session.page.goto("/user/claims");
       await expect(session.page.getByRole("heading", { name: "My Claims" })).toBeVisible();
       const claimCards = session.page.locator(".claim-summary-card");
@@ -69,6 +92,7 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
       await expect(session.page.getByRole("heading", { name: "Notifications" })).toBeVisible();
       await expect(session.page.getByRole("button", { name: /Show Unread Only|Showing Unread/ })).toBeVisible();
       await expect(session.page.locator(".notification-item").first()).toBeVisible();
+      await expect(session.page.getByText("Payment confirmation").first()).toBeVisible();
 
       await session.page.goto("/user/claims/new");
       await expect(session.page.getByRole("heading", { name: "Submit Claim" })).toBeVisible();

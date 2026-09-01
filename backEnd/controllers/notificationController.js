@@ -25,6 +25,8 @@ const formatNotification = (notification) => ({
   message: notification.message,
   claimId: notification.claimId,
   appealId: notification.appealId,
+  policyId: notification.policyId,
+  transactionHash: notification.transactionHash,
   status: notification.status,
   link: notification.link,
   readAt: notification.readAt,
