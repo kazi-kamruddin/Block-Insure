@@ -67,7 +67,7 @@ describe("InsuranceManager - Premium Lifecycle", function () {
     expect(policy.holderWallet).to.equal(user.address);
     expect(policy.status).to.equal(POLICY_STATUS.ACTIVE);
     expect(policy.premiumAmount).to.equal(premium);
-    expect(policy.premiumInterval).to.equal(30n * 24n * 60n * 60n);
+    expect(policy.premiumInterval).to.equal(90n * 24n * 60n * 60n);
     expect(policy.lastPaidTimestamp).to.equal(policy.startDate);
     expect(policy.totalPremiumPaid).to.equal(premium);
     expect(policy.premiumPaid).to.equal(premium);

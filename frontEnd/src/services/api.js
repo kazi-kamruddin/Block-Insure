@@ -796,6 +796,81 @@ export async function getHospitalClaimVerification(claimId) {
   return response.data;
 }
 
+export async function getNetworkBanks() {
+  const response = await api.get("/api/banks/network");
+  return response.data;
+}
+
+export async function getMyBankProfile() {
+  const response = await api.get("/api/banks/me");
+  return response.data;
+}
+
+export async function getMyBankAccounts() {
+  const response = await api.get("/api/banks/accounts");
+  return response.data;
+}
+
+export async function getMyBankMandates() {
+  const response = await api.get("/api/banks/mandates");
+  return response.data;
+}
+
+export async function getMyBankTransactions() {
+  const response = await api.get("/api/banks/transactions");
+  return response.data;
+}
+
+export async function approveBankMandate(mandateId) {
+  const response = await api.post(`/api/banks/mandates/${mandateId}/approve`);
+  return response.data;
+}
+
+export async function rejectBankMandate(mandateId, reason = "") {
+  const response = await api.post(`/api/banks/mandates/${mandateId}/reject`, { reason });
+  return response.data;
+}
+
+export async function runBankAutomation(referenceDate) {
+  const response = await api.post("/api/banks/automation/run", { referenceDate });
+  return response.data;
+}
+
+export async function getMyBankingAccounts() {
+  const response = await api.get("/api/banks/user/accounts");
+  return response.data;
+}
+
+export async function getMyEftMandates() {
+  const response = await api.get("/api/banks/user/mandates");
+  return response.data;
+}
+
+export async function getMyBankingTransactions() {
+  const response = await api.get("/api/banks/user/transactions");
+  return response.data;
+}
+
+export async function createEftMandate(payload) {
+  const response = await api.post("/api/banks/user/mandates", payload);
+  return response.data;
+}
+
+export async function cancelEftMandate(mandateId) {
+  const response = await api.patch(`/api/banks/user/mandates/${mandateId}/cancel`);
+  return response.data;
+}
+
+export async function requestManualBankPaymentOtp(payload) {
+  const response = await api.post("/api/banks/user/manual-payments/otp", payload);
+  return response.data;
+}
+
+export async function confirmManualBankPayment(payload) {
+  const response = await api.post("/api/banks/user/manual-payments/confirm", payload);
+  return response.data;
+}
+
 export async function getHealthcareRegistrySummary(params = {}) {
   const response = await api.get("/mock/hospital/records/summary", {
     params,

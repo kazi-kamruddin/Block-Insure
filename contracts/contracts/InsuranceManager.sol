@@ -150,6 +150,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     OracleCoordinator public oracleCoordinator;
     IClaimAdjudicator public claimAdjudicator;
     PolicyEconomics public policyEconomics;
+    address private bankPaymentRegistry;
 
     mapping(uint256 => SettlementRecord) private settlementRecords;
     mapping(uint256 => uint256) public manualReviewEligibleAt;
@@ -160,7 +161,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     uint16 private constant DEFAULT_DEDUCTIBLE_RATE_BPS = 1000;
     uint128 private constant DEFAULT_DEDUCTIBLE_CAP_WEI = 0.02 ether;
     uint16 private constant DEFAULT_INSURER_SHARE_BPS = 8000;
-    uint256 private constant DEFAULT_PREMIUM_INTERVAL_SECONDS = 30 days;
+    uint256 private constant DEFAULT_PREMIUM_INTERVAL_SECONDS = 90 days;
     uint256 private constant DEFAULT_GRACE_PERIOD_SECONDS = 7 days;
 
     // =============================================================
@@ -389,6 +390,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(IClaimAdjudicator(adjudicator).manager() == address(this), "Adjudicator manager mismatch");
         claimAdjudicator = IClaimAdjudicator(adjudicator);
         emit ClaimAdjudicatorConfigured(adjudicator);
+    }
+
+    function configureBankPaymentRegistry(address registry) external onlyRole(ADMIN_ROLE) {
+        bankPaymentRegistry = registry;
     }
 
     modifier onlyAdminOrEmergency() {
@@ -689,35 +694,17 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         return _effectivePolicyStatus(policies[policyId]);
     }
 
-    function refreshPolicyStatus(uint256 policyId) public returns (PolicyStatus) {
-        require(_policyExists(policyId), "Policy does not exist");
-
-        Policy storage selectedPolicy = policies[policyId];
-
-        _syncPolicyStatus(policyId, selectedPolicy);
-
-        return selectedPolicy.status;
+    function payPremium(uint256 policyId) external payable whenNotPaused {
+        _recordPremiumFor(policyId, msg.sender, msg.value);
     }
 
-    function payPremium(uint256 policyId) external payable whenNotPaused {
-        require(_policyExists(policyId), "Policy does not exist");
-
-        Policy storage selectedPolicy = policies[policyId];
-
-        _syncPolicyStatus(policyId, selectedPolicy);
-
-        require(selectedPolicy.holderWallet == msg.sender, "Caller is not policy holder");
-        require(selectedPolicy.status == PolicyStatus.ACTIVE || selectedPolicy.status == PolicyStatus.GRACE_PERIOD, "Policy is not payable");
-        require(msg.value == selectedPolicy.premiumAmount, "Incorrect premium amount");
-
-        uint256 previousPaidThrough = selectedPolicy.nextPremiumDueDate;
-        _recordPremiumPayment(policyId, selectedPolicy, msg.value);
-        policyEconomics.recordPremium(
-            policyId,
-            uint64(previousPaidThrough),
-            uint64(block.timestamp),
-            uint64(selectedPolicy.nextPremiumDueDate)
-        );
+    function recordExternalPremium(
+        uint256 policyId,
+        address policyholder,
+        uint256 amountWei
+    ) external {
+        require(msg.sender == bankPaymentRegistry, "Caller is not bank registry");
+        _recordPremiumFor(policyId, policyholder, amountWei);
     }
 
     function reinstatePolicy(uint256 policyId) external payable whenNotPaused {
@@ -761,17 +748,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         selectedPolicy.isActive = false;
         policyEconomics.closeCoverage(policyId, uint64(block.timestamp));
 
-    }
-
-    function deactivateExpiredPolicy(uint256 policyId) external {
-        require(_policyExists(policyId), "Policy does not exist");
-
-        Policy storage selectedPolicy = policies[policyId];
-
-        _syncPolicyStatus(policyId, selectedPolicy);
-        require(selectedPolicy.status == PolicyStatus.EXPIRED, "Policy has not expired");
-
-        emit PolicyExpired(policyId, block.timestamp);
     }
 
     // =============================================================
@@ -1462,6 +1438,31 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             selectedPolicy.nextPremiumDueDate,
             selectedPolicy.installmentsPaid,
             selectedPolicy.totalPremiumPaid
+        );
+    }
+
+    function _recordPremiumFor(
+        uint256 policyId,
+        address policyholder,
+        uint256 amount
+    ) internal {
+        require(_policyExists(policyId), "Policy does not exist");
+        Policy storage selectedPolicy = policies[policyId];
+        _syncPolicyStatus(policyId, selectedPolicy);
+        require(selectedPolicy.holderWallet == policyholder, "Caller is not policy holder");
+        require(
+            selectedPolicy.status == PolicyStatus.ACTIVE ||
+                selectedPolicy.status == PolicyStatus.GRACE_PERIOD,
+            "Policy is not payable"
+        );
+        require(amount == selectedPolicy.premiumAmount, "Incorrect premium amount");
+        uint256 previousPaidThrough = selectedPolicy.nextPremiumDueDate;
+        _recordPremiumPayment(policyId, selectedPolicy, amount);
+        policyEconomics.recordPremium(
+            policyId,
+            uint64(previousPaidThrough),
+            uint64(block.timestamp),
+            uint64(selectedPolicy.nextPremiumDueDate)
         );
     }
 

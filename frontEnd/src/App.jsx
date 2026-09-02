@@ -10,6 +10,7 @@ import UserLayout from "./layouts/UserLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import AuditorLayout from "./layouts/AuditorLayout";
 import HospitalLayout from "./layouts/HospitalLayout";
+import BankLayout from "./layouts/BankLayout";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const PublicPolicyCatalogPage = lazy(
@@ -70,6 +71,8 @@ const HospitalRecordsPage = lazy(() => import("./pages/HospitalRecordsPage"));
 const HospitalClaimRequestsPage = lazy(
   () => import("./pages/HospitalClaimRequestsPage")
 );
+const BankDashboardPage = lazy(() => import("./pages/BankDashboardPage"));
+const BankingPage = lazy(() => import("./pages/BankingPage"));
 
 import "./App.css";
 
@@ -111,6 +114,7 @@ export default function App() {
                 <Route path="policies" element={<MyPoliciesPage />} />
                 <Route path="policies/buy" element={<PolicyListPage />} />
                 <Route path="payments" element={<PaymentHistoryPage />} />
+                <Route path="banking" element={<BankingPage />} />
                 <Route path="claims" element={<MyClaimsPage />} />
                 <Route path="claims/new" element={<SubmitClaimPage />} />
                 <Route path="benefits" element={<BenefitClaimPage />} />
@@ -153,6 +157,11 @@ export default function App() {
                 <Route path="dashboard" element={<HospitalDashboardPage />} />
                 <Route path="records" element={<HospitalRecordsPage />} />
                 <Route path="claims" element={<HospitalClaimRequestsPage />} />
+              </Route>
+
+              <Route path="bank" element={<BankLayout />}>
+                <Route index element={<Navigate to="/bank/dashboard" replace />} />
+                <Route path="dashboard" element={<BankDashboardPage />} />
               </Route>
 
                 <Route path="*" element={<NotFoundPage />} />

@@ -1451,6 +1451,19 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "registry",
+          "type": "address"
+        }
+      ],
+      "name": "configureBankPaymentRegistry",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "adjudicator",
           "type": "address"
         }
@@ -1501,19 +1514,6 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "policyId",
-          "type": "uint256"
-        }
-      ],
-      "name": "deactivateExpiredPolicy",
-      "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     },
@@ -2226,16 +2226,20 @@
           "internalType": "uint256",
           "name": "policyId",
           "type": "uint256"
-        }
-      ],
-      "name": "refreshPolicyStatus",
-      "outputs": [
+        },
         {
-          "internalType": "enum InsuranceManager.PolicyStatus",
-          "name": "",
-          "type": "uint8"
+          "internalType": "address",
+          "name": "policyholder",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amountWei",
+          "type": "uint256"
         }
       ],
+      "name": "recordExternalPremium",
+      "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     },

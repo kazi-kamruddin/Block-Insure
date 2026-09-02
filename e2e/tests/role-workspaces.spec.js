@@ -95,6 +95,29 @@ test.describe("@smoke role workspaces", () => {
     }
   });
 
+  test("Bank signs in to an independently scoped account workspace", async ({ browser }) => {
+    const session = await createActorContext(browser, "bank");
+    try {
+      await loginActor(session.page, session.actor);
+      await expect(
+        session.page.getByRole("heading", { name: "Bangladesh Demo Commercial Bank" })
+      ).toBeVisible();
+      await expect(
+        session.page.getByRole("navigation", { name: "Bank navigation" })
+      ).toBeVisible();
+      await expect(session.page.getByText("Quarterly bank automation active")).toBeVisible();
+      await expect(session.page.getByText("BANK-001", { exact: true })).toBeVisible();
+      await expect(session.page.getByText("5,000.00 BDT", { exact: true })).toBeVisible();
+      await expect(session.page.getByText("7,000.00 BDT", { exact: true })).toBeVisible();
+      await expect(session.page.getByText("10,000.00 BDT", { exact: true })).toBeVisible();
+
+      await session.page.goto("/admin/dashboard");
+      await expect(session.page).toHaveURL(/\/bank\/dashboard$/);
+    } finally {
+      await closeActor(session);
+    }
+  });
+
   test("Auditor tools load and privileged route isolation is enforced", async ({ browser }) => {
     const session = await createActorContext(browser, "auditor1");
     try {

@@ -177,7 +177,7 @@ export default function HomePage() {
           <h2>One identity. One workspace. Clear authority.</h2>
           <p>
             Connecting a wallet opens only the workspace assigned to that
-            identity. Administrative, policyholder, hospital, and auditor
+            identity. Administrative, policyholder, bank, hospital, and auditor
             responsibilities remain deliberately separate.
           </p>
         </div>
@@ -202,6 +202,11 @@ export default function HomePage() {
             <span>Hospital</span>
             <h3>Own patient and invoice records</h3>
             <p>Use a separate provider wallet and view only records belonging to the contracted hospital identity.</p>
+          </article>
+          <article>
+            <span>Bank</span>
+            <h3>Authorize standing payment instructions</h3>
+            <p>Operate a separate bank wallet and own the simulated account ledger that will support EFT mandates and scheduled premium transfers.</p>
           </article>
         </div>
       </section>

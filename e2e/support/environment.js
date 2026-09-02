@@ -6,6 +6,8 @@ const DEFAULT_LOCAL_USER_PRIVATE_KEY =
   "0x59c6995e998f97a5a0044966f094538ea59f3b31f82b83fe5c7f3099b6a6c0e8";
 const DEFAULT_LOCAL_HOSPITAL_PRIVATE_KEY =
   "0xf214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897";
+const DEFAULT_LOCAL_BANK_PRIVATE_KEY =
+  "0x8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61";
 
 function readEnv(relativePath) {
   const filePath = path.join(projectRoot, relativePath);
@@ -74,6 +76,14 @@ function getE2EConfig() {
         privateKey: requirePrivateKey(
           e2e.E2E_HOSPITAL_PRIVATE_KEY || DEFAULT_LOCAL_HOSPITAL_PRIVATE_KEY,
           "E2E_HOSPITAL_PRIVATE_KEY"
+        ),
+      },
+      bank: {
+        role: "BANK",
+        home: "/bank/dashboard",
+        privateKey: requirePrivateKey(
+          e2e.E2E_BANK_PRIVATE_KEY || DEFAULT_LOCAL_BANK_PRIVATE_KEY,
+          "E2E_BANK_PRIVATE_KEY"
         ),
       },
       auditor1: auditorActor(e2e, 1),

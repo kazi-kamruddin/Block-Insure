@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-08-31T21:33:47.172Z",
+  "generatedAt": "2026-09-02T10:14:56.666Z",
   "source": {
-    "gitCommit": "f18db9197623d55cc7bed9174f127ee91e3b8257",
+    "gitCommit": "fcad88c607b69a626462e4c2b896d1dd8e0ad1d4",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -87,13 +87,13 @@
   "contracts": {
     "InsuranceManager": {
       "compiled": true,
-      "deployedBytecodeBytes": 24278,
-      "artifactSha256": "d006010787a5d8d5e53896a6bdfe27fec69ea54f7c7e296da47baed97e948e9f"
+      "deployedBytecodeBytes": 24358,
+      "artifactSha256": "441de24d5f7ff45e25ecf71cea688f9cdbb8f08918f50d70533fbd65b023c105"
     },
     "OracleCoordinator": {
       "compiled": true,
-      "deployedBytecodeBytes": 7040,
-      "artifactSha256": "cd4c1a186fcca6f3fb2d0934fc9ceb046fd6588cb57211e24d99bbc157317c74"
+      "deployedBytecodeBytes": 7543,
+      "artifactSha256": "3756a95c2df466e7d50131c519766dc858c132bce6f7fd47b659a706bcf02fb6"
     },
     "ClaimAdjudicator": {
       "compiled": true,
@@ -344,5 +344,5 @@
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "72f59ed8d598e3eb4bbcbe1c6e8f3b87d9212caed7c94ee093f9020db295ff87"
+  "reproducibilityHash": "0671161a5aa092baed3054cbcc88806e34ac5fb5c45447ae3e84d0db7e5b1bc4"
 }

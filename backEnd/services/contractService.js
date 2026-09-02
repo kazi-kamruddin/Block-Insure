@@ -5,6 +5,7 @@ const ClaimAdjudicatorArtifact = require("../abi/ClaimAdjudicator.json");
 const PolicyEconomicsArtifact = require("../abi/PolicyEconomics.json");
 const EvidenceRegistryArtifact = require("../abi/EvidenceRegistry.json");
 const HospitalVerificationRegistryArtifact = require("../abi/HospitalVerificationRegistry.json");
+const BankIdentityRegistryArtifact = require("../abi/BankIdentityRegistry.json");
 
 const getRequiredEnv = (key) => {
   const value = process.env[key];
@@ -84,6 +85,13 @@ const getHospitalVerificationRegistry = (runner = getProvider()) =>
     runner
   );
 
+const getBankIdentityRegistry = (runner = getProvider()) =>
+  new ethers.Contract(
+    getRequiredEnv("BANK_IDENTITY_REGISTRY_ADDRESS"),
+    BankIdentityRegistryArtifact.abi,
+    runner
+  );
+
 const getRegistrySnapshot = async (contract = getReadOnlyContract()) => {
   const coordinator = await getOracleCoordinator(contract);
   const [version, root, timestamp, blockNumber] = await Promise.all([
@@ -146,6 +154,7 @@ module.exports = {
   getPolicyEconomics,
   getEvidenceRegistry,
   getHospitalVerificationRegistry,
+  getBankIdentityRegistry,
   getRegistrySnapshot,
   getReadOnlyContract,
   getAdminContract,

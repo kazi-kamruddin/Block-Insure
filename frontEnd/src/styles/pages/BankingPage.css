@@ -1,0 +1,16 @@
+.banking-page { display: grid; gap: 1rem; }
+.banking-hero h2 { margin: .3rem 0; }
+.banking-hero p { color: var(--muted); max-width: 78ch; }
+.banking-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, .8fr); gap: 1rem; align-items: start; }
+.banking-form { display: grid; gap: .85rem; }
+.banking-form label { display: grid; gap: .35rem; font-weight: 600; }
+.banking-form select, .banking-form input { width: 100%; }
+.banking-date-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+.eft-summary { background: var(--surface-soft); border-radius: .7rem; display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1rem; padding: .8rem; }
+.eft-summary span, .bank-account-row small { color: var(--muted); }
+.otp-box { border: 1px solid var(--border); border-radius: .7rem; display: grid; gap: .55rem; padding: .8rem; }
+.otp-box p { margin: 0; }
+.bank-account-row { align-items: center; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 1rem; padding: .8rem 0; }
+.bank-account-row div { display: grid; gap: .2rem; }
+@media (max-width: 820px) { .banking-grid { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .banking-date-grid { grid-template-columns: 1fr; } }

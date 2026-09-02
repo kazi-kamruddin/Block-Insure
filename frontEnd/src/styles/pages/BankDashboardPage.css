@@ -1,0 +1,28 @@
+.page-bank-dashboard { display: grid; gap: 1rem; }
+.bank-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.bank-heading h2 { margin: .25rem 0; }
+.bank-heading p { margin: 0; max-width: 72ch; color: var(--muted); }
+.bank-identity-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+.bank-identity-card div { display: grid; gap: .3rem; }
+.bank-identity-card span, .bank-metric-grid span { color: var(--muted); font-size: .85rem; }
+.bank-wallet-field { grid-column: 1 / -1; }
+.bank-wallet-field strong, .bank-wallet-cell { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.bank-metric-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.bank-metric-grid .card { display: grid; gap: .35rem; }
+.bank-metric-grid strong { font-size: 1.35rem; }
+.bank-foundation-note div { display: flex; flex-wrap: wrap; gap: .6rem; }
+.bank-foundation-note div span { border-radius: 999px; background: var(--surface-soft); padding: .45rem .7rem; font-size: .84rem; }
+.bank-accounts-card td small { display: block; color: var(--muted); margin-top: .2rem; }
+.bank-automation-card { align-items: center; display: flex; justify-content: space-between; gap: 1rem; }
+.bank-automation-card p { color: var(--muted); margin: .25rem 0 0; }
+.bank-automation-card > div:last-child, .bank-action-row { display: flex; gap: .55rem; }
+.bank-automation-card input { min-width: 160px; }
+.bank-mandates-card table { min-width: 920px; }
+@media (max-width: 850px) {
+  .bank-heading { flex-direction: column; }
+  .bank-automation-card { align-items: stretch; flex-direction: column; }
+  .bank-identity-card, .bank-metric-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .bank-identity-card, .bank-metric-grid { grid-template-columns: 1fr; }
+}

@@ -23,6 +23,7 @@ export default function UserLayout() {
         <NavLink to="/user/policies/buy">Buy Policy</NavLink>
         <NavLink to="/user/policies" end>My Policies</NavLink>
         <NavLink to="/user/payments">Payments & Statements</NavLink>
+        <NavLink to="/user/banking">Banking & EFT</NavLink>
         <NavLink to="/user/claims" end>My Claims</NavLink>
         <NavLink to="/user/claims/new">Submit Claim</NavLink>
         <NavLink to="/user/benefits">Beneficiary Benefits</NavLink>

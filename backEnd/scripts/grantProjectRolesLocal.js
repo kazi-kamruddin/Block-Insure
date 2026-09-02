@@ -5,9 +5,12 @@ const mongoose = require("mongoose");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 const HospitalVerificationRegistryArtifact = require("../abi/HospitalVerificationRegistry.json");
+const BankIdentityRegistryArtifact = require("../abi/BankIdentityRegistry.json");
 const User = require("../models/User");
 const { seedHospitalDirectory } = require("../services/hospitalDirectoryService");
 const { HOSPITAL_NETWORK } = require("../config/hospitalNetwork");
+const { seedBankDirectory } = require("../services/bankDirectoryService");
+const { BANK_NETWORK } = require("../config/bankNetwork");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -93,6 +96,25 @@ async function registerHospitalIfMissing(contract, hospital, nonceState) {
   await tx.wait();
 }
 
+async function registerBankIfMissing(contract, bank, nonceState) {
+  const bankIdHash = ethers.keccak256(ethers.toUtf8Bytes(bank.bankId));
+  const walletAddress = ethers.getAddress(bank.walletAddress);
+  const registeredWallet = await contract.bankWalletByIdHash(bankIdHash);
+  if (registeredWallet.toLowerCase() === walletAddress.toLowerCase()) {
+    console.log(`${bank.bankId} already registered to: ${walletAddress}`);
+    return;
+  }
+  if (registeredWallet !== ethers.ZeroAddress) {
+    throw new Error(`${bank.bankId} is already assigned to ${registeredWallet}`);
+  }
+  const tx = await contract.registerBankIdentity(bank.bankId, walletAddress, {
+    nonce: nonceState.current,
+  });
+  console.log(`Registering ${bank.bankId} to ${walletAddress}: ${tx.hash}`);
+  nonceState.current += 1;
+  await tx.wait();
+}
+
 async function main() {
   try {
     const rpcUrl = requireEnv("RPC_URL");
@@ -139,6 +161,11 @@ async function main() {
     const hospitalVerificationRegistry = new ethers.Contract(
       requireEnv("HOSPITAL_VERIFICATION_REGISTRY_ADDRESS"),
       HospitalVerificationRegistryArtifact.abi,
+      adminWallet
+    );
+    const bankIdentityRegistry = new ethers.Contract(
+      requireEnv("BANK_IDENTITY_REGISTRY_ADDRESS"),
+      BankIdentityRegistryArtifact.abi,
       adminWallet
     );
 
@@ -226,6 +253,9 @@ async function main() {
         nonceState
       );
     }
+    for (const bank of BANK_NETWORK) {
+      await registerBankIfMissing(bankIdentityRegistry, bank, nonceState);
+    }
 
     if (process.env.MONGODB_URI) {
       await mongoose.connect(process.env.MONGODB_URI);
@@ -244,6 +274,8 @@ async function main() {
 
       const hospitals = await seedHospitalDirectory();
       console.log(`Mongo hospital identities synced: ${hospitals.length}`);
+      const banks = await seedBankDirectory();
+      console.log(`Mongo bank identities synced: ${banks.length}`);
 
       await mongoose.connection.close();
     } else {

@@ -7,7 +7,12 @@ const path = require("path");
 const { ethers } = require("ethers");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
+const Bank = require("../models/Bank");
+const BankAccount = require("../models/BankAccount");
+const BankOtpChallenge = require("../models/BankOtpChallenge");
+const BankTransaction = require("../models/BankTransaction");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
+const EftMandate = require("../models/EftMandate");
 const EvidenceAccessLog = require("../models/EvidenceAccessLog");
 const EvidenceEvent = require("../models/EvidenceEvent");
 const EvidenceGrant = require("../models/EvidenceGrant");
@@ -32,6 +37,7 @@ const {
 } = require("./seedMockData");
 const { buildHybridRuntimeRecords } = require("./seedHybridData");
 const { seedHospitalDirectory } = require("../services/hospitalDirectoryService");
+const { seedBankDirectory } = require("../services/bankDirectoryService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -42,8 +48,13 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 const collections = [
   ["admin action logs", AdminActionLog],
   ["appeals", Appeal],
+  ["bank directory entries", Bank],
+  ["bank accounts", BankAccount],
+  ["bank OTP challenges", BankOtpChallenge],
+  ["bank transactions", BankTransaction],
   ["claim submission attempts", ClaimSubmissionAttempt],
   ["documents", File],
+  ["EFT mandates", EftMandate],
   ["hospital directory entries", Hospital],
   ["hospital claim verifications", HospitalClaimVerification],
   ["evidence access logs", EvidenceAccessLog],
@@ -132,11 +143,12 @@ async function main() {
     await MockHospitalRecord.insertMany(registryRecords);
     await MockHospitalRecordOracle2.insertMany(registryRecords);
     await seedHospitalDirectory();
+    await seedBankDirectory();
 
     console.log(
       `Rebuilt ${registryRecords.length} ${hybridMode ? "hybrid" : "synthetic"} healthcare registry records for both oracle snapshots.`
     );
-    console.log("MongoDB runtime data is clean. Five hospital identities are restored; no policies, claims, appeals, or user activity are created.");
+    console.log("MongoDB runtime data is clean. Five hospital identities, one bank identity, and three demo bank accounts are restored; no policies, claims, appeals, EFT mandates, or user activity are created.");
   } finally {
     await mongoose.connection.close();
   }

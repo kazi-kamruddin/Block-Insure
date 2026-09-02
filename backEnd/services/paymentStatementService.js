@@ -3,6 +3,8 @@ const {
   getPolicyIdsByWallet,
   queryEventsInChunks,
 } = require("./contractQueryService");
+const BankTransaction = require("../models/BankTransaction");
+const EftMandate = require("../models/EftMandate");
 
 const SECONDS_PER_DAY = 24 * 60 * 60;
 const PAYMENT_METHOD = "BLOCKCHAIN_WALLET";
@@ -151,8 +153,47 @@ const buildPaymentStatement = async ({
       return events.map((event) => formatPremiumEvent(event, policy));
     })
   );
+  let bankTransactions = [];
+  let activeMandates = [];
+  try {
+    if (BankTransaction.db.readyState !== 1) throw new Error("Bank ledger unavailable");
+    [bankTransactions, activeMandates] = await Promise.all([
+      BankTransaction.find({
+        ownerWalletAddress: walletAddress.toLowerCase(),
+        status: "PAID",
+        policyId: { $in: policies.map((policy) => policy.policyId) },
+      }).lean(),
+      EftMandate.find({
+        ownerWalletAddress: walletAddress.toLowerCase(),
+        status: "ACTIVE",
+        policyId: { $in: policies.map((policy) => policy.policyId) },
+      }).lean(),
+    ]);
+  } catch {
+    // Statement generation remains available when the optional simulated bank
+    // ledger is not connected (for example isolated contract unit tests).
+  }
+  const bankPaymentByHash = new Map(
+    bankTransactions.map((transaction) => [
+      String(transaction.transactionHash || "").toLowerCase(),
+      transaction,
+    ])
+  );
   const allPayments = eventGroups
     .flat()
+    .map((payment) => {
+      const bankPayment = bankPaymentByHash.get(payment.transactionHash.toLowerCase());
+      if (!bankPayment) return payment;
+      const isEft = bankPayment.type === "EFT";
+      return {
+        ...payment,
+        payerWallet: walletAddress,
+        paymentMethod: isEft ? "BANK_EFT" : "BANK_MANUAL_OTP",
+        paymentMethodLabel: isEft ? "Quarterly bank EFT" : "Manual bank payment (OTP)",
+        bankTransactionId: bankPayment.transactionId,
+        amountBdt: (Number(bankPayment.amountMinor) / 100).toFixed(2),
+      };
+    })
     .sort((left, right) => right.paidAtUnix - left.paidAtUnix);
   const payments = allPayments.filter((payment) => {
     const paidAt = Number(payment.paidAtUnix);
@@ -174,16 +215,19 @@ const buildPaymentStatement = async ({
         dueAt < selectedFiscalYear.endUnixExclusive
       );
     })
-    .map((policy) => ({
+    .map((policy) => {
+      const mandate = activeMandates.find((item) => item.policyId === policy.policyId);
+      return ({
       policyId: policy.policyId,
       planName: policy.planName,
       dueAt: policy.nextPremiumDueDate,
       amountWei: policy.premiumAmountWei,
       amountEth: policy.premiumAmountEth,
-      paymentMethod: "NOT_CONFIGURED",
-      paymentMethodLabel: "Manual wallet payment",
+      paymentMethod: mandate ? "BANK_EFT" : "NOT_CONFIGURED",
+      paymentMethodLabel: mandate ? "Quarterly bank EFT" : "Manual wallet payment",
       status: "SCHEDULED",
-    }))
+      mandateId: mandate?.mandateId || "",
+    });})
     .sort((left, right) => new Date(left.dueAt) - new Date(right.dueAt));
 
   return {

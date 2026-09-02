@@ -19,6 +19,10 @@ const {
   startEvidenceAnchorScheduler,
   stopEvidenceAnchorScheduler,
 } = require("./services/evidenceAnchorService");
+const {
+  startBankPaymentScheduler,
+  stopBankPaymentScheduler,
+} = require("./services/bankPaymentService");
 
 /* ----------------------------- DNS Config ----------------------------- */
 
@@ -161,6 +165,7 @@ app.use("/api/audit", require("./routes/auditRoutes"));
 app.use("/api/oracle", require("./routes/oracleRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/hospitals", require("./routes/hospitalRoutes"));
+app.use("/api/banks", require("./routes/bankRoutes"));
 app.use("/api/indexer", require("./routes/indexerRoutes"));
 app.use(
   "/api/evidence-log",
@@ -229,6 +234,7 @@ const startServer = async () => {
     await startBlockchainIndexer();
     startEvidenceAnchorScheduler();
     await startBlockchainEventListener();
+    startBankPaymentScheduler();
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`[Backend] Server running on port ${PORT}`);
@@ -250,6 +256,7 @@ const shutdownServer = async (signal) => {
     await stopBlockchainEventListener();
     stopBlockchainIndexer();
     stopEvidenceAnchorScheduler();
+    stopBankPaymentScheduler();
     await mongoose.connection.close();
     console.log("MongoDB connection closed");
     process.exit(0);

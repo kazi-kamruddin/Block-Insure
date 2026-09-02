@@ -29,7 +29,8 @@ function syncLocalContractDeployment(
   economicsAddress,
   evidenceRegistryAddress,
   deploymentRegistryAddress,
-  hospitalVerificationRegistryAddress
+  hospitalVerificationRegistryAddress,
+  bankIdentityRegistryAddress
 ) {
   const projectRoot = path.resolve(__dirname, "..", "..");
   const targets = [
@@ -60,6 +61,11 @@ function syncLocalContractDeployment(
     { file: path.join(projectRoot, "backEnd", ".env"), key: "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS" },
     { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_HOSPITAL_VERIFICATION_REGISTRY_ADDRESS" },
   ].forEach(({ file, key }) => updateEnvValue(file, key, hospitalVerificationRegistryAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "BANK_IDENTITY_REGISTRY_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_BANK_IDENTITY_REGISTRY_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, bankIdentityRegistryAddress));
 
   [
     { file: path.join(projectRoot, "backEnd", ".env"), key: "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS" },
@@ -112,6 +118,7 @@ function syncContractAbi() {
     "EvidenceRegistry",
     "ProtocolDeploymentRegistry",
     "HospitalVerificationRegistry",
+    "BankIdentityRegistry",
   ].forEach((contractName) => {
     const artifactPath = path.join(
       projectRoot,
@@ -199,6 +206,20 @@ async function main() {
     "HospitalVerificationRegistry deployed to:",
     hospitalVerificationRegistryAddress
   );
+  const BankIdentityRegistry = await hre.ethers.getContractFactory(
+    "BankIdentityRegistry",
+    adminWallet
+  );
+  const bankIdentityRegistry = await BankIdentityRegistry.deploy(
+    contractAddress,
+    adminWallet.address
+  );
+  await bankIdentityRegistry.waitForDeployment();
+  const bankIdentityRegistryAddress = await bankIdentityRegistry.getAddress();
+  await (
+    await insuranceManager.configureBankPaymentRegistry(bankIdentityRegistryAddress)
+  ).wait();
+  console.log("BankIdentityRegistry deployed to:", bankIdentityRegistryAddress);
   const modelArtifactPath = path.resolve(__dirname, "..", "..", "backEnd", "model-params.json");
   const modelArtifact = JSON.parse(fs.readFileSync(modelArtifactPath, "utf8"));
   const modelVerification = verifyModelArtifact(modelArtifact);
@@ -311,6 +332,7 @@ async function main() {
     ["EvidenceRegistry", evidenceRegistryAddress, "IEvidenceRegistry/1"],
     ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/1"],
     ["HospitalVerificationRegistry", hospitalVerificationRegistryAddress, "IHospitalVerificationRegistry/1"],
+    ["BankIdentityRegistry", bankIdentityRegistryAddress, "IBankIdentityRegistry/1"],
   ]) {
     await (
       await deploymentRegistry.registerComponent(
@@ -332,7 +354,8 @@ async function main() {
     economicsAddress,
     evidenceRegistryAddress,
     deploymentRegistryAddress,
-    hospitalVerificationRegistryAddress
+    hospitalVerificationRegistryAddress,
+    bankIdentityRegistryAddress
   );
   console.log("");
   console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
@@ -344,6 +367,7 @@ async function main() {
   console.log("EVIDENCE_REGISTRY_ADDRESS =", evidenceRegistryAddress);
   console.log("PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS =", deploymentRegistryAddress);
   console.log("HOSPITAL_VERIFICATION_REGISTRY_ADDRESS =", hospitalVerificationRegistryAddress);
+  console.log("BANK_IDENTITY_REGISTRY_ADDRESS =", bankIdentityRegistryAddress);
 }
 
 main().catch((error) => {

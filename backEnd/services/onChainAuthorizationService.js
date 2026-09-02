@@ -1,5 +1,6 @@
 const {
   getHospitalVerificationRegistry,
+  getBankIdentityRegistry,
   getReadOnlyContract,
 } = require("./contractService");
 
@@ -14,6 +15,11 @@ const hasCurrentOnChainRole = async (role, walletAddress) => {
     const registry = getHospitalVerificationRegistry();
     const hospitalRole = await registry.HOSPITAL_ROLE();
     return registry.hasRole(hospitalRole, walletAddress);
+  }
+  if (role === "BANK") {
+    const registry = getBankIdentityRegistry();
+    const bankRole = await registry.BANK_ROLE();
+    return registry.hasRole(bankRole, walletAddress);
   }
   const constantName = ROLE_CONSTANTS[role];
   if (!constantName) return true;
