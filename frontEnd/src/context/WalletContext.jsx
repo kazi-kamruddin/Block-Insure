@@ -121,7 +121,6 @@ export function WalletProvider({ children }) {
       const message = getSignableMessage(nonceData);
 
       if (!message) {
-        console.log("Nonce response:", nonceData);
         throw new Error("Backend did not return a signable login message");
       }
 
@@ -131,7 +130,6 @@ export function WalletProvider({ children }) {
       const token = getToken(loginData);
 
       if (!token) {
-        console.log("Login response:", loginData);
         throw new Error("Backend did not return a JWT token");
       }
 

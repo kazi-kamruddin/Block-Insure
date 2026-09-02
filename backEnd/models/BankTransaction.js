@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const bankTransactionSchema = new mongoose.Schema(
   {
-    transactionId: { type: String, required: true, unique: true, trim: true, index: true },
+    transactionId: { type: String, required: true, unique: true, trim: true },
     bankId: { type: String, required: true, uppercase: true, trim: true, index: true },
     accountReference: { type: String, required: true, uppercase: true, trim: true },
     ownerWalletAddress: { type: String, required: true, lowercase: true, trim: true, index: true },

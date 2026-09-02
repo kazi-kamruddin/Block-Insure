@@ -1,6 +1,7 @@
 const express = require("express");
 const bankController = require("../controllers/bankController");
 const authMiddleware = require("../middleware/authMiddleware");
+const { bankOtpConfirmRateLimit, bankOtpRequestRateLimit } = require("../middleware/bankPaymentRateLimit");
 const { requireRole } = require("../middleware/roleMiddleware");
 
 const router = express.Router();
@@ -19,7 +20,7 @@ router.get("/user/mandates", authMiddleware, requireRole("USER"), bankController
 router.get("/user/transactions", authMiddleware, requireRole("USER"), bankController.getMyUserTransactions);
 router.post("/user/mandates", authMiddleware, requireRole("USER"), bankController.createMyMandate);
 router.patch("/user/mandates/:mandateId/cancel", authMiddleware, requireRole("USER"), bankController.cancelMyMandate);
-router.post("/user/manual-payments/otp", authMiddleware, requireRole("USER"), bankController.requestMyManualOtp);
-router.post("/user/manual-payments/confirm", authMiddleware, requireRole("USER"), bankController.confirmMyManualOtp);
+router.post("/user/manual-payments/otp", authMiddleware, requireRole("USER"), bankOtpRequestRateLimit, bankController.requestMyManualOtp);
+router.post("/user/manual-payments/confirm", authMiddleware, requireRole("USER"), bankOtpConfirmRateLimit, bankController.confirmMyManualOtp);
 
 module.exports = router;

@@ -336,8 +336,8 @@ const getRiskPremiumQuote = async (req, res, next) => {
     const contract = getReadOnlyContract();
     const policyPackage = await contract.getPolicyPackage(req.params.packageId);
     const quote = quoteRiskAdjustedPremium({
-      basePremiumWei: policyPackage.premiumAmount,
       ...req.body,
+      basePremiumWei: policyPackage.premiumAmount,
     });
 
     res.status(200).json({

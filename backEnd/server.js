@@ -35,6 +35,8 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 /* ----------------------------- App Setup ------------------------------ */
 
 const app = express();
+let httpServer = null;
+let shuttingDown = false;
 
 /* --------------------------- Basic Config ------------------------------ */
 
@@ -226,6 +228,26 @@ const connectDatabase = async () => {
   console.log("[Backend] MongoDB connected successfully");
 };
 
+const listenForRequests = () =>
+  new Promise((resolve, reject) => {
+    const server = app.listen(PORT, "0.0.0.0");
+    httpServer = server;
+    server.once("error", reject);
+    server.once("listening", () => {
+      server.off("error", reject);
+      console.log(`[Backend] Server running on port ${PORT}`);
+      console.log(`[Backend] Health check: http://localhost:${PORT}/health`);
+      resolve();
+    });
+  });
+
+const closeHttpServer = () =>
+  new Promise((resolve, reject) => {
+    if (!httpServer?.listening) return resolve();
+    httpServer.close((error) => (error ? reject(error) : resolve()));
+    httpServer.closeIdleConnections?.();
+  });
+
 /* -------------------------- Server Startup ----------------------------- */
 
 const startServer = async () => {
@@ -236,12 +258,14 @@ const startServer = async () => {
     await startBlockchainEventListener();
     startBankPaymentScheduler();
 
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`[Backend] Server running on port ${PORT}`);
-      console.log(`[Backend] Health check: http://localhost:${PORT}/health`);
-    });
+    await listenForRequests();
   } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
+    console.error("Backend startup failed:", error.message);
+    stopBlockchainIndexer();
+    stopEvidenceAnchorScheduler();
+    stopBankPaymentScheduler();
+    await stopBlockchainEventListener().catch(() => undefined);
+    await mongoose.connection.close().catch(() => undefined);
     process.exit(1);
   }
 };
@@ -251,14 +275,17 @@ startServer();
 /* ------------------------ Graceful Shutdown ---------------------------- */
 
 const shutdownServer = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   try {
-    console.log(`${signal} received. Closing MongoDB connection...`);
+    console.log(`${signal} received. Stopping backend services...`);
+    await closeHttpServer();
     await stopBlockchainEventListener();
     stopBlockchainIndexer();
     stopEvidenceAnchorScheduler();
     stopBankPaymentScheduler();
     await mongoose.connection.close();
-    console.log("MongoDB connection closed");
+    console.log("Backend services stopped cleanly");
     process.exit(0);
   } catch (error) {
     console.error("Error during shutdown:", error.message);

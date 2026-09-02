@@ -180,7 +180,7 @@ export default function SubmitClaimPage() {
     refetch: refetchPolicies,
   } = useQuery({
     queryKey: ["myPolicies", walletAddress],
-    queryFn: getMyPolicies,
+    queryFn: () => getMyPolicies(),
     enabled: isConnected,
   });
 
@@ -386,7 +386,6 @@ export default function SubmitClaimPage() {
       const documentId = getUploadedDocumentId(uploadResponse);
 
       if (!sha256Hash || !ipfsCID || !documentId) {
-        console.log("Upload response:", uploadResponse);
         throw new Error(
           "Backend upload did not return document metadata needed to submit and link the claim"
         );

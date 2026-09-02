@@ -77,7 +77,7 @@ export default function UserDashboardPage() {
     refetch: refetchPolicies,
   } = useQuery({
     queryKey: ["userDashboardPolicies", walletAddress],
-    queryFn: getMyPolicies,
+    queryFn: () => getMyPolicies(),
     enabled: isConnected,
   });
 
@@ -89,7 +89,7 @@ export default function UserDashboardPage() {
     refetch: refetchClaims,
   } = useQuery({
     queryKey: ["userDashboardClaims", walletAddress],
-    queryFn: getMyClaims,
+    queryFn: () => getMyClaims(),
     enabled: isConnected,
   });
 

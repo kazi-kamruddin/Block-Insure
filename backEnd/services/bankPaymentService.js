@@ -11,12 +11,14 @@ const { notifyWallet } = require("./notificationService");
 
 const BDT_MINOR_PER_ETH = 10_000_000;
 const QUARTER_MS = 90 * 24 * 60 * 60 * 1000;
+const EFT_RETRY_INTERVAL_MS = 60 * 60 * 1000;
 const REMINDER_MIN_DAYS = 15;
 const REMINDER_MAX_DAYS = 20;
 const LOCAL_BANK_PRIVATE_KEY =
   "0x8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61";
 
 let scheduler = null;
+let transferQueue = Promise.resolve();
 
 const createError = (message, statusCode = 400) => {
   const error = new Error(message);
@@ -25,9 +27,22 @@ const createError = (message, statusCode = 400) => {
 };
 
 const normalizeWallet = (value) => String(value || "").trim().toLowerCase();
+const createInstructionKey = (walletAddress, policyId) => `${normalizeWallet(walletAddress)}:${policyId}`;
 const createId = (prefix) => `${prefix}-${crypto.randomUUID()}`;
+const getOtpSecret = () => {
+  const secret = String(process.env.BANK_OTP_SECRET || process.env.JWT_SECRET || "").trim();
+  if (!secret) throw createError("BANK_OTP_SECRET or JWT_SECRET is not configured", 500);
+  return secret;
+};
+
 const hashOtp = (challengeId, otp) =>
-  crypto.createHash("sha256").update(`${challengeId}:${otp}`).digest("hex");
+  crypto.createHmac("sha256", getOtpSecret()).update(`${challengeId}:${otp}`).digest("hex");
+
+const otpMatches = (challenge, otp) => {
+  const expected = Buffer.from(challenge.otpHash, "hex");
+  const actual = Buffer.from(hashOtp(challenge.challengeId, otp), "hex");
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+};
 
 const premiumWeiToMinor = (amountWei) => {
   const wei = BigInt(amountWei);
@@ -97,17 +112,26 @@ const createMandate = async ({ walletAddress, accountReference, policyId, validF
   });
   if (duplicate) throw createError("This policy already has a pending or active EFT mandate", 409);
 
-  const mandate = await EftMandate.create({
-    mandateId: createId("EFT"),
-    bankId: account.bankId,
-    accountReference: account.accountReference,
-    policyId: String(policyId),
-    ownerWalletAddress: normalizeWallet(walletAddress),
-    destinationReference: "BLOCK-INSURE-PREMIUM-TREASURY",
-    amountMinor: policyDetails.amountMinor,
-    validFrom: start,
-    validUntil: end,
-  });
+  let mandate;
+  try {
+    mandate = await EftMandate.create({
+      mandateId: createId("EFT"),
+      bankId: account.bankId,
+      accountReference: account.accountReference,
+      policyId: String(policyId),
+      ownerWalletAddress: normalizeWallet(walletAddress),
+      activeInstructionKey: createInstructionKey(walletAddress, policyId),
+      destinationReference: "BLOCK-INSURE-PREMIUM-TREASURY",
+      amountMinor: policyDetails.amountMinor,
+      validFrom: start,
+      validUntil: end,
+    });
+  } catch (error) {
+    if (error?.code === 11000 && error?.keyPattern?.activeInstructionKey) {
+      throw createError("This policy already has a pending or active EFT mandate", 409);
+    }
+    throw error;
+  }
   const bank = await Bank.findOne({ bankId: account.bankId }).lean();
   if (bank?.walletAddress) {
     await notifyWallet(bank.walletAddress, {
@@ -124,21 +148,29 @@ const createMandate = async ({ walletAddress, accountReference, policyId, validF
 };
 
 const approveMandate = async ({ bankId, bankWallet, mandateId }) => {
+  const now = new Date();
   const mandate = await EftMandate.findOneAndUpdate(
-    { mandateId, bankId, status: "PENDING_BANK_APPROVAL" },
-    {
+    { mandateId, bankId, status: "PENDING_BANK_APPROVAL", validUntil: { $gt: now } },
+    [{
       $set: {
         status: "ACTIVE",
-        approvedAt: new Date(),
+        approvedAt: now,
         approvedByWallet: normalizeWallet(bankWallet),
+        nextDebitAt: "$validFrom",
+        activeInstructionKey: { $concat: ["$ownerWalletAddress", ":", "$policyId"] },
       },
-    },
+    }],
     { returnDocument: "after" }
   );
-  // MongoDB does not interpret field references in a classic update, so set it explicitly.
-  if (!mandate) throw createError("Pending mandate was not found", 404);
-  mandate.nextDebitAt = mandate.validFrom;
-  await mandate.save();
+  if (!mandate) {
+    const expired = await EftMandate.findOneAndUpdate(
+      { mandateId, bankId, status: "PENDING_BANK_APPROVAL", validUntil: { $lte: now } },
+      { $set: { status: "EXPIRED" }, $unset: { activeInstructionKey: 1 } },
+      { returnDocument: "after" }
+    );
+    if (expired) throw createError("EFT mandate has expired", 409);
+    throw createError("Pending mandate was not found", 404);
+  }
   await notifyWallet(mandate.ownerWalletAddress, {
     type: "EFT_MANDATE_APPROVED",
     title: `EFT mandate approved for policy #${mandate.policyId}`,
@@ -152,9 +184,12 @@ const approveMandate = async ({ bankId, bankWallet, mandateId }) => {
 };
 
 const rejectMandate = async ({ bankId, mandateId, reason }) => {
+  const defaultReason = "Bank review declined the instruction";
+  const rejectionReason = String(reason || defaultReason).trim() || defaultReason;
+  if (rejectionReason.length > 500) throw createError("Rejection reason cannot exceed 500 characters");
   const mandate = await EftMandate.findOneAndUpdate(
     { mandateId, bankId, status: "PENDING_BANK_APPROVAL" },
-    { $set: { status: "REJECTED", rejectedAt: new Date(), rejectionReason: String(reason || "Bank review declined the instruction") } },
+    { $set: { status: "REJECTED", rejectedAt: new Date(), rejectionReason }, $unset: { activeInstructionKey: 1 } },
     { returnDocument: "after" }
   );
   if (!mandate) throw createError("Pending mandate was not found", 404);
@@ -173,7 +208,7 @@ const rejectMandate = async ({ bankId, mandateId, reason }) => {
 const cancelMandate = async ({ walletAddress, mandateId }) => {
   const mandate = await EftMandate.findOneAndUpdate(
     { mandateId, ownerWalletAddress: normalizeWallet(walletAddress), status: { $in: ["PENDING_BANK_APPROVAL", "ACTIVE"] } },
-    { $set: { status: "CANCELLED", cancelledAt: new Date() } },
+    { $set: { status: "CANCELLED", cancelledAt: new Date() }, $unset: { activeInstructionKey: 1 } },
     { returnDocument: "after" }
   );
   if (!mandate) throw createError("Cancellable mandate was not found", 404);
@@ -190,7 +225,7 @@ const getBankSigner = async () => {
   return new ethers.Wallet(configured || LOCAL_BANK_PRIVATE_KEY, provider);
 };
 
-const executeTransfer = async ({ account, policyId, amountMinor, amountWei, type, dueAt, mandateId = "" }) => {
+const executeTransferInternal = async ({ account, policyId, amountMinor, amountWei, type, dueAt, mandateId = "" }) => {
   const transaction = await BankTransaction.create({
     transactionId: createId(type === "EFT" ? "EFT-TXN" : "OTP-TXN"),
     bankId: account.bankId,
@@ -223,6 +258,7 @@ const executeTransfer = async ({ account, policyId, amountMinor, amountWei, type
     return transaction;
   }
 
+  let receipt;
   try {
     const signer = await getBankSigner();
     const registry = getBankIdentityRegistry(signer);
@@ -235,18 +271,7 @@ const executeTransfer = async ({ account, policyId, amountMinor, amountWei, type
       referenceHash,
       instructionHash
     );
-    const receipt = await tx.wait();
-    transaction.status = "PAID";
-    transaction.completedAt = new Date();
-    transaction.transactionHash = receipt.hash;
-    await transaction.save();
-    await notifyWallet(account.ownerWalletAddress, {
-      type: "PREMIUM_PAYMENT_CONFIRMED",
-      title: `Bank payment confirmed for policy #${policyId}`,
-      message: `${(amountMinor / 100).toFixed(2)} BDT was debited by ${type === "EFT" ? "quarterly EFT" : "manual OTP payment"}.`,
-      policyId: String(policyId), transactionHash: receipt.hash, status: "PAID", link: `/user/payments?policyId=${policyId}`,
-      dedupeKey: `bank-payment-paid:${transaction.transactionId}`,
-    });
+    receipt = await tx.wait();
   } catch (error) {
     await BankAccount.updateOne({ _id: account._id }, { $inc: { balanceMinor: amountMinor } });
     transaction.status = "FAILED";
@@ -260,8 +285,29 @@ const executeTransfer = async ({ account, policyId, amountMinor, amountWei, type
       policyId: String(policyId), status: "FAILED", link: "/user/banking",
       dedupeKey: `bank-payment-failed:${transaction.transactionId}`,
     });
+    return transaction;
   }
+
+  // The chain confirmation is irreversible. Persist it outside the compensation
+  // block so a later database/notification failure can never refund settled funds.
+  transaction.status = "PAID";
+  transaction.completedAt = new Date();
+  transaction.transactionHash = receipt.hash;
+  await transaction.save();
+  await notifyWallet(account.ownerWalletAddress, {
+    type: "PREMIUM_PAYMENT_CONFIRMED",
+    title: `Bank payment confirmed for policy #${policyId}`,
+    message: `${(amountMinor / 100).toFixed(2)} BDT was debited by ${type === "EFT" ? "quarterly EFT" : "manual OTP payment"}.`,
+    policyId: String(policyId), transactionHash: receipt.hash, status: "PAID", link: `/user/payments?policyId=${policyId}`,
+    dedupeKey: `bank-payment-paid:${transaction.transactionId}`,
+  });
   return transaction;
+};
+
+const executeTransfer = (details) => {
+  const pending = transferQueue.then(() => executeTransferInternal(details));
+  transferQueue = pending.catch(() => undefined);
+  return pending;
 };
 
 const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {}) => {
@@ -269,47 +315,78 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
   if (Number.isNaN(now.getTime())) throw createError("Invalid automation reference date");
   const filter = { status: "ACTIVE", ...(bankId ? { bankId } : {}) };
   const mandates = await EftMandate.find(filter).sort({ nextDebitAt: 1 });
-  const result = { referenceDate: now, reminders: 0, paid: 0, failed: 0, expired: 0 };
+  const result = { referenceDate: now, reminders: 0, paid: 0, failed: 0, expired: 0, skipped: 0, errors: 0 };
 
   for (const mandate of mandates) {
-    if (mandate.validUntil < now) {
-      mandate.status = "EXPIRED";
-      await mandate.save();
-      result.expired += 1;
-      continue;
-    }
-    const daysUntilDue = getReminderLeadDays(mandate.nextDebitAt, now);
-    if (isReminderWindow(mandate.nextDebitAt, now)) {
-      await notifyWallet(mandate.ownerWalletAddress, {
-        type: "PREMIUM_DUE_REMINDER",
-        title: `Automatic premium debit in ${daysUntilDue} days`,
-        message: `${(mandate.amountMinor / 100).toFixed(2)} BDT will be debited for policy #${mandate.policyId}.`,
-        policyId: mandate.policyId, status: "SCHEDULED", link: "/user/banking",
-        dedupeKey: `eft-reminder:${mandate.mandateId}:${mandate.nextDebitAt.toISOString().slice(0, 10)}`,
+    try {
+      if (mandate.validUntil < now) {
+        mandate.status = "EXPIRED";
+        mandate.activeInstructionKey = undefined;
+        await mandate.save();
+        result.expired += 1;
+        continue;
+      }
+      const daysUntilDue = getReminderLeadDays(mandate.nextDebitAt, now);
+      if (!mandate.lastReminderAt && isReminderWindow(mandate.nextDebitAt, now)) {
+        await notifyWallet(mandate.ownerWalletAddress, {
+          type: "PREMIUM_DUE_REMINDER",
+          title: `Automatic premium debit in ${daysUntilDue} days`,
+          message: `${(mandate.amountMinor / 100).toFixed(2)} BDT will be debited for policy #${mandate.policyId}.`,
+          policyId: mandate.policyId, status: "SCHEDULED", link: "/user/banking",
+          dedupeKey: `eft-reminder:${mandate.mandateId}:${mandate.nextDebitAt.toISOString().slice(0, 10)}`,
+        });
+        mandate.lastReminderAt = now;
+        await mandate.save();
+        result.reminders += 1;
+      }
+      if (mandate.nextDebitAt > now) continue;
+      const retryCutoff = new Date(now.getTime() - EFT_RETRY_INTERVAL_MS);
+      const claimedMandate = await EftMandate.findOneAndUpdate(
+        {
+          _id: mandate._id,
+          status: "ACTIVE",
+          nextDebitAt: mandate.nextDebitAt,
+          $or: [
+            { lastAttemptAt: null },
+            { lastAttemptAt: { $lte: retryCutoff } },
+          ],
+        },
+        { $set: { lastAttemptAt: now } },
+        { returnDocument: "after" }
+      );
+      if (!claimedMandate) {
+        result.skipped += 1;
+        continue;
+      }
+      const account = await BankAccount.findOne({
+        bankId: claimedMandate.bankId,
+        accountReference: claimedMandate.accountReference,
       });
-      mandate.lastReminderAt = now;
-      await mandate.save();
-      result.reminders += 1;
+      if (!account) {
+        result.failed += 1;
+        continue;
+      }
+      const policyDetails = await loadOwnedPolicy(claimedMandate.ownerWalletAddress, claimedMandate.policyId);
+      const transfer = await executeTransfer({
+        account, policyId: claimedMandate.policyId, amountMinor: claimedMandate.amountMinor,
+        amountWei: policyDetails.amountWei, type: "EFT", dueAt: claimedMandate.nextDebitAt,
+        mandateId: claimedMandate.mandateId,
+      });
+      claimedMandate.lastTransactionReference = transfer.transactionId;
+      if (transfer.status === "PAID") {
+        claimedMandate.lastDebitedAt = now;
+        claimedMandate.lastReminderAt = null;
+        claimedMandate.debitCount += 1;
+        claimedMandate.nextDebitAt = new Date(claimedMandate.nextDebitAt.getTime() + QUARTER_MS);
+        result.paid += 1;
+      } else {
+        result.failed += 1;
+      }
+      await claimedMandate.save();
+    } catch (error) {
+      result.errors += 1;
+      console.warn(`EFT mandate ${mandate.mandateId} scan failed:`, error.message);
     }
-    if (mandate.nextDebitAt > now) continue;
-    const account = await BankAccount.findOne({ bankId: mandate.bankId, accountReference: mandate.accountReference });
-    if (!account) continue;
-    const policyDetails = await loadOwnedPolicy(mandate.ownerWalletAddress, mandate.policyId);
-    const transfer = await executeTransfer({
-      account, policyId: mandate.policyId, amountMinor: mandate.amountMinor,
-      amountWei: policyDetails.amountWei, type: "EFT", dueAt: mandate.nextDebitAt,
-      mandateId: mandate.mandateId,
-    });
-    mandate.lastTransactionReference = transfer.transactionId;
-    if (transfer.status === "PAID") {
-      mandate.lastDebitedAt = now;
-      mandate.debitCount += 1;
-      mandate.nextDebitAt = new Date(mandate.nextDebitAt.getTime() + QUARTER_MS);
-      result.paid += 1;
-    } else {
-      result.failed += 1;
-    }
-    await mandate.save();
   }
   return result;
 };
@@ -319,6 +396,15 @@ const requestManualPaymentOtp = async ({ walletAddress, accountReference, policy
   const challengeId = createId("OTP");
   const otp = String(crypto.randomInt(100000, 1000000));
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  await BankOtpChallenge.updateMany(
+    {
+      ownerWalletAddress: normalizeWallet(walletAddress),
+      accountReference: String(accountReference || "").trim().toUpperCase(),
+      policyId: String(policyId),
+      status: "PENDING",
+    },
+    { $set: { status: "EXPIRED" } }
+  );
   await BankOtpChallenge.create({
     challengeId, ownerWalletAddress: normalizeWallet(walletAddress),
     accountReference, policyId: String(policyId), otpHash: hashOtp(challengeId, otp), expiresAt,
@@ -341,18 +427,22 @@ const confirmManualPaymentOtp = async ({ walletAddress, challengeId, otp }) => {
     await challenge.save();
     throw createError("OTP has expired", 410);
   }
-  if (hashOtp(challenge.challengeId, otp) !== challenge.otpHash) {
+  if (!otpMatches(challenge, otp)) {
     challenge.attempts += 1;
     if (challenge.attempts >= 3) challenge.status = "LOCKED";
     await challenge.save();
     throw createError("Incorrect OTP", 401);
   }
-  challenge.status = "USED";
-  await challenge.save();
   const [account, policyDetails] = await Promise.all([
     loadOwnedAccount(walletAddress, challenge.accountReference),
     loadOwnedPolicy(walletAddress, challenge.policyId),
   ]);
+  const consumed = await BankOtpChallenge.findOneAndUpdate(
+    { _id: challenge._id, status: "PENDING", expiresAt: { $gt: new Date() } },
+    { $set: { status: "USED" } },
+    { returnDocument: "after" }
+  );
+  if (!consumed) throw createError("OTP challenge was already used or expired", 409);
   return executeTransfer({
     account, policyId: challenge.policyId, amountMinor: policyDetails.amountMinor,
     amountWei: policyDetails.amountWei, type: "MANUAL_OTP", dueAt: new Date(),

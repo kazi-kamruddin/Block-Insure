@@ -10,6 +10,7 @@ const {
 
 const formatMoney = (minor) => (Number(minor || 0) / 100).toFixed(2);
 const normalizeWallet = (value) => String(value || "").toLowerCase();
+const withAuthenticatedWallet = (body, walletAddress) => ({ ...body, walletAddress });
 
 const getBankIdentity = async (user) => {
   const bank = await findBankByWallet(user.walletAddress);
@@ -179,7 +180,7 @@ const getMyUserTransactions = async (req, res, next) => {
 
 const createMyMandate = async (req, res, next) => {
   try {
-    const mandate = await createMandate({ walletAddress: req.user.walletAddress, ...req.body });
+    const mandate = await createMandate(withAuthenticatedWallet(req.body, req.user.walletAddress));
     res.status(201).json({ success: true, message: "EFT mandate sent to the bank for approval", mandate: formatMandate(mandate) });
   } catch (error) { next(error); }
 };
@@ -193,14 +194,14 @@ const cancelMyMandate = async (req, res, next) => {
 
 const requestMyManualOtp = async (req, res, next) => {
   try {
-    const challenge = await requestManualPaymentOtp({ walletAddress: req.user.walletAddress, ...req.body });
+    const challenge = await requestManualPaymentOtp(withAuthenticatedWallet(req.body, req.user.walletAddress));
     res.status(201).json({ success: true, ...challenge });
   } catch (error) { next(error); }
 };
 
 const confirmMyManualOtp = async (req, res, next) => {
   try {
-    const transaction = await confirmManualPaymentOtp({ walletAddress: req.user.walletAddress, ...req.body });
+    const transaction = await confirmManualPaymentOtp(withAuthenticatedWallet(req.body, req.user.walletAddress));
     res.status(transaction.status === "PAID" ? 200 : 409).json({
       success: transaction.status === "PAID",
       message: transaction.status === "PAID" ? "Manual bank payment confirmed" : transaction.failureReason,
@@ -214,4 +215,5 @@ module.exports = {
   getMyBankAccounts, getMyBankMandates, getMyBankProfile, getMyBankTransactions,
   getMyUserAccounts, getMyUserMandates, getMyUserTransactions, getNetworkBanks,
   rejectMyBankMandate, requestMyManualOtp, runMyBankAutomation,
+  withAuthenticatedWallet,
 };

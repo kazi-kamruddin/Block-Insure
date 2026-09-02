@@ -8,6 +8,7 @@ const EftMandate = require("../models/EftMandate");
 const BankOtpChallenge = require("../models/BankOtpChallenge");
 const BankTransaction = require("../models/BankTransaction");
 const { isReminderWindow, premiumWeiToMinor } = require("../services/bankPaymentService");
+const { withAuthenticatedWallet } = require("../controllers/bankController");
 const { BANK_NETWORK, DEMO_BANK_ACCOUNTS } = require("../config/bankNetwork");
 
 test("defines one independent simulated bank identity", () => {
@@ -40,4 +41,22 @@ test("supports approved quarterly execution and OTP-only manual payments", () =>
   assert.equal(isReminderWindow("2026-09-21T00:00:00.000Z", reference), true);
   assert.equal(isReminderWindow("2026-09-15T00:00:00.000Z", reference), false);
   assert.equal(isReminderWindow("2026-09-22T00:00:00.000Z", reference), false);
+});
+
+test("banking mutations cannot replace the authenticated wallet from request data", () => {
+  const authenticatedWallet = "0x0000000000000000000000000000000000000001";
+  assert.deepEqual(
+    withAuthenticatedWallet(
+      { walletAddress: "0x0000000000000000000000000000000000000002", policyId: "7" },
+      authenticatedWallet
+    ),
+    { walletAddress: authenticatedWallet, policyId: "7" }
+  );
+});
+
+test("active EFT instructions have a uniqueness key and retry timestamp", () => {
+  const keyPath = EftMandate.schema.path("activeInstructionKey");
+  assert.equal(keyPath.options.unique, true);
+  assert.equal(keyPath.options.sparse, true);
+  assert.ok(EftMandate.schema.path("lastAttemptAt"));
 });

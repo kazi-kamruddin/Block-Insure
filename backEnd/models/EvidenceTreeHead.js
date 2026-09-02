@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const evidenceTreeHeadSchema = new mongoose.Schema(
   {
-    treeSize: { type: Number, required: true, min: 1, unique: true, index: true },
+    treeSize: { type: Number, required: true, min: 1, unique: true },
     rootHash: { type: String, required: true, trim: true, index: true },
     previousRootHash: { type: String, trim: true, default: "" },
     signerWallet: { type: String, required: true, lowercase: true, trim: true },

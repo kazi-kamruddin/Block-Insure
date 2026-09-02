@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const bankOtpChallengeSchema = new mongoose.Schema(
   {
-    challengeId: { type: String, required: true, unique: true, trim: true, index: true },
+    challengeId: { type: String, required: true, unique: true, trim: true },
     ownerWalletAddress: { type: String, required: true, lowercase: true, trim: true, index: true },
     accountReference: { type: String, required: true, uppercase: true, trim: true },
     policyId: { type: String, required: true, trim: true },

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-09-02T10:14:56.666Z",
+  "generatedAt": "2026-09-02T11:15:51.856Z",
   "source": {
-    "gitCommit": "fcad88c607b69a626462e4c2b896d1dd8e0ad1d4",
+    "gitCommit": "a079f0f579d039a79b19f111937117cc27f8619f",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -344,5 +344,5 @@
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "0671161a5aa092baed3054cbcc88806e34ac5fb5c45447ae3e84d0db7e5b1bc4"
+  "reproducibilityHash": "5d416936705dda1de2cc9e28350ca68c7d033b19d3248e2e405d948212565bfb"
 }

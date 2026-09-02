@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 
 const bankSchema = new mongoose.Schema(
   {
-    bankId: { type: String, required: true, unique: true, uppercase: true, trim: true, index: true },
+    bankId: { type: String, required: true, unique: true, uppercase: true, trim: true },
     name: { type: String, required: true, trim: true },
-    walletAddress: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+    walletAddress: { type: String, required: true, unique: true, lowercase: true, trim: true },
     routingCode: { type: String, required: true, unique: true, uppercase: true, trim: true },
     currency: { type: String, enum: ["BDT"], default: "BDT" },
     operatingStatus: {
