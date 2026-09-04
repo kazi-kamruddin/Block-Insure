@@ -160,7 +160,7 @@ const approveMandate = async ({ bankId, bankWallet, mandateId }) => {
         activeInstructionKey: { $concat: ["$ownerWalletAddress", ":", "$policyId"] },
       },
     }],
-    { returnDocument: "after" }
+    { returnDocument: "after", updatePipeline: true }
   );
   if (!mandate) {
     const expired = await EftMandate.findOneAndUpdate(
@@ -431,7 +431,9 @@ const confirmManualPaymentOtp = async ({ walletAddress, challengeId, otp }) => {
     challenge.attempts += 1;
     if (challenge.attempts >= 3) challenge.status = "LOCKED";
     await challenge.save();
-    throw createError("Incorrect OTP", 401);
+    // A payment OTP is transaction validation, not wallet authentication.
+    // Returning 401 would make the client discard an otherwise valid SIWE session.
+    throw createError("Incorrect OTP", 422);
   }
   const [account, policyDetails] = await Promise.all([
     loadOwnedAccount(walletAddress, challenge.accountReference),

@@ -107,9 +107,13 @@ test.describe("@smoke role workspaces", () => {
       ).toBeVisible();
       await expect(session.page.getByText("Quarterly bank automation active")).toBeVisible();
       await expect(session.page.getByText("BANK-001", { exact: true })).toBeVisible();
-      await expect(session.page.getByText("5,000.00 BDT", { exact: true })).toBeVisible();
-      await expect(session.page.getByText("7,000.00 BDT", { exact: true })).toBeVisible();
-      await expect(session.page.getByText("10,000.00 BDT", { exact: true })).toBeVisible();
+      const accountRows = session.page.locator(".bank-accounts-card tbody tr");
+      await expect(accountRows).toHaveCount(3);
+      for (const accountReference of ["DEMO-5000", "DEMO-7000", "DEMO-10000"]) {
+        const accountRow = accountRows.filter({ hasText: accountReference });
+        await expect(accountRow).toContainText("ACTIVE");
+        await expect(accountRow.locator("td").nth(3)).toHaveText(/^\d[\d,]*\.\d{2} BDT$/);
+      }
 
       await session.page.goto("/admin/dashboard");
       await expect(session.page).toHaveURL(/\/bank\/dashboard$/);

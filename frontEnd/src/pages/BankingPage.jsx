@@ -48,23 +48,23 @@ export default function BankingPage() {
 
   const mandateMutation = useMutation({
     mutationFn: createEftMandate,
-    onSuccess: async (data) => { showToast(data.message, "success"); await refresh(); },
-    onError: (error) => showToast(messageOf(error), "error"),
+    onSuccess: async (data) => { showToast(data.message); await refresh(); },
+    onError: (error) => showToast(messageOf(error), { tone: "error" }),
   });
   const cancelMutation = useMutation({
     mutationFn: cancelEftMandate,
-    onSuccess: async (data) => { showToast(data.message, "success"); await refresh(); },
-    onError: (error) => showToast(messageOf(error), "error"),
+    onSuccess: async (data) => { showToast(data.message); await refresh(); },
+    onError: (error) => showToast(messageOf(error), { tone: "error" }),
   });
   const otpRequestMutation = useMutation({
     mutationFn: requestManualBankPaymentOtp,
-    onSuccess: (data) => { setOtpState(data); setOtp(data.demoOtp || ""); showToast(data.deliveryMessage, "success"); },
-    onError: (error) => showToast(messageOf(error), "error"),
+    onSuccess: (data) => { setOtpState(data); setOtp(data.demoOtp || ""); showToast(data.deliveryMessage); },
+    onError: (error) => showToast(messageOf(error), { tone: "error" }),
   });
   const otpConfirmMutation = useMutation({
     mutationFn: confirmManualBankPayment,
-    onSuccess: async (data) => { setOtpState(null); setOtp(""); showToast(data.message, "success"); await refresh(); },
-    onError: (error) => showToast(messageOf(error), "error"),
+    onSuccess: async (data) => { setOtpState(null); setOtp(""); showToast(data.message); await refresh(); },
+    onError: (error) => showToast(messageOf(error), { tone: "error" }),
   });
 
   const submitMandate = (event) => {

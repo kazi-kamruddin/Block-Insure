@@ -1,6 +1,6 @@
 # Block-Insure Deep Technical Reference
 
-> A code-oriented companion to [`block-insure-current-project-overview.md`](block-insure-current-project-overview.md).
+> A standalone code-oriented reference for the current repository.
 >
 > This document is intentionally more detailed than the supervisor overview. It explains the implementation boundaries, state machines, data contracts, algorithms, transaction choreography, operational assumptions, and research interpretation of the current repository.
 
@@ -9,11 +9,13 @@
 **Audience:** thesis supervisor, examiner, implementer, reviewer, and future maintainer  
 **Authority rule:** current source code, deployment scripts, tests, and frozen artifacts override older prose
 
-**Last source audit:** 2026-08-29 against repository `HEAD` `7d941aa6a85eebca1ae42026f0c26d9417fc4b25` plus the current research-artifact working-tree update
+**Last source audit:** 2026-09-04 against repository `HEAD` `2bf4adb8b7d71fede3ef337f493210b7f45e744b` plus the current Hospital, Bank, E2E, and documentation working-tree update
 
-**Current research manifest:** schema 4, reproducibility hash `6a99593b052be9f99d439636039395f2c60760415c16e41a478da56869853ca0`
+**Current research manifest:** schema 4, reproducibility hash `35bea03aa734dedd6c69a0a10f4db5d15c098296449ed8afc169c5c39c11f11f`
 
 > **Hybrid and paper-evidence update (2026-08-29):** this reference now covers the complete `blockinsure-hybrid-v1.2.0` architecture, 558,211-claim offline study, 5,000-record runtime registry, provider-risk model, comparator and ablation experiments, provider bootstrap intervals, controlled-attack routing study, reserve/evidence benchmarks, current coverage and mutation results, and the final live browser workflows. Source code and frozen JSON/CSV artifacts remain authoritative when a timing or generated timestamp changes.
+
+> **Hospital, Bank, and regression update (2026-09-04):** the current system also includes five wallet-bound Hospital identities, version-bound on-chain Hospital claim attestations that gate Oracle request creation, one independently authorized simulated Bank, policyholder EFT mandates, quarterly BDT debit automation, manual OTP payments, replay-protected on-chain premium receipts, and complete role/route/workflow Playwright coverage. Sections 46 and 47 are the detailed implementation references for these subsystems.
 
 ---
 
@@ -150,7 +152,7 @@ It does not claim that the local Hardhat network is production infrastructure.
 
 ### 1.4 One-sentence thesis identity
 
-> Block-Insure is a modular hybrid insurance protocol in which encrypted evidence, advisory risk analytics, Merkle-bound external records, exact multi-oracle consensus, deterministic auditor adjudication, and reserved on-chain settlement combine to produce an auditable claim lifecycle.
+> Block-Insure is a modular hybrid insurance protocol in which encrypted evidence, wallet-bound Hospital and Bank authority, advisory risk analytics, Merkle-bound external records, exact multi-Oracle consensus, deterministic Auditor adjudication, external-premium receipts, and reserved on-chain settlement combine into auditable policy and claim lifecycles.
 
 ---
 
@@ -177,6 +179,8 @@ flowchart TB
         Claimant[Claimant UI]
         Auditor[Auditor UI]
         Admin[Admin UI]
+        HospitalUser[Hospital UI]
+        BankUser[Bank UI]
         Wallet[Wallet signer]
         Crypto[Web Crypto + Recrypt WASM]
     end
@@ -197,6 +201,8 @@ flowchart TB
         Adjudicator[ClaimAdjudicator]
         Benefits[PolicyBenefitsManager]
         EvidenceRegistry[EvidenceRegistry]
+        HospitalRegistry[HospitalVerificationRegistry]
+        BankRegistry[BankIdentityRegistry]
         Deployment[ProtocolDeploymentRegistry]
     end
 
@@ -213,11 +219,15 @@ flowchart TB
     Claimant --> Wallet
     Auditor --> Wallet
     Admin --> Wallet
+    HospitalUser --> Wallet
+    BankUser --> Wallet
     Claimant --> Crypto
     Auditor --> Crypto
     Claimant --> Express
     Auditor --> Express
     Admin --> Express
+    HospitalUser --> Express
+    BankUser --> Express
     Express --> Auth
     Express --> Model
     Express --> Evidence
@@ -232,6 +242,9 @@ flowchart TB
     Manager --> Coordinator
     Manager --> Adjudicator
     Manager --> Benefits
+    HospitalRegistry --> Manager
+    BankRegistry --> Manager
+    Coordinator --> HospitalRegistry
     OracleOne --> Hospital
     OracleTwo --> Hospital
     OracleOne --> Coordinator
@@ -251,6 +264,7 @@ Browser evidence
   -> backend encrypted transport
   -> policy/economics validation
   -> manager claim state
+  -> registered hospital attestation for the current claim version
   -> oracle observation
   -> coordinator exact consensus
   -> manager payout allocation
@@ -290,6 +304,11 @@ The contracts enforce the permitted order.
 | Oracle commitment | No | Log | No | Yes |
 | Oracle reveal | No | Log | No | Yes |
 | Auditor vote | Wallet UI | Projection | No | Yes |
+| Hospital directory/record | Scoped UI | Directory/snapshot | No | ID/hash/attestation only |
+| Hospital assessment | Display | Versioned projection | No | Boolean + attestation hash |
+| Bank account balance | Display | Simulated BDT ledger | No | No |
+| EFT mandate/schedule | User/Bank UI | Operational ledger | No | Mandate hash on successful receipt |
+| Bank transfer | Display | Amount/status/reference | No | Replay-protected premium receipt |
 | Evidence tree root | Display | Signed head | Optional artifact | Anchor |
 
 ### 2.5 Failure containment
@@ -311,6 +330,12 @@ If an auditor does not vote, deadline finalization remains possible.
 
 If the claimant does not withdraw, the vault retains the pull balance.
 
+If Hospital verification is incomplete for the current claim version, the
+Coordinator rejects Oracle request creation.
+
+If a simulated Bank debit cannot be confirmed on-chain, the backend restores
+the conditional BDT debit and records a failed transaction.
+
 ---
 
 ## 3. Repository map and build graph
@@ -326,6 +351,7 @@ If the claimant does not withdraw, the vault retains the pull balance.
 | `scripts/` | Cross-project setup, launcher, preflight, verification, reproducibility tooling |
 | `docs/` | Operational notes, security/migration notes, methodology drafts |
 | `reference/` | Historical thesis material and current standalone references |
+| `.project-context/` | Local-only four-file AI handoff pack, excluded from Git |
 | `.dev-logs/` | Local redacted observability output when enabled |
 
 ### 3.2 Important root scripts
@@ -343,8 +369,11 @@ If the claimant does not withdraw, the vault retains the pull balance.
 | `npm run verify:all` | Cross-project verification suite |
 | `npm run verify:full` | Verification plus runtime synchronization checks |
 | `npm run verify:sync` | ABI, address, bytecode-size, and configuration synchronization checks |
-| `npm run test:e2e` | Read-only browser smoke/accessibility checks after E2E preflight |
-| `npm run test:e2e:workflow` | Headed state-changing purchase/evidence/claim/auditor workflows |
+| `npm run test:e2e` | Thirteen repeatable read-only public/role/route browser checks after E2E preflight |
+| `npm run test:e2e:workflow` | Four state-changing Bank and claim/adjudication journeys |
+| `npm run test:e2e:showcase` | Four state-dependent deep workspace demonstrations |
+| `npm run test:e2e:maintenance` | Reversible Hospital record/invoice mutation and root-restoration check |
+| `npm run test:e2e:all` | Ordered complete 22-test browser regression after clean setup |
 | `npm run deploy:benefits:local` | Deploy the benefits extension without the complete clean reset |
 | `npm run research:all` | Regenerate Phase 0–4 studies, charts, invariants, mutation results, and manifest |
 | `npm run research:paper-evidence` | Generate paper-facing JSON, CSV, and SVG evidence |
@@ -414,6 +443,8 @@ The backend database role is one of:
 - `ADMIN`.
 - `AUDITOR`.
 - `ORACLE`.
+- `HOSPITAL`.
+- `BANK`.
 
 The chain uses role bytes32 values.
 
@@ -468,6 +499,8 @@ The on-chain role check prevents a removed operator from continuing through an o
 | `ORACLE_ROLE` | Oracle membership/worker identity |
 | `AUDITOR_ROLE` | Eligibility for auditor workflows |
 | `EMERGENCY_ROLE` | Emergency pause behavior where permitted |
+| `HOSPITAL_ROLE` | Wallet-bound Hospital identity and claim attestation in `HospitalVerificationRegistry` |
+| `BANK_ROLE` | Wallet-bound Bank identity and external premium confirmation in `BankIdentityRegistry` |
 
 The coordinator maintains an active oracle list.
 
@@ -488,9 +521,9 @@ The backend protects:
 
 The default claim IP limit is five requests per fifteen minutes.
 
-The default nonce limit is thirty requests per fifteen minutes.
-
-The default login limit is fifteen requests per fifteen minutes.
+The production defaults are thirty nonce requests and fifteen login attempts per
+fifteen minutes. Non-production defaults are one hundred each because the local
+Playwright rehearsal signs many distinct role wallets through one loopback IP.
 
 The default per-wallet submission authorization cap is three attempts in a
 rolling 24-hour window. Its self-reset endpoint is disabled unless
@@ -2279,7 +2312,8 @@ The backend:
 2. Connects to MongoDB.
 3. Runs the first confirmation-aware indexing pass.
 4. Starts the evidence-anchor scheduler and notification listener.
-5. Starts the Express listener and serves the already-mounted API routes.
+5. Starts the Bank payment scheduler.
+6. Starts the Express listener and serves the already-mounted API routes.
 
 Missing `MONGODB_URI` is a startup-fatal configuration error. Missing JWT,
 manager-address, or RPC configuration currently emits a startup warning and
@@ -2305,6 +2339,8 @@ intended stricter readiness gates.
 | `/api/audit` | Timeline and audit export |
 | `/api/oracle` | Logs, heartbeat, health, authenticated oracle operations |
 | `/api/notifications` | User notifications |
+| `/api/hospitals` | Hospital directory/profile, scoped records, claim requests, attestations/reconciliation |
+| `/api/banks` | Bank profile/accounts/mandates/transactions/automation and User banking operations |
 | `/api/indexer` | Indexed block/event visibility |
 | `/mock/hospital` | Hybrid healthcare-registry lookup and verification |
 | `/api/evidence-log` | Tree heads and inclusion/consistency proofs |
@@ -2400,6 +2436,9 @@ Typical messages explain:
 - Appeal cycle started.
 - Settlement withdrawn.
 - Benefit approved/rejected/settled.
+- Hospital verification completed or failed to match.
+- Bank mandate requested, approved, rejected, or cancelled.
+- EFT reminder, premium confirmation, or failed debit.
 
 ### 15.9 Core Mongo models
 
@@ -2421,6 +2460,13 @@ Typical messages explain:
 | `MockHospitalRecordOracle2` | Oracle-2 hybrid registry snapshot |
 | `VotingFinalization` | Manual review finalization projection |
 | `Notification` | Deduplicated user messages |
+| `Hospital` | Contracted Hospital directory identity and wallet mapping |
+| `HospitalClaimVerification` | Version-bound Hospital assessment and reconciled transaction/event |
+| `Bank` | Simulated Bank directory identity and wallet mapping |
+| `BankAccount` | Wallet-scoped mutable BDT account ledger |
+| `EftMandate` | Standing-instruction lifecycle, schedule, retry and approval metadata |
+| `BankOtpChallenge` | HMAC-hashed manual-payment challenge, expiry, attempts and status |
+| `BankTransaction` | EFT/manual debit state and on-chain confirmation receipt |
 | `IndexedBlock` | Confirmation-aware block record |
 | `IndexedBlockchainEvent` | Normalized chain event |
 | `IndexerCheckpoint` | Resume/reorg state |
@@ -2513,12 +2559,16 @@ Public routes include:
 
 - Home.
 - Wallet login.
+- Public policy catalog.
+- Public policy schedule/detail.
 
 Claimant routes include:
 
 - Dashboard.
 - Policy list.
 - Policy purchase.
+- Payments and statements.
+- Banking and EFT.
 - Claim list.
 - New claim.
 - Claim detail.
@@ -2546,6 +2596,16 @@ Auditor routes include:
 - Vote detail.
 - Reputation.
 - Document verification.
+
+Hospital routes include:
+
+- Hospital dashboard.
+- Patient and invoice records.
+- Claim verification requests.
+
+Bank routes include:
+
+- Bank dashboard with identity, accounts, mandate queue, automation, and transfer ledger.
 
 ### 17.2 Wallet behavior
 
@@ -2609,6 +2669,7 @@ The admin dashboard surfaces:
 - Reserve and settlement intelligence.
 - Benefits term/request state.
 - Action audit records.
+- Hospital verification state before Oracle routing.
 
 The UI should describe actions in protocol terms.
 
@@ -2647,20 +2708,23 @@ deployment/configuration sequence:
 3. Uses manager-created `OracleCoordinator`.
 4. Uses manager-created `PolicyEconomics`.
 5. Sets model identity from `backEnd/model-params.json`.
-6. Deploys/configures `ClaimAdjudicator`.
-7. Deploys `EvidenceRegistry`.
-8. Creates the Health Basic package.
-9. Deploys `PolicyBenefitsManager`.
-10. Publishes the default benefit schedule.
-11. Funds the benefits module.
-12. Deploys `ProtocolDeploymentRegistry`.
-13. Commits the migration manifest hash.
-14. Registers component addresses/interface versions.
-15. Grants local roles.
-16. Funds the manager reserve.
-17. Publishes the primary Merkle registry.
-18. Synchronizes ABI/configuration files.
-19. Runs profile-appropriate clean-state verification.
+6. Deploys/configures `HospitalVerificationRegistry` as an Oracle-request gate.
+7. Deploys/configures `BankIdentityRegistry` as the external-premium caller.
+8. Deploys/configures `ClaimAdjudicator`.
+9. Deploys `EvidenceRegistry`.
+10. Creates the Health Basic package.
+11. Deploys `PolicyBenefitsManager`.
+12. Publishes the default benefit schedule.
+13. Funds the benefits module.
+14. Deploys `ProtocolDeploymentRegistry`.
+15. Commits the migration manifest hash.
+16. Registers all eight component addresses/interface versions.
+17. Grants local Admin, Oracle, Auditor, Hospital, and Bank roles and synchronizes Mongo identities.
+18. Seeds the simulated Bank directory/accounts.
+19. Funds the manager reserve.
+20. Publishes the primary Merkle registry.
+21. Synchronizes ABI/configuration files.
+22. Runs profile-appropriate clean-state verification.
 
 ### 18.3 Destructive boundary
 
@@ -3026,6 +3090,9 @@ The design considers:
 - A user attempting evidence substitution.
 - A wallet/session attacker.
 - A treasury operator attempting excess withdrawal.
+- A dishonest or compromised Hospital identity/record.
+- A compromised Bank signer or manipulated off-chain BDT ledger.
+- A replayed Bank transfer reference or OTP challenge.
 - A service outage or chain reorganization.
 
 ### 22.2 Dishonest claimant
@@ -3126,6 +3193,30 @@ The indexer can roll back projections.
 
 The chain's canonical history remains the source of truth.
 
+### 22.11 Dishonest or compromised Hospital
+
+A registered Hospital can attest false source facts for claims naming its own
+ID. It cannot attest another Hospital's claim, and its attestation is bound to
+claim version and complete assessment hash. Completion gates the Oracle request,
+but the Hospital Boolean does not settle the claim. Oracle registry/model
+assessment and later manual review remain separate boundaries. A colluding
+Hospital plus sufficient Oracle/Auditor authority can still produce false
+outcomes; the protocol makes identities and transitions auditable rather than
+manufacturing real-world truth.
+
+### 22.12 Bank signer, ledger, and OTP compromise
+
+A compromised Bank signer can confirm a premium only through a registered
+`BANK_ROLE` identity and a previously unused reference. Manager policy
+ownership/status/amount checks still apply. The off-chain BDT ledger and
+scheduler remain backend-operated simulation state, so database access can
+affect displayed balances and availability. Conditional debits, serialized
+execution, replay protection, receipt reconciliation, and compensation on
+failed chain confirmation reduce double-debit/divergence risk but do not create
+real financial-institution assurance. OTP hashes, expiry, attempt locking, and
+rate limits reduce guessing/replay; production requires an independent delivery
+channel and secure Bank key custody.
+
 ---
 
 ## 23. Security controls checklist
@@ -3142,6 +3233,11 @@ The chain's canonical history remains the source of truth.
 - Registry/model/root binding.
 - Protected excess withdrawals.
 - Immutable module links where appropriate.
+- One-to-one Hospital and Bank identity mappings.
+- Claim-version-bound Hospital attestations.
+- Hospital-completion gate before Oracle request creation.
+- Replay-protected Bank transfer references.
+- Restricted Manager external-premium caller.
 
 ### 23.2 Backend controls
 
@@ -3156,6 +3252,10 @@ The chain's canonical history remains the source of truth.
 - API keys for oracle endpoints.
 - Transaction receipt reconciliation.
 - Confirmation-aware indexing.
+- Wallet-scoped Hospital/Bank directory resolution.
+- Hospital and Bank transaction target/signer/event reconciliation.
+- HMAC-hashed, expiring, attempt-limited manual-payment OTP challenges.
+- Conditional Bank debits, serialized execution, and failure compensation.
 
 ### 23.3 Frontend controls
 
@@ -3201,6 +3301,8 @@ Contract tests cover:
 - Evidence identities/tree heads.
 - Benefits terms/beneficiaries/requests.
 - Deployment registry.
+- Hospital identity, claim ownership, version-bound attestation, and Oracle gate.
+- Bank identity, replay protection, and external-premium recording.
 
 ### 24.2 Stateful/invariant tests
 
@@ -3226,6 +3328,8 @@ Backend tests cover:
 - Evidence access/grants.
 - Indexer behavior.
 - Policy/benefit service behavior.
+- Hospital directory, assessment, and hybrid-record boundaries.
+- Bank identities, account/mandate/OTP/transaction state, wallet scoping, and update-pipeline regression.
 
 ### 24.4 Oracle tests
 
@@ -3245,18 +3349,22 @@ Frontend verification includes:
 - ESLint.
 - Production build.
 - ABI/configuration synchronization.
+- Playwright route rendering, browser-error/HTTP-5xx monitoring, and cross-role redirects.
+- Stateful Hospital, Bank, policy, claim, Oracle, Auditor, payout, and showcase journeys.
 
 ### 24.6 Recorded suite results
 
-The latest cross-project verification and live-validation records report:
+The latest cross-project verification and live-validation records from
+2026-09-04 report:
 
-- 127 passing Solidity tests in the full verification suite.
-- 63 passing backend analytics and unit tests.
-- 13 oracle protocol tests.
-- Passing frontend lint/build.
-- Passing repository integrity, reproducibility, and runtime synchronization checks.
-- Five passing browser smoke/role tests and two passing complete policy/claim
-  settlement workflows on the 5,000-record hybrid runtime.
+- 132 passing Solidity tests.
+- 84 passing backend analytics and unit tests.
+- 13 passing Oracle tests.
+- Passing frontend lint/build (383 transformed production modules).
+- Six passing repository-integrity check groups and passing ABI/address/size/config synchronization.
+- A 22-test Playwright catalog: 13 repeatable read-only route/role tests, four
+  state-changing Bank/claim journeys, four state-dependent showcase checks, and
+  one reversible Hospital record-maintenance check.
 
 The current coverage run reported 126 passing instrumented tests plus one
 instrumentation-only pending size case; use the structured verification report
@@ -3303,15 +3411,18 @@ Recorded deployed bytecode sizes are:
 
 | Contract | Bytes | EIP-170 limit |
 |---|---:|---:|
-| `InsuranceManager` | 24,262 | 24,576 |
-| `OracleCoordinator` | 7,014 | 24,576 |
-| `ClaimAdjudicator` | 10,818 | 24,576 |
+| `InsuranceManager` | 24,358 | 24,576 |
+| `OracleCoordinator` | 7,543 | 24,576 |
+| `ClaimAdjudicator` | 10,880 | 24,576 |
 | `PolicyEconomics` | 9,484 | 24,576 |
 | `EvidenceRegistry` | 4,135 | 24,576 |
 | `ProtocolDeploymentRegistry` | 923 | 24,576 |
 | `PolicyBenefitsManager` | 9,981 | 24,576 |
+| `HospitalVerificationRegistry` | 3,327 | 24,576 |
+| `BankIdentityRegistry` | 2,423 | 24,576 |
 
-The manager has approximately 314 bytes of headroom.
+The manager has only 218 bytes of headroom. `npm run verify:sync` is
+authoritative for the current compiled sizes.
 
 This is a design constraint.
 
@@ -3326,6 +3437,12 @@ Adjudication was separated because vote/vault state has its own lifecycle.
 Evidence anchoring was separated because it has identity/tree-head state.
 
 Deployment identity was separated because migration metadata is not claim state.
+
+Hospital identity was separated because provider attestation must not inherit
+insurer administration authority.
+
+Bank identity was separated because external premium confirmation needs its own
+wallet boundary and replay protection without expanding the near-limit manager.
 
 ### 25.3 Hash-versus-root experiment
 
@@ -3750,6 +3867,8 @@ Never change canonicalization silently.
 - [`ClaimAdjudicator.sol`](../contracts/contracts/ClaimAdjudicator.sol): auditor assignment, votes, vault, reputation.
 - [`EvidenceRegistry.sol`](../contracts/contracts/EvidenceRegistry.sol): encryption identities, tree-head anchors.
 - [`PolicyBenefitsManager.sol`](../contracts/contracts/PolicyBenefitsManager.sol): benefit terms, beneficiaries, requests, withdrawals.
+- [`HospitalVerificationRegistry.sol`](../contracts/contracts/HospitalVerificationRegistry.sol): Hospital identities and version-bound claim attestations.
+- [`BankIdentityRegistry.sol`](../contracts/contracts/BankIdentityRegistry.sol): Bank identities and replay-protected external premium receipts.
 - [`ProtocolDeploymentRegistry.sol`](../contracts/contracts/ProtocolDeploymentRegistry.sol): component/migration identity.
 - [`GasTestContract.sol`](../contracts/contracts/GasTestContract.sol): root-versus-individual hash experiment.
 
@@ -3785,6 +3904,10 @@ Never change canonicalization silently.
 - `backEnd/services/evidenceBenchmarkService.js`: encryption/PRE/proof experiments.
 - `backEnd/services/policyBenefitsService.js`: benefit contract reads.
 - `backEnd/services/settlementIntelligenceService.js`: portfolio/reserve summaries.
+- `backEnd/services/hospitalDirectoryService.js`: Hospital directory and wallet-scoped identity resolution.
+- `backEnd/services/hospitalVerificationService.js`: deterministic claim/record assessment and attestation payload.
+- `backEnd/services/bankDirectoryService.js`: Bank directory and demo account bootstrap.
+- `backEnd/services/bankPaymentService.js`: mandates, reminders, OTP challenges, debit serialization, compensation, and scheduler.
 - `backEnd/scripts/evaluateHybridDataset.js`: provider-risk, comparator, ablation, bootstrap, and paired-attack study.
 - `backEnd/scripts/generateResearchManifest.js`: cross-artifact hashes and environment identity.
 
@@ -3796,6 +3919,11 @@ Never change canonicalization silently.
 - `frontEnd/src/pages/SubmitClaimPage.jsx`: encrypted claim choreography.
 - `frontEnd/src/pages/ClaimDetailPage.jsx`: claim, evidence, appeal, and withdrawal state.
 - `frontEnd/src/pages/AuditorVotingPage.jsx`: assigned wallet-signed contract vote.
+- `frontEnd/src/pages/HospitalDashboardPage.jsx`: Hospital profile and operational summary.
+- `frontEnd/src/pages/HospitalRecordsPage.jsx`: scoped record/invoice maintenance.
+- `frontEnd/src/pages/HospitalClaimRequestsPage.jsx`: Hospital claim assessment and attestation transaction.
+- `frontEnd/src/pages/BankDashboardPage.jsx`: Bank accounts, mandate actions, automation, and transfer ledger.
+- `frontEnd/src/pages/BankingPage.jsx`: Policyholder mandates, transfers, and manual OTP flow.
 - `frontEnd/src/pages/ThesisResultsDashboardPage.jsx`: frozen evaluation/result presentation.
 
 ### 31.5 Documentation source map
@@ -3806,7 +3934,7 @@ Never change canonicalization silently.
 - [`docs/phase-0-1-2-research-assurance.md`](../docs/phase-0-1-2-research-assurance.md): model, triage, invariant, and assurance work.
 - [`docs/phase-3-4-reserve-evidence-research.md`](../docs/phase-3-4-reserve-evidence-research.md): reserve and evidence experiments.
 - [`paper-evidence/README.md`](../paper-evidence/README.md): frozen paper results, claim boundaries, and section map.
-- [`block-insure-current-project-overview.md`](block-insure-current-project-overview.md): compact supervisor narrative.
+- `.project-context/00_PROJECT_BRIEF.md` through `03_CURRENT_STATE.md`: local-only portable AI context pack (intentionally not committed).
 
 ---
 
@@ -3824,6 +3952,9 @@ Before calling the repository “ready for a demonstration,” confirm:
 - Oracle snapshots match the published root versions.
 - Model identity matches the deployed model metadata.
 - Four active auditors exist for manual review.
+- Registered Hospital identities exist and the claim's Hospital wallet can attest.
+- The Hospital attestation matches the current claim version before Oracle request creation.
+- The Bank identity and policyholder demo accounts are registered and scoped.
 - Manager and benefits vaults are funded.
 - Evidence identities are registered.
 - Backend role records match on-chain roles.
@@ -3833,6 +3964,8 @@ Before calling the repository “ready for a demonstration,” confirm:
 - Conflict/timeout paths are tested.
 - Appeal version increments are visible.
 - Historical roots are retained.
+- Bank transfer references cannot be replayed.
+- Invalid manual-payment OTP does not terminate a valid SIWE session.
 - Test and verification commands pass.
 
 Before calling the project “production ready,” additionally require:
@@ -4649,23 +4782,25 @@ MongoDB, and synthetic concurrency prevent public-chain extrapolation.
 
 | Contract | Bytes | EIP-170 headroom |
 |---|---:|---:|
-| `InsuranceManager` | 24,262 | 314 |
-| `OracleCoordinator` | 7,014 | 17,562 |
-| `ClaimAdjudicator` | 10,818 | 13,758 |
+| `InsuranceManager` | 24,358 | 218 |
+| `OracleCoordinator` | 7,543 | 17,033 |
+| `ClaimAdjudicator` | 10,880 | 13,696 |
 | `PolicyEconomics` | 9,484 | 15,092 |
 | `EvidenceRegistry` | 4,135 | 20,441 |
 | `PolicyBenefitsManager` | 9,981 | 14,595 |
 | `ProtocolDeploymentRegistry` | 923 | 23,653 |
+| `HospitalVerificationRegistry` | 3,327 | 21,249 |
+| `BankIdentityRegistry` | 2,423 | 22,153 |
 
-The manager's 314-byte headroom is a material maintainability risk. Additional
+The manager's 218-byte headroom is a material maintainability risk. Additional
 logic should move to modules rather than expanding the manager.
 
 ## 41. Verification, reproducibility, and artifact authority
 
 ### 41.1 Current assurance snapshot
 
-- Contract tests: 127 passing.
-- Backend analytics/unit tests: 63 passing.
+- Contract tests: 132 passing.
+- Backend analytics/unit tests: 84 passing.
 - Oracle tests: 13 passing.
 - Hybrid adapter focused tests: 8 passing.
 - Solidity coverage: 93.77% statements, 65.07% branches, 90.59% functions,
@@ -4680,17 +4815,20 @@ mutants are evidence of assurance effort, not formal verification.
 
 ### 41.2 Live end-to-end validation
 
-On 2026-08-29 the managed hybrid stack—Hardhat, MongoDB, backend, frontend, and
-two oracle workers—passed:
+On 2026-09-04 the managed hybrid stack—Hardhat, MongoDB, backend, frontend, and
+two Oracle workers—passed the complete current browser catalog:
 
-1. five browser smoke/role tests in 30.3 seconds; and
-2. two complete workflows in approximately 84 seconds.
+1. 13 repeatable read-only public, role, route, cross-role, HTTP-5xx, and page-error checks;
+2. four state-changing workflows covering Bank and claim/adjudication journeys;
+3. four state-dependent Policyholder/Admin/Auditor showcase checks; and
+4. one reversible Hospital record/invoice maintenance and root-restoration check.
 
 The workflow tests cover:
 
 ```text
 policy purchase
   → encrypted claim submission
+  → registered hospital attestation
   → dual-oracle verification
   → automatic adjudication
   → payout
@@ -4702,6 +4840,17 @@ oracle negative-verification path
   → consensus
   → payout
   → SETTLED
+
+policyholder EFT mandate
+  → bank approval
+  → automatic quarterly debit without OTP
+  → replay-protected premium confirmation
+  → manual payment with invalid-then-valid OTP
+
+bank rejection
+  → policyholder observes rejection
+  → replacement mandate
+  → policyholder cancellation
 ```
 
 These results establish demonstration functionality on the frozen local stack.
@@ -4722,7 +4871,12 @@ For a clean live hybrid demonstration:
 terminal 1: npm run dev:hybrid
 terminal 2: npm run test:e2e
 terminal 2: npm run test:e2e:workflow
+terminal 2: npm run test:e2e:showcase
+terminal 2: npm run test:e2e:maintenance
 ```
+
+After a clean setup, `npm run test:e2e:all` executes those groups in the
+required order.
 
 Only one managed local stack should run at a time. A stale dev process can index
 the database while another bootstrap expects a clean state; stop the previous
@@ -4745,7 +4899,7 @@ process tree before a fresh `dev:hybrid` launch.
 Research reproducibility identity:
 
 ```text
-6a99593b052be9f99d439636039395f2c60760415c16e41a478da56869853ca0
+35bea03aa734dedd6c69a0a10f4db5d15c098296449ed8afc169c5c39c11f11f
 ```
 
 Hybrid evaluation reproducibility hash:
@@ -4919,8 +5073,9 @@ componentId → {deployment, interfaceVersion, registeredAt, active}
 ```
 
 Local setup uses `keccak256("BLOCK_INSURE_V1")` as protocol identity and
-registers manager, coordinator, adjudicator, economics, evidence registry, and
-benefits manager with hashed `/1` interface labels.
+registers manager, coordinator, adjudicator, economics, evidence registry,
+benefits manager, Hospital verification registry, and Bank identity registry
+with hashed `/1` interface labels.
 
 ### 44.2 Mutation and historical boundary
 
@@ -4960,8 +5115,283 @@ These details are easy to state incorrectly in a paper or demonstration:
   smaller serialization adds 28.
 - The deployment registry can overwrite directory records, but it cannot
   upgrade or redirect deployed protocol contracts.
+- Hospital attestation completion gates Oracle request creation but does not by
+  itself approve or settle a claim.
+- The Bank ledger represents simulated BDT; `BankIdentityRegistry` records a
+  replay-protected premium receipt and does not transfer fiat or native ETH.
+- An incorrect manual-payment OTP is HTTP 422 transaction validation, not an
+  HTTP 401 SIWE/session failure.
 
-## 46. Closing interpretation
+## 46. Hospital identity, record, and attestation reference
+
+### 46.1 Responsibility boundary
+
+The Hospital subsystem separates a provider's factual attestation from insurer,
+Oracle, and Auditor authority. It consists of:
+
+- `HospitalVerificationRegistry.sol` for on-chain identity and version-bound attestations;
+- `Hospital` for the operational directory;
+- `MockHospitalRecord` for the primary runtime registry;
+- `HospitalClaimVerification` for reconciled assessment/event projection;
+- `hospitalDirectoryService.js` for wallet-to-provider resolution;
+- `hospitalVerificationService.js` for deterministic comparison and hashing;
+- Hospital controllers/routes and three guarded frontend pages.
+
+A Hospital can say what its scoped record currently supports. It cannot create
+the Oracle request, supply an Oracle result, cast an Auditor vote, reserve
+liability, allocate a payout, or settle the claim.
+
+### 46.2 Configured identities
+
+The local network contains five distinct configured identities:
+
+| ID | Name | Tier |
+|---|---|---|
+| `HOSP-001` | Dhaka Central Medical Hospital | Tertiary |
+| `HOSP-002` | Chattogram Metropolitan Hospital | Tertiary |
+| `HOSP-003` | Rajshahi Community Hospital | Secondary |
+| `HOSP-004` | Khulna Riverside Hospital | Secondary |
+| `HOSP-005` | Sylhet Valley Hospital | Specialized |
+
+Each ID and wallet must be one-to-one in both the Mongo directory and
+`HospitalVerificationRegistry`. Local role bootstrap seeds the directory,
+assigns application role `HOSPITAL`, and registers the identity on-chain. A
+privileged Hospital HTTP request also checks the current `HOSPITAL_ROLE` rather
+than relying only on the Mongo role.
+
+### 46.3 Record ownership and mutation
+
+Every list/detail/create/update query is scoped by the Hospital identity derived
+from the authenticated wallet. The client cannot replace `hospitalId` in a
+mutation payload to cross that boundary.
+
+A Hospital-created record derives:
+
+```text
+invoiceHash = keccak256(UTF8(invoiceNumber))
+patientHash = keccak256(UTF8(patientReference))
+```
+
+It begins with active licensing, valid record/invoice status, legitimate
+controlled truth, and explicit `hospital-maintained-v1`/fully synthetic source
+metadata. The controller validates positive amount, chronological admission /
+discharge dates, required identifiers, and duplicate invoice/hash uniqueness.
+
+Updates are restricted to treatment, diagnosis, care/invoice dates, amount,
+invoice status, and record status. They cannot change the owning Hospital,
+patient hash, invoice number, or invoice hash.
+
+Hospital record writes return `registryCommitmentPending: true`. They do not
+silently mutate an already published on-chain root. The current implementation
+also does not automatically mirror a newly maintained primary record into the
+Oracle-2 snapshot or invalidate/rebuild/publish every worker snapshot. Therefore
+record maintenance is an explicit pre-publication state: operators must rebuild
+the intended immutable snapshots, verify their agreement, and publish a new
+root before those changes are relied on by Oracle consensus. This is a current
+operational limitation, not an automatic live-registry synchronization feature.
+
+### 46.4 Claim ownership and assessment
+
+The Hospital claim queue reads current on-chain claims and retains only claims
+whose `hospitalId` exactly matches the authenticated Hospital. Detail lookup
+repeats the ownership check and loads the primary record using both Hospital ID
+and lowercased invoice hash.
+
+The deterministic assessment contains six checks:
+
+| Check | Meaning |
+|---|---|
+| `invoiceFound` | A scoped primary record exists |
+| `invoiceHashMatches` | Record and claim invoice identity agree |
+| `amountMatches` | Record bill amount converted with `parseEther` equals on-chain claim amount |
+| `incidentWithinCareDates` | Incident is between admission and end of discharge day |
+| `treatmentMatches` | Normalized record treatment equals claim type |
+| `recordEligible` | Record and invoice are valid and license is active |
+
+All six true produces `VERIFIED`; an existing record with any false check
+produces `MISMATCHED`; no record produces `NOT_FOUND`.
+
+The complete assessment is hashed as a deterministic
+`BLOCK_INSURE_HOSPITAL_ATTESTATION_V1` payload containing Hospital identity,
+outcome, checks, claim/version snapshot, and optional record snapshot.
+
+### 46.5 On-chain attestation and reconciliation
+
+`submitHospitalVerification` requires:
+
+- the caller to hold `HOSPITAL_ROLE`;
+- a nonzero attestation hash;
+- claim status `DUPLICATE_CHECKED` or `APPEALED`;
+- the claim's Hospital ID to map bidirectionally to the caller; and
+- the current Manager claim version.
+
+The registry stores one latest verification per claim with completion,
+verified Boolean, wallet, hash, version, and timestamp. The backend confirms
+the submitted transaction by checking receipt success, target contract, signer,
+event name/claim, Boolean, attestation hash, and version before upserting the
+unique `(claimId, claimVersion)` projection.
+
+`OracleCoordinator.requestVerification` requires only that a Hospital
+verification is complete for the requested claim version. It does not require
+the Hospital's `verified` Boolean to be true. A mismatch/not-found attestation
+can therefore advance to the Oracle layer, where the bound registry/model logic
+derives the protocol result instead of treating the Hospital as final judge.
+
+### 46.6 Hospital invariants
+
+- One configured Hospital ID maps to at most one wallet and vice versa.
+- A Hospital cannot attest a claim naming another Hospital.
+- Attestation hash and claim version are bound to the event/projection.
+- An old-version attestation cannot unlock an appealed claim version.
+- Hospital completion is necessary before Oracle request creation when the gate is configured.
+- Hospital completion is not claim approval or payout authority.
+- Record mutation is not equivalent to root publication.
+
+## 47. Bank identity, EFT, and manual-payment reference
+
+### 47.1 Responsibility boundary
+
+The Bank subsystem is a local BDT payment simulation with an on-chain authority
+and receipt boundary. Mongo stores the mutable Bank/account/mandate/OTP/payment
+ledger. `BankIdentityRegistry` authenticates the Bank wallet, rejects transfer
+reference replay, and calls the Manager's restricted external-premium entry
+point. It does not custody fiat and its confirmation call does not transfer ETH.
+
+Current operational components are:
+
+- `BankIdentityRegistry.sol`;
+- `Bank`, `BankAccount`, `EftMandate`, `BankOtpChallenge`, and `BankTransaction`;
+- `bankDirectoryService.js` and `bankPaymentService.js`;
+- `/api/banks` Bank/User endpoints;
+- Bank dashboard and Policyholder banking/payment pages; and
+- a 15-minute backend scheduler plus an initial startup scan.
+
+### 47.2 Identity and account model
+
+The current network contains one configured identity, `BANK-001` (Bangladesh
+Demo Commercial Bank), operating in BDT. Local bootstrap registers its wallet
+one-to-one on-chain, creates the `BANK` application identity, and seeds three
+wallet-scoped accounts named `DEMO-5000`, `DEMO-7000`, and `DEMO-10000`.
+
+Those suffixes describe initial demo balances only. Successful EFT/manual
+payments mutate balances, so application and test logic must read current value.
+Accounts support `ACTIVE`, `FROZEN`, and `CLOSED`; only active accounts can fund
+a new transfer.
+
+The production Bank signing key must be configured. A fixed local development
+fallback is accepted only on chain ID 31337 outside production; its secret value
+must never appear in documentation or user output.
+
+### 47.3 Premium conversion
+
+The simulation uses:
+
+```text
+BDT minor units = round(premiumWei × 10,000,000 / 1 ether)
+```
+
+Thus the default `0.01 ETH` package premium maps to 100,000 minor units, or
+1,000.00 BDT. This is a transparent demo conversion constant, not a live FX
+rate or actuarial assumption.
+
+### 47.4 Mandate lifecycle
+
+Mandates bind Bank ID, account reference, policy ID, owner wallet, destination,
+amount, quarterly frequency, validity interval, and schedule metadata. The
+sparse unique `activeInstructionKey = lower(wallet) + ":" + policyId` prevents
+two pending/active instructions for one wallet/policy while allowing replacement
+after rejection/cancellation/expiry.
+
+```text
+PENDING_BANK_APPROVAL -> ACTIVE -> EXPIRED
+                     \-> REJECTED
+PENDING_BANK_APPROVAL or ACTIVE -> CANCELLED
+```
+
+Creation verifies account ownership, active account state, policy ownership,
+effective policy status (`ACTIVE` or `GRACE_PERIOD`), valid dates, and absence
+of a pending/active duplicate. Approval is atomic and uses a Mongoose
+aggregation pipeline so `nextDebitAt` copies `validFrom`; the call must set
+`updatePipeline: true`. Rejection/cancellation removes the active uniqueness
+key so the User can replace the mandate.
+
+### 47.5 Automation behavior
+
+The scheduler scans active mandates ordered by next debit:
+
+1. expire instructions beyond `validUntil`;
+2. send one reminder when due in 15–20 days;
+3. skip future due dates;
+4. atomically claim a due attempt unless it ran within the one-hour retry interval;
+5. reload account and authoritative current policy premium;
+6. execute the serialized transfer;
+7. on success, advance `nextDebitAt` by 90 days and clear reminder state;
+8. retain failure metadata for a later allowed retry.
+
+Automation and manual payments share a process-level promise queue so concurrent
+requests cannot race the same mutable ledger path inside one backend process.
+The account debit itself is conditional on active status and sufficient balance.
+
+### 47.6 On-chain confirmation and compensation
+
+After the conditional BDT debit, the Bank signer calls:
+
+```text
+BankIdentityRegistry.confirmEftTransfer(
+  policyId,
+  policyholder,
+  premiumAmountWei,
+  keccak256(transactionId),
+  keccak256(mandateId or manual identity)
+)
+```
+
+The registry requires `BANK_ROLE`, nonzero inputs, unused transfer reference,
+and an unpaused Manager. It marks the reference processed before calling
+`InsuranceManager.recordExternalPremium`, whose caller must be the configured
+Bank registry. Manager policy ownership/status/amount rules then advance the
+same premium lifecycle used by other valid premium paths.
+
+If the chain call fails, the backend restores the conditional BDT debit and
+marks the transaction failed. Once chain confirmation succeeds, that economic
+receipt is treated as irreversible: later Mongo/notification failure must not
+refund the account and create disagreement with the mined premium receipt.
+
+### 47.7 Manual OTP lifecycle
+
+A User can request an OTP only for an owned active account and owned active/grace
+policy. The backend creates a random six-digit value, stores only an HMAC-SHA256
+hash bound to the challenge ID, sets five-minute expiry, and expires older
+pending challenges for the same wallet/account/policy.
+
+```text
+PENDING -> USED
+PENDING -> EXPIRED
+PENDING -> LOCKED after three wrong attempts
+```
+
+Verification uses timing-safe hash comparison. The valid challenge is consumed
+with a conditional atomic update before transfer execution. An incorrect OTP
+returns HTTP 422 because it is payment validation; returning HTTP 401 would
+incorrectly trigger the frontend's global SIWE session-expiry handler.
+
+Development mode can return the generated OTP to support the local demonstration.
+A production implementation requires an independent delivery channel and must
+not expose it in the response.
+
+### 47.8 Bank invariants and limitations
+
+- One Bank ID maps to at most one wallet and vice versa.
+- Bank/User APIs derive the wallet from the authenticated session.
+- Accounts, mandates, and transactions are scoped by Bank or owner wallet.
+- Transfer references are replay-protected on-chain.
+- A policyholder cannot have two live mandates for one policy.
+- An insufficient or chain-rejected debit cannot permanently reduce the Mongo balance.
+- A successful on-chain confirmation cannot be compensated by later off-chain failure.
+- Quarterly EFT never requests OTP; OTP is exclusive to User-initiated manual payment.
+- BDT balance, scheduler, and delivery behavior are simulations, not a real Bank integration.
+
+## 48. Closing interpretation
 
 Block-Insure is best understood as a constrained experiment in accountable automation.
 

@@ -51,5 +51,6 @@ reference/*
 # Local reference/planning files
 project overview.docx
 task checklist.md
+.project-context/
 paper-evidence/
 contracts/.venv-slither/

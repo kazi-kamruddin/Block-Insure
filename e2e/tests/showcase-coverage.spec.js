@@ -215,9 +215,11 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
 
       await session.page.goto("/auditor/claims");
       await expect(session.page.getByRole("heading", { name: "Claim Audit Timelines" })).toBeVisible();
-      const assignedClaimCard = session.page.locator(".auditor-claim-card", {
-        hasText: "HOSP-NOT-REGISTERED",
-      });
+      const claimCards = session.page.locator(".auditor-claim-card");
+      await expect(claimCards).toHaveCount(2);
+      // The workflow creates the exact-oracle claim first and the hospital
+      // NOT_FOUND/manual-review claim second. Both are settled by showcase time.
+      const assignedClaimCard = claimCards.last();
       const assignedTimelineLink = assignedClaimCard.getByRole("link", {
         name: "View Audit Timeline",
       });

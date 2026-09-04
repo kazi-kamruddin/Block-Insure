@@ -1,5 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const User = require("../models/User");
 const Bank = require("../models/Bank");
@@ -59,4 +61,25 @@ test("active EFT instructions have a uniqueness key and retry timestamp", () => 
   assert.equal(keyPath.options.unique, true);
   assert.equal(keyPath.options.sparse, true);
   assert.ok(EftMandate.schema.path("lastAttemptAt"));
+});
+
+test("mandate approval enables Mongoose aggregation-pipeline updates", () => {
+  const serviceSource = fs.readFileSync(
+    path.resolve(__dirname, "../services/bankPaymentService.js"),
+    "utf8"
+  );
+  const approvalStart = serviceSource.indexOf("const approveMandate");
+  const approvalEnd = serviceSource.indexOf("const rejectMandate", approvalStart);
+  const approvalSource = serviceSource.slice(approvalStart, approvalEnd);
+
+  assert.match(approvalSource, /updatePipeline:\s*true/);
+});
+
+test("an incorrect payment OTP does not masquerade as an expired wallet session", () => {
+  const serviceSource = fs.readFileSync(
+    path.resolve(__dirname, "../services/bankPaymentService.js"),
+    "utf8"
+  );
+
+  assert.match(serviceSource, /createError\("Incorrect OTP",\s*422\)/);
 });

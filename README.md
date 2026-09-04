@@ -111,10 +111,14 @@ public address expected in each browser profile. See
 [`docs/manual-metamask-rehearsal-2026-09-01.md`](docs/manual-metamask-rehearsal-2026-09-01.md)
 for the complete multi-terminal sequence and MetaMask prompt checklist.
 
-After `dev:hybrid` reports ready, `npm run test:e2e` checks public and role-isolated
-pages. `npm run test:e2e:workflow` runs two complete state-changing demonstrations:
-automatic two-Oracle approval and Oracle failure resolved by three assigned
-Auditors. Both journeys finish with claimant withdrawal and `SETTLED` status.
+After `dev:hybrid` reports ready, `npm run test:e2e` checks every public and
+role-isolated top-level page. `npm run test:e2e:workflow` runs four state-changing
+demonstrations: approved automatic/manual bank payments, bank rejection and
+policyholder cancellation, automatic two-Oracle approval, and Oracle failure
+resolved by three assigned Auditors. The claim journeys finish with claimant
+withdrawal and `SETTLED` status. After a clean setup, `npm run test:e2e:all` runs
+the complete ordered browser regression, including state-dependent workspace
+showcases and reversible hospital-record maintenance.
 `demo:populate` is a legacy synthetic-only fixture and must not be used to verify
 the hybrid registry because it replaces the runtime registry records.
 

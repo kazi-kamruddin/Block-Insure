@@ -29,17 +29,20 @@ export default function BankDashboardPage() {
   ]);
   const actionMutation = useMutation({
     mutationFn: ({ type, mandateId }) => type === "approve" ? approveBankMandate(mandateId) : rejectBankMandate(mandateId, "Bank review declined the standing instruction"),
-    onSuccess: async (data) => { showToast(data.message, "success"); await refresh(); },
-    onError: (error) => showToast(errorMessage(error), "error"),
+    onSuccess: async (data) => { showToast(data.message); await refresh(); },
+    onError: (error) => showToast(errorMessage(error), { tone: "error" }),
   });
   const automationMutation = useMutation({
     mutationFn: runBankAutomation,
     onSuccess: async (data) => {
       const result = data.result;
-      showToast(`Scan complete: ${result.reminders} reminder(s), ${result.paid} paid, ${result.failed} failed.`, result.failed ? "warning" : "success");
+      showToast(
+        `Scan complete: ${result.reminders} reminder(s), ${result.paid} paid, ${result.failed} failed.`,
+        { tone: result.failed ? "warning" : "success" }
+      );
       await refresh();
     },
-    onError: (error) => showToast(errorMessage(error), "error"),
+    onError: (error) => showToast(errorMessage(error), { tone: "error" }),
   });
 
   const bank = profileQuery.data?.bank;

@@ -23,14 +23,17 @@ const buildAuthLimiter = ({ windowEnv, limitEnv, defaultLimit, message }) =>
 const nonceRateLimit = buildAuthLimiter({
   windowEnv: "AUTH_NONCE_RATE_WINDOW_MS",
   limitEnv: "AUTH_NONCE_RATE_LIMIT",
-  defaultLimit: 30,
+  defaultLimit: process.env.NODE_ENV === "production" ? 30 : 100,
   message: "Too many nonce requests. Try again later.",
 });
 
 const walletLoginRateLimit = buildAuthLimiter({
   windowEnv: "AUTH_LOGIN_RATE_WINDOW_MS",
   limitEnv: "AUTH_LOGIN_RATE_LIMIT",
-  defaultLimit: 15,
+  // The local browser suite signs in several independent role wallets in one
+  // process, so they all share the same loopback IP. Keep production's tighter
+  // per-IP limit while allowing the documented multi-role rehearsal locally.
+  defaultLimit: process.env.NODE_ENV === "production" ? 15 : 100,
   message: "Too many wallet login attempts. Try again later.",
 });
 
