@@ -213,15 +213,11 @@ async function main() {
     );
   }
 
-  if (e2e.E2E_PINATA_MODE === "real") {
-    if (
-      !backend.PINATA_JWT &&
-      !(backend.PINATA_API_KEY && backend.PINATA_SECRET)
-    ) {
-      failures.push("Real Pinata mode requires backend Pinata API credentials");
-    }
-  } else if (e2e.E2E_PINATA_MODE !== "mock") {
-    failures.push('E2E_PINATA_MODE must be either "real" or "mock"');
+  if (
+    !backend.PINATA_JWT &&
+    !(backend.PINATA_API_KEY && backend.PINATA_SECRET)
+  ) {
+    failures.push("Evidence workflow tests require backend Pinata API credentials");
   }
 
   if (backend.DEV_ALLOW_CLAIM_LIMIT_RESET !== "true") {
@@ -230,7 +226,7 @@ async function main() {
 
   await Promise.all([
     checkHttp(failures, "Frontend", appUrl, "Block-Insure"),
-    checkHttp(failures, "Backend health check", `${apiUrl}/health`, "Backend is healthy"),
+    checkHttp(failures, "Backend readiness", `${apiUrl}/health/ready`, '"status":"ready"'),
   ]);
 
   if (contractAddress) {

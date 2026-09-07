@@ -5,7 +5,11 @@ const { calculateReproducibilityHash } = require("../backEnd/services/researchAr
 const { verifyModelArtifact } = require("../backEnd/services/modelArtifactService");
 const { verifyTriagePolicy } = require("../backEnd/services/triagePolicyService");
 const { reproducibilityBasis } = require("../backEnd/scripts/evaluateEvidenceLifecycle");
-const { run: buildResearchManifest } = require("../backEnd/scripts/generateResearchManifest");
+const {
+  researchManifestReproducibilityBasis,
+  run: buildResearchManifest,
+} = require("../backEnd/scripts/generateResearchManifest");
+const { parseEnv, verifyTemplate } = require("./releaseCheck");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const readJson = (relativePath) =>
@@ -30,6 +34,19 @@ const verifyPackageMetadata = (failures) => {
     const lockJson = readJson(lockPath);
     assert(Boolean(packageJson.name), `${packagePath} has no package name`, failures);
     assert(lockJson.lockfileVersion >= 3, `${lockPath} must use lockfileVersion 3 or newer`, failures);
+    for (const dependencyKind of ["dependencies", "devDependencies"]) {
+      const declaredDependencies = Object.keys(
+        packageJson[dependencyKind] || {}
+      ).sort();
+      const lockedDependencies = Object.keys(
+        lockJson.packages?.[""]?.[dependencyKind] || {}
+      ).sort();
+      assert(
+        JSON.stringify(declaredDependencies) === JSON.stringify(lockedDependencies),
+        `${dependencyKind} in ${lockPath} does not match ${packagePath}`,
+        failures
+      );
+    }
     assert(
       fs.existsSync(path.join(PROJECT_ROOT, directory, "node_modules")),
       `${directory}/node_modules is missing; run npm run install:all`,
@@ -37,7 +54,16 @@ const verifyPackageMetadata = (failures) => {
     );
   }
   const rootScripts = readJson("package.json").scripts || {};
-  for (const script of ["dev:all", "setup:local", "research:all", "verify:all", "verify:full", "doctor"]) {
+  for (const script of [
+    "dev:all",
+    "setup:local",
+    "research:all",
+    "verify:all",
+    "verify:full",
+    "doctor",
+    "deploy:sepolia",
+    "release:check",
+  ]) {
     assert(Boolean(rootScripts[script]), `Root package script ${script} is missing`, failures);
   }
 };
@@ -52,17 +78,25 @@ const parseExampleKeys = (relativePath) => new Set(
 
 const verifyEnvironmentTemplates = (failures) => {
   const requirements = {
-    "backEnd/.env.example": ["MONGODB_URI", "JWT_SECRET", "RPC_URL", "VITE_CONTRACT_ADDRESS", "ADMIN_PRIVATE_KEY", "ORACLE_PRIVATE_KEY", "ORACLE_PRIVATE_KEY_2", "ORACLE_API_KEY"],
-    "frontEnd/.env.example": ["VITE_API_BASE_URL", "VITE_CONTRACT_ADDRESS"],
+    "backEnd/.env.example": ["MONGODB_URI", "JWT_SECRET", "RPC_URL", "CHAIN_ID", "TRUST_PROXY", "VITE_CONTRACT_ADDRESS", "ADMIN_PRIVATE_KEY", "ORACLE_PRIVATE_KEY", "ORACLE_PRIVATE_KEY_2", "ORACLE_API_KEY", "ENABLE_SIMULATED_HOSPITAL_API"],
+    "frontEnd/.env.example": ["VITE_API_BASE_URL", "VITE_CONTRACT_ADDRESS", "VITE_NETWORK_NAME", "VITE_BLOCK_EXPLORER_URL"],
     "contracts/.env.example": ["ADMIN_PRIVATE_KEY"],
     "oracle/.env.example": ["RPC_URL", "CONTRACT_ADDRESS", "ORACLE_PRIVATE_KEY", "ORACLE_API_KEY"],
     "oracle/.env.oracle2.example": ["RPC_URL", "CONTRACT_ADDRESS", "ORACLE_PRIVATE_KEY_2", "ORACLE_API_KEY"],
-    "e2e/.env.example": ["E2E_APP_URL", "E2E_API_URL", "E2E_RPC_URL", "E2E_CHAIN_ID", "E2E_PINATA_MODE"],
+    "e2e/.env.example": ["E2E_APP_URL", "E2E_API_URL", "E2E_RPC_URL", "E2E_CHAIN_ID"],
   };
   for (const [filePath, keys] of Object.entries(requirements)) {
     const present = parseExampleKeys(filePath);
     for (const key of keys) assert(present.has(key), `${key} is missing in ${filePath}`, failures);
   }
+};
+
+const verifyDeploymentAssets = (failures) => {
+  const templatePath = path.join(PROJECT_ROOT, "deploy", "production.env.example");
+  assert(fs.existsSync(templatePath), "Deployment environment template is missing", failures);
+  if (!fs.existsSync(templatePath)) return;
+  const environment = parseEnv(fs.readFileSync(templatePath, "utf8"));
+  for (const failure of verifyTemplate(environment)) failures.push(failure);
 };
 
 const verifyResearchArtifacts = (failures) => {
@@ -97,6 +131,13 @@ const verifyResearchArtifacts = (failures) => {
   }
   assert(mutation.summary?.valid === mutation.summary?.killed, "Mutation campaign contains a surviving valid mutant", failures);
   assert((mutation.summary?.invalid || 0) + (mutation.summary?.timedOut || 0) + (mutation.summary?.infrastructureErrors || 0) === 0, "Mutation campaign contains invalid, timeout, or infrastructure results", failures);
+  assert(
+    researchManifest.reproducibilityHash === calculateReproducibilityHash(
+      researchManifestReproducibilityBasis(researchManifest)
+    ),
+    "Research manifest reproducibility hash is invalid",
+    failures
+  );
   const expectedManifest = buildResearchManifest({ writeOutput: false });
   assert(researchManifest.reproducibilityHash === expectedManifest.reproducibilityHash, "Research manifest is stale; regenerate research artifacts", failures);
 };
@@ -150,12 +191,13 @@ const run = () => {
   assert(validateNodeVersion(), `Node ${process.versions.node} is unsupported; use Node 20.19+, 22.12+, or newer`, failures);
   verifyPackageMetadata(failures);
   verifyEnvironmentTemplates(failures);
+  verifyDeploymentAssets(failures);
   verifyResearchArtifacts(failures);
   verifyCharts(failures);
   verifyCompiledContracts(failures);
   verifyTemporaryState(failures);
   if (failures.length) throw new Error(`Repository integrity verification failed:\n- ${failures.join("\n- ")}`);
-  return { checks: 6, node: process.version };
+  return { checks: 7, node: process.version };
 };
 
 if (require.main === module) {

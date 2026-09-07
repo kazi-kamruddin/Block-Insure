@@ -2,6 +2,7 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "Block-Insure API, oracle registry, and thesis evaluation tools",
+  "private": true,
   "main": "server.js",
   "scripts": {
     "test": "npm run test:section3 && npm run test:unit",
@@ -50,11 +51,10 @@
     "loadtest:claims": "node scripts/loadTestClaims.js",
     "test:section3": "node scripts/testSection3Analytics.js",
     "test:unit": "node --test test/*.test.js",
-    "role:set": "node scripts/setUserRole.js"
+    "role:set": "node scripts/setUserRole.js",
+    "keys:pre:generate": "node scripts/generateProxySigningKeys.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@ironcorelabs/recrypt-node-binding": "^0.11.1",
     "axios": "^1.16.1",

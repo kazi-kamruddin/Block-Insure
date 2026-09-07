@@ -232,7 +232,10 @@ async function main() {
   startService("Oracle 2", "oracle", ["run", "dev:oracle2"]);
   const backendPort = readEnvValue("backEnd/.env", "PORT") || "5000";
   await Promise.all([
-    waitForHttp(`http://127.0.0.1:${backendPort}/health`, "Backend is healthy"),
+    waitForHttp(
+      `http://127.0.0.1:${backendPort}/health/ready`,
+      '"status":"ready"'
+    ),
     waitForHttp("http://localhost:5173", "Block-Insure"),
   ]);
   console.log("[Launcher] Chain/deployment verified and application services are ready. Press Ctrl+C to stop them together.");

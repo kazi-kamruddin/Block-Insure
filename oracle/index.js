@@ -59,6 +59,11 @@ const ORACLE_POLL_INTERVAL_MS = Number(process.env.ORACLE_POLL_INTERVAL_MS || 50
 const ORACLE_HEARTBEAT_INTERVAL_MS = Number(
   process.env.ORACLE_HEARTBEAT_INTERVAL_MS || 30000
 );
+const ORACLE_HTTP_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.ORACLE_HTTP_TIMEOUT_MS || 30_000)
+);
+const http = axios.create({ timeout: ORACLE_HTTP_TIMEOUT_MS });
 const ORACLE_EVENT_QUERY_CHUNK_SIZE = Math.max(
   1,
   Number(process.env.ORACLE_EVENT_QUERY_CHUNK_SIZE || 2000)
@@ -166,7 +171,7 @@ const sendHeartbeat = async ({ requestId = "", claimId = "", txHash = "", force 
     const heartbeatSignature = await oracleWallet.signMessage(
       heartbeatMessage({ timestamp, requestId, claimId, txHash })
     );
-    await axios.post(
+    await http.post(
       `${BACKEND_API_URL}/api/oracle/heartbeat`,
       {
         oracleWallet: oracleWallet.address,
@@ -191,7 +196,7 @@ const sendHeartbeat = async ({ requestId = "", claimId = "", txHash = "", force 
 
 const saveOracleLog = async (payload) => {
   try {
-    await axios.post(`${BACKEND_API_URL}/api/oracle/logs`, payload, {
+    await http.post(`${BACKEND_API_URL}/api/oracle/logs`, payload, {
       headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
     });
   } catch (error) {
@@ -303,7 +308,7 @@ const handleOracleRequested = async (requestId, claimId) => {
       modelVersion: request.modelVersion,
       modelArtifactHash: runtimeModelArtifact.artifactHash,
     };
-    const hospitalResponse = await axios.get(MOCK_HOSPITAL_API_URL, {
+    const hospitalResponse = await http.get(MOCK_HOSPITAL_API_URL, {
       params: { ...queryData, registrySnapshot: ORACLE_REGISTRY_SNAPSHOT },
       headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
     });

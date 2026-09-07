@@ -1,4 +1,9 @@
-const HOSPITAL_NETWORK = Object.freeze([
+const configuredWallets = String(process.env.HOSPITAL_WALLET_ADDRESSES || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const defaultHospitalNetwork = [
   {
     hospitalId: "HOSP-001",
     name: "Dhaka Central Medical Hospital",
@@ -39,7 +44,22 @@ const HOSPITAL_NETWORK = Object.freeze([
     hospitalTier: "SPECIALIZED",
     walletAddress: "0xdf3e18d64bc6a983f673ab319ccae4f1a57c7097",
   },
-]);
+];
+
+if (configuredWallets.length && configuredWallets.length !== defaultHospitalNetwork.length) {
+  throw new Error(
+    `HOSPITAL_WALLET_ADDRESSES must contain exactly ${defaultHospitalNetwork.length} addresses`
+  );
+}
+
+const HOSPITAL_NETWORK = Object.freeze(
+  defaultHospitalNetwork.map((hospital, index) =>
+    Object.freeze({
+      ...hospital,
+      walletAddress: configuredWallets[index] || hospital.walletAddress,
+    })
+  )
+);
 
 const getHospitalNetworkEntry = (hospitalId) =>
   HOSPITAL_NETWORK.find((hospital) => hospital.hospitalId === hospitalId);

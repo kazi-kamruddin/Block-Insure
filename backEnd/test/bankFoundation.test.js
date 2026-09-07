@@ -24,7 +24,7 @@ test("provides visibly different demo account balances", () => {
   assert.equal(new Set(DEMO_BANK_ACCOUNTS.map((account) => account.accountReference)).size, 3);
 });
 
-test("accepts BANK and the planned EFT mandate lifecycle", () => {
+test("accepts BANK and the implemented EFT mandate lifecycle", () => {
   assert.ok(User.schema.path("role").enumValues.includes("BANK"));
   assert.deepEqual(EftMandate.schema.path("status").enumValues, [
     "PENDING_BANK_APPROVAL", "ACTIVE", "EXPIRED", "CANCELLED", "REJECTED",

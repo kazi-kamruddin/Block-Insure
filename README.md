@@ -1,7 +1,8 @@
 # Block-Insure
 
 Block-Insure is a thesis prototype for blockchain-backed insurance claims,
-multi-oracle verification, fraud-risk scoring, auditor voting, and on-chain
+multi-oracle verification, explainable fraud-risk scoring, independent auditor
+review, hospital-owned attestations, bank-managed premium payments, and on-chain
 settlement.
 
 The base `InsuranceManager` contract is paired with a dedicated
@@ -17,7 +18,8 @@ modules.
 
 - `contracts`: Solidity contract, deployment scripts, and Hardhat tests.
 - `backEnd`: Express API, MongoDB models, fraud model, and evaluation scripts.
-- `frontEnd`: React dashboards for users, admins, and auditors.
+- `frontEnd`: React dashboards for policyholders, administrators, auditors,
+  hospitals, and banks.
 - `oracle`: Two configurable oracle-node processes.
 - `docs`: Design decisions, limitations, and thesis methodology notes.
 
@@ -28,15 +30,15 @@ modules.
 Use this workflow for a fresh simulation. It deliberately removes only
 Block-Insure runtime data from the configured MongoDB database, deploys a new
 local contract, creates **one** `Health Basic` package, funds the configured
-local role accounts, and assigns the configured Admin, four Auditors, and Oracle
-roles. It also funds a 1 ETH local settlement reserve. It creates **no
+local role accounts, and assigns one Admin, four Auditors, five Hospitals, one
+Bank, and two Oracle identities. It also funds a 1 ETH local settlement reserve. It creates **no
 policies, claims, appeals, evidence, oracle logs, or
 synthetic user activity**. It does rebuild the synthetic healthcare registry
 baseline and commits its Merkle root on the fresh local chain, so newly created
 claims can be verified by the oracle from the first run.
 
-The clean role baseline is exactly one Admin, four Auditors, and two Oracle
-wallets. Auditor reputation is not seeded; it is derived automatically from
+The clean role baseline is exactly one Admin, four Auditors, five Hospitals,
+one Bank, and two Oracle wallets. Auditor reputation is not seeded; it is derived automatically from
 finalized review outcomes. Every manual review snapshots exactly four active
 auditors. Three approvals allocate payout automatically; two rejections reject
 immediately, and an expired review rejects for insufficient quorum. Local
@@ -152,6 +154,27 @@ workers authenticate with `ORACLE_API_KEY`, and the response exposed to oracle
 logs contains a limited record commitment instead of patient and diagnosis
 fields.
 
+## Deployment
+
+The tracked production bundle runs the frontend, backend, two independent oracle
+workers, and an automatic-TLS gateway while keeping MongoDB, Pinata, blockchain
+RPC, and wallet custody external. Start with the
+[deployment guide](docs/deployment-guide.md); do not deploy the prototype to
+mainnet or use real patient/insurance data.
+
+Validate the release structure without secrets:
+
+```powershell
+npm run release:check:template
+```
+
+After creating the ignored `deploy/production.env`, validate every production
+URL, chain, address, identity, and secret relationship with:
+
+```powershell
+npm run release:check
+```
+
 ## Verification
 
 Run the complete repository verification from the project root:
@@ -258,8 +281,9 @@ after regenerating and verifying the research artifacts:
 npm run research:paper-evidence
 ```
 
-The frozen paper evidence, claim boundaries, and section mapping are documented
-in [`paper-evidence/README.md`](paper-evidence/README.md).
+The paper-evidence command writes its generated tables, figures, and section map
+to the ignored local `paper-evidence/` directory. The tracked six-page paper is
+available at [`output/pdf/block-insure-six-page-paper.pdf`](output/pdf/block-insure-six-page-paper.pdf).
 
 The admin **Thesis Results** dashboard reads generated artifacts from
 `backEnd/evaluation-results`.
@@ -280,10 +304,11 @@ cannot replace a valid JSON file with a partially written one.
 
 ## Documentation
 
+- [Deployment guide](docs/deployment-guide.md)
 - [Current protocol security and operational verification](docs/phase-5-operational-hardening.md)
+- [Supervisor showcase guide](docs/supervisor-showcase-guide.md)
 - [Current protocol migration manifest](docs/protocol-v2-migration.json)
 - [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
 - [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
-- [Phase 5 operational hardening and future-run guide](docs/phase-5-operational-hardening.md)
-- [Paper evidence freeze and writing map](paper-evidence/README.md)
+- [Six-page thesis paper](output/pdf/block-insure-six-page-paper.pdf)
 - [Deep technical reference](reference/block-insure-deep-technical-reference.md)

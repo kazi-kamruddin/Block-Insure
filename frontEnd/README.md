@@ -1,6 +1,7 @@
 # Block-Insure Frontend
 
-React and Vite dashboards for policyholders, administrators, and auditors.
+React and Vite dashboards for policyholders, administrators, auditors,
+hospitals, and banks.
 
 ## Setup
 

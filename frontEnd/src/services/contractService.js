@@ -11,6 +11,11 @@ const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
 const POLICY_BENEFITS_ADDRESS = import.meta.env.VITE_POLICY_BENEFITS_ADDRESS;
 const EVIDENCE_REGISTRY_ADDRESS = import.meta.env.VITE_EVIDENCE_REGISTRY_ADDRESS;
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
+export const REQUIRED_NETWORK_NAME =
+  import.meta.env.VITE_NETWORK_NAME || "configured network";
+const BLOCK_EXPLORER_URL = String(
+  import.meta.env.VITE_BLOCK_EXPLORER_URL || ""
+).replace(/\/$/, "");
 
 export const REQUIRED_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337);
 
@@ -145,7 +150,7 @@ export async function assertCorrectNetwork() {
 
   if (activeChainId !== REQUIRED_CHAIN_ID) {
     throw new Error(
-      `Wrong MetaMask network. Expected chain ID ${REQUIRED_CHAIN_ID}, but got ${activeChainId}. Switch MetaMask to Hardhat Localhost.`
+      `Wrong MetaMask network. Expected ${REQUIRED_NETWORK_NAME} (chain ID ${REQUIRED_CHAIN_ID}), but got chain ID ${activeChainId}.`
     );
   }
 }
@@ -374,9 +379,9 @@ export function getEtherscanTxUrl(txHash) {
   const isLocal =
     RPC_URL.includes("127.0.0.1") || RPC_URL.includes("localhost");
 
-  if (isLocal) {
+  if (isLocal || !BLOCK_EXPLORER_URL) {
     return "#";
   }
 
-  return `https://sepolia.etherscan.io/tx/${txHash}`;
+  return `${BLOCK_EXPLORER_URL}/tx/${txHash}`;
 }

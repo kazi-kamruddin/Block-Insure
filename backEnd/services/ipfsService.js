@@ -1,8 +1,16 @@
 const axios = require("axios");
 const FormData = require("form-data");
 
+const PINATA_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.PINATA_TIMEOUT_MS) || 30_000
+);
+
 const uploadToPinata = async (fileBuffer, fileName, mimeType) => {
-  if (!process.env.PINATA_JWT && (!process.env.PINATA_API_KEY || !process.env.PINATA_SECRET)) {
+  if (
+    !process.env.PINATA_JWT &&
+    (!process.env.PINATA_API_KEY || !process.env.PINATA_SECRET)
+  ) {
     const error = new Error("Pinata credentials are missing");
     error.statusCode = 500;
     throw error;
@@ -32,6 +40,7 @@ const uploadToPinata = async (fileBuffer, fileName, mimeType) => {
     {
       headers,
       maxBodyLength: Infinity,
+      timeout: PINATA_TIMEOUT_MS,
     }
   );
 
@@ -54,6 +63,7 @@ const unpinFromPinata = async (ipfsCID) => {
 
   await axios.delete(`https://api.pinata.cloud/pinning/unpin/${ipfsCID}`, {
     headers,
+    timeout: PINATA_TIMEOUT_MS,
   });
 
   return true;

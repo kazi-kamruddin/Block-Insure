@@ -18,6 +18,21 @@ const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
 const readJsonIfExists = (filePath) =>
   fs.existsSync(filePath) ? readJson(filePath) : null;
 
+const researchManifestReproducibilityBasis = (manifest) => {
+  const { source: _source, environment = {}, ...stableManifest } = manifest;
+  const {
+    node: _node,
+    platform: _platform,
+    architecture: _architecture,
+    ...stableEnvironment
+  } = environment;
+
+  return {
+    ...stableManifest,
+    environment: stableEnvironment,
+  };
+};
+
 const git = (...args) => execFileSync(
   "git",
   ["-c", `safe.directory=${PROJECT_ROOT.replace(/\\/g, "/")}`, ...args],
@@ -319,7 +334,9 @@ const run = ({ writeOutput = true } = {}) => {
       reproducePhasesThreeAndFour: "npm --prefix backEnd run research:phase34",
     },
   };
-  manifest.reproducibilityHash = calculateReproducibilityHash(manifest);
+  manifest.reproducibilityHash = calculateReproducibilityHash(
+    researchManifestReproducibilityBasis(manifest)
+  );
   if (writeOutput) {
     atomicWriteFileSync(OUTPUT_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
   }
@@ -332,4 +349,8 @@ if (require.main === module) {
   console.log(`Reproducibility hash: ${manifest.reproducibilityHash}`);
 }
 
-module.exports = { readJsonIfExists, run };
+module.exports = {
+  readJsonIfExists,
+  researchManifestReproducibilityBasis,
+  run,
+};

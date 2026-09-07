@@ -23,6 +23,7 @@ const {
   startBankPaymentScheduler,
   stopBankPaymentScheduler,
 } = require("./services/bankPaymentService");
+const { assertRuntimeEnvironment } = require("./config/runtimeConfig");
 
 /* ----------------------------- DNS Config ----------------------------- */
 
@@ -42,18 +43,17 @@ let shuttingDown = false;
 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const DEFAULT_ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-];
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-const allowedOrigins =
-  ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : DEFAULT_ALLOWED_ORIGINS;
+let runtimeConfig;
+
+try {
+  runtimeConfig = assertRuntimeEnvironment();
+  runtimeConfig.warnings.forEach((warning) =>
+    console.warn(`[Backend configuration] ${warning}`)
+  );
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
 if (!MONGODB_URI) {
   console.error("Missing required environment variable: MONGODB_URI");
@@ -78,10 +78,14 @@ if (!process.env.RPC_URL) {
 
 app.disable("x-powered-by");
 
+if (runtimeConfig.trustProxy !== false) {
+  app.set("trust proxy", runtimeConfig.trustProxy);
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || runtimeConfig.allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
@@ -123,12 +127,14 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/health", (req, res) => {
+const healthPayload = () => {
   const databaseState =
     mongoose.connection.readyState === 1 ? "connected" : "disconnected";
-  res.status(200).json({
-    success: true,
-    message: "Backend is healthy",
+  const ready = databaseState === "connected";
+  return {
+    success: ready,
+    status: ready ? "ready" : "not_ready",
+    message: ready ? "Backend is ready" : "Backend dependencies are unavailable",
     services: {
       database: databaseState,
       blockchainRpc: process.env.RPC_URL ? "configured" : "missing",
@@ -140,8 +146,28 @@ app.get("/health", (req, res) => {
     },
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
+  };
+};
+
+app.get("/health/live", (req, res) => {
+  res.set("Cache-Control", "no-store").status(200).json({
+    success: true,
+    status: "alive",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
   });
 });
+
+const readinessHandler = (req, res) => {
+  const payload = healthPayload();
+  res
+    .set("Cache-Control", "no-store")
+    .status(payload.success ? 200 : 503)
+    .json(payload);
+};
+
+app.get("/health", readinessHandler);
+app.get("/health/ready", readinessHandler);
 
 app.get("/api", (req, res) => {
   res.status(200).json({
@@ -176,7 +202,11 @@ app.use(
 
 /* ----------------------------- Mock Routes ---------------------------- */
 
-app.use("/mock/hospital", require("./routes/mockHospitalRoutes"));
+if (runtimeConfig.simulatedHospitalApiEnabled) {
+  app.use("/mock/hospital", require("./routes/mockHospitalRoutes"));
+} else {
+  console.log("[Backend] Simulated hospital API disabled");
+}
 
 /* ---------------------------- 404 Handler ----------------------------- */
 

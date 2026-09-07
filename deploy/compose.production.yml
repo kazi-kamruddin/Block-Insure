@@ -1,0 +1,183 @@
+name: block-insure
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      TRUST_PROXY: ${TRUST_PROXY}
+      FORCE_PUBLIC_DNS: ${FORCE_PUBLIC_DNS:-false}
+      EXPOSE_INTERNAL_ERRORS: "false"
+      ENABLE_SIMULATED_HOSPITAL_API: ${ENABLE_SIMULATED_HOSPITAL_API}
+      DEV_ALLOW_CLAIM_LIMIT_RESET: "false"
+      DEMO_USE_HARDHAT_ACCOUNTS: "false"
+      MONGODB_URI: ${MONGODB_URI}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-block-insure-api}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-block-insure-client}
+      AUTH_SESSION_TTL_MS: ${AUTH_SESSION_TTL_MS:-3600000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      SIWE_URI: ${SIWE_URI}
+      SIWE_DOMAIN: ${SIWE_DOMAIN}
+      CHAIN_ID: ${CHAIN_ID}
+      RPC_URL: ${RPC_URL}
+      PINATA_JWT: ${PINATA_JWT:-}
+      PINATA_API_KEY: ${PINATA_API_KEY:-}
+      PINATA_SECRET: ${PINATA_SECRET:-}
+      PINATA_TIMEOUT_MS: ${PINATA_TIMEOUT_MS:-30000}
+      VITE_CONTRACT_ADDRESS: ${VITE_CONTRACT_ADDRESS}
+      POLICY_BENEFITS_ADDRESS: ${POLICY_BENEFITS_ADDRESS}
+      POLICY_BENEFITS_DEPLOYMENT_BLOCK: ${POLICY_BENEFITS_DEPLOYMENT_BLOCK}
+      CONTRACT_DEPLOYMENT_BLOCK: ${CONTRACT_DEPLOYMENT_BLOCK}
+      EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS}
+      HOSPITAL_VERIFICATION_REGISTRY_ADDRESS: ${HOSPITAL_VERIFICATION_REGISTRY_ADDRESS}
+      BANK_IDENTITY_REGISTRY_ADDRESS: ${BANK_IDENTITY_REGISTRY_ADDRESS}
+      PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS: ${PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS}
+      ADMIN_PRIVATE_KEY: ${ADMIN_PRIVATE_KEY}
+      CLAIM_OFFICER_WALLET_ADDRESS: ${CLAIM_OFFICER_WALLET_ADDRESS}
+      AUDITOR_WALLET_ADDRESS: ${AUDITOR_WALLET_ADDRESS}
+      AUDITOR_WALLET_ADDRESS_2: ${AUDITOR_WALLET_ADDRESS_2}
+      AUDITOR_WALLET_ADDRESS_3: ${AUDITOR_WALLET_ADDRESS_3}
+      AUDITOR_WALLET_ADDRESS_4: ${AUDITOR_WALLET_ADDRESS_4}
+      HOSPITAL_WALLET_ADDRESSES: ${HOSPITAL_WALLET_ADDRESSES}
+      BANK_PRIVATE_KEY: ${BANK_PRIVATE_KEY}
+      BANK_WALLET_ADDRESS: ${BANK_WALLET_ADDRESS}
+      BANK_OTP_SECRET: ${BANK_OTP_SECRET:-}
+      DEMO_BANK_ACCOUNT_OWNER_ADDRESSES: ${DEMO_BANK_ACCOUNT_OWNER_ADDRESSES}
+      EVIDENCE_LOG_SIGNER_PRIVATE_KEY: ${EVIDENCE_LOG_SIGNER_PRIVATE_KEY}
+      PRE_PROXY_SIGNING_KEYS_JSON: ${PRE_PROXY_SIGNING_KEYS_JSON}
+      ORACLE_API_KEY: ${ORACLE_API_KEY}
+      EVIDENCE_AUTO_ANCHOR: ${EVIDENCE_AUTO_ANCHOR:-true}
+      EVIDENCE_ANCHOR_INTERVAL_MS: ${EVIDENCE_ANCHOR_INTERVAL_MS:-300000}
+      INDEXER_ENABLED: ${INDEXER_ENABLED:-true}
+      INDEXER_CONFIRMATIONS: ${INDEXER_CONFIRMATIONS:-3}
+      INDEXER_CHUNK_SIZE: ${INDEXER_CHUNK_SIZE:-500}
+      INDEXER_POLL_INTERVAL_MS: ${INDEXER_POLL_INTERVAL_MS:-15000}
+    expose:
+      - "5000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:5000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  oracle-one:
+    build:
+      context: ..
+      dockerfile: deploy/oracle.Dockerfile
+    environment:
+      NODE_ENV: production
+      ORACLE_INSTANCE_ID: "1"
+      ORACLE_REGISTRY_SNAPSHOT: primary
+      ORACLE_CURSOR_FILE: /state/cursor-1.json
+      RPC_URL: ${RPC_URL}
+      CONTRACT_ADDRESS: ${CONTRACT_ADDRESS}
+      ORACLE_PRIVATE_KEY: ${ORACLE_PRIVATE_KEY}
+      ORACLE_API_KEY: ${ORACLE_API_KEY}
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:5000}
+      MOCK_HOSPITAL_API_URL: ${MOCK_HOSPITAL_API_URL:-http://backend:5000/mock/hospital/verify}
+      ORACLE_START_BLOCK: ${ORACLE_START_BLOCK}
+      ORACLE_POLL_INTERVAL_MS: ${ORACLE_POLL_INTERVAL_MS:-5000}
+      ORACLE_HEARTBEAT_INTERVAL_MS: ${ORACLE_HEARTBEAT_INTERVAL_MS:-30000}
+      ORACLE_HTTP_TIMEOUT_MS: ${ORACLE_HTTP_TIMEOUT_MS:-30000}
+      ORACLE_EVENT_QUERY_CHUNK_SIZE: ${ORACLE_EVENT_QUERY_CHUNK_SIZE:-2000}
+      ORACLE_SUBMIT_MAX_ATTEMPTS: ${ORACLE_SUBMIT_MAX_ATTEMPTS:-3}
+      ORACLE_SUBMIT_RETRY_DELAY_MS: ${ORACLE_SUBMIT_RETRY_DELAY_MS:-5000}
+    volumes:
+      - oracle-one-state:/state
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  oracle-two:
+    build:
+      context: ..
+      dockerfile: deploy/oracle.Dockerfile
+    environment:
+      NODE_ENV: production
+      ORACLE_INSTANCE_ID: "2"
+      ORACLE_REGISTRY_SNAPSHOT: oracle2
+      ORACLE_CURSOR_FILE: /state/cursor-2.json
+      RPC_URL: ${RPC_URL}
+      CONTRACT_ADDRESS: ${CONTRACT_ADDRESS}
+      ORACLE_PRIVATE_KEY_2: ${ORACLE_PRIVATE_KEY_2}
+      ORACLE_API_KEY: ${ORACLE_API_KEY}
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:5000}
+      MOCK_HOSPITAL_API_URL: ${MOCK_HOSPITAL_API_URL:-http://backend:5000/mock/hospital/verify}
+      ORACLE_START_BLOCK: ${ORACLE_START_BLOCK}
+      ORACLE_POLL_INTERVAL_MS: ${ORACLE_POLL_INTERVAL_MS:-5000}
+      ORACLE_HEARTBEAT_INTERVAL_MS: ${ORACLE_HEARTBEAT_INTERVAL_MS:-30000}
+      ORACLE_HTTP_TIMEOUT_MS: ${ORACLE_HTTP_TIMEOUT_MS:-30000}
+      ORACLE_EVENT_QUERY_CHUNK_SIZE: ${ORACLE_EVENT_QUERY_CHUNK_SIZE:-2000}
+      ORACLE_SUBMIT_MAX_ATTEMPTS: ${ORACLE_SUBMIT_MAX_ATTEMPTS:-3}
+      ORACLE_SUBMIT_RETRY_DELAY_MS: ${ORACLE_SUBMIT_RETRY_DELAY_MS:-5000}
+      ORACLE2_SIMULATED_NETWORK_DELAY_MS: ${ORACLE2_SIMULATED_NETWORK_DELAY_MS:-3000}
+    volumes:
+      - oracle-two-state:/state
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_CONTRACT_ADDRESS: ${VITE_CONTRACT_ADDRESS}
+        VITE_CLAIM_ADJUDICATOR_ADDRESS: ${VITE_CLAIM_ADJUDICATOR_ADDRESS}
+        VITE_POLICY_ECONOMICS_ADDRESS: ${VITE_POLICY_ECONOMICS_ADDRESS}
+        VITE_EVIDENCE_REGISTRY_ADDRESS: ${VITE_EVIDENCE_REGISTRY_ADDRESS}
+        VITE_HOSPITAL_VERIFICATION_REGISTRY_ADDRESS: ${VITE_HOSPITAL_VERIFICATION_REGISTRY_ADDRESS}
+        VITE_BANK_IDENTITY_REGISTRY_ADDRESS: ${VITE_BANK_IDENTITY_REGISTRY_ADDRESS}
+        VITE_PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS: ${VITE_PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS}
+        VITE_POLICY_BENEFITS_ADDRESS: ${VITE_POLICY_BENEFITS_ADDRESS}
+        VITE_POLICY_BENEFITS_DEPLOYMENT_BLOCK: ${VITE_POLICY_BENEFITS_DEPLOYMENT_BLOCK}
+        VITE_CONTRACT_DEPLOYMENT_BLOCK: ${VITE_CONTRACT_DEPLOYMENT_BLOCK}
+        VITE_RPC_URL: ${VITE_RPC_URL}
+        VITE_CHAIN_ID: ${VITE_CHAIN_ID}
+        VITE_NETWORK_NAME: ${VITE_NETWORK_NAME}
+        VITE_BLOCK_EXPLORER_URL: ${VITE_BLOCK_EXPLORER_URL}
+        VITE_IPFS_GATEWAY: ${VITE_IPFS_GATEWAY}
+    expose:
+      - "8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  gateway:
+    image: caddy:2.10-alpine
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST}
+      TLS_EMAIL: ${TLS_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  oracle-one-state:
+  oracle-two-state:
+  caddy-data:
+  caddy-config:

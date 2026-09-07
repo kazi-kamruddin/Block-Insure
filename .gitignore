@@ -8,6 +8,8 @@ node_modules/
 .env.*
 !.env.example
 !.env.oracle2.example
+deploy/production.env
+contracts/deployments/*.json
 
 # Build outputs
 dist/

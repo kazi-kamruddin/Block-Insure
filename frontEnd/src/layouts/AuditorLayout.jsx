@@ -1,33 +1,20 @@
-import { Navigate, NavLink, Outlet } from "react-router-dom";
-import { useWallet } from "../context/useWallet";
+import RoleWorkspaceLayout from "./RoleWorkspaceLayout";
+
+const AUDITOR_LINKS = [
+  { to: "/auditor/dashboard", label: "Overview", end: true },
+  { to: "/auditor/healthcare-registry", label: "Registry" },
+  { to: "/auditor/claims", label: "Audit Timelines" },
+  { to: "/auditor/votes", label: "Voting Queue" },
+  { to: "/auditor/verify-document", label: "Verify Document" },
+  { to: "/auditor/reputation", label: "Reputation" },
+];
 
 export default function AuditorLayout() {
-  const { isConnected, isRestoringSession, role, workspace } = useWallet();
-
-  if (isRestoringSession) {
-    return <div className="route-loading" role="status">Restoring wallet session...</div>;
-  }
-
-  if (!isConnected) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (role !== "AUDITOR") {
-    return <Navigate to={workspace?.home || "/"} replace />;
-  }
-
   return (
-    <div>
-      <nav className="subnav" aria-label="Auditor navigation">
-        <NavLink to="/auditor/dashboard" end>Overview</NavLink>
-        <NavLink to="/auditor/healthcare-registry">Registry</NavLink>
-        <NavLink to="/auditor/claims">Audit Timelines</NavLink>
-        <NavLink to="/auditor/votes">Voting Queue</NavLink>
-        <NavLink to="/auditor/verify-document">Verify Document</NavLink>
-        <NavLink to="/auditor/reputation">Reputation</NavLink>
-      </nav>
-
-      <Outlet />
-    </div>
+    <RoleWorkspaceLayout
+      expectedRole="AUDITOR"
+      navigationLabel="Auditor navigation"
+      links={AUDITOR_LINKS}
+    />
   );
 }

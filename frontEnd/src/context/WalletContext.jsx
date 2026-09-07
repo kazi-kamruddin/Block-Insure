@@ -4,6 +4,7 @@ import {
   getBrowserProvider,
   parseTransactionError,
   REQUIRED_CHAIN_ID,
+  REQUIRED_NETWORK_NAME,
 } from "../services/contractService";
 import {
   clearStoredSession,
@@ -259,7 +260,7 @@ export function WalletProvider({ children }) {
     function handleChainChanged(chainId) {
       if (Number(chainId) !== REQUIRED_CHAIN_ID) {
         clearSessionState(
-          `MetaMask switched networks. Select Hardhat Localhost (chain ID ${REQUIRED_CHAIN_ID}) and connect again.`
+          `MetaMask switched networks. Select ${REQUIRED_NETWORK_NAME} (chain ID ${REQUIRED_CHAIN_ID}) and connect again.`
         );
       }
     }

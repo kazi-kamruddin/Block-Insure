@@ -71,11 +71,10 @@ To run the state-changing banking and adjudication journeys:
 npm run test:e2e:workflow
 ```
 
-The workflow command uses the Pinata mode configured in `e2e/.env`. With
-`E2E_PINATA_MODE=real`, it uploads two small encrypted test artifacts to the real
-configured Pinata account and changes the current local blockchain/database
-state. Run it after a clean `setup:hybrid` (or start with `dev:hybrid`) when you
-want deterministic results. The workflow covers bank approval, rejection,
+The workflow command uploads two small encrypted test artifacts through the
+backend's configured Pinata account and changes the current local
+blockchain/database state. Run it after a clean `setup:hybrid` (or start with
+`dev:hybrid`) when you want deterministic results. The workflow covers bank approval, rejection,
 automatic EFT, manual OTP payment, automatic Oracle approval, and Oracle failure
 followed by assigned-Auditor consensus.
 

@@ -3,8 +3,14 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { atomicWriteFileSync } = require("../services/researchArtifactService");
+const {
+  atomicWriteFileSync,
+  calculateReproducibilityHash,
+} = require("../services/researchArtifactService");
 const { run: buildChartManifest, sha256File } = require("../scripts/generateChartManifest");
+const {
+  researchManifestReproducibilityBasis,
+} = require("../scripts/generateResearchManifest");
 
 const projectRoot = path.resolve(__dirname, "..", "..");
 
@@ -30,6 +36,51 @@ test("chart manifest covers every generated PNG and SVG with exact hashes", () =
     assert.equal(sha256File(path.join(chartDirectory, chart.file)), chart.sha256);
     assert.ok(chart.bytes > 0);
   }
+});
+
+test("research manifest identity ignores machine and Git checkout provenance", () => {
+  const base = {
+    schemaVersion: 4,
+    generatedAt: "2026-01-01T00:00:00.000Z",
+    source: { gitCommit: "a".repeat(40), branch: "main", dirty: false },
+    environment: {
+      node: "v20.19.0",
+      platform: "linux",
+      architecture: "x64",
+      solidity: "0.8.26",
+      optimizerRuns: 1,
+    },
+    artifacts: { fraudModel: { artifactHash: "model-v1" } },
+  };
+  const differentCheckout = {
+    ...base,
+    source: { gitCommit: "b".repeat(40), branch: "review", dirty: true },
+    environment: {
+      ...base.environment,
+      node: "v22.12.0",
+      platform: "win32",
+      architecture: "arm64",
+    },
+  };
+
+  const baseHash = calculateReproducibilityHash(
+    researchManifestReproducibilityBasis(base)
+  );
+  assert.equal(
+    baseHash,
+    calculateReproducibilityHash(
+      researchManifestReproducibilityBasis(differentCheckout)
+    )
+  );
+  assert.notEqual(
+    baseHash,
+    calculateReproducibilityHash(
+      researchManifestReproducibilityBasis({
+        ...base,
+        artifacts: { fraudModel: { artifactHash: "model-v2" } },
+      })
+    )
+  );
 });
 
 test("root orchestration exposes clean install, bootstrap, research, and verification commands", () => {

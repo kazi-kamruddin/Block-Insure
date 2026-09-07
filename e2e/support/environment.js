@@ -55,7 +55,6 @@ function getE2EConfig() {
     chainId: Number(e2e.E2E_CHAIN_ID || 31337),
     actionTimeoutMs: Number(e2e.E2E_ACTION_TIMEOUT_MS || 15_000),
     scenarioTimeoutMs: Number(e2e.E2E_SCENARIO_TIMEOUT_MS || 120_000),
-    pinataMode: e2e.E2E_PINATA_MODE || "real",
     actors: {
       user: {
         role: "USER",

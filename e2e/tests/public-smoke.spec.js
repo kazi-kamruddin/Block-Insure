@@ -5,12 +5,13 @@ test.describe("@smoke public application", () => {
   test("landing page and backend health are available", async ({ page, request }) => {
     const environment = getE2EConfig();
 
-    const healthResponse = await request.get(`${environment.apiUrl}/health`);
+    const healthResponse = await request.get(`${environment.apiUrl}/health/ready`);
     expect(healthResponse.ok()).toBeTruthy();
     const health = await healthResponse.json();
     expect(health).toMatchObject({
       success: true,
-      message: "Backend is healthy",
+      status: "ready",
+      message: "Backend is ready",
       services: {
         database: "connected",
         blockchainRpc: "configured",

@@ -236,6 +236,18 @@
   gap: 16px;
 }
 
+.home-role-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.home-role-grid article {
+  grid-column: span 2;
+}
+
+.home-role-grid article:nth-last-child(-n + 2) {
+  grid-column: span 3;
+}
+
 .home-feature-grid article,
 .home-role-grid article {
   min-height: 220px;
@@ -382,6 +394,11 @@
   .home-feature-grid,
   .home-role-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-role-grid article,
+  .home-role-grid article:nth-last-child(-n + 2) {
+    grid-column: auto;
   }
 
   .home-workflow-list {

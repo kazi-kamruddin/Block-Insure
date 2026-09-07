@@ -206,7 +206,7 @@ export default function HomePage() {
           <article>
             <span>Bank</span>
             <h3>Authorize standing payment instructions</h3>
-            <p>Operate a separate bank wallet and own the simulated account ledger that will support EFT mandates and scheduled premium transfers.</p>
+            <p>Operate a separate bank wallet and manage the simulated account ledger, EFT mandates, and scheduled premium transfers.</p>
           </article>
         </div>
       </section>
