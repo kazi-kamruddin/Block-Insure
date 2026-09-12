@@ -5,8 +5,6 @@ const { SiweMessage } = require("siwe");
 const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
 
-const normalizeWalletAddress = (walletAddress) =>
-  getAddress(walletAddress).toLowerCase();
 const JWT_ISSUER = process.env.JWT_ISSUER || "block-insure-api";
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "block-insure-client";
 const NONCE_TTL_MS = Number(process.env.AUTH_NONCE_TTL_MS || 5 * 60 * 1000);
@@ -16,6 +14,14 @@ const createError = (message, statusCode) => {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
+};
+
+const normalizeWalletAddress = (walletAddress) => {
+  try {
+    return getAddress(walletAddress).toLowerCase();
+  } catch {
+    throw createError("Invalid wallet address", 400);
+  }
 };
 
 const DEFAULT_ALLOWED_SIWE_ORIGINS = [

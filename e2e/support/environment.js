@@ -11,9 +11,9 @@ const DEFAULT_LOCAL_BANK_PRIVATE_KEY =
 
 function readEnv(relativePath) {
   const filePath = path.join(projectRoot, relativePath);
-  if (!fs.existsSync(filePath)) return {};
+  if (!fs.existsSync(filePath)) return { ...process.env };
 
-  return Object.fromEntries(
+  const fileEnvironment = Object.fromEntries(
     fs
       .readFileSync(filePath, "utf8")
       .split(/\r?\n/)
@@ -24,6 +24,11 @@ function readEnv(relativePath) {
         return [line.slice(0, separator).trim(), line.slice(separator + 1).trim()];
       })
   );
+
+  // Explicit process-level values let an isolated E2E launcher select a
+  // disposable database and local-only wallets without rewriting developers'
+  // normal environment files.
+  return { ...fileEnvironment, ...process.env };
 }
 
 function normalizePrivateKey(value) {

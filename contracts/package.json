@@ -6,7 +6,7 @@
   "scripts": {
     "node": "node scripts/runHardhat.js node",
     "test": "node scripts/runHardhat.js test",
-    "coverage": "node scripts/runHardhat.js coverage",
+    "coverage": "node scripts/runCoverage.js",
     "compile": "node scripts/runHardhat.js compile",
     "sync:abi": "node scripts/sync-abi.js",
     "deploy:local": "node scripts/runHardhat.js run scripts/deploy.js --network localhost",

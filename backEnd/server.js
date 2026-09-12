@@ -89,7 +89,10 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error(`CORS origin not allowed: ${origin}`));
+      const error = new Error(`CORS origin not allowed: ${origin}`);
+      error.status = 403;
+      error.statusCode = 403;
+      return callback(error);
     },
     credentials: true,
     exposedHeaders: ["Content-Disposition"],
@@ -220,7 +223,7 @@ app.use((req, res) => {
 /* ------------------------ Global Error Handler ------------------------- */
 
 app.use((err, req, res, next) => {
-  const statusCode = Number(err.statusCode) || 500;
+  const statusCode = Number(err.statusCode || err.status) || 500;
   const isServerError = statusCode >= 500;
   const exposeInternalErrors =
     process.env.NODE_ENV !== "production" ||

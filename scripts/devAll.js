@@ -21,8 +21,11 @@ let shuttingDown = false;
 function prefixStream(stream, label, output) {
   const reader = readline.createInterface({ input: stream });
   reader.on("line", (line) => {
-    writeEvent(label, "info", line);
-    output.write(`[${label}] ${line}\n`);
+    const sanitizedLine = /private\s+key|seed\s+phrase|mnemonic/i.test(line)
+      ? "[REDACTED SENSITIVE STARTUP OUTPUT]"
+      : line;
+    writeEvent(label, "info", sanitizedLine);
+    output.write(`[${label}] ${sanitizedLine}\n`);
   });
 }
 

@@ -73,6 +73,13 @@ test("rejects local URLs, local chain IDs, and unsafe development switches", () 
   assert.match(result.failures.join("\n"), /DEV_ALLOW_CLAIM_LIMIT_RESET/);
 });
 
+test("rejects an insecure Pinata endpoint in production", () => {
+  const environment = productionEnvironment();
+  environment.PINATA_API_BASE_URL = "http://127.0.0.1:5055";
+  const result = inspectRuntimeEnvironment(environment);
+  assert.match(result.failures.join("\n"), /PINATA_API_BASE_URL must use HTTPS/);
+});
+
 test("rejects invalid contract addresses and weak authentication secrets", () => {
   const environment = productionEnvironment();
   environment.JWT_SECRET = "short";

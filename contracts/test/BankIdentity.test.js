@@ -53,4 +53,15 @@ describe("BankIdentityRegistry", function () {
       1, policyholder.address, premium, transferReference, ethers.id("EFT-MANDATE-001")
     )).to.be.reverted;
   });
+
+  it("rejects a zero-address bank payment registry", async function () {
+    const [admin] = await ethers.getSigners();
+    const Manager = await ethers.getContractFactory("InsuranceManager", admin);
+    const manager = await Manager.deploy();
+    await manager.waitForDeployment();
+
+    await expect(
+      manager.configureBankPaymentRegistry(ethers.ZeroAddress)
+    ).to.be.reverted;
+  });
 });

@@ -9,6 +9,8 @@ assigned to the selected test actor.
 
 - Public landing page and backend health
 - SIWE wallet login for User, Admin, Bank, Hospital, and all four Auditors
+- SIWE invalid-signature, wrong-wallet, wrong-chain, nonce-replay, logout, missing-token,
+  and guest direct-navigation rejection
 - Role-specific navigation and cross-role redirect protection
 - Every top-level public and authenticated application route, with browser-error and
   HTTP 5xx monitoring
@@ -50,6 +52,30 @@ After a clean `setup:hybrid`, the complete ordered regression can be run with:
 npm run test:e2e:all
 ```
 
+To keep the normal `block_insure` database and saved role configuration
+untouched, start the stack against the dedicated `block_insure_e2e` database
+with local Hardhat-derived actors, then run the isolated campaign in a second
+terminal:
+
+```powershell
+npm run dev:e2e-isolated
+npm run test:e2e:isolated:all
+```
+
+The wrapper changes configuration only in the spawned processes. It never
+prints wallet secrets and refuses to use a non-local RPC or a chain other than
+31337. The E2E database is intentionally retained after the campaign so its
+cross-system state can be inspected; it can be removed separately after the
+test report has been captured.
+
+The isolated command launches headed Chromium by default so the browser
+workflows remain visible. Set `E2E_HEADED=false` when a headless CI run is
+preferred. The ordered campaign retains separate HTML reports under
+`playwright-reports/general`, `playwright-reports/workflow`,
+`playwright-reports/showcase`, `playwright-reports/maintenance`, and
+`playwright-reports/resilience`, plus stage timings in
+`verification-results/playwright-e2e-run-results.json`.
+
 The state-dependent supervisor showcase is intentionally separate from the
 clean-state suite. Run it after the workflow journeys have created policies,
 claims, payments, notifications, and audit history:
@@ -64,6 +90,23 @@ own opt-in check:
 ```powershell
 npm run test:e2e:maintenance
 ```
+
+Live defensive HTTP checks have their own final stage:
+
+```powershell
+npm run test:e2e:resilience
+```
+
+It covers CORS and security headers, malformed JSON, unsupported methods,
+Oracle API-key rejection, and sustained authentication rate limiting. Run it
+last because deliberate rate-limit exhaustion affects the shared loopback
+client until the limiter window resets.
+
+For a fully local evidence path, start `npm run dev:pinata-mock` and set
+`PINATA_API_BASE_URL=http://127.0.0.1:5055` plus matching synthetic
+`PINATA_JWT`/`LOCAL_PINATA_TOKEN` values only in the spawned test processes.
+The simulator keeps encrypted synthetic uploads in memory and discards them
+when stopped; it is not a production IPFS implementation.
 
 To run the state-changing banking and adjudication journeys:
 
@@ -84,6 +127,17 @@ Open the HTML report with:
 ```powershell
 npm run test:e2e:report
 ```
+
+The production-bundle public quality suite is self-contained and does not need
+MongoDB, a blockchain deployment, or role credentials. It rebuilds the Vite
+bundle, starts `vite preview` on loopback, checks representative mobile, tablet,
+laptop, and desktop viewports, and verifies basic keyboard/focus semantics:
+
+```powershell
+npm run test:e2e:frontend-production
+```
+
+Its HTML report is written to `playwright-report-frontend/`.
 
 ## File layout
 

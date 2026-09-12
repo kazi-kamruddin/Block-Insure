@@ -7,7 +7,7 @@ function readEnv(relativePath) {
   const filePath = path.join(projectRoot, relativePath);
   if (!fs.existsSync(filePath)) return null;
 
-  return Object.fromEntries(
+  const fileEnvironment = Object.fromEntries(
     fs
       .readFileSync(filePath, "utf8")
       .split(/\r?\n/)
@@ -18,6 +18,8 @@ function readEnv(relativePath) {
         return [line.slice(0, separator), line.slice(separator + 1)];
       })
   );
+
+  return { ...fileEnvironment, ...process.env };
 }
 
 function main() {

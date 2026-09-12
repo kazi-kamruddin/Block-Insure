@@ -97,6 +97,31 @@ const resetLocalOracleCursors = () => {
   return cursorFiles.length;
 };
 
+const assertSafeResetTarget = (mongoUri) => {
+  let parsed;
+  try {
+    parsed = new URL(mongoUri);
+  } catch {
+    throw new Error("MONGODB_URI is not a valid MongoDB URL");
+  }
+
+  const databaseName = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+  const localHost = ["127.0.0.1", "localhost", "::1"].includes(parsed.hostname);
+  const explicitlyDisposable = /(?:^|[_-])(e2e|test|testing|dev|development)$/i.test(
+    databaseName
+  );
+
+  if (!databaseName) {
+    throw new Error("Refusing to reset MongoDB without an explicit database name");
+  }
+  if (!localHost && !explicitlyDisposable) {
+    throw new Error(
+      `Refusing to reset external MongoDB database ${databaseName}; use a database name ending in _e2e, _test, or _dev`
+    );
+  }
+  return { databaseName, localHost };
+};
+
 async function main() {
   if (!process.argv.includes("--yes")) {
     throw new Error("Refusing to clear data without --yes.");
@@ -105,6 +130,7 @@ async function main() {
   if (!process.env.MONGODB_URI) {
     throw new Error("MONGODB_URI is missing in backEnd/.env");
   }
+  assertSafeResetTarget(process.env.MONGODB_URI);
 
   const hybridMode = process.argv.includes("--hybrid");
   let connectionError;
@@ -154,7 +180,11 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error("Local data reset failed:", error.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("Local data reset failed:", error.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { assertSafeResetTarget };

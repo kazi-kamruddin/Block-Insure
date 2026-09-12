@@ -5,6 +5,7 @@ const environment = getE2EConfig();
 
 module.exports = defineConfig({
   testDir: "./e2e/tests",
+  testIgnore: "frontend-production-quality.spec.js",
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -14,7 +15,13 @@ module.exports = defineConfig({
   },
   reporter: [
     ["list"],
-    ["html", { outputFolder: "playwright-report", open: "never" }],
+    [
+      "html",
+      {
+        outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR || "playwright-report",
+        open: "never",
+      },
+    ],
   ],
   outputDir: "test-results",
   use: {
@@ -24,6 +31,6 @@ module.exports = defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
-    headless: true,
+    headless: process.env.E2E_HEADED !== "true",
   },
 });

@@ -1,0 +1,27 @@
+Block-Insure historical integrated E2E preflight blocker (sanitized; RESOLVED)
+Date: 2026-09-11
+
+Safety gate:
+- Frontend configured on localhost.
+- Backend configured on localhost.
+- RPC configured on 127.0.0.1; observed chain ID 31337.
+- MongoDB is configured on an external Atlas host, database block_insure.
+- No explicit disposable development/test marker establishes authorization to reset that external database.
+- Configured privileged wallets are custom addresses rather than the 20 unlocked accounts on a fresh Hardhat node; real-network asset absence cannot be proven locally.
+
+No database reset, hybrid setup, Pinata upload, role grant, deployment, or integrated state-changing workflow was performed.
+
+All four E2E entry points stopped at preflight with:
+- Backend readiness not reachable at http://localhost:5000/health/ready.
+- Frontend not reachable at http://localhost:5173.
+- No InsuranceManager bytecode at the configured address on the fresh local chain.
+
+Classification: ENVIRONMENT / SAFETY BLOCKER, not a test assertion failure.
+
+Resolution recorded later on 2026-09-11:
+- Introduced a process-only isolated configuration selecting block_insure_e2e.
+- Derived every actor from the default Hardhat development mnemonic.
+- Started a fresh loopback chain and verified chain ID 31337.
+- Clean setup, role grants, both Oracle workers, and independent E2E preflight passed.
+- The full headed integrated Playwright campaign passed 26/26.
+- The original block_insure database remained at 10,079 documents.

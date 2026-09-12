@@ -1,63 +1,70 @@
 {
   "schemaVersion": 5,
-  "generatedAt": "2026-09-07T06:43:03.794Z",
+  "generatedAt": "2026-09-12T14:37:32.512Z",
   "node": "v24.16.0",
   "platform": "win32",
   "source": {
-    "gitCommit": "d77fe7d077c1393c65f4a44d4f0945130dd244dd",
+    "gitCommit": "e4498b107ffa6df4f948844531e7fcf64f1c2be1",
     "branch": "postPreDefence",
     "dirty": true
   },
-  "runtimeSynchronizationIncluded": false,
+  "runtimeSynchronizationIncluded": true,
   "passed": true,
   "tasks": [
     {
       "key": "hybrid_dataset_integrity",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 15956,
+      "durationMs": 14458,
       "error": null
     },
     {
       "key": "contracts",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 8312,
+      "durationMs": 8671,
       "error": null
     },
     {
       "key": "repository_integrity",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 652,
+      "durationMs": 670,
       "error": null
     },
     {
       "key": "backend",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 4285,
+      "durationMs": 4991,
       "error": null
     },
     {
       "key": "frontend_lint",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 6301,
+      "durationMs": 18110,
       "error": null
     },
     {
       "key": "frontend_build",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 1412,
+      "durationMs": 2666,
       "error": null
     },
     {
       "key": "oracle",
       "passed": true,
       "exitCode": 0,
-      "durationMs": 1166,
+      "durationMs": 1187,
+      "error": null
+    },
+    {
+      "key": "runtime_synchronization",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 803,
       "error": null
     }
   ]

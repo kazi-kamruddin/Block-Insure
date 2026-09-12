@@ -163,6 +163,12 @@ const inspectRuntimeEnvironment = (environment = process.env) => {
     ) {
       failures.push("Pinata credentials are required for evidence uploads");
     }
+    if (
+      environment.PINATA_API_BASE_URL &&
+      !validUrl(environment.PINATA_API_BASE_URL, ["https:"])
+    ) {
+      failures.push("PINATA_API_BASE_URL must use HTTPS in production");
+    }
     try {
       const signingKeys = JSON.parse(environment.PRE_PROXY_SIGNING_KEYS_JSON || "null");
       if (!signingKeys?.publicKey || !signingKeys?.privateKey) {

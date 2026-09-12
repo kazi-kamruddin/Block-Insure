@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-12T14:36:10.423Z",
+  "scope": "local-only-disposable-dependency-resilience",
+  "environment": {
+    "dockerDesktopVersion": "4.90.0",
+    "dockerEngineVersion": "29.7.2",
+    "mongoImage": "mongo:8.0",
+    "mongoContainer": "block-insure-resilience-mongo",
+    "mongoBinding": "127.0.0.1:27018",
+    "mongoDatabase": "block_insure_e2e",
+    "persistentVolume": false,
+    "frontendUrl": "http://localhost:5173",
+    "backendUrl": "http://localhost:5000",
+    "rpcUrl": "http://127.0.0.1:8545",
+    "chainId": 31337,
+    "pinataSimulatorUrl": "http://127.0.0.1:5055",
+    "secretsRedacted": true
+  },
+  "results": [
+    {
+      "suite": "dependency isolation",
+      "scenario": "MongoDB is disposable, loopback-only, and has no persistent volume",
+      "role": "system",
+      "result": "PASS",
+      "durationMs": null,
+      "evidencePath": "verification-results/docker-e2e-post-run-state.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "MongoDB outage resilience",
+      "scenario": "backend readiness degrades during docker pause while frontend remains available",
+      "role": "system",
+      "result": "PASS",
+      "durationMs": null,
+      "evidence": {
+        "baselineReadinessHttp": 200,
+        "pausedReadinessHttp": 503,
+        "pausedDatabaseState": "disconnected",
+        "frontendDuringPauseHttp": 200
+      },
+      "failureCategory": null
+    },
+    {
+      "suite": "MongoDB recovery",
+      "scenario": "backend reconnects after unpause and after container restart",
+      "role": "system",
+      "result": "PASS",
+      "durationMs": null,
+      "evidence": {
+        "afterUnpauseReadinessHttp": 200,
+        "afterRestartReadinessHttp": 200,
+        "finalDatabaseState": "connected"
+      },
+      "failureCategory": null
+    },
+    {
+      "suite": "local evidence provider",
+      "scenario": "two encrypted claim files upload through the loopback Pinata-compatible API",
+      "role": "user/system",
+      "result": "PASS",
+      "durationMs": null,
+      "evidence": {
+        "syntheticEncryptedUploads": 2,
+        "externalProviderContacted": false
+      },
+      "evidencePath": "verification-results/docker-e2e-post-run-state.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "live HTTP defensive controls",
+      "scenario": "headers, CORS, malformed JSON, unsupported method, Oracle API key, and nonce rate limit",
+      "role": "guest/oracle/system",
+      "result": "PASS",
+      "durationMs": 5195,
+      "evidencePath": "playwright-reports/resilience/index.html",
+      "failureCategory": null
+    }
+  ]
+}

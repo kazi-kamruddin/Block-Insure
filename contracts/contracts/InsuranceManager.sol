@@ -393,6 +393,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     }
 
     function configureBankPaymentRegistry(address registry) external onlyRole(ADMIN_ROLE) {
+        require(registry != address(0), "Invalid bank registry");
         bankPaymentRegistry = registry;
     }
 

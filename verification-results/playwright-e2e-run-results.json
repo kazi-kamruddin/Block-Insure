@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-09-12T14:35:16.564Z",
+  "results": [
+    {
+      "suite": "general",
+      "script": "test:e2e",
+      "result": "PASS",
+      "durationMs": 112909,
+      "reportDirectory": "playwright-reports\\general",
+      "failureCategory": null,
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "suite": "workflow",
+      "script": "test:e2e:workflow",
+      "result": "PASS",
+      "durationMs": 117735,
+      "reportDirectory": "playwright-reports\\workflow",
+      "failureCategory": null,
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "suite": "showcase",
+      "script": "test:e2e:showcase",
+      "result": "PASS",
+      "durationMs": 47945,
+      "reportDirectory": "playwright-reports\\showcase",
+      "failureCategory": null,
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "suite": "maintenance",
+      "script": "test:e2e:maintenance",
+      "result": "PASS",
+      "durationMs": 14240,
+      "reportDirectory": "playwright-reports\\maintenance",
+      "failureCategory": null,
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "suite": "resilience",
+      "script": "test:e2e:resilience",
+      "result": "PASS",
+      "durationMs": 5195,
+      "reportDirectory": "playwright-reports\\resilience",
+      "failureCategory": null,
+      "exitCode": 0,
+      "signal": null
+    }
+  ]
+}

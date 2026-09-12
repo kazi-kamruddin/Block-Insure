@@ -98,6 +98,21 @@ test("root orchestration exposes clean install, bootstrap, research, and verific
   assert.match(scripts["verify:all"], /runVerification\.js/);
 });
 
+test("contract coverage restores non-instrumented build artifacts", () => {
+  const contractsPackage = JSON.parse(
+    fs.readFileSync(path.join(projectRoot, "contracts", "package.json"), "utf8")
+  );
+  const coverageRunner = fs.readFileSync(
+    path.join(projectRoot, "contracts", "scripts", "runCoverage.js"),
+    "utf8"
+  );
+
+  assert.equal(contractsPackage.scripts.coverage, "node scripts/runCoverage.js");
+  assert.match(coverageRunner, /\["compile", "--force"\]/);
+  assert.match(coverageRunner, /coverage\.status !== 0/);
+  assert.match(coverageRunner, /restore\.status !== 0/);
+});
+
 test("managed launcher has bootstrap, readiness, and fail-fast child supervision", () => {
   const source = fs.readFileSync(path.join(projectRoot, "scripts", "devAll.js"), "utf8");
   assert.match(source, /--bootstrap/);
@@ -107,4 +122,15 @@ test("managed launcher has bootstrap, readiness, and fail-fast child supervision
   assert.match(source, /await runCommand\("\."/);
   assert.match(source, /npm-cli\.js/);
   assert.doesNotMatch(source, /npm\.cmd/);
+});
+
+test("isolated E2E launcher supports and enforces a loopback MongoDB override", () => {
+  const source = fs.readFileSync(
+    path.join(projectRoot, "scripts", "runIsolatedE2E.js"),
+    "utf8"
+  );
+  assert.match(source, /E2E_MONGODB_URI/);
+  assert.match(source, /E2E_REQUIRE_LOCAL_MONGO/);
+  assert.match(source, /requires a loopback MongoDB host/);
+  assert.match(source, /mongoUrl\.pathname = "\/block_insure_e2e"/);
 });
