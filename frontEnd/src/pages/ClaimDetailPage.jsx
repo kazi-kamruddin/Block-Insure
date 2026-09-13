@@ -58,8 +58,25 @@ function formatValue(value) {
   return String(value);
 }
 
-async function hashAppealReason(reason) {
-  const encoded = new TextEncoder().encode(reason);
+function buildAppealCommitmentPayload(source) {
+  const text = (value) => String(value || "").trim();
+  return {
+    schema: "BLOCK_INSURE_APPEAL_V1",
+    claimId: text(source.claimId),
+    appealReason: text(source.appealReason),
+    reasonCategory: text(source.reasonCategory || "OTHER").toUpperCase(),
+    appealDescription: text(source.appealDescription || source.appealReason),
+    additionalDocumentHash: text(source.additionalDocumentHash).toLowerCase(),
+    additionalDocumentCID: text(source.additionalDocumentCID),
+    proposedHospitalId: text(source.proposedHospitalId).toUpperCase(),
+    proposedInvoiceNumber: text(source.proposedInvoiceNumber),
+    proposedClaimType: text(source.proposedClaimType).toUpperCase(),
+    proposedClaimAmountEth: text(source.proposedClaimAmountEth),
+  };
+}
+
+async function hashAppealCommitment(payload) {
+  const encoded = new TextEncoder().encode(JSON.stringify(payload));
   const digest = await crypto.subtle.digest("SHA-256", encoded);
   return `0x${Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, "0"))
@@ -209,7 +226,6 @@ export default function ClaimDetailPage() {
     try {
       setIsSubmittingAppeal(true);
 
-      const appealReasonHash = await hashAppealReason(trimmedReason);
       let additionalDocumentHash = "";
       let additionalDocumentCID = "";
 
@@ -243,6 +259,20 @@ export default function ClaimDetailPage() {
         storeEvidenceKey(additionalDocumentCID, encryptedAppealEvidence);
       }
 
+      const appealPayload = buildAppealCommitmentPayload({
+        claimId: id,
+        appealReason: trimmedReason,
+        reasonCategory: appealReasonCategory,
+        appealDescription: appealDescription.trim() || trimmedReason,
+        additionalDocumentHash,
+        additionalDocumentCID,
+        proposedHospitalId,
+        proposedInvoiceNumber,
+        proposedClaimType,
+        proposedClaimAmountEth,
+      });
+      const appealReasonHash = await hashAppealCommitment(appealPayload);
+
       const contract = await getWalletContract();
       const tx = additionalDocumentHash
         ? await contract.submitAppealWithEvidence(
@@ -258,18 +288,9 @@ export default function ClaimDetailPage() {
       await tx.wait();
 
       await submitAppeal({
-        claimId: id,
-        appealReason: trimmedReason,
-        reasonCategory: appealReasonCategory,
-        appealDescription: appealDescription.trim() || trimmedReason,
+        ...appealPayload,
         appealReasonHash,
-        additionalDocumentHash,
-        additionalDocumentCID,
         transactionHash: tx.hash,
-        proposedHospitalId: proposedHospitalId.trim(),
-        proposedInvoiceNumber: proposedInvoiceNumber.trim(),
-        proposedClaimType: proposedClaimType.trim(),
-        proposedClaimAmountEth: proposedClaimAmountEth.trim(),
       });
 
       setAppealReason("");
@@ -533,9 +554,9 @@ export default function ClaimDetailPage() {
               <fieldset>
                 <legend>Corrected claim information (optional)</legend>
                 <p className="muted-text">
-                  Enter only information that was wrong originally. If the
-                  appeal is approved, the next oracle round will use these
-                  corrections and identify them as appeal-supplied data.
+                  Enter only information that was wrong originally. The
+                  hospital will attest the corrected claim version before a new
+                  Oracle round evaluates it as appeal-supplied data.
                 </p>
                 <label>
                   Correct hospital ID

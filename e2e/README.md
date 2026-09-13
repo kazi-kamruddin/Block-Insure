@@ -24,6 +24,13 @@ assigned to the selected test actor.
   evidence reconciliation, two-oracle approval, payout allocation, and withdrawal
 - State-changing exception workflow: oracle failure, Admin routing, three assigned
   Auditor approvals, payout allocation, and withdrawal
+- Focused benefit lifecycles: death beneficiary, surrender after six installments,
+  maturity, allocation, withdrawal, and replay prevention
+- Focused defensive boundaries: expired JWT, cross-hospital IDOR, OTP expiry,
+  concurrent confirmation, and replay
+- Full Recrypt evidence lifecycle: Auditor identity, owner grant, proxy transform,
+  exact decrypted-byte/hash verification, access logging, and revocation
+- Manual-review finality: concurrent rejection submissions and expired-review timeout
 
 The Oracle workers are not controlled through browser pages. The E2E preflight
 validates both Oracle wallets and the running workers process claims in the same
@@ -113,6 +120,31 @@ To run the state-changing banking and adjudication journeys:
 ```powershell
 npm run test:e2e:workflow
 ```
+
+To rerun only the focused unfinished-work coverage on a healthy isolated stack:
+
+```powershell
+npm run test:e2e:unfinished:benefits
+npm run test:e2e:unfinished:boundaries
+npm run test:e2e:unfinished:evidence
+npm run test:e2e:unfinished:claims
+npm run test:e2e:unfinished:appeal
+npm run test:e2e:unfinished:rpc
+```
+
+The appeal check is a headed multi-role workflow: original Oracle failure,
+four-Auditor manual-review snapshot and rejection, browser-side encrypted
+correction, version-2 Hospital attestation, Admin Oracle request, exact
+two-worker approval, allocation, claimant withdrawal, and final UI/API/MongoDB/
+contract/event reconciliation. The RPC check requires `E2E_RPC_PROXY=true` and
+proves `/health/ready` returns 503 during a paused loopback proxy while
+`/health/live` stays 200, followed by readiness recovery.
+
+When using the local Pinata-compatible simulator with the isolated launcher,
+pass `E2E_PINATA_API_URL=http://127.0.0.1:5055/pinning/pinFileToIPFS` and a
+matching synthetic `E2E_PINATA_JWT`. The launcher translates these values to
+the backend's `PINATA_API_BASE_URL` and `PINATA_JWT` only inside spawned test
+processes and prints only the sanitized evidence hostname.
 
 The workflow command uploads two small encrypted test artifacts through the
 backend's configured Pinata account and changes the current local

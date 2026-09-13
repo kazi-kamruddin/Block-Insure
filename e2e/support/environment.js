@@ -57,6 +57,7 @@ function getE2EConfig() {
     appUrl: e2e.E2E_APP_URL || "http://localhost:5173",
     apiUrl: e2e.E2E_API_URL || "http://localhost:5000",
     rpcUrl: e2e.E2E_RPC_URL || backend.RPC_URL || "http://127.0.0.1:8545",
+    backendRpcProxyUrl: process.env.E2E_BACKEND_RPC_URL || "",
     chainId: Number(e2e.E2E_CHAIN_ID || 31337),
     actionTimeoutMs: Number(e2e.E2E_ACTION_TIMEOUT_MS || 15_000),
     scenarioTimeoutMs: Number(e2e.E2E_SCENARIO_TIMEOUT_MS || 120_000),
@@ -82,12 +83,28 @@ function getE2EConfig() {
           "E2E_HOSPITAL_PRIVATE_KEY"
         ),
       },
+      hospital2: {
+        role: "HOSPITAL",
+        home: "/hospital/dashboard",
+        privateKey: requirePrivateKey(
+          e2e.E2E_HOSPITAL_PRIVATE_KEY_2,
+          "E2E_HOSPITAL_PRIVATE_KEY_2"
+        ),
+      },
       bank: {
         role: "BANK",
         home: "/bank/dashboard",
         privateKey: requirePrivateKey(
           e2e.E2E_BANK_PRIVATE_KEY || DEFAULT_LOCAL_BANK_PRIVATE_KEY,
           "E2E_BANK_PRIVATE_KEY"
+        ),
+      },
+      beneficiary: {
+        role: "USER",
+        home: "/user/dashboard",
+        privateKey: requirePrivateKey(
+          e2e.E2E_BENEFICIARY_PRIVATE_KEY,
+          "E2E_BENEFICIARY_PRIVATE_KEY"
         ),
       },
       auditor1: auditorActor(e2e, 1),

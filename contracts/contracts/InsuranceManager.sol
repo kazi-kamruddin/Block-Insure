@@ -1122,7 +1122,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         claims[claimId].status = ClaimStatus.APPEALED;
 
         emit ClaimAppealed(claimId, msg.sender, appealReasonHash, block.timestamp);
-        _requestOracleVerification(claimId);
     }
 
     function castVote(uint256 claimId, uint8 vote) external {

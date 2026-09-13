@@ -20,6 +20,22 @@ const sendJson = (response, statusCode, payload) => {
 const authorized = (request) =>
   request.headers.authorization === `Bearer ${expectedToken}`;
 
+const extractMultipartFile = (body, contentType) => {
+  const boundaryMatch = String(contentType || "").match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+  if (!boundaryMatch) throw Object.assign(new Error("Multipart boundary is missing"), { statusCode: 400 });
+  const boundary = Buffer.from(`--${boundaryMatch[1] || boundaryMatch[2]}`);
+  const headerSeparator = Buffer.from("\r\n\r\n");
+  const partStart = body.indexOf(boundary);
+  const headerEnd = body.indexOf(headerSeparator, partStart + boundary.length);
+  if (partStart < 0 || headerEnd < 0) {
+    throw Object.assign(new Error("Multipart file part is invalid"), { statusCode: 400 });
+  }
+  const contentStart = headerEnd + headerSeparator.length;
+  const contentEnd = body.indexOf(Buffer.from(`\r\n--${boundary.toString().slice(2)}`), contentStart);
+  if (contentEnd < 0) throw Object.assign(new Error("Multipart file terminator is missing"), { statusCode: 400 });
+  return body.subarray(contentStart, contentEnd);
+};
+
 const receiveBody = (request) =>
   new Promise((resolve, reject) => {
     const chunks = [];
@@ -47,18 +63,32 @@ const server = http.createServer(async (request, response) => {
       });
     }
 
+    if (request.method === "GET" && request.url.startsWith("/ipfs/")) {
+      const cid = decodeURIComponent(request.url.slice("/ipfs/".length));
+      const content = pinnedContent.get(cid);
+      if (!content) return sendJson(response, 404, { error: "Synthetic CID not found" });
+      response.writeHead(200, {
+        "content-type": "application/octet-stream",
+        "content-length": content.length,
+        "cache-control": "no-store",
+        "access-control-allow-origin": "*",
+      });
+      return response.end(content);
+    }
+
     if (!authorized(request)) {
       return sendJson(response, 401, { error: "Unauthorized" });
     }
 
     if (request.method === "POST" && request.url === "/pinning/pinFileToIPFS") {
       const body = await receiveBody(request);
-      const digest = crypto.createHash("sha256").update(body).digest("hex");
+      const file = extractMultipartFile(body, request.headers["content-type"]);
+      const digest = crypto.createHash("sha256").update(file).digest("hex");
       const cid = `bafy-block-insure-local-${digest}`;
-      pinnedContent.set(cid, body);
+      pinnedContent.set(cid, file);
       return sendJson(response, 200, {
         IpfsHash: cid,
-        PinSize: body.length,
+        PinSize: file.length,
         Timestamp: new Date().toISOString(),
       });
     }

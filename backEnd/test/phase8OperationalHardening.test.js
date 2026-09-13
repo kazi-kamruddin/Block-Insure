@@ -120,6 +120,8 @@ test("managed launcher has bootstrap, readiness, and fail-fast child supervision
   assert.match(source, /stopped unexpectedly/);
   assert.match(source, /setup:local/);
   assert.match(source, /await runCommand\("\."/);
+  assert.match(source, /E2E_BACKEND_RPC_URL/);
+  assert.match(source, /dev:rpc-proxy/);
   assert.match(source, /npm-cli\.js/);
   assert.doesNotMatch(source, /npm\.cmd/);
 });
@@ -133,4 +135,17 @@ test("isolated E2E launcher supports and enforces a loopback MongoDB override", 
   assert.match(source, /E2E_REQUIRE_LOCAL_MONGO/);
   assert.match(source, /requires a loopback MongoDB host/);
   assert.match(source, /mongoUrl\.pathname = "\/block_insure_e2e"/);
+  assert.match(source, /E2E_RPC_PROXY/);
+  assert.match(source, /E2E_PINATA_API_URL/);
+  assert.match(source, /PINATA_API_BASE_URL: e2ePinataBaseUrl/);
+  assert.match(source, /PINATA_JWT: process\.env\.E2E_PINATA_JWT/);
+});
+
+test("isolated E2E launcher forwards narrow test arguments", () => {
+  const launcher = fs.readFileSync(
+    path.resolve(__dirname, "../../scripts/runIsolatedE2E.js"),
+    "utf8"
+  );
+  assert.match(launcher, /const scriptArguments = process\.argv\.slice\(3\)/);
+  assert.match(launcher, /\[npmCli, "run", scriptName, \.\.\.scriptArguments\]/);
 });

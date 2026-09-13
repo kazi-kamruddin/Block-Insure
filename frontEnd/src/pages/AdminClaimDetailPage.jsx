@@ -527,7 +527,7 @@ export default function AdminClaimDetailPage() {
         </p>
 
         <div className="action-row">
-          {statusName === "DUPLICATE_CHECKED" ? (
+          {["DUPLICATE_CHECKED", "APPEALED"].includes(statusName) ? (
           <button
             type="button"
             onClick={handleRequestOracle}
@@ -710,7 +710,7 @@ export default function AdminClaimDetailPage() {
                     </p>
                   ))}
                 <p className="muted-text">
-                  An approved appeal uses these values in the next oracle round.
+                  The hospital attests these values before the next Oracle round.
                 </p>
               </div>
             ) : null}
@@ -737,8 +737,9 @@ export default function AdminClaimDetailPage() {
             </details>
 
             <p className="muted-text">
-              Appeals automatically open a new claim version and oracle request. The
-              administrator cannot approve or reject an appeal.
+              Appeals open a new claim version. After hospital re-verification, the
+              administrator may request Oracle processing but cannot approve or reject
+              the appeal.
             </p>
           </>
         ) : null}

@@ -6,6 +6,7 @@ const envFile =
 require("dotenv").config({ path: envFile });
 
 const axios = require("axios");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("./abi/InsuranceManager.json");
@@ -204,7 +205,76 @@ const saveOracleLog = async (payload) => {
   }
 };
 
-const classifyResponse = (request, claim, response) => {
+const validateAppealCommitment = async (request, claim, response) => {
+  if (Number(request.claimVersion) <= 1) return true;
+  const commitment = response.appealCommitment;
+  const payload = commitment?.payload;
+  if (!payload || payload.schema !== "BLOCK_INSURE_APPEAL_V1") return false;
+
+  const computedHash = `0x${crypto
+    .createHash("sha256")
+    .update(JSON.stringify(payload), "utf8")
+    .digest("hex")}`;
+  if (normalizeHash(computedHash) !== normalizeHash(commitment.appealReasonHash)) {
+    return false;
+  }
+
+  const query = response.query || {};
+  const expectedInvoiceHash = payload.proposedInvoiceNumber
+    ? ethers.keccak256(ethers.toUtf8Bytes(payload.proposedInvoiceNumber))
+    : claim.invoiceHash;
+  const expectedAmount = payload.proposedClaimAmountEth || ethers.formatEther(claim.claimAmount);
+  if (
+    String(payload.claimId) !== claim.claimId.toString() ||
+    String(query.claimId) !== claim.claimId.toString() ||
+    normalizeHash(query.invoiceHash) !== normalizeHash(expectedInvoiceHash) ||
+    String(query.hospitalId) !== String(payload.proposedHospitalId || claim.hospitalId) ||
+    String(query.claimType) !== String(payload.proposedClaimType || claim.claimType) ||
+    String(query.claimAmountEth) !== String(expectedAmount)
+  ) {
+    return false;
+  }
+
+  const [receipt, transaction] = await Promise.all([
+    provider.getTransactionReceipt(commitment.transactionHash),
+    provider.getTransaction(commitment.transactionHash),
+  ]);
+  if (
+    !receipt ||
+    !transaction ||
+    Number(receipt.status) !== 1 ||
+    normalizeHash(transaction.to) !== normalizeHash(CONTRACT_ADDRESS) ||
+    normalizeHash(transaction.from) !== normalizeHash(claim.claimantWallet)
+  ) {
+    return false;
+  }
+  return receipt.logs.some((log) => {
+    try {
+      const event = manager.interface.parseLog(log);
+      return (
+        event?.name === "ClaimAppealed" &&
+        event.args.claimId.toString() === claim.claimId.toString() &&
+        normalizeHash(event.args.appealReasonHash) === normalizeHash(computedHash)
+      );
+    } catch {
+      return false;
+    }
+  });
+};
+
+const classifyResponse = (request, claim, response, appealCommitmentValid) => {
+  const usesAppealCorrection =
+    Number(request.claimVersion) > 1 &&
+    response.query?.source === "PENDING_APPEAL_CORRECTION";
+  const evaluationClaim = usesAppealCorrection && appealCommitmentValid
+    ? {
+        hospitalId: response.query.hospitalId,
+        invoiceHash: response.query.invoiceHash,
+        claimAmount: ethers.parseEther(String(response.query.claimAmountEth)),
+        claimType: response.query.claimType,
+        incidentDate: claim.incidentDate,
+      }
+    : claim;
   const proof = response.merkleProof;
   const localRoot = proof?.rootHash || "";
   const proofValid = verifyRegistryProof(proof);
@@ -214,17 +284,17 @@ const classifyResponse = (request, claim, response) => {
   const snapshotMatches = response.registrySnapshot === ORACLE_REGISTRY_SNAPSHOT;
   const recordMatchesClaim =
     proofValid &&
-    normalizeHash(proof.canonicalRecord?.invoiceHash) === normalizeHash(claim.invoiceHash) &&
-    String(proof.canonicalRecord?.hospitalId || "") === String(claim.hospitalId);
+    normalizeHash(proof.canonicalRecord?.invoiceHash) === normalizeHash(evaluationClaim.invoiceHash) &&
+    String(proof.canonicalRecord?.hospitalId || "") === String(evaluationClaim.hospitalId);
   const independent = recordMatchesClaim
     ? independentlyAssessRecord({
         record: proof.canonicalRecord,
         claim: {
-          hospitalId: claim.hospitalId,
-          invoiceHash: claim.invoiceHash,
-          claimAmountEth: ethers.formatEther(claim.claimAmount),
-          claimType: claim.claimType,
-          incidentDate: claim.incidentDate.toString(),
+          hospitalId: evaluationClaim.hospitalId,
+          invoiceHash: evaluationClaim.invoiceHash,
+          claimAmountEth: ethers.formatEther(evaluationClaim.claimAmount),
+          claimType: evaluationClaim.claimType,
+          incidentDate: evaluationClaim.incidentDate.toString(),
         },
         modelArtifact: runtimeModelArtifact,
         triagePolicy,
@@ -232,7 +302,9 @@ const classifyResponse = (request, claim, response) => {
     : null;
 
   let verificationCode = "VERIFIED";
-  if (!snapshotMatches) verificationCode = "SNAPSHOT_ID_MISMATCH";
+  if (Number(request.claimVersion) > 1 && !appealCommitmentValid) {
+    verificationCode = "APPEAL_COMMITMENT_MISMATCH";
+  } else if (!snapshotMatches) verificationCode = "SNAPSHOT_ID_MISMATCH";
   else if (!proofValid) verificationCode = "INVALID_MERKLE_PROOF";
   else if (!rootMatches) verificationCode = "REGISTRY_ROOT_MISMATCH";
   else if (!recordMatchesClaim) verificationCode = "CLAIM_RECORD_MISMATCH";
@@ -312,7 +384,17 @@ const handleOracleRequested = async (requestId, claimId) => {
       params: { ...queryData, registrySnapshot: ORACLE_REGISTRY_SNAPSHOT },
       headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
     });
-    const assessment = classifyResponse(request, claim, hospitalResponse.data);
+    const appealCommitmentValid = await validateAppealCommitment(
+      request,
+      claim,
+      hospitalResponse.data
+    );
+    const assessment = classifyResponse(
+      request,
+      claim,
+      hospitalResponse.data,
+      appealCommitmentValid
+    );
     const resultHash = buildResultHash({
       request,
       verified: assessment.verified,

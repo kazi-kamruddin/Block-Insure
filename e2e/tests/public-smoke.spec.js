@@ -14,8 +14,10 @@ test.describe("@smoke public application", () => {
       message: "Backend is ready",
       services: {
         database: "connected",
-        blockchainRpc: "configured",
-        contract: "configured",
+        blockchainRpc: "connected",
+        contract: "deployed",
+        chainId: 31337,
+        expectedChainId: 31337,
       },
     });
 

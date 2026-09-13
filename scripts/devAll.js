@@ -29,10 +29,10 @@ function prefixStream(stream, label, output) {
   });
 }
 
-function startService(label, directory, args) {
+function startService(label, directory, args, environment = process.env) {
   const child = spawn(process.execPath, [npmCli, ...args], {
     cwd: path.join(projectRoot, directory),
-    env: process.env,
+    env: environment,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
@@ -229,7 +229,19 @@ async function main() {
   console.log("[Launcher] Reusing the verified local deployment on port 8545.");
 
   console.log("[Launcher] Chain is ready. Starting application services...");
-  startService("Backend", "backEnd", ["run", "dev"]);
+  const backendRpcUrl = process.env.E2E_BACKEND_RPC_URL;
+  if (backendRpcUrl) {
+    const parsedProxy = new URL(backendRpcUrl);
+    if (!["127.0.0.1", "localhost", "::1"].includes(parsedProxy.hostname)) {
+      throw new Error("E2E_BACKEND_RPC_URL must be loopback-only");
+    }
+    startService("RPC Proxy", ".", ["run", "dev:rpc-proxy"]);
+    await waitForHttp(`${backendRpcUrl}/__control/status`, '"paused":false');
+  }
+  startService("Backend", "backEnd", ["run", "dev"], {
+    ...process.env,
+    ...(backendRpcUrl ? { RPC_URL: backendRpcUrl } : {}),
+  });
   startService("Frontend", "frontEnd", ["run", "dev"]);
   startService("Oracle 1", "oracle", ["run", "dev"]);
   startService("Oracle 2", "oracle", ["run", "dev:oracle2"]);

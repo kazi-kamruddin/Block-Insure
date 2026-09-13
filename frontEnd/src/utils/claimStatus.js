@@ -16,7 +16,7 @@ export const CLAIM_STATUS_EXPLANATIONS = {
     "Four snapshotted auditors are reviewing the claim. Quorum finalizes automatically.",
   PAYOUT_READY: "The payout is allocated and ready for claimant withdrawal.",
   FUNDING_REQUIRED: "The claim is valid but treasury funding is required before withdrawal.",
-  APPEALED: "An appeal opened a new claim version and oracle cycle.",
+  APPEALED: "An appeal opened a new claim version awaiting hospital re-verification.",
   REJECTED: "Claim was rejected and cannot be settled.",
   SETTLED: "The claimant withdrew the allocated settlement.",
   CLOSED: "Claim lifecycle is closed.",

@@ -10,6 +10,10 @@ const {
   buildRegistryMerkleRoot,
 } = require("../services/merkleRegistryService");
 const { getReadOnlyContract, getRegistrySnapshot } = require("../services/contractService");
+const {
+  buildAppealCommitmentPayload,
+  hashAppealCommitment,
+} = require("../services/appealCommitmentService");
 const Appeal = require("../models/Appeal");
 
 const DATE_TOLERANCE_DAYS = 30;
@@ -631,38 +635,67 @@ const verifyHospitalRecord = async (req, res, next) => {
       claimAmountWei,
       claimType,
       incidentDate,
+      claimVersion,
       modelVersion,
       modelArtifactHash,
       registrySnapshot: requestedRegistrySnapshot,
     } = req.query;
     const claimId = String(req.query.claimId || "").trim();
+    const requestedClaimVersion = Number(claimVersion || 1);
     let verificationSource = "ORIGINAL_CLAIM";
+    let appealCommitment = null;
 
-    if (claimId) {
-      const approvedAppeal = await Appeal.findOne({
+    if (claimId && Number.isInteger(requestedClaimVersion) && requestedClaimVersion > 1) {
+      const activeAppeal = await Appeal.findOne({
         claimId,
-        status: "APPROVED",
+        status: { $in: ["UNDER_REVIEW", "APPROVED"] },
       }).lean();
 
+      // Appeal corrections are persisted only after the claimant's transaction
+      // is confirmed. Never evaluate the stale original claim for a later version.
+      if (!activeAppeal) {
+        return res.status(409).json({
+          success: false,
+          verified: false,
+          message: "Confirmed appeal metadata is not ready for Oracle evaluation",
+        });
+      }
+
+      const commitmentPayload = buildAppealCommitmentPayload(activeAppeal);
+      const commitmentHash = hashAppealCommitment(commitmentPayload);
+      if (commitmentHash.toLowerCase() !== activeAppeal.appealReasonHash.toLowerCase()) {
+        return res.status(409).json({
+          success: false,
+          verified: false,
+          message: "Stored appeal corrections do not match their on-chain commitment",
+        });
+      }
+      appealCommitment = {
+        payload: commitmentPayload,
+        appealReasonHash: commitmentHash,
+        transactionHash: activeAppeal.transactionHash,
+      };
+
       if (
-        approvedAppeal &&
         [
-          approvedAppeal.proposedHospitalId,
-          approvedAppeal.proposedInvoiceNumber,
-          approvedAppeal.proposedClaimType,
-          approvedAppeal.proposedClaimAmountEth,
+          activeAppeal.proposedHospitalId,
+          activeAppeal.proposedInvoiceNumber,
+          activeAppeal.proposedClaimType,
+          activeAppeal.proposedClaimAmountEth,
         ].some(Boolean)
       ) {
-        hospitalId = approvedAppeal.proposedHospitalId || hospitalId;
-        invoiceHash = approvedAppeal.proposedInvoiceNumber
+        hospitalId = activeAppeal.proposedHospitalId || hospitalId;
+        invoiceHash = activeAppeal.proposedInvoiceNumber
           ? ethers.keccak256(
-              ethers.toUtf8Bytes(approvedAppeal.proposedInvoiceNumber.trim())
+              ethers.toUtf8Bytes(activeAppeal.proposedInvoiceNumber.trim())
             )
           : invoiceHash;
-        claimType = approvedAppeal.proposedClaimType || claimType;
+        claimType = activeAppeal.proposedClaimType || claimType;
         claimAmountEth =
-          approvedAppeal.proposedClaimAmountEth || claimAmountEth;
-        verificationSource = "APPROVED_APPEAL_CORRECTION";
+          activeAppeal.proposedClaimAmountEth || claimAmountEth;
+        verificationSource = "PENDING_APPEAL_CORRECTION";
+      } else {
+        verificationSource = "PENDING_APPEAL_REVIEW";
       }
     }
 
@@ -792,6 +825,7 @@ const verifyHospitalRecord = async (req, res, next) => {
         query: verificationQuery,
         registrySnapshot,
         boundaryNote: BOUNDARY_NOTE,
+        appealCommitment,
       });
     }
 
@@ -835,6 +869,7 @@ const verifyHospitalRecord = async (req, res, next) => {
       query: verificationQuery,
       registrySnapshot,
       boundaryNote: BOUNDARY_NOTE,
+      appealCommitment,
       recordCommitment: {
         hospitalId: record.hospitalId,
         invoiceHash: record.invoiceHash,

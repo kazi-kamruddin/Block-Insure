@@ -1,4 +1,5 @@
 const { ethers } = require("ethers");
+const Appeal = require("../models/Appeal");
 const Hospital = require("../models/Hospital");
 const HospitalClaimVerification = require("../models/HospitalClaimVerification");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
@@ -75,6 +76,56 @@ const formatClaimRequest = (claim) => ({
   submittedAt: new Date(Number(claim.submittedAt) * 1000).toISOString(),
 });
 
+const getAppealAdjustedClaim = async (claim, claimVersion) => {
+  if (claimVersion <= 1) return claim;
+
+  const appeal = await Appeal.findOne({
+    claimId: claim.claimId.toString(),
+    status: { $in: ["UNDER_REVIEW", "APPROVED"] },
+  }).lean();
+  if (!appeal) {
+    throw createError(
+      "Confirmed appeal metadata is not ready for hospital re-verification",
+      409
+    );
+  }
+
+  const proposedHospitalId = String(appeal.proposedHospitalId || "").trim();
+  if (proposedHospitalId && proposedHospitalId !== claim.hospitalId) {
+    throw createError(
+      "An appeal cannot change the hospital identity bound to the on-chain claim",
+      409
+    );
+  }
+
+  let claimAmount = claim.claimAmount;
+  if (appeal.proposedClaimAmountEth) {
+    try {
+      claimAmount = ethers.parseEther(String(appeal.proposedClaimAmountEth));
+    } catch {
+      throw createError("The appealed claim amount is invalid", 409);
+    }
+  }
+
+  return {
+    claimId: claim.claimId,
+    policyId: claim.policyId,
+    claimantWallet: claim.claimantWallet,
+    claimAmount,
+    incidentDate: claim.incidentDate,
+    claimType: appeal.proposedClaimType || claim.claimType,
+    hospitalId: claim.hospitalId,
+    invoiceHash: appeal.proposedInvoiceNumber
+      ? ethers.keccak256(ethers.toUtf8Bytes(appeal.proposedInvoiceNumber.trim()))
+      : claim.invoiceHash,
+    documentHash: claim.documentHash,
+    documentCID: claim.documentCID,
+    status: claim.status,
+    verificationConfidence: claim.verificationConfidence,
+    submittedAt: claim.submittedAt,
+  };
+};
+
 const getOwnedClaimAssessment = async (hospital, claimId) => {
   if (!/^\d+$/.test(String(claimId || ""))) {
     throw createError("A valid claim id is required");
@@ -85,12 +136,13 @@ const getOwnedClaimAssessment = async (hospital, claimId) => {
     throw createError("Claim belongs to another hospital", 403);
   }
   const claimVersion = Number(await contract.claimVersion(claimId));
+  const assessmentClaim = await getAppealAdjustedClaim(claim, claimVersion);
   const record = await MockHospitalRecord.findOne({
     hospitalId: hospital.hospitalId,
-    invoiceHash: String(claim.invoiceHash).toLowerCase(),
+    invoiceHash: String(assessmentClaim.invoiceHash).toLowerCase(),
   }).lean();
   const assessment = buildHospitalVerificationAssessment({
-    claim,
+    claim: assessmentClaim,
     claimVersion,
     hospital,
     record,
@@ -103,6 +155,7 @@ const getOwnedClaimAssessment = async (hospital, claimId) => {
     contract,
     verificationContract: getHospitalVerificationRegistry(contract.runner),
     claim,
+    assessmentClaim,
     claimVersion,
     record,
     assessment,
@@ -388,7 +441,7 @@ const confirmMyClaimVerification = async (req, res, next) => {
           hospitalId: hospital.hospitalId,
           hospitalWallet: hospital.walletAddress,
           recordId: result.record?._id || null,
-          invoiceHash: result.claim.invoiceHash,
+          invoiceHash: result.assessmentClaim.invoiceHash,
           ...result.assessment,
           transactionHash,
           blockNumber: receipt.blockNumber,
@@ -444,11 +497,15 @@ const confirmMyClaimVerification = async (req, res, next) => {
 
 const getClaimVerificationForInsurer = async (req, res, next) => {
   try {
+    const contract = getReadOnlyContract();
+    const claimVersion = Number(await contract.claimVersion(req.params.claimId));
     const verification = await HospitalClaimVerification.findOne({
       claimId: String(req.params.claimId),
-    }).sort({ claimVersion: -1 }).lean();
+      claimVersion,
+    }).lean();
     res.status(200).json({
       success: true,
+      claimVersion,
       verification: formatHospitalVerification(verification),
       status: verification ? verification.outcome : "PENDING_HOSPITAL",
     });

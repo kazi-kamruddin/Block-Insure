@@ -155,6 +155,7 @@ describe("Phase 6 - protocol state-machine invariants", function () {
               claimId,
               `ipfs://stateful-appeal-${step}`
             );
+            await fixture.manager.requestOracleVerification(claimId);
             await finalizeExactResult(
               fixture.coordinator,
               (await fixture.coordinator.getRequestByClaimId(claimId)).requestId,

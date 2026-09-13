@@ -2,6 +2,14 @@ const { defineConfig } = require("@playwright/test");
 const { getE2EConfig } = require("./e2e/support/environment");
 
 const environment = getE2EConfig();
+const focusedReportFolders = {
+  "test:e2e:unfinished:appeal": "playwright-reports/unfinished-appeal",
+  "test:e2e:unfinished:rpc": "playwright-reports/unfinished-rpc",
+};
+const htmlReportFolder =
+  process.env.PLAYWRIGHT_HTML_OUTPUT_DIR ||
+  focusedReportFolders[process.env.npm_lifecycle_event] ||
+  "playwright-report";
 
 module.exports = defineConfig({
   testDir: "./e2e/tests",
@@ -18,7 +26,7 @@ module.exports = defineConfig({
     [
       "html",
       {
-        outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR || "playwright-report",
+        outputFolder: htmlReportFolder,
         open: "never",
       },
     ],

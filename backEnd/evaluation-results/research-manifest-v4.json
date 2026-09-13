@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-09-12T14:52:18.642Z",
+  "generatedAt": "2026-09-12T20:58:25.477Z",
   "source": {
-    "gitCommit": "e4498b107ffa6df4f948844531e7fcf64f1c2be1",
+    "gitCommit": "be1acb7ecf29ecfa26899eb78eeb242a0168037b",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -19,7 +19,7 @@
     "root": {
       "name": "block-insure-local-workflow",
       "version": "1.0.0",
-      "packageJsonSha256": "4030cefecfe4b3d9b2faacb308957f49e943eadebe4eaa107f7dd7402ae9e1f9",
+      "packageJsonSha256": "3c879dcd71cdbae40b9de03d476dbe3a38c1a1ba821c02dc9b7bc070b178ffa5",
       "packageLockSha256": "ab1cd59e1bc12401bc826293981260ce3f18fbff801982f4c607d3b0f5d1a710"
     },
     "backend": {
@@ -74,21 +74,21 @@
     "oracle/independentAssessment.js": "da8eb0fb4510ba41e1cc4e92b9766ac900c042e168d1f5f51c8f228e1d132b24",
     "backEnd/test/phase6CapacityTriage.test.js": "d792002c9306650b61f0d4b3c94ad1ab7541dfb1c3815c6d2b299be724768947",
     "backEnd/test/phase7ReserveEvidence.test.js": "a5971ea0e016c053eec88e37e38ad5f1a4681cc30a685e669fb336765deaa777",
-    "backEnd/test/phase8OperationalHardening.test.js": "2bcc83d7b509425c63767dc1ae75d4cb156e088eadcd50e5fc7bd32515c0153c",
+    "backEnd/test/phase8OperationalHardening.test.js": "c2e1b55a3b7e97debdf9818422b842b4e8055f85155cf05a64f82d65ebcc42f2",
     "contracts/hardhat.config.js": "b6b0937cee5de666cfb029e6b57944cec4111fb99353a980bf8ca31f7da13513",
     "contracts/mutations/manifest.json": "6e5bd5d9e6f0346d684a7b22c00dfc39dcca60b6929b538eb9ab50444d2fa792",
     "contracts/scripts/runMutationCampaign.js": "80d4883c3f7f7f861a9c4dbf970c44f35861bc158b9641363b239e6e0e242bf4",
     "contracts/test/invariants/protocol-invariants.json": "e01afb5460b5502850789a4a1655697ee3bf39c50b78caede5e32df08fcf35b1",
-    "contracts/test/Phase6ProtocolStatefulInvariants.test.js": "707bf5f194c98f76fa5cf581c4c1d6dd9857f7c828f40072eb5a56adbadf620d",
-    "scripts/devAll.js": "9634e4c83ff45661de3cd76bbaf7a8150ddaafd2b52253c78b21d4786b890883",
+    "contracts/test/Phase6ProtocolStatefulInvariants.test.js": "8ff2468b3d34786d1389b95bf87c09aecf492c5ad5aa757edc1dd19840520c59",
+    "scripts/devAll.js": "bf002bd00abfcd441f7807228f0b43cc89dd8bc544341761c934df931feb0571",
     "scripts/verifyRepository.js": "2669c31cb48447f1d202e42c77506fdca88e233dce57f84efb67b057d8ef1ad1",
     "scripts/runVerification.js": "5d431ff5b088ffb63c77183c6a98409a58a6061828bbcad914778b6fcec74707"
   },
   "contracts": {
     "InsuranceManager": {
       "compiled": true,
-      "deployedBytecodeBytes": 24361,
-      "artifactSha256": "cca926dd323afffb5babdcb46e5df754d29c94613c41c7cc3b734399ed874ce7"
+      "deployedBytecodeBytes": 24338,
+      "artifactSha256": "3d75d87e3863c63e55c0ca2da56d4bcdc04bc4cdb687872ac468226c66355296"
     },
     "OracleCoordinator": {
       "compiled": true,
@@ -344,5 +344,5 @@
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "1e64b77412ebfcd2e6ac8ed15b9da65b6bc97fd54074c26facbe5a8ff7161c8a"
+  "reproducibilityHash": "5c56954b88599c0b706289c485e4bb0b9db9cc8f915f78cca8b0cc1d1b86f7c2"
 }

@@ -1,19 +1,19 @@
-const crypto = require("crypto");
 const Appeal = require("../models/Appeal");
 const {
   getClaimAdjudicator,
   getReadOnlyContract,
 } = require("../services/contractService");
 const { notifyAdmins } = require("../services/notificationService");
+const {
+  buildAppealCommitmentPayload,
+  hashAppealCommitment,
+} = require("../services/appealCommitmentService");
 
 const createError = (message, statusCode) => {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 };
-
-const sha256Text = (value) =>
-  `0x${crypto.createHash("sha256").update(value, "utf8").digest("hex")}`;
 
 const formatAppeal = (appeal) =>
   appeal
@@ -49,7 +49,13 @@ const assertCanReadAppeal = (req, appeal) => {
   throw createError("Access denied: appeal does not belong to this wallet", 403);
 };
 
-const verifyAppealTransaction = async (contract, claimId, walletAddress, txHash) => {
+const verifyAppealTransaction = async (
+  contract,
+  claimId,
+  walletAddress,
+  txHash,
+  appealReasonHash
+) => {
   if (!/^0x[a-f\d]{64}$/i.test(txHash)) {
     throw createError("A confirmed appeal transactionHash is required", 400);
   }
@@ -69,7 +75,12 @@ const verifyAppealTransaction = async (contract, claimId, walletAddress, txHash)
   const matched = receipt.logs.some((log) => {
     try {
       const parsed = contract.interface.parseLog(log);
-      return parsed?.name === "ClaimAppealed" && parsed.args.claimId.toString() === claimId;
+      return (
+        parsed?.name === "ClaimAppealed" &&
+        parsed.args.claimId.toString() === claimId &&
+        String(parsed.args.appealReasonHash).toLowerCase() ===
+          appealReasonHash.toLowerCase()
+      );
     } catch {
       return false;
     }
@@ -92,6 +103,17 @@ const submitAppeal = async (req, res, next) => {
       throw createError("Access denied: claim does not belong to this wallet", 403);
     }
 
+    const commitmentPayload = buildAppealCommitmentPayload({
+      ...req.body,
+      claimId,
+      appealReason,
+    });
+    const appealReasonHash = hashAppealCommitment(commitmentPayload);
+    const providedHash = String(req.body.appealReasonHash || "").trim();
+    if (providedHash.toLowerCase() !== appealReasonHash.toLowerCase()) {
+      throw createError("appealReasonHash does not match the committed appeal payload", 400);
+    }
+
     const round = await adjudicator.appealRound(claimId);
     if (Number(round) === 0) {
       throw createError("Submit the on-chain appeal before saving its metadata", 400);
@@ -100,14 +122,9 @@ const submitAppeal = async (req, res, next) => {
       contract,
       claimId,
       req.user.walletAddress,
-      String(req.body.transactionHash || "").trim()
+      String(req.body.transactionHash || "").trim(),
+      appealReasonHash
     );
-
-    const appealReasonHash = sha256Text(appealReason);
-    const providedHash = String(req.body.appealReasonHash || "").trim();
-    if (providedHash && providedHash.toLowerCase() !== appealReasonHash.toLowerCase()) {
-      throw createError("appealReasonHash does not match appealReason", 400);
-    }
 
     const appeal = await Appeal.findOneAndUpdate(
       { claimId },
@@ -116,22 +133,22 @@ const submitAppeal = async (req, res, next) => {
           claimId,
           claimantWallet: claim.claimantWallet.toLowerCase(),
           appealReason,
-          reasonCategory: String(req.body.reasonCategory || "OTHER").toUpperCase(),
-          appealDescription: req.body.appealDescription || appealReason,
+          reasonCategory: commitmentPayload.reasonCategory,
+          appealDescription: commitmentPayload.appealDescription,
           appealReasonHash,
-          additionalDocumentHash: req.body.additionalDocumentHash || "",
-          additionalDocumentCID: req.body.additionalDocumentCID || "",
-          proposedHospitalId: String(req.body.proposedHospitalId || "").trim(),
-          proposedInvoiceNumber: String(req.body.proposedInvoiceNumber || "").trim(),
-          proposedClaimType: String(req.body.proposedClaimType || "").trim().toUpperCase(),
-          proposedClaimAmountEth: String(req.body.proposedClaimAmountEth || "").trim(),
+          additionalDocumentHash: commitmentPayload.additionalDocumentHash,
+          additionalDocumentCID: commitmentPayload.additionalDocumentCID,
+          proposedHospitalId: commitmentPayload.proposedHospitalId,
+          proposedInvoiceNumber: commitmentPayload.proposedInvoiceNumber,
+          proposedClaimType: commitmentPayload.proposedClaimType,
+          proposedClaimAmountEth: commitmentPayload.proposedClaimAmountEth,
           transactionHash: req.body.transactionHash,
           status: "UNDER_REVIEW",
           history: [{
             status: "UNDER_REVIEW",
             actorWallet: req.user.walletAddress,
             actorRole: req.user.role,
-            note: `Appeal round ${round} automatically opened a new oracle cycle`,
+            note: `Appeal round ${round} opened a new claim version for hospital re-verification`,
             timestamp: new Date(),
           }],
         },
@@ -143,7 +160,7 @@ const submitAppeal = async (req, res, next) => {
       actorWallet: claim.claimantWallet,
       type: "APPEAL_SUBMITTED",
       title: `Appeal submitted for claim #${claimId}`,
-      message: `Appeal round ${round} automatically opened a new oracle cycle.`,
+      message: `Appeal round ${round} is awaiting hospital re-verification before the new Oracle cycle.`,
       claimId,
       appealId: appeal._id.toString(),
       link: `/admin/claims/${claimId}`,

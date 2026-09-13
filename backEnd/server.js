@@ -24,6 +24,7 @@ const {
   stopBankPaymentScheduler,
 } = require("./services/bankPaymentService");
 const { assertRuntimeEnvironment } = require("./config/runtimeConfig");
+const { buildHealthPayload } = require("./services/readinessService");
 
 /* ----------------------------- DNS Config ----------------------------- */
 
@@ -130,27 +131,13 @@ app.get("/", (req, res) => {
   });
 });
 
-const healthPayload = () => {
-  const databaseState =
-    mongoose.connection.readyState === 1 ? "connected" : "disconnected";
-  const ready = databaseState === "connected";
-  return {
-    success: ready,
-    status: ready ? "ready" : "not_ready",
-    message: ready ? "Backend is ready" : "Backend dependencies are unavailable",
-    services: {
-      database: databaseState,
-      blockchainRpc: process.env.RPC_URL ? "configured" : "missing",
-      contract: process.env.VITE_CONTRACT_ADDRESS ? "configured" : "missing",
-      evidenceEncryption: "client-aes256gcm-with-recrypt-pre",
-      evidenceTransparency: process.env.EVIDENCE_REGISTRY_ADDRESS
-        ? "anchored"
-        : "registry-address-missing",
-    },
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-  };
-};
+const healthPayload = async () => ({
+  ...(await buildHealthPayload({
+    databaseConnected: mongoose.connection.readyState === 1,
+  })),
+  uptime: process.uptime(),
+  timestamp: new Date().toISOString(),
+});
 
 app.get("/health/live", (req, res) => {
   res.set("Cache-Control", "no-store").status(200).json({
@@ -161,8 +148,8 @@ app.get("/health/live", (req, res) => {
   });
 });
 
-const readinessHandler = (req, res) => {
-  const payload = healthPayload();
+const readinessHandler = async (req, res) => {
+  const payload = await healthPayload();
   res
     .set("Cache-Control", "no-store")
     .status(payload.success ? 200 : 503)

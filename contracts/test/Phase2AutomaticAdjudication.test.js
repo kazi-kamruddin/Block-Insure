@@ -185,7 +185,7 @@ describe("Phase 2 - Automatic adjudication", function () {
     expect(await fixture.manager.rejectionReason(claimId)).to.equal(5);
   });
 
-  it("appeals preserve the rejected decision and immediately open a new claim version request", async function () {
+  it("appeals preserve the rejected decision and require a fresh hospital attestation", async function () {
     const fixture = await deployFixture();
     const claimId = await submitClaim(fixture, "appeal");
     const review = await openFailedReview(fixture, claimId);
@@ -196,17 +196,35 @@ describe("Phase 2 - Automatic adjudication", function () {
     await fixture.manager.connect(assigned[1]).castVote(claimId, 2);
     const originalDecision = await fixture.adjudicator.getDecision(claimId, 1);
 
+    const Registry = await ethers.getContractFactory("HospitalVerificationRegistry");
+    const registry = await Registry.deploy(
+      await fixture.manager.getAddress(),
+      fixture.admin.address
+    );
+    await fixture.coordinator.configureHospitalVerificationRegistry(
+      await registry.getAddress()
+    );
+    await registry.registerHospitalIdentity("HOSP-001", fixture.publicCaller.address);
+
     await fixture.manager
       .connect(fixture.user)
       .submitAppealWithEvidence(claimId, "ipfs://appeal-reason", hash("appeal-evidence"), "ipfs://appeal");
     expect(await fixture.manager.claimVersion(claimId)).to.equal(2);
-    expect((await fixture.manager.getClaim(claimId)).status).to.equal(3); // ORACLE_PENDING
-    expect((await fixture.coordinator.getRequestByClaimId(claimId)).claimVersion).to.equal(2);
+    expect((await fixture.manager.getClaim(claimId)).status).to.equal(12); // APPEALED
     expect((await fixture.adjudicator.getDecision(claimId, 1)).decisionHash).to.equal(
       originalDecision.decisionHash
     );
     expect((await fixture.manager.getClaimDocuments(claimId)).length).to.equal(2);
+    await expect(fixture.manager.requestOracleVerification(claimId)).to.be.reverted;
+    await registry
+      .connect(fixture.publicCaller)
+      .submitHospitalVerification(claimId, true, hash("appeal-hospital-attestation"));
+    await expect(fixture.manager.requestOracleVerification(claimId)).to.emit(
+      fixture.manager,
+      "OracleRequested"
+    );
     const appealRequest = await fixture.coordinator.getRequestByClaimId(claimId);
+    expect(appealRequest.claimVersion).to.equal(2);
     await finalizeExactResult(
       fixture.coordinator,
       appealRequest.requestId,

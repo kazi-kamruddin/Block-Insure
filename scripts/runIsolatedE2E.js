@@ -18,6 +18,7 @@ const npmCli = process.env.npm_execpath || path.join(
   "npm-cli.js"
 );
 const scriptName = process.argv[2];
+const scriptArguments = process.argv.slice(3);
 
 if (!scriptName) {
   throw new Error("Usage: node scripts/runIsolatedE2E.js <npm-script>");
@@ -52,6 +53,10 @@ const wallet = (index) =>
     `m/44'/60'/0'/0/${index}`
   );
 const wallets = Array.from({ length: 18 }, (_, index) => wallet(index));
+const rpcProxyEnabled = process.env.E2E_RPC_PROXY === "true";
+const e2ePinataBaseUrl = process.env.E2E_PINATA_API_URL
+  ? new URL(process.env.E2E_PINATA_API_URL).origin
+  : process.env.E2E_PINATA_API_BASE_URL;
 
 const isolatedEnvironment = {
   ...process.env,
@@ -63,6 +68,17 @@ const isolatedEnvironment = {
   E2E_APP_URL: "http://localhost:5173",
   E2E_API_URL: "http://localhost:5000",
   E2E_HEADED: process.env.E2E_HEADED || "true",
+  ...(e2ePinataBaseUrl ? { PINATA_API_BASE_URL: e2ePinataBaseUrl } : {}),
+  ...(process.env.E2E_PINATA_JWT
+    ? { PINATA_JWT: process.env.E2E_PINATA_JWT }
+    : {}),
+  ...(rpcProxyEnabled
+    ? {
+        E2E_BACKEND_RPC_URL: "http://127.0.0.1:18545",
+        E2E_RPC_PROXY_TARGET_URL: "http://127.0.0.1:8545",
+        E2E_RPC_PROXY_PORT: "18545",
+      }
+    : {}),
   DEMO_USE_HARDHAT_ACCOUNTS: "true",
   DEV_ALLOW_CLAIM_LIMIT_RESET: "true",
   ADMIN_PRIVATE_KEY: wallets[0].privateKey,
@@ -80,8 +96,10 @@ const isolatedEnvironment = {
   E2E_AUDITOR_PRIVATE_KEY_4: wallets[9].privateKey,
   HOSPITAL_WALLET_ADDRESSES: wallets.slice(10, 15).map((entry) => entry.address).join(","),
   E2E_HOSPITAL_PRIVATE_KEY: wallets[10].privateKey,
+  E2E_HOSPITAL_PRIVATE_KEY_2: wallets[11].privateKey,
   BANK_WALLET_ADDRESS: wallets[15].address,
   E2E_BANK_PRIVATE_KEY: wallets[15].privateKey,
+  E2E_BENEFICIARY_PRIVATE_KEY: wallets[16].privateKey,
   DEMO_BANK_ACCOUNT_OWNER_ADDRESSES: [wallets[1], wallets[16], wallets[17]]
     .map((entry) => entry.address)
     .join(","),
@@ -90,10 +108,12 @@ const isolatedEnvironment = {
 console.log(
   `[Isolated E2E] npm run ${scriptName}; MongoDB host=${mongoUrl.hostname}; database=block_insure_e2e; ` +
     `RPC=http://127.0.0.1:8545; chainId=31337; wallets=Hardhat defaults; ` +
-    `browser=${isolatedEnvironment.E2E_HEADED === "true" ? "headed" : "headless"}`
+    `browser=${isolatedEnvironment.E2E_HEADED === "true" ? "headed" : "headless"}; ` +
+    `backendRpcProxy=${rpcProxyEnabled ? "enabled" : "disabled"}; ` +
+    `evidenceHost=${e2ePinataBaseUrl ? new URL(e2ePinataBaseUrl).hostname : "saved-config"}`
 );
 
-const child = spawn(process.execPath, [npmCli, "run", scriptName], {
+const child = spawn(process.execPath, [npmCli, "run", scriptName, ...scriptArguments], {
   cwd: projectRoot,
   env: isolatedEnvironment,
   stdio: "inherit",

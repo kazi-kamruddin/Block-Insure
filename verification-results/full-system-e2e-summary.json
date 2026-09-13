@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-12T14:45:00.000Z",
+  "generatedAt": "2026-09-12T20:50:00.000Z",
   "verdict": "PASS WITH RISKS",
   "source": {
-    "commit": "e4498b107ffa6df4f948844531e7fcf64f1c2be1",
+    "commit": "be1acb7ecf29ecfa26899eb78eeb242a0168037b",
     "branch": "postPreDefence",
     "dirtyAtStart": true,
     "preExistingChanges": ["tmp/"]
@@ -27,18 +27,18 @@
     "secretsRedacted": true
   },
   "counts": {
-    "uniqueStandardTestsPassed": 285,
+    "uniqueStandardTestsPassed": 303,
     "contractTestsPassed": 133,
-    "backendTestsPassed": 104,
+    "backendTestsPassed": 112,
     "oracleTestsPassed": 13,
-    "integratedPlaywrightTestsPassed": 30,
+    "integratedPlaywrightTestsPassed": 40,
     "productionPlaywrightTestsPassed": 5,
     "mutationCasesKilled": 8,
-    "productDefectsFixed": 6,
-    "launcherHardeningItems": 2,
+    "productDefectsFixed": 12,
+    "launcherHardeningItems": 6,
     "remainingTestFailures": 0,
-    "toolOrScopeBlockers": 1,
-    "slitherFindingsForReview": 99
+    "toolOrScopeBlockers": 0,
+    "externalCleanupAuthorizationRequired": 1
   },
   "results": [
     {
@@ -213,22 +213,76 @@
       "failureCategory": null
     },
     {
-      "suite": "Slither",
-      "scenario": "static analysis after zero-address remediation: 99 retained review findings (4 high, 23 medium, 63 low, 7 informational, 2 optimization)",
-      "role": "contracts",
-      "result": "PASS_WITH_RISKS",
-      "durationMs": null,
-      "evidencePath": "verification-results/slither-results-final.json",
-      "failureCategory": "MANUAL_REVIEW_REQUIRED"
+      "suite": "focused Playwright unfinished benefits",
+      "scenario": "death beneficiary, six-installment surrender, maturity, allocation, withdrawal, and replay prevention",
+      "role": "user/beneficiary/admin",
+      "result": "PASS",
+      "durationMs": 72000,
+      "evidencePath": "playwright-reports/unfinished-benefits/index.html",
+      "failureCategory": null
     },
     {
-      "suite": "production release validation",
-      "scenario": "live production environment validation",
+      "suite": "focused Playwright unfinished boundaries",
+      "scenario": "expired JWT, second-hospital IDOR, OTP expiry, concurrent confirmation, and replay",
+      "role": "user/bank/hospital1/hospital2",
+      "result": "PASS",
+      "durationMs": 17500,
+      "evidencePath": "playwright-reports/unfinished-boundaries/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright encrypted evidence",
+      "scenario": "pre-grant denial, owner grant, proxy transform, exact plaintext recovery, CID/hash verification, access logging, revoke, and post-revoke denial",
+      "role": "user/assigned auditor/admin/oracles",
+      "result": "PASS",
+      "durationMs": 60000,
+      "evidencePath": "playwright-reports/unfinished-evidence/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright manual-review finality",
+      "scenario": "concurrent rejection submissions converge to one final result; expired review rejects for insufficient quorum",
+      "role": "user/hospital/admin/auditor1/auditor2/auditor3/oracles",
+      "result": "PASS",
+      "durationMs": 90000,
+      "evidencePath": "playwright-reports/unfinished-claims/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright appeal finality",
+      "scenario": "rejected version 1, encrypted committed correction, version-2 hospital attestation, Admin Oracle request, two-Oracle approval, allocation, claimant withdrawal, and SETTLED reconciliation",
+      "role": "user/hospital/admin/auditor1/auditor2/oracle1/oracle2",
+      "result": "PASS",
+      "durationMs": 90000,
+      "evidencePath": "playwright-reports/unfinished-appeal/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright RPC readiness",
+      "scenario": "backend readiness fails closed during local RPC proxy outage while liveness remains healthy, then recovers after reconnection",
       "role": "system",
-      "result": "BLOCKED",
-      "durationMs": null,
-      "evidencePath": "deploy/production.env.example",
-      "failureCategory": "OUTSIDE_LOCAL_ONLY_SCOPE"
+      "result": "PASS",
+      "durationMs": 1000,
+      "evidencePath": "playwright-reports/unfinished-rpc/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "isolated evidence routing",
+      "scenario": "final clean appeal run forwards the E2E evidence URL and synthetic token to the backend and reports a loopback-only evidence host",
+      "role": "system/user",
+      "result": "PASS_WITH_OPERATIONAL_CLEANUP",
+      "durationMs": 90000,
+      "evidencePath": "playwright-reports/unfinished-appeal/index.html",
+      "failureCategory": "INTERIM_EXTERNAL_CLEANUP_REQUIRES_AUTHORIZATION"
+    },
+    {
+      "suite": "changed-code verification",
+      "scenario": "112 backend tests, 13 Oracle tests, 133 contract tests, frontend lint, and production build",
+      "role": "API/contracts/oracles/all UI roles",
+      "result": "PASS",
+      "durationMs": 37915,
+      "evidencePath": "docs/full-system-e2e-test-report.md",
+      "failureCategory": null
     }
   ]
 }
