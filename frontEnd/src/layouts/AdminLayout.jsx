@@ -1,33 +1,24 @@
-import { Navigate, NavLink, Outlet } from "react-router-dom";
-import { useWallet } from "../context/useWallet";
+import RoleWorkspaceLayout from "./RoleWorkspaceLayout";
+
+const ADMIN_LINKS = [
+  { to: "/admin/dashboard", label: "Overview", end: true },
+  { to: "/admin/policy-packages", label: "Packages", end: true },
+  { to: "/admin/policy-packages/new", label: "Create Package" },
+  { to: "/admin/benefits", label: "Benefits" },
+  { to: "/admin/healthcare-registry", label: "Registry" },
+  { to: "/admin/thesis-dashboard", label: "Thesis Results" },
+  { to: "/admin/audit-actions", label: "Action Audit" },
+  { to: "/admin/role-health", label: "Role Health" },
+  { to: "/admin/claims", label: "Claims" },
+  { to: "/admin/notifications", label: "Notifications" },
+];
 
 export default function AdminLayout() {
-  const { isConnected, role, workspace } = useWallet();
-
-  if (!isConnected) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (role !== "ADMIN") {
-    return <Navigate to={workspace?.home || "/"} replace />;
-  }
-
   return (
-    <div>
-      <nav className="subnav" aria-label="Administration navigation">
-        <NavLink to="/admin/dashboard" end>Overview</NavLink>
-        <NavLink to="/admin/policy-packages" end>Packages</NavLink>
-        <NavLink to="/admin/policy-packages/new">Create Package</NavLink>
-        <NavLink to="/admin/benefits">Benefits</NavLink>
-        <NavLink to="/admin/healthcare-registry">Registry</NavLink>
-        <NavLink to="/admin/thesis-dashboard">Thesis Results</NavLink>
-        <NavLink to="/admin/audit-actions">Action Audit</NavLink>
-        <NavLink to="/admin/role-health">Role Health</NavLink>
-        <NavLink to="/admin/claims">Claims</NavLink>
-        <NavLink to="/admin/notifications">Notifications</NavLink>
-      </nav>
-
-      <Outlet />
-    </div>
+    <RoleWorkspaceLayout
+      expectedRole="ADMIN"
+      navigationLabel="Administration navigation"
+      links={ADMIN_LINKS}
+    />
   );
 }

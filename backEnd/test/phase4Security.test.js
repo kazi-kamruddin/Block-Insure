@@ -22,6 +22,7 @@ const {
   eventIdentity,
   findReorgRollbackHeight,
   jsonSafe,
+  normalizeIndexedEventArgs,
 } = require("../services/blockchainIndexerService");
 
 test("PRE proxy transforms a key without gaining plaintext access", () => {
@@ -136,6 +137,34 @@ test("indexer preserves named ethers-style event arguments", () => {
   });
 });
 
+test("indexer falls back to positions for unnamed ethers-style results", () => {
+  const result = [11n, "0xABC"];
+  result.toObject = () => {
+    throw new Error("value at index 0 unnamed");
+  };
+  assert.deepEqual(jsonSafe(result), ["11", "0xABC"]);
+});
+
+test("indexer upgrades positional legacy event arguments to named fields", () => {
+  const sourceInterface = {
+    getEvent: () => ({
+      inputs: [{ name: "role" }, { name: "account" }, { name: "sender" }],
+    }),
+  };
+  assert.deepEqual(
+    normalizeIndexedEventArgs(sourceInterface, "RoleGranted", [
+      "0xrole",
+      "0xABC",
+      "0xDEF",
+    ]),
+    {
+      role: "0xrole",
+      account: "0xABC",
+      sender: "0xDEF",
+    }
+  );
+});
+
 test("indexer reorg planning rolls back the divergent suffix", () => {
   const indexed = [
     { blockNumber: 10, blockHash: "0xa" },
@@ -236,6 +265,23 @@ test("SIWE authentication consumes its nonce exactly once", async () => {
     if (originalJwtSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = originalJwtSecret;
   }
+});
+
+test("SIWE binds browser logins to the approved frontend origin", () => {
+  const { resolveSiweOrigin } = require("../controllers/authController");
+  const request = {
+    protocol: "http",
+    get: (header) => {
+      if (header === "origin") return "http://localhost:5173";
+      if (header === "host") return "localhost:5000";
+      return "";
+    },
+  };
+
+  assert.deepEqual(resolveSiweOrigin(request), {
+    domain: "localhost:5173",
+    uri: "http://localhost:5173",
+  });
 });
 
 test("a privileged session is denied after its on-chain role is revoked", async () => {

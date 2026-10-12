@@ -1,0 +1,146 @@
+{
+  "manifestSchemaVersion": 3,
+  "datasetVersion": "blockinsure-hybrid-v1.2.0",
+  "generatedAt": "2026-08-28T15:42:10.410Z",
+  "seed": 20260828,
+  "source": {
+    "title": "Healthcare Provider Fraud Detection Analysis",
+    "platform": "Kaggle",
+    "datasetMaintainer": "Rohit Anand Gupta and collaborator",
+    "url": "https://www.kaggle.com/datasets/rohitrox/healthcare-provider-fraud-detection-analysis",
+    "license": "CC0: Public Domain (as displayed on the Kaggle dataset page)",
+    "acquiredAt": "2026-08-28",
+    "dataType": "Public secondary Medicare claims benchmark"
+  },
+  "sourceDescription": "Public secondary Medicare claims benchmark with weak provider-level PotentialFraud labels",
+  "labelWarning": "PotentialFraud is provider-level weak risk evidence and is never copied into controlled claim-attack truth.",
+  "amountNormalization": {
+    "version": "usd-demo-scale-v1",
+    "divisorUsdPerDemoUnit": 10000,
+    "note": "Research normalization, not a currency exchange rate."
+  },
+  "splitPolicy": "Provider-disjoint stable hash split: 64% train, 16% calibration, 20% test",
+  "injectionPolicy": {
+    "version": "blockinsure-scenario-v1",
+    "trainRate": 0.12,
+    "calibrationRate": 0.12,
+    "testUntouchedRate": 0,
+    "testAttacksRate": 0.5,
+    "scenarios": [
+      "USED_INVOICE",
+      "CANCELLED_RECORD",
+      "INFLATED_AMOUNT",
+      "DATE_MISMATCH",
+      "BLACKLISTED_HOSPITAL",
+      "NEAR_DUPLICATE",
+      "PROVIDER_COMPROMISE",
+      "NOISY_RECORD"
+    ]
+  },
+  "sourceCounts": {
+    "INPATIENT": 40474,
+    "OUTPATIENT": 517737
+  },
+  "totalUniqueClaims": 558211,
+  "providers": 5410,
+  "beneficiaries": 138556,
+  "preprocessingReference": "Amount and temporal activity thresholds are learned from the provider-disjoint training partition only.",
+  "temporalFeaturePolicy": {
+    "previousClaimCount": "Strictly earlier claims for the beneficiary inside its provider-derived partition",
+    "providerVelocityAnomaly": "Prior 30-day provider claim count at or above the training P95",
+    "claimantVelocityAnomaly": "Prior 365-day beneficiary claim count at or above the training P95",
+    "equalTimestampPolicy": "Claims on the same date are not treated as prior claims"
+  },
+  "beneficiaryOverlap": {
+    "definition": "Unique source beneficiaries appearing through different providers in both named partitions",
+    "trainCalibration": 39364,
+    "trainTest": 41627,
+    "calibrationTest": 21210,
+    "interpretation": "The evaluation is provider-held-out, not fully entity-isolated; beneficiary identifiers are excluded from model features."
+  },
+  "amountRangesUsd": {
+    "INPATIENT": {
+      "minimum": 3068,
+      "median": 8068,
+      "maximum": 31068
+    },
+    "OUTPATIENT": {
+      "minimum": 10,
+      "median": 80,
+      "maximum": 1500
+    }
+  },
+  "splitCountsBySetting": {
+    "train": {
+      "INPATIENT": 25826,
+      "OUTPATIENT": 317711
+    },
+    "calibration": {
+      "INPATIENT": 7132,
+      "OUTPATIENT": 98145
+    },
+    "test": {
+      "INPATIENT": 7516,
+      "OUTPATIENT": 101881
+    }
+  },
+  "velocityThresholds": {
+    "providerPrior30DayClaimCountP95": 239,
+    "beneficiaryPrior365DayClaimCountP95": 7
+  },
+  "counts": {
+    "train": 343537,
+    "calibration": 105277,
+    "testUntouched": 109397,
+    "testAttacks": 109397,
+    "runtimeHybrid": 4995,
+    "providerPotentialFraudClaims": 212796,
+    "injectedByPartition": {
+      "train": 40969,
+      "calibration": 12600,
+      "testAttacks": 54705
+    },
+    "scenarios": {
+      "USED_INVOICE": 13551,
+      "CANCELLED_RECORD": 13781,
+      "INFLATED_AMOUNT": 13622,
+      "DATE_MISMATCH": 13415,
+      "BLACKLISTED_HOSPITAL": 13652,
+      "NEAR_DUPLICATE": 13502,
+      "PROVIDER_COMPROMISE": 13325,
+      "NOISY_RECORD": 13426
+    }
+  },
+  "sourceFiles": {
+    "Train-1542865627584.csv": {
+      "bytes": 87094,
+      "sha256": "09315a0e0c262ddfb91df15df76b196a80de2ff1001fad46b362b562df2e7e43"
+    },
+    "Train_Beneficiarydata-1542865627584.csv": {
+      "bytes": 11444821,
+      "sha256": "1fb7fb14efeaae04b970bfeb3176cdf938c755748217377109081d6dae01ecfd"
+    },
+    "Train_Inpatientdata-1542865627584.csv": {
+      "bytes": 8572555,
+      "sha256": "395bc2d01a102bf44a26ba4b36c63e7086943eaf2d5d1489c776bf47d1613ac0"
+    },
+    "Train_Outpatientdata-1542865627584.csv": {
+      "bytes": 77391090,
+      "sha256": "f532ed7e25f50d6abf3ba89ceeb2a23e2a352792f90d086b13999a561fd23889"
+    }
+  },
+  "outputFiles": {
+    "train": "processed/train.jsonl",
+    "calibration": "processed/calibration.jsonl",
+    "testUntouched": "processed/test-untouched.jsonl",
+    "testAttacks": "processed/test-attacks.jsonl",
+    "runtimeHybrid": "runtime/hybrid-primary.jsonl"
+  },
+  "outputSha256": {
+    "train": "bad8ae17409b2547b50b05483b243c9902f23b303f3d435d244fe8932090eb34",
+    "calibration": "732fd1ee1715907be5dd50b58d7cb419344ff1df9ece0a5cd249e7f2f6b1194e",
+    "testUntouched": "1e9a85db394ea0c48b95e2ac71bc1a630f343c1a0c863d18ab639dbda7aa024d",
+    "testAttacks": "7ddfdd9233331a64d4c1e610e54c6b1c6543a4fc35cb8cdca3ed03da6b6ae07a",
+    "runtimeHybrid": "323136176edc3eef0816617916c5a1ff8fd58051fd13130afdeaac4e32ef887f"
+  }
+}

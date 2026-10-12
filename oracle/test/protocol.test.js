@@ -68,3 +68,16 @@ test("different oracle secrets produce different commitments for the same result
     buildCommitment(request, false, resultHash, secondSalt)
   );
 });
+
+test("oracle salt accepts the prefixed and unprefixed private-key formats used by env files", () => {
+  const wallet = ethers.Wallet.createRandom();
+  const common = {
+    requestId: request.requestId,
+    oracleAddress: wallet.address,
+  };
+
+  assert.equal(
+    buildSalt({ ...common, privateKey: wallet.privateKey }),
+    buildSalt({ ...common, privateKey: wallet.privateKey.slice(2) })
+  );
+});

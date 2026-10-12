@@ -1,7 +1,8 @@
 {
-  "exclude-dependencies": true,
-  "filter-paths": "node_modules|contracts/test|artifacts|cache|coverage",
-  "fail-pedantic": false,
-  "hardhat-artifacts-directory": "artifacts",
-  "legacy-ast": false
+  "exclude_dependencies": true,
+  "filter_paths": "node_modules,contracts/test,artifacts,cache,coverage",
+  "fail_on": "none",
+  "hardhat_artifacts_directory": "artifacts",
+  "hardhat_ignore_compile": true,
+  "legacy_ast": false
 }

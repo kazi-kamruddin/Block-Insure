@@ -33,6 +33,7 @@ import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules"
 import { getClaimStatusName } from "../utils/claimStatus";
 import "../styles/pages/ClaimDetailPage.css";
 import { showToast } from "../services/toast";
+import { formatDateTime } from "../utils/dateFormat";
 
 function extractClaim(data) {
   return data?.claim || data?.data?.claim || data?.data || data;
@@ -57,13 +58,25 @@ function formatValue(value) {
   return String(value);
 }
 
-function formatDate(value) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString();
+function buildAppealCommitmentPayload(source) {
+  const text = (value) => String(value || "").trim();
+  return {
+    schema: "BLOCK_INSURE_APPEAL_V1",
+    claimId: text(source.claimId),
+    appealReason: text(source.appealReason),
+    reasonCategory: text(source.reasonCategory || "OTHER").toUpperCase(),
+    appealDescription: text(source.appealDescription || source.appealReason),
+    additionalDocumentHash: text(source.additionalDocumentHash).toLowerCase(),
+    additionalDocumentCID: text(source.additionalDocumentCID),
+    proposedHospitalId: text(source.proposedHospitalId).toUpperCase(),
+    proposedInvoiceNumber: text(source.proposedInvoiceNumber),
+    proposedClaimType: text(source.proposedClaimType).toUpperCase(),
+    proposedClaimAmountEth: text(source.proposedClaimAmountEth),
+  };
 }
 
-async function hashAppealReason(reason) {
-  const encoded = new TextEncoder().encode(reason);
+async function hashAppealCommitment(payload) {
+  const encoded = new TextEncoder().encode(JSON.stringify(payload));
   const digest = await crypto.subtle.digest("SHA-256", encoded);
   return `0x${Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, "0"))
@@ -130,6 +143,7 @@ export default function ClaimDetailPage() {
   });
 
   const claim = extractClaim(claimData);
+  const hospitalVerification = claimData?.hospitalVerification || null;
   const evidenceChain = extractEvidenceChain(claimData);
   const originalEvidenceDocument = evidenceChain?.documents?.find(
     (document) => document.ipfsCID === claim?.documentCID
@@ -212,7 +226,6 @@ export default function ClaimDetailPage() {
     try {
       setIsSubmittingAppeal(true);
 
-      const appealReasonHash = await hashAppealReason(trimmedReason);
       let additionalDocumentHash = "";
       let additionalDocumentCID = "";
 
@@ -246,6 +259,20 @@ export default function ClaimDetailPage() {
         storeEvidenceKey(additionalDocumentCID, encryptedAppealEvidence);
       }
 
+      const appealPayload = buildAppealCommitmentPayload({
+        claimId: id,
+        appealReason: trimmedReason,
+        reasonCategory: appealReasonCategory,
+        appealDescription: appealDescription.trim() || trimmedReason,
+        additionalDocumentHash,
+        additionalDocumentCID,
+        proposedHospitalId,
+        proposedInvoiceNumber,
+        proposedClaimType,
+        proposedClaimAmountEth,
+      });
+      const appealReasonHash = await hashAppealCommitment(appealPayload);
+
       const contract = await getWalletContract();
       const tx = additionalDocumentHash
         ? await contract.submitAppealWithEvidence(
@@ -261,18 +288,9 @@ export default function ClaimDetailPage() {
       await tx.wait();
 
       await submitAppeal({
-        claimId: id,
-        appealReason: trimmedReason,
-        reasonCategory: appealReasonCategory,
-        appealDescription: appealDescription.trim() || trimmedReason,
+        ...appealPayload,
         appealReasonHash,
-        additionalDocumentHash,
-        additionalDocumentCID,
         transactionHash: tx.hash,
-        proposedHospitalId: proposedHospitalId.trim(),
-        proposedInvoiceNumber: proposedInvoiceNumber.trim(),
-        proposedClaimType: proposedClaimType.trim(),
-        proposedClaimAmountEth: proposedClaimAmountEth.trim(),
       });
 
       setAppealReason("");
@@ -369,8 +387,9 @@ export default function ClaimDetailPage() {
           </p>
           <p>
             Submitted:{" "}
-            {formatDate(claim.submittedAtFormatted || claim.submittedAt)}
+            {formatDateTime(claim.submittedAt)}
           </p>
+          <p>Incident: {formatDateTime(claim.incidentDate)}</p>
           {claim.fraudReason ? (
             <p className="error-text">
               <strong>Flag reason:</strong> {claim.fraudReason}
@@ -417,6 +436,23 @@ export default function ClaimDetailPage() {
         </div>
       ) : null}
 
+      {claim ? (
+        <div className="card">
+          <h3>Hospital verification</h3>
+          {hospitalVerification ? (
+            <>
+              <p>Outcome: <strong>{hospitalVerification.outcome}</strong></p>
+              <p>{hospitalVerification.verified
+                ? "The contracted hospital confirmed that the submitted invoice, amount, treatment, and care dates match its source record."
+                : "The contracted hospital reported one or more mismatches. The insurer can review the detailed attestation."}</p>
+              <p><TransactionLink txHash={hospitalVerification.transactionHash} /></p>
+            </>
+          ) : (
+            <p>The claim is waiting for its contracted hospital to verify the source invoice.</p>
+          )}
+        </div>
+      ) : null}
+
       {statusName === "PAYOUT_READY" ? (
         <div className="card">
           <h3>Payment ready</h3>
@@ -445,8 +481,8 @@ export default function ClaimDetailPage() {
               <p>
                 Status: <span className={`appeal-pill appeal-${appeal.status?.toLowerCase()}`}>{appeal.status}</span>
               </p>
-              <p>Submitted: {formatDate(appeal.submittedAt)}</p>
-              <p>Appeal deadline: {formatDate(appeal.appealDeadline)}</p>
+              <p>Submitted: {formatDateTime(appeal.submittedAt)}</p>
+              <p>Appeal deadline: {formatDateTime(appeal.appealDeadline)}</p>
               <p>Category: {formatValue(appeal.reasonCategory)}</p>
               <p>Reason: {formatValue(appeal.appealReason)}</p>
               <p>Description: {formatValue(appeal.appealDescription)}</p>
@@ -518,9 +554,9 @@ export default function ClaimDetailPage() {
               <fieldset>
                 <legend>Corrected claim information (optional)</legend>
                 <p className="muted-text">
-                  Enter only information that was wrong originally. If the
-                  appeal is approved, the next oracle round will use these
-                  corrections and identify them as appeal-supplied data.
+                  Enter only information that was wrong originally. The
+                  hospital will attest the corrected claim version before a new
+                  Oracle round evaluates it as appeal-supplied data.
                 </p>
                 <label>
                   Correct hospital ID
@@ -578,7 +614,7 @@ export default function ClaimDetailPage() {
               <h4>Appeal history</h4>
               {appeal.history.map((entry, index) => (
                 <p key={`${entry.status}-${entry.timestamp || index}`}>
-                  {formatDate(entry.timestamp)} - {entry.status} by{" "}
+                  {formatDateTime(entry.timestamp)} - {entry.status} by{" "}
                   {formatValue(entry.actorRole)} {entry.note ? `- ${entry.note}` : ""}
                 </p>
               ))}

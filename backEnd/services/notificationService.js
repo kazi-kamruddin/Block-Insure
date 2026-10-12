@@ -25,13 +25,15 @@ const createNotification = async (payload) => {
           message: payload.message,
           claimId: String(payload.claimId || ""),
           appealId: String(payload.appealId || ""),
+          policyId: String(payload.policyId || ""),
+          transactionHash: String(payload.transactionHash || "").toLowerCase(),
           status: payload.status || "",
           link: payload.link || "",
           dedupeKey: payload.dedupeKey,
         },
       },
       {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         setDefaultsOnInsert: true,
       }

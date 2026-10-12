@@ -17,6 +17,7 @@ const {
 } = require("../services/evidenceChainService");
 const { calculateTextSHA256 } = require("../services/hashService");
 const {
+  TREE_VERSION,
   buildRegistryMerkleProof,
   exportMerkleRoot,
 } = require("../services/merkleRegistryService");
@@ -376,7 +377,7 @@ async function verifyAgainstRegistry({
   const comparisonVerified = record && comparison.blockingFailureCount === 0;
   const verified =
     Boolean(comparisonVerified) &&
-    riskAssessment.recommendation !== "REJECT_ORACLE_VERIFICATION";
+    riskAssessment.recommendation === "AUTO_VERIFY_RECOMMENDED";
   const comparisonRiskLevel = comparisonVerified
     ? comparison.warningFailureCount > 0
       ? "MEDIUM"
@@ -514,10 +515,30 @@ async function submitOracleConfirmation({
   const startedAt = Date.now();
   await waitFor(coordinator.commitOracleResult(requestId, commitment));
 
-  return { coordinator, request, salt, oracleResponse, startedAt };
+  return {
+    coordinator,
+    request,
+    salt,
+    oracleResponse,
+    startedAt,
+    requestId,
+    claimId,
+    oracleType,
+    oracleInstanceId,
+  };
 }
 
-async function revealDemoOracle({ coordinator, request, salt, oracleResponse, startedAt }) {
+async function revealDemoOracle({
+  coordinator,
+  request,
+  salt,
+  oracleResponse,
+  startedAt,
+  requestId,
+  claimId,
+  oracleType,
+  oracleInstanceId,
+}) {
   const receipt = await waitFor(
     coordinator.revealOracleResult(
       request.requestId,
@@ -760,7 +781,7 @@ async function main() {
       coordinator.publishRegistrySnapshot(
         merkleRoot,
         records.length,
-        ethers.keccak256(ethers.toUtf8Bytes("phase-6-registry-merkle-v1"))
+        ethers.keccak256(ethers.toUtf8Bytes(TREE_VERSION))
       )
     );
     console.log("Registry Merkle root pushed on-chain:", merkleRoot);
@@ -774,7 +795,7 @@ async function main() {
       );
 
       if (!record) {
-        throw new Error(`No synthetic registry record found for ${label}`);
+        throw new Error(`No registry record found for ${label}`);
       }
 
       selectedInvoiceNumbers.add(record.invoiceNumber);

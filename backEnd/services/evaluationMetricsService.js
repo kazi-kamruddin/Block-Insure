@@ -41,7 +41,21 @@ const calculateClassificationMetrics = (matrix) => {
       : 0;
   const f1Score =
     precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+  const beta = 2;
+  const f2Score =
+    precision + recall > 0
+      ? ((1 + beta ** 2) * precision * recall) / (beta ** 2 * precision + recall)
+      : 0;
   const falsePositiveRate = 1 - specificity;
+  const mccDenominator = Math.sqrt(
+    (truePositive + falsePositive) *
+      (truePositive + falseNegative) *
+      (trueNegative + falsePositive) *
+      (trueNegative + falseNegative)
+  );
+  const matthewsCorrelationCoefficient = mccDenominator > 0
+    ? ((truePositive * trueNegative) - (falsePositive * falseNegative)) / mccDenominator
+    : 0;
 
   return {
     accuracy: round(accuracy),
@@ -50,6 +64,8 @@ const calculateClassificationMetrics = (matrix) => {
     specificity: round(specificity),
     falsePositiveRate: round(falsePositiveRate),
     f1Score: round(f1Score),
+    f2Score: round(f2Score),
+    matthewsCorrelationCoefficient: round(matthewsCorrelationCoefficient),
   };
 };
 

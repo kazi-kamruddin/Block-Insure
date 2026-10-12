@@ -164,7 +164,9 @@ const mockHospitalRecordSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Deprecated compatibility alias retained for the synthetic Phase 5 model.
     actualFraud: { type: Boolean, required: true, default: false, index: true },
+    controlledAttackTruth: { type: Boolean, required: true, default: false, index: true },
     providerVelocityAnomaly: { type: Boolean, default: false },
     claimantVelocityAnomaly: { type: Boolean, default: false },
     nearDuplicateAdvisory: { type: Boolean, default: false },
@@ -178,6 +180,37 @@ const mockHospitalRecordSchema = new mongoose.Schema(
     datasetProfile: { type: String, trim: true, default: "normal", index: true },
     recordId: { type: String, trim: true, default: "", index: true },
     occurredAt: { type: Date, default: Date.now, index: true },
+    sourceClaimId: { type: String, trim: true, default: "", index: true },
+    sourceBeneId: { type: String, trim: true, default: "" },
+    sourceProviderId: { type: String, trim: true, default: "", index: true },
+    baseDataOrigin: {
+      type: String,
+      enum: ["FULLY_SYNTHETIC", "PUBLIC_SECONDARY"],
+      default: "FULLY_SYNTHETIC",
+      index: true,
+    },
+    claimSetting: {
+      type: String,
+      enum: ["INPATIENT", "OUTPATIENT", "SYNTHETIC"],
+      default: "SYNTHETIC",
+      index: true,
+    },
+    sourceClaimAmountUsd: { type: Number, min: 0, default: 0 },
+    sourceProcedureCode: { type: String, trim: true, default: "" },
+    providerPotentialFraud: { type: Boolean, default: false, index: true },
+    providerLabelType: {
+      type: String,
+      enum: ["NONE", "POTENTIAL_PROVIDER_FRAUD"],
+      default: "NONE",
+    },
+    scenarioInjected: { type: Boolean, default: false, index: true },
+    scenarioType: { type: String, trim: true, default: "NONE", index: true },
+    scenarioVersion: { type: String, trim: true, default: "none" },
+    amountNormalizationVersion: { type: String, trim: true, default: "none" },
+    amountNormalizationDivisor: { type: Number, min: 0, default: 0 },
+    beneficiaryGenderCode: { type: String, trim: true, default: "" },
+    beneficiaryRaceCode: { type: String, trim: true, default: "" },
+    chronicConditionCount: { type: Number, min: 0, default: 0 },
     latentMechanism: {
       compromisedProvider: { type: Boolean, default: false },
       claimantCollusion: { type: Boolean, default: false },
@@ -196,5 +229,7 @@ mockHospitalRecordSchema.index({
   hospitalId: 1,
   invoiceHash: 1,
 });
+mockHospitalRecordSchema.index({ claimantId: 1, admissionDate: -1 });
+mockHospitalRecordSchema.index({ hospitalId: 1, admissionDate: -1 });
 
 module.exports = mongoose.model("MockHospitalRecord", mockHospitalRecordSchema);

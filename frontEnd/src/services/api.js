@@ -3,12 +3,14 @@ import { ethers } from "ethers";
 
 import {
   getPolicyBenefitsWalletContract,
+  getHospitalVerificationWalletContract,
   getWalletContract,
   getWalletOracleCoordinator,
 } from "./contractService";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.PROD ? window.location.origin : "http://localhost:5000");
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -71,6 +73,28 @@ export async function getPolicyPackages(params = {}) {
   return response.data;
 }
 
+export async function getPublicPolicyPackage(packageId) {
+  const response = await api.get(`/api/policy-packages/${packageId}`);
+  return response.data;
+}
+
+export async function acceptPolicyTerms(packageId, policyDocument) {
+  const response = await api.post(
+    `/api/policy-packages/${packageId}/acceptance`,
+    {
+      documentVersion: policyDocument.documentVersion,
+      documentHash: policyDocument.documentHash,
+    }
+  );
+  return response.data;
+}
+
+export function getPublicPolicyDocumentUrl(packageId, { download = false } = {}) {
+  return `${API_BASE_URL}/api/policy-packages/${packageId}/document${
+    download ? "?download=1" : ""
+  }`;
+}
+
 export async function getRiskPremiumQuote(packageId, payload) {
   const response = await api.post(
     `/api/policy-packages/${packageId}/risk-premium-quote`,
@@ -129,6 +153,49 @@ export async function reactivatePolicyPackage(packageId) {
 export async function getMyPolicies(params = {}) {
   const response = await api.get("/api/policies/my", { params });
   return response.data;
+}
+
+export async function getMyPaymentStatement(params = {}) {
+  const response = await api.get("/api/policies/payments/my", { params });
+  return response.data;
+}
+
+export async function confirmPremiumPayment(transactionHash) {
+  const response = await api.post("/api/policies/payments/confirm", {
+    transactionHash,
+  });
+  return response.data;
+}
+
+function getDownloadFilename(response, fallback) {
+  const disposition = response.headers["content-disposition"] || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return match?.[1] || fallback;
+}
+
+export async function downloadPremiumStatement(params = {}) {
+  const response = await api.get("/api/policies/payments/statement.csv", {
+    params,
+    responseType: "blob",
+  });
+  return {
+    blob: response.data,
+    filename: getDownloadFilename(response, "premium-statement.csv"),
+  };
+}
+
+export async function downloadInsuranceCertificate(policyId, params = {}) {
+  const response = await api.get(`/api/policies/${policyId}/certificate.html`, {
+    params,
+    responseType: "blob",
+  });
+  return {
+    blob: response.data,
+    filename: getDownloadFilename(
+      response,
+      `insurance-certificate-policy-${policyId}.html`
+    ),
+  };
 }
 
 export async function uploadClaimDocument({
@@ -615,6 +682,10 @@ export async function reconcilePendingAdminTransactions() {
 }
 
 export async function requestOracleVerification(claimId) {
+  const hospitalResult = await getHospitalClaimVerification(claimId);
+  if (!hospitalResult.verification) {
+    throw new Error("The contracted hospital must verify this claim before insurer processing.");
+  }
   const contract = await getWalletContract();
   return executeAdminWalletAction(
     "REQUEST_ORACLE_VERIFICATION",
@@ -655,6 +726,149 @@ export async function getHealthcareRegistryRecords(params = {}) {
   const response = await api.get("/mock/hospital/records", {
     params,
   });
+  return response.data;
+}
+
+export async function getNetworkHospitals() {
+  const response = await api.get("/api/hospitals/network");
+  return response.data;
+}
+
+export async function getMyHospitalProfile() {
+  const response = await api.get("/api/hospitals/me");
+  return response.data;
+}
+
+export async function getMyHospitalRecords(params = {}) {
+  const response = await api.get("/api/hospitals/records", { params });
+  return response.data;
+}
+
+export async function createMyHospitalRecord(record) {
+  const response = await api.post("/api/hospitals/records", record);
+  return response.data;
+}
+
+export async function updateMyHospitalRecord(recordId, updates) {
+  const response = await api.patch(`/api/hospitals/records/${recordId}`, updates);
+  return response.data;
+}
+
+export async function getMyHospitalClaimRequests() {
+  const response = await api.get("/api/hospitals/claim-requests");
+  return response.data;
+}
+
+export async function getMyHospitalClaimRequest(claimId) {
+  const response = await api.get(`/api/hospitals/claim-requests/${claimId}`);
+  return response.data;
+}
+
+export async function submitHospitalClaimVerification(
+  claimId,
+  verified,
+  attestationHash,
+  note = ""
+) {
+  const contract = await getHospitalVerificationWalletContract();
+  const tx = await contract.submitHospitalVerification(
+    claimId,
+    Boolean(verified),
+    attestationHash
+  );
+  await tx.wait();
+  try {
+    const response = await api.post(
+      `/api/hospitals/claim-requests/${claimId}/confirm`,
+      { transactionHash: tx.hash, note }
+    );
+    return { ...response.data, transactionHash: tx.hash };
+  } catch (error) {
+    error.hospitalTransactionHash = tx.hash;
+    error.message =
+      `The on-chain hospital attestation succeeded (${tx.hash}), but backend confirmation is pending. ` +
+      (error.message || "");
+    throw error;
+  }
+}
+
+export async function getHospitalClaimVerification(claimId) {
+  const response = await api.get(`/api/hospitals/claim-verifications/${claimId}`);
+  return response.data;
+}
+
+export async function getNetworkBanks() {
+  const response = await api.get("/api/banks/network");
+  return response.data;
+}
+
+export async function getMyBankProfile() {
+  const response = await api.get("/api/banks/me");
+  return response.data;
+}
+
+export async function getMyBankAccounts() {
+  const response = await api.get("/api/banks/accounts");
+  return response.data;
+}
+
+export async function getMyBankMandates() {
+  const response = await api.get("/api/banks/mandates");
+  return response.data;
+}
+
+export async function getMyBankTransactions() {
+  const response = await api.get("/api/banks/transactions");
+  return response.data;
+}
+
+export async function approveBankMandate(mandateId) {
+  const response = await api.post(`/api/banks/mandates/${mandateId}/approve`);
+  return response.data;
+}
+
+export async function rejectBankMandate(mandateId, reason = "") {
+  const response = await api.post(`/api/banks/mandates/${mandateId}/reject`, { reason });
+  return response.data;
+}
+
+export async function runBankAutomation(referenceDate) {
+  const response = await api.post("/api/banks/automation/run", { referenceDate });
+  return response.data;
+}
+
+export async function getMyBankingAccounts() {
+  const response = await api.get("/api/banks/user/accounts");
+  return response.data;
+}
+
+export async function getMyEftMandates() {
+  const response = await api.get("/api/banks/user/mandates");
+  return response.data;
+}
+
+export async function getMyBankingTransactions() {
+  const response = await api.get("/api/banks/user/transactions");
+  return response.data;
+}
+
+export async function createEftMandate(payload) {
+  const response = await api.post("/api/banks/user/mandates", payload);
+  return response.data;
+}
+
+export async function cancelEftMandate(mandateId) {
+  const response = await api.patch(`/api/banks/user/mandates/${mandateId}/cancel`);
+  return response.data;
+}
+
+export async function requestManualBankPaymentOtp(payload) {
+  const response = await api.post("/api/banks/user/manual-payments/otp", payload);
+  return response.data;
+}
+
+export async function confirmManualBankPayment(payload) {
+  const response = await api.post("/api/banks/user/manual-payments/confirm", payload);
   return response.data;
 }
 

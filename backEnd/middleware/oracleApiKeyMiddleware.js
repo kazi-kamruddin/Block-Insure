@@ -1,3 +1,14 @@
+const crypto = require("node:crypto");
+
+const keysMatch = (provided, expected) => {
+  const providedBuffer = Buffer.from(String(provided || ""), "utf8");
+  const expectedBuffer = Buffer.from(String(expected || ""), "utf8");
+  return (
+    providedBuffer.length === expectedBuffer.length &&
+    crypto.timingSafeEqual(providedBuffer, expectedBuffer)
+  );
+};
+
 const requireOracleApiKey = (req, res, next) => {
   const expectedApiKey = process.env.ORACLE_API_KEY;
   const providedApiKey =
@@ -11,7 +22,7 @@ const requireOracleApiKey = (req, res, next) => {
     });
   }
 
-  if (providedApiKey !== expectedApiKey) {
+  if (!keysMatch(providedApiKey, expectedApiKey)) {
     return res.status(401).json({
       success: false,
       message: "Invalid oracle API key",

@@ -55,6 +55,26 @@ const oracleHealthSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    cursorChainId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    cursorContractAddress: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+    },
+    nextBlock: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    cursorUpdatedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

@@ -1,0 +1,414 @@
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+const readline = require("node:readline");
+const { once } = require("node:events");
+const {
+  AMOUNT_NORMALIZATION_DIVISOR,
+  AMOUNT_NORMALIZATION_VERSION,
+  CLAIM_SCENARIOS,
+  DEFAULT_SEED,
+  HYBRID_DATASET_VERSION,
+  SCENARIO_VERSION,
+  buildBaseHybridRecord,
+  clean,
+  createDeterministicSampler,
+  getProviderSplit,
+  getSourceClaimAmount,
+  injectScenario,
+  parseCsvLine,
+  toRow,
+} = require("../services/hybridDatasetAdapterService");
+
+const DATASET_DIR = path.join(__dirname, "..", "datasets", "hybrid-v1");
+const RAW_DIR = path.join(DATASET_DIR, "raw");
+const PROCESSED_DIR = path.join(DATASET_DIR, "processed");
+const RUNTIME_DIR = path.join(DATASET_DIR, "runtime");
+const LABEL_FILE = "Train-1542865627584.csv";
+const BENEFICIARY_FILE = "Train_Beneficiarydata-1542865627584.csv";
+const CLAIM_FILES = [
+  { file: "Train_Inpatientdata-1542865627584.csv", setting: "INPATIENT" },
+  { file: "Train_Outpatientdata-1542865627584.csv", setting: "OUTPATIENT" },
+];
+const RUNTIME_HYBRID_RECORDS = 4995;
+const PROVIDER_WINDOW_DAYS = 30;
+const BENEFICIARY_WINDOW_DAYS = 365;
+const DAY_IN_MS = 86_400_000;
+
+const sha256File = async (filePath) => {
+  const hash = crypto.createHash("sha256");
+  for await (const chunk of fs.createReadStream(filePath)) hash.update(chunk);
+  return hash.digest("hex");
+};
+
+const readCsv = async (filePath, onRow) => {
+  const input = fs.createReadStream(filePath, { encoding: "utf8" });
+  const reader = readline.createInterface({ input, crlfDelay: Infinity });
+  let headers = null;
+  let count = 0;
+  for await (const line of reader) {
+    if (!headers) {
+      headers = parseCsvLine(line).map((header) => clean(header));
+      continue;
+    }
+    if (!line.trim()) continue;
+    count += 1;
+    await onRow(toRow(headers, parseCsvLine(line)), count);
+  }
+  return count;
+};
+
+const percentile = (values, probability) => {
+  if (!values.length) return 0;
+  const sorted = values.slice().sort((left, right) => left - right);
+  const index = Math.min(sorted.length - 1, Math.floor(probability * (sorted.length - 1)));
+  return sorted[index];
+};
+
+const increment = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+
+const claimTimestamp = (claim) => {
+  const value = clean(claim.AdmissionDt) || clean(claim.ClaimStartDt) || "2009-01-01";
+  const timestamp = new Date(`${value}T00:00:00.000Z`).getTime();
+  return Number.isFinite(timestamp) ? timestamp : new Date("2009-01-01T00:00:00.000Z").getTime();
+};
+
+const appendTimestamp = (map, key, timestamp) => {
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(timestamp);
+};
+
+const lowerBound = (values, target) => {
+  let low = 0;
+  let high = values.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (values[middle] < target) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+};
+
+const priorCount = (timestamps, timestamp) => lowerBound(timestamps || [], timestamp);
+const priorCountWithinDays = (timestamps, timestamp, days) => {
+  const values = timestamps || [];
+  return lowerBound(values, timestamp) - lowerBound(values, timestamp - days * DAY_IN_MS);
+};
+
+const intersectionSize = (left, right) => {
+  let count = 0;
+  for (const value of left) if (right.has(value)) count += 1;
+  return count;
+};
+
+const writeLine = async (stream, value) => {
+  if (!stream.write(`${JSON.stringify(value)}\n`)) await once(stream, "drain");
+};
+
+const closeStream = async (stream) => {
+  stream.end();
+  await once(stream, "finish");
+};
+
+const createOutput = (fileName) => {
+  const filePath = path.join(PROCESSED_DIR, fileName);
+  const temporaryPath = `${filePath}.tmp`;
+  fs.rmSync(temporaryPath, { force: true });
+  return {
+    filePath,
+    temporaryPath,
+    stream: fs.createWriteStream(temporaryPath, { encoding: "utf8" }),
+  };
+};
+
+const publishOutput = ({ filePath, temporaryPath }) =>
+  fs.renameSync(temporaryPath, filePath);
+
+const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
+  fs.mkdirSync(PROCESSED_DIR, { recursive: true });
+  fs.mkdirSync(RUNTIME_DIR, { recursive: true });
+
+  const requiredFiles = [LABEL_FILE, BENEFICIARY_FILE, ...CLAIM_FILES.map(({ file }) => file)];
+  requiredFiles.forEach((file) => {
+    const filePath = path.join(RAW_DIR, file);
+    if (!fs.existsSync(filePath)) throw new Error(`Missing hybrid source file: ${filePath}`);
+  });
+
+  const providerLabels = new Map();
+  await readCsv(path.join(RAW_DIR, LABEL_FILE), async (row) => {
+    providerLabels.set(clean(row.Provider), clean(row.PotentialFraud).toLowerCase() === "yes");
+  });
+
+  const beneficiaries = new Map();
+  await readCsv(path.join(RAW_DIR, BENEFICIARY_FILE), async (row) => {
+    beneficiaries.set(clean(row.BeneID), row);
+  });
+
+  const trainingAmountsBySetting = { INPATIENT: [], OUTPATIENT: [] };
+  const providerDates = new Map();
+  const partitionBeneficiaryDates = new Map();
+  const trainingEvents = [];
+  const beneficiariesBySplit = {
+    train: new Set(),
+    calibration: new Set(),
+    test: new Set(),
+  };
+  const sourceCounts = {};
+  const splitCountsBySetting = {
+    train: { INPATIENT: 0, OUTPATIENT: 0 },
+    calibration: { INPATIENT: 0, OUTPATIENT: 0 },
+    test: { INPATIENT: 0, OUTPATIENT: 0 },
+  };
+  const uniqueClaimIds = new Set();
+
+  for (const source of CLAIM_FILES) {
+    sourceCounts[source.setting] = await readCsv(path.join(RAW_DIR, source.file), async (claim) => {
+      const claimId = clean(claim.ClaimID);
+      if (!claimId || uniqueClaimIds.has(claimId)) {
+        throw new Error(`Missing or duplicate ClaimID detected: ${claimId || "<empty>"}`);
+      }
+      uniqueClaimIds.add(claimId);
+      const providerId = clean(claim.Provider);
+      const beneId = clean(claim.BeneID);
+      if (!providerLabels.has(providerId)) throw new Error(`Provider label missing: ${providerId}`);
+      if (!beneficiaries.has(beneId)) throw new Error(`Beneficiary missing: ${beneId}`);
+      const split = getProviderSplit(providerId, seed);
+      const timestamp = claimTimestamp(claim);
+      splitCountsBySetting[split][source.setting] += 1;
+      beneficiariesBySplit[split].add(beneId);
+      if (split === "train") {
+        trainingAmountsBySetting[source.setting].push(getSourceClaimAmount(claim));
+      }
+      appendTimestamp(providerDates, providerId, timestamp);
+      appendTimestamp(partitionBeneficiaryDates, `${split}:${beneId}`, timestamp);
+      if (split === "train") trainingEvents.push({ providerId, beneId, timestamp });
+    });
+  }
+
+  for (const dates of providerDates.values()) dates.sort((left, right) => left - right);
+  for (const dates of partitionBeneficiaryDates.values()) dates.sort((left, right) => left - right);
+
+  const amountRanges = Object.fromEntries(
+    Object.entries(trainingAmountsBySetting).map(([setting, values]) => [
+      setting,
+      {
+        minimum: percentile(values, 0.05),
+        median: percentile(values, 0.5),
+        maximum: percentile(values, 0.95),
+      },
+    ])
+  );
+  const providerVelocityThreshold = percentile(
+    trainingEvents.map(({ providerId, timestamp }) =>
+      priorCountWithinDays(providerDates.get(providerId), timestamp, PROVIDER_WINDOW_DAYS)
+    ),
+    0.95
+  );
+  const claimantVelocityThreshold = percentile(
+    trainingEvents.map(({ beneId, timestamp }) =>
+      priorCountWithinDays(
+        partitionBeneficiaryDates.get(`train:${beneId}`),
+        timestamp,
+        BENEFICIARY_WINDOW_DAYS
+      )
+    ),
+    0.95
+  );
+
+  const outputs = {
+    train: createOutput("train.jsonl"),
+    calibration: createOutput("calibration.jsonl"),
+    testUntouched: createOutput("test-untouched.jsonl"),
+    testAttacks: createOutput("test-attacks.jsonl"),
+  };
+  const runtimePath = path.join(RUNTIME_DIR, "hybrid-primary.jsonl");
+  const runtimeTemporaryPath = `${runtimePath}.tmp`;
+  fs.rmSync(runtimeTemporaryPath, { force: true });
+  const runtimeSampler = createDeterministicSampler(RUNTIME_HYBRID_RECORDS, {
+    seed,
+    namespace: "runtime-train",
+  });
+  const manifestCounts = {
+    train: 0,
+    calibration: 0,
+    testUntouched: 0,
+    testAttacks: 0,
+    runtimeHybrid: 0,
+    providerPotentialFraudClaims: 0,
+    injectedByPartition: { train: 0, calibration: 0, testAttacks: 0 },
+    scenarios: Object.fromEntries(CLAIM_SCENARIOS.map((scenario) => [scenario, 0])),
+  };
+  for (const source of CLAIM_FILES) {
+    await readCsv(path.join(RAW_DIR, source.file), async (claim) => {
+      const sourceProviderId = clean(claim.Provider);
+      const sourceBeneId = clean(claim.BeneID);
+      const providerPotentialFraud = providerLabels.get(sourceProviderId);
+      const split = getProviderSplit(sourceProviderId, seed);
+      const partitionBeneficiaryKey = `${split}:${sourceBeneId}`;
+      const timestamp = claimTimestamp(claim);
+      const providerWindowCount = priorCountWithinDays(
+        providerDates.get(sourceProviderId),
+        timestamp,
+        PROVIDER_WINDOW_DAYS
+      );
+      const beneficiaryWindowCount = priorCountWithinDays(
+        partitionBeneficiaryDates.get(partitionBeneficiaryKey),
+        timestamp,
+        BENEFICIARY_WINDOW_DAYS
+      );
+      const baseRecord = buildBaseHybridRecord({
+        claim,
+        beneficiary: beneficiaries.get(sourceBeneId),
+        potentialFraud: providerPotentialFraud,
+        claimSetting: source.setting,
+        amountRange: amountRanges[source.setting],
+        previousClaimCount: priorCount(
+          partitionBeneficiaryDates.get(partitionBeneficiaryKey),
+          timestamp
+        ),
+        providerVelocityAnomaly: providerWindowCount >= Math.max(providerVelocityThreshold, 1),
+        claimantVelocityAnomaly: beneficiaryWindowCount >= Math.max(claimantVelocityThreshold, 1),
+      });
+      if (providerPotentialFraud) manifestCounts.providerPotentialFraudClaims += 1;
+
+      if (split === "test") {
+        await writeLine(outputs.testUntouched.stream, baseRecord);
+        manifestCounts.testUntouched += 1;
+        const attacked = injectScenario(baseRecord, { seed: seed + 2, rate: 0.5 });
+        await writeLine(outputs.testAttacks.stream, attacked);
+        manifestCounts.testAttacks += 1;
+        if (attacked.scenarioInjected) {
+          manifestCounts.injectedByPartition.testAttacks += 1;
+          manifestCounts.scenarios[attacked.scenarioType] += 1;
+        }
+        return;
+      }
+
+      const adapted = injectScenario(baseRecord, {
+        seed: split === "train" ? seed : seed + 1,
+        rate: 0.12,
+      });
+      await writeLine(outputs[split].stream, adapted);
+      manifestCounts[split] += 1;
+      if (adapted.scenarioInjected) {
+        manifestCounts.injectedByPartition[split] += 1;
+        manifestCounts.scenarios[adapted.scenarioType] += 1;
+      }
+      if (split === "train") runtimeSampler.consider(baseRecord.sourceClaimId, adapted);
+    });
+  }
+
+  const runtimeRecords = runtimeSampler.values();
+  const runtimeStream = fs.createWriteStream(runtimeTemporaryPath, { encoding: "utf8" });
+  for (const record of runtimeRecords) await writeLine(runtimeStream, record);
+  manifestCounts.runtimeHybrid = runtimeRecords.length;
+
+  await Promise.all([
+    ...Object.values(outputs).map(({ stream }) => closeStream(stream)),
+    closeStream(runtimeStream),
+  ]);
+  Object.values(outputs).forEach(publishOutput);
+  fs.renameSync(runtimeTemporaryPath, runtimePath);
+
+  const outputFiles = {
+    train: path.relative(DATASET_DIR, outputs.train.filePath).replaceAll("\\", "/"),
+    calibration: path.relative(DATASET_DIR, outputs.calibration.filePath).replaceAll("\\", "/"),
+    testUntouched: path.relative(DATASET_DIR, outputs.testUntouched.filePath).replaceAll("\\", "/"),
+    testAttacks: path.relative(DATASET_DIR, outputs.testAttacks.filePath).replaceAll("\\", "/"),
+    runtimeHybrid: path.relative(DATASET_DIR, runtimePath).replaceAll("\\", "/"),
+  };
+  const hashes = Object.fromEntries(
+    await Promise.all(
+      Object.entries(outputFiles).map(async ([name, relativePath]) => [
+        name,
+        await sha256File(path.join(DATASET_DIR, relativePath)),
+      ])
+    )
+  );
+  const sourceFiles = Object.fromEntries(
+    await Promise.all(
+      requiredFiles.map(async (file) => {
+        const sourcePath = path.join(RAW_DIR, file);
+        return [
+          file,
+          { bytes: fs.statSync(sourcePath).size, sha256: await sha256File(sourcePath) },
+        ];
+      })
+    )
+  );
+  const manifest = {
+    manifestSchemaVersion: 3,
+    datasetVersion: HYBRID_DATASET_VERSION,
+    generatedAt: new Date().toISOString(),
+    seed,
+    source: {
+      title: "Healthcare Provider Fraud Detection Analysis",
+      platform: "Kaggle",
+      datasetMaintainer: "Rohit Anand Gupta and collaborator",
+      url: "https://www.kaggle.com/datasets/rohitrox/healthcare-provider-fraud-detection-analysis",
+      license: "CC0: Public Domain (as displayed on the Kaggle dataset page)",
+      acquiredAt: "2026-08-28",
+      dataType: "Public secondary Medicare claims benchmark",
+    },
+    sourceDescription: "Public secondary Medicare claims benchmark with weak provider-level PotentialFraud labels",
+    labelWarning: "PotentialFraud is provider-level weak risk evidence and is never copied into controlled claim-attack truth.",
+    amountNormalization: {
+      version: AMOUNT_NORMALIZATION_VERSION,
+      divisorUsdPerDemoUnit: AMOUNT_NORMALIZATION_DIVISOR,
+      note: "Research normalization, not a currency exchange rate.",
+    },
+    splitPolicy: "Provider-disjoint stable hash split: 64% train, 16% calibration, 20% test",
+    injectionPolicy: {
+      version: SCENARIO_VERSION,
+      trainRate: 0.12,
+      calibrationRate: 0.12,
+      testUntouchedRate: 0,
+      testAttacksRate: 0.5,
+      scenarios: CLAIM_SCENARIOS,
+    },
+    sourceCounts,
+    totalUniqueClaims: uniqueClaimIds.size,
+    providers: providerLabels.size,
+    beneficiaries: beneficiaries.size,
+    preprocessingReference: "Amount and temporal activity thresholds are learned from the provider-disjoint training partition only.",
+    temporalFeaturePolicy: {
+      previousClaimCount: "Strictly earlier claims for the beneficiary inside its provider-derived partition",
+      providerVelocityAnomaly: `Prior ${PROVIDER_WINDOW_DAYS}-day provider claim count at or above the training P95`,
+      claimantVelocityAnomaly: `Prior ${BENEFICIARY_WINDOW_DAYS}-day beneficiary claim count at or above the training P95`,
+      equalTimestampPolicy: "Claims on the same date are not treated as prior claims",
+    },
+    beneficiaryOverlap: {
+      definition: "Unique source beneficiaries appearing through different providers in both named partitions",
+      trainCalibration: intersectionSize(beneficiariesBySplit.train, beneficiariesBySplit.calibration),
+      trainTest: intersectionSize(beneficiariesBySplit.train, beneficiariesBySplit.test),
+      calibrationTest: intersectionSize(beneficiariesBySplit.calibration, beneficiariesBySplit.test),
+      interpretation: "The evaluation is provider-held-out, not fully entity-isolated; beneficiary identifiers are excluded from model features.",
+    },
+    amountRangesUsd: amountRanges,
+    splitCountsBySetting,
+    velocityThresholds: {
+      providerPrior30DayClaimCountP95: providerVelocityThreshold,
+      beneficiaryPrior365DayClaimCountP95: claimantVelocityThreshold,
+    },
+    counts: manifestCounts,
+    sourceFiles,
+    outputFiles,
+    outputSha256: hashes,
+  };
+  const manifestPath = path.join(DATASET_DIR, "manifest.json");
+  const manifestTemporaryPath = `${manifestPath}.tmp`;
+  fs.writeFileSync(manifestTemporaryPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  fs.renameSync(manifestTemporaryPath, manifestPath);
+  return manifest;
+};
+
+if (require.main === module) {
+  buildHybridDataset()
+    .then((manifest) => console.log(JSON.stringify(manifest, null, 2)))
+    .catch((error) => {
+      console.error("Hybrid dataset build failed:", error.message);
+      process.exit(1);
+    });
+}
+
+module.exports = { buildHybridDataset, readCsv };

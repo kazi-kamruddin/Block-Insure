@@ -289,7 +289,7 @@ const uploadDocument = async (req, res, next) => {
           status: "AUTHORIZED",
         },
         { $set: { status: "UPLOADING", failureReason: "" } },
-        { new: true }
+        { returnDocument: "after" }
       );
       if (!attempt) {
         return res.status(409).json({ success: false, message: "Claim attempt is unavailable or expired" });
@@ -480,7 +480,7 @@ const grantEvidenceAccess = async (req, res, next) => {
         granteeKeyVersion: grantee.encryptionKeyVersion,
         revokedAt: null,
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
     await appendEvidenceEvent({
       eventType: "ACCESS_GRANTED",
@@ -525,7 +525,7 @@ const revokeEvidenceAccess = async (req, res, next) => {
         revokedAt: null,
       },
       { $set: { revokedAt: new Date() } },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!grant) return res.status(404).json({ success: false, message: "Active delegation not found" });
     await appendEvidenceEvent({

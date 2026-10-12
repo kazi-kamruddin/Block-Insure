@@ -1,8 +1,34 @@
 const axios = require("axios");
 const FormData = require("form-data");
 
+const PINATA_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.PINATA_TIMEOUT_MS) || 30_000
+);
+const PINATA_API_BASE_URL = String(
+  process.env.PINATA_API_BASE_URL || "https://api.pinata.cloud"
+).replace(/\/$/, "");
+
+const pinataUrl = (pathname) => `${PINATA_API_BASE_URL}${pathname}`;
+
+const normalizePinataError = (error, operation) => {
+  if (error?.statusCode) return error;
+
+  const timeout = error?.code === "ECONNABORTED" || error?.code === "ETIMEDOUT";
+  const unavailable = new Error(
+    timeout
+      ? `Evidence storage ${operation} timed out`
+      : `Evidence storage ${operation} failed`
+  );
+  unavailable.statusCode = timeout ? 504 : 502;
+  return unavailable;
+};
+
 const uploadToPinata = async (fileBuffer, fileName, mimeType) => {
-  if (!process.env.PINATA_JWT && (!process.env.PINATA_API_KEY || !process.env.PINATA_SECRET)) {
+  if (
+    !process.env.PINATA_JWT &&
+    (!process.env.PINATA_API_KEY || !process.env.PINATA_SECRET)
+  ) {
     const error = new Error("Pinata credentials are missing");
     error.statusCode = 500;
     throw error;
@@ -26,16 +52,26 @@ const uploadToPinata = async (fileBuffer, fileName, mimeType) => {
     headers.pinata_secret_api_key = process.env.PINATA_SECRET;
   }
 
-  const response = await axios.post(
-    "https://api.pinata.cloud/pinning/pinFileToIPFS",
-    formData,
-    {
-      headers,
-      maxBodyLength: Infinity,
+  try {
+    const response = await axios.post(
+      pinataUrl("/pinning/pinFileToIPFS"),
+      formData,
+      {
+        headers,
+        maxBodyLength: Infinity,
+        timeout: PINATA_TIMEOUT_MS,
+      }
+    );
+    const ipfsCID = String(response.data?.IpfsHash || "").trim();
+    if (!ipfsCID || ipfsCID.length > 200) {
+      const error = new Error("Evidence storage returned an invalid content identifier");
+      error.statusCode = 502;
+      throw error;
     }
-  );
-
-  return response.data.IpfsHash;
+    return ipfsCID;
+  } catch (error) {
+    throw normalizePinataError(error, "upload");
+  }
 };
 
 const unpinFromPinata = async (ipfsCID) => {
@@ -52,11 +88,18 @@ const unpinFromPinata = async (ipfsCID) => {
     return false;
   }
 
-  await axios.delete(`https://api.pinata.cloud/pinning/unpin/${ipfsCID}`, {
-    headers,
-  });
-
-  return true;
+  try {
+    await axios.delete(
+      pinataUrl(`/pinning/unpin/${encodeURIComponent(ipfsCID)}`),
+      {
+        headers,
+        timeout: PINATA_TIMEOUT_MS,
+      }
+    );
+    return true;
+  } catch (error) {
+    throw normalizePinataError(error, "unpin");
+  }
 };
 
 module.exports = {

@@ -9,8 +9,16 @@ import PublicLayout from "./layouts/PublicLayout";
 import UserLayout from "./layouts/UserLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import AuditorLayout from "./layouts/AuditorLayout";
+import HospitalLayout from "./layouts/HospitalLayout";
+import BankLayout from "./layouts/BankLayout";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
+const PublicPolicyCatalogPage = lazy(
+  () => import("./pages/PublicPolicyCatalogPage")
+);
+const PublicPolicyDetailPage = lazy(
+  () => import("./pages/PublicPolicyDetailPage")
+);
 const UserDashboardPage = lazy(() => import("./pages/UserDashboardPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AuditorDashboardPage = lazy(() => import("./pages/AuditorDashboardPage"));
@@ -38,6 +46,7 @@ const AdminCreatePolicyPackagePage = lazy(
 );
 const PolicyListPage = lazy(() => import("./pages/PolicyListPage"));
 const MyPoliciesPage = lazy(() => import("./pages/MyPoliciesPage"));
+const PaymentHistoryPage = lazy(() => import("./pages/PaymentHistoryPage"));
 const SubmitClaimPage = lazy(() => import("./pages/SubmitClaimPage"));
 const MyClaimsPage = lazy(() => import("./pages/MyClaimsPage"));
 const ClaimDetailPage = lazy(() => import("./pages/ClaimDetailPage"));
@@ -55,8 +64,18 @@ const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const BenefitClaimPage = lazy(() => import("./pages/BenefitClaimPage"));
 const AdminBenefitsPage = lazy(() => import("./pages/AdminBenefitsPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const HospitalDashboardPage = lazy(
+  () => import("./pages/HospitalDashboardPage")
+);
+const HospitalRecordsPage = lazy(() => import("./pages/HospitalRecordsPage"));
+const HospitalClaimRequestsPage = lazy(
+  () => import("./pages/HospitalClaimRequestsPage")
+);
+const BankDashboardPage = lazy(() => import("./pages/BankDashboardPage"));
+const BankingPage = lazy(() => import("./pages/BankingPage"));
 
 import "./App.css";
+import "./styles/modern-system.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,50 +101,69 @@ export default function App() {
           >
             <Routes>
               <Route element={<PublicLayout />}>
-              <Route index element={<HomePage />} />
-              <Route path="login" element={<HomePage />} />
-
-              <Route path="user" element={<UserLayout />}>
-                <Route index element={<Navigate to="/user/dashboard" replace />} />
-                <Route path="dashboard" element={<UserDashboardPage />} />
-                <Route path="policies" element={<MyPoliciesPage />} />
-                <Route path="policies/buy" element={<PolicyListPage />} />
-                <Route path="claims" element={<MyClaimsPage />} />
-                <Route path="claims/new" element={<SubmitClaimPage />} />
-                <Route path="benefits" element={<BenefitClaimPage />} />
-                <Route path="claims/:id" element={<ClaimDetailPage />} />
-                <Route path="notifications" element={<NotificationsPage />} />
-              </Route>
-
-              <Route path="admin" element={<AdminLayout />}>
-                <Route index element={<Navigate to="/admin/dashboard" replace />} />
-                <Route path="dashboard" element={<AdminDashboardPage />} />
-                <Route path="policy-packages" element={<AdminPolicyPackagesPage />} />
-                <Route path="benefits" element={<AdminBenefitsPage />} />
+                <Route index element={<HomePage />} />
+                <Route path="login" element={<HomePage />} />
+                <Route path="policies" element={<PublicPolicyCatalogPage />} />
                 <Route
-                  path="policy-packages/new"
-                  element={<AdminCreatePolicyPackagePage />}
+                  path="policies/:packageId"
+                  element={<PublicPolicyDetailPage />}
                 />
-                <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
-                <Route path="thesis-dashboard" element={<ThesisResultsDashboardPage />} />
-                <Route path="audit-actions" element={<AdminActionAuditPage />} />
-                <Route path="role-health" element={<AdminRoleHealthPage />} />
-                <Route path="claims" element={<AdminClaimListPage />} />
-                <Route path="claims/:id" element={<AdminClaimDetailPage />} />
-                <Route path="notifications" element={<NotificationsPage />} />
-              </Route>
 
-              <Route path="auditor" element={<AuditorLayout />}>
-                <Route index element={<Navigate to="/auditor/dashboard" replace />} />
-                <Route path="dashboard" element={<AuditorDashboardPage />} />
-                <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
-                <Route path="claims" element={<AuditorClaimLookupPage />} />
-                <Route path="claims/:id/history" element={<AuditorClaimHistoryPage />} />
-                <Route path="votes" element={<AuditorVoteQueuePage />} />
-                <Route path="vote/:claimId" element={<AuditorVotingPage />} />
-                <Route path="reputation" element={<AuditorReputationPage />} />
-                <Route path="verify-document" element={<AuditorDocumentVerificationPage />} />
-              </Route>
+                <Route path="user" element={<UserLayout />}>
+                  <Route index element={<Navigate to="/user/dashboard" replace />} />
+                  <Route path="dashboard" element={<UserDashboardPage />} />
+                  <Route path="policies" element={<MyPoliciesPage />} />
+                  <Route path="policies/buy" element={<PolicyListPage />} />
+                  <Route path="payments" element={<PaymentHistoryPage />} />
+                  <Route path="banking" element={<BankingPage />} />
+                  <Route path="claims" element={<MyClaimsPage />} />
+                  <Route path="claims/new" element={<SubmitClaimPage />} />
+                  <Route path="benefits" element={<BenefitClaimPage />} />
+                  <Route path="claims/:id" element={<ClaimDetailPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                </Route>
+
+                <Route path="admin" element={<AdminLayout />}>
+                  <Route index element={<Navigate to="/admin/dashboard" replace />} />
+                  <Route path="dashboard" element={<AdminDashboardPage />} />
+                  <Route path="policy-packages" element={<AdminPolicyPackagesPage />} />
+                  <Route path="benefits" element={<AdminBenefitsPage />} />
+                  <Route
+                    path="policy-packages/new"
+                    element={<AdminCreatePolicyPackagePage />}
+                  />
+                  <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
+                  <Route path="thesis-dashboard" element={<ThesisResultsDashboardPage />} />
+                  <Route path="audit-actions" element={<AdminActionAuditPage />} />
+                  <Route path="role-health" element={<AdminRoleHealthPage />} />
+                  <Route path="claims" element={<AdminClaimListPage />} />
+                  <Route path="claims/:id" element={<AdminClaimDetailPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                </Route>
+
+                <Route path="auditor" element={<AuditorLayout />}>
+                  <Route index element={<Navigate to="/auditor/dashboard" replace />} />
+                  <Route path="dashboard" element={<AuditorDashboardPage />} />
+                  <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
+                  <Route path="claims" element={<AuditorClaimLookupPage />} />
+                  <Route path="claims/:id/history" element={<AuditorClaimHistoryPage />} />
+                  <Route path="votes" element={<AuditorVoteQueuePage />} />
+                  <Route path="vote/:claimId" element={<AuditorVotingPage />} />
+                  <Route path="reputation" element={<AuditorReputationPage />} />
+                  <Route path="verify-document" element={<AuditorDocumentVerificationPage />} />
+                </Route>
+
+                <Route path="hospital" element={<HospitalLayout />}>
+                  <Route index element={<Navigate to="/hospital/dashboard" replace />} />
+                  <Route path="dashboard" element={<HospitalDashboardPage />} />
+                  <Route path="records" element={<HospitalRecordsPage />} />
+                  <Route path="claims" element={<HospitalClaimRequestsPage />} />
+                </Route>
+
+                <Route path="bank" element={<BankLayout />}>
+                  <Route index element={<Navigate to="/bank/dashboard" replace />} />
+                  <Route path="dashboard" element={<BankDashboardPage />} />
+                </Route>
 
                 <Route path="*" element={<NotFoundPage />} />
               </Route>

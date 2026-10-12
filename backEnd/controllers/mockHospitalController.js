@@ -10,17 +10,29 @@ const {
   buildRegistryMerkleRoot,
 } = require("../services/merkleRegistryService");
 const { getReadOnlyContract, getRegistrySnapshot } = require("../services/contractService");
+const {
+  buildAppealCommitmentPayload,
+  hashAppealCommitment,
+} = require("../services/appealCommitmentService");
 const Appeal = require("../models/Appeal");
 
 const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const BILL_RANGE_TOLERANCE_RATE = 0.15;
 const BOUNDARY_NOTE =
-  "Synthetic external registry for thesis/demo verification. Production deployments should replace this mock with a hospital API or signed data feed while keeping hashes/Merkle roots on-chain.";
+  "Research-only hybrid external registry combining public secondary claims/provider evidence with controlled synthetic scenarios. Provider PotentialFraud is weak provider-risk evidence, not confirmed claim fraud. Production deployments should use an authorized hospital API or signed data feed while keeping hashes/Merkle roots on-chain.";
 
 const toBoolean = (value) => {
   if (value === undefined || value === null) return undefined;
   return String(value).toLowerCase() === "true";
+};
+
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const boundedInteger = (value, fallback, minimum, maximum) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed)
+    ? Math.min(Math.max(parsed, minimum), maximum)
+    : fallback;
 };
 
 const buildRegistryFilter = (query) => {
@@ -35,6 +47,9 @@ const buildRegistryFilter = (query) => {
     "invoiceStatus",
     "fraudLabel",
     "licenseStatus",
+    "datasetProfile",
+    "baseDataOrigin",
+    "claimSetting",
   ];
 
   exactFilters.forEach((field) => {
@@ -44,13 +59,23 @@ const buildRegistryFilter = (query) => {
   });
 
   const hasFraud = toBoolean(query.hasFraud);
+  const providerPotentialFraud = toBoolean(query.providerPotentialFraud);
+  const scenarioInjected = toBoolean(query.scenarioInjected);
 
   if (hasFraud !== undefined) {
     filter.fraudLabel = hasFraud ? { $ne: "LEGITIMATE" } : "LEGITIMATE";
   }
 
+  if (providerPotentialFraud !== undefined) {
+    filter.providerPotentialFraud = providerPotentialFraud;
+  }
+
+  if (scenarioInjected !== undefined) {
+    filter.scenarioInjected = scenarioInjected;
+  }
+
   if (query.q) {
-    const expression = new RegExp(query.q, "i");
+    const expression = new RegExp(escapeRegex(String(query.q).slice(0, 100)), "i");
 
     filter.$or = [
       { hospitalId: expression },
@@ -59,6 +84,8 @@ const buildRegistryFilter = (query) => {
       { treatmentType: expression },
       { district: expression },
       { division: expression },
+      { datasetProfile: expression },
+      { sourceClaimId: expression },
     ];
   }
 
@@ -79,6 +106,10 @@ const getRegistrySummary = async (filter = {}, RegistryModel = getRegistryModel(
     blacklistedHospitals,
     treatmentBreakdown,
     fraudBreakdown,
+    provenanceBreakdown,
+    claimSettingBreakdown,
+    providerPotentialFraud,
+    scenarioInjected,
   ] = await Promise.all([
     RegistryModel.countDocuments(filter),
     RegistryModel.countDocuments({ ...filter, fraudLabel: "LEGITIMATE" }),
@@ -103,6 +134,18 @@ const getRegistrySummary = async (filter = {}, RegistryModel = getRegistryModel(
       { $group: { _id: "$fraudLabel", count: { $sum: 1 } } },
       { $sort: { count: -1, _id: 1 } },
     ]),
+    RegistryModel.aggregate([
+      { $match: filter },
+      { $group: { _id: "$baseDataOrigin", count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+    ]),
+    RegistryModel.aggregate([
+      { $match: filter },
+      { $group: { _id: "$claimSetting", count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+    ]),
+    RegistryModel.countDocuments({ ...filter, providerPotentialFraud: true }),
+    RegistryModel.countDocuments({ ...filter, scenarioInjected: true }),
   ]);
 
   return {
@@ -128,6 +171,16 @@ const getRegistrySummary = async (filter = {}, RegistryModel = getRegistryModel(
       fraudLabel: item._id,
       count: item.count,
     })),
+    provenanceBreakdown: provenanceBreakdown.map((item) => ({
+      baseDataOrigin: item._id,
+      count: item.count,
+    })),
+    claimSettingBreakdown: claimSettingBreakdown.map((item) => ({
+      claimSetting: item._id,
+      count: item.count,
+    })),
+    providerPotentialFraud,
+    scenarioInjected,
   };
 };
 
@@ -273,10 +326,10 @@ const buildVerificationComparison = ({
       {
         registryRecord: buildCheck({
           label: "Registry record",
-          expected: "Existing invoice hash in synthetic registry",
+          expected: "Existing invoice hash in external research registry",
           actual: "Not found",
           matched: false,
-          note: "The invoice hash did not resolve to any synthetic registry record.",
+          note: "The invoice hash did not resolve to any external research registry record.",
         }),
         hospitalId: buildCheck({
           label: "Hospital ID",
@@ -352,7 +405,7 @@ const buildVerificationComparison = ({
         amountSupplied &&
         registryAmountSupplied &&
         claimAmount <= registryBillAmount,
-      note: "Compares the on-chain claim amount with the synthetic invoice bill.",
+      note: "Compares the on-chain claim amount with the external registry invoice bill.",
     }),
     expectedBillRange: buildCheck({
       label: "Treatment bill range",
@@ -431,8 +484,8 @@ const getAllHospitalRecords = async (req, res, next) => {
     const registrySnapshot = normalizeRegistrySnapshot(req.query.registrySnapshot);
     const RegistryModel = getRegistryModel(registrySnapshot);
     const filter = buildRegistryFilter(req.query);
-    const limit = Math.min(Number(req.query.limit || 100), 500);
-    const page = Math.max(Number(req.query.page || 1), 1);
+    const limit = boundedInteger(req.query.limit, 100, 1, 500);
+    const page = boundedInteger(req.query.page, 1, 1, 1_000_000);
     const skip = (page - 1) * limit;
 
     const [records, summary] = await Promise.all([
@@ -467,7 +520,7 @@ const getHospitalRecordById = async (req, res, next) => {
     if (!record) {
       return res.status(404).json({
         success: false,
-        message: "Synthetic healthcare registry record not found",
+        message: "External healthcare registry record not found",
       });
     }
 
@@ -582,38 +635,67 @@ const verifyHospitalRecord = async (req, res, next) => {
       claimAmountWei,
       claimType,
       incidentDate,
+      claimVersion,
       modelVersion,
       modelArtifactHash,
       registrySnapshot: requestedRegistrySnapshot,
     } = req.query;
     const claimId = String(req.query.claimId || "").trim();
+    const requestedClaimVersion = Number(claimVersion || 1);
     let verificationSource = "ORIGINAL_CLAIM";
+    let appealCommitment = null;
 
-    if (claimId) {
-      const approvedAppeal = await Appeal.findOne({
+    if (claimId && Number.isInteger(requestedClaimVersion) && requestedClaimVersion > 1) {
+      const activeAppeal = await Appeal.findOne({
         claimId,
-        status: "APPROVED",
+        status: { $in: ["UNDER_REVIEW", "APPROVED"] },
       }).lean();
 
+      // Appeal corrections are persisted only after the claimant's transaction
+      // is confirmed. Never evaluate the stale original claim for a later version.
+      if (!activeAppeal) {
+        return res.status(409).json({
+          success: false,
+          verified: false,
+          message: "Confirmed appeal metadata is not ready for Oracle evaluation",
+        });
+      }
+
+      const commitmentPayload = buildAppealCommitmentPayload(activeAppeal);
+      const commitmentHash = hashAppealCommitment(commitmentPayload);
+      if (commitmentHash.toLowerCase() !== activeAppeal.appealReasonHash.toLowerCase()) {
+        return res.status(409).json({
+          success: false,
+          verified: false,
+          message: "Stored appeal corrections do not match their on-chain commitment",
+        });
+      }
+      appealCommitment = {
+        payload: commitmentPayload,
+        appealReasonHash: commitmentHash,
+        transactionHash: activeAppeal.transactionHash,
+      };
+
       if (
-        approvedAppeal &&
         [
-          approvedAppeal.proposedHospitalId,
-          approvedAppeal.proposedInvoiceNumber,
-          approvedAppeal.proposedClaimType,
-          approvedAppeal.proposedClaimAmountEth,
+          activeAppeal.proposedHospitalId,
+          activeAppeal.proposedInvoiceNumber,
+          activeAppeal.proposedClaimType,
+          activeAppeal.proposedClaimAmountEth,
         ].some(Boolean)
       ) {
-        hospitalId = approvedAppeal.proposedHospitalId || hospitalId;
-        invoiceHash = approvedAppeal.proposedInvoiceNumber
+        hospitalId = activeAppeal.proposedHospitalId || hospitalId;
+        invoiceHash = activeAppeal.proposedInvoiceNumber
           ? ethers.keccak256(
-              ethers.toUtf8Bytes(approvedAppeal.proposedInvoiceNumber.trim())
+              ethers.toUtf8Bytes(activeAppeal.proposedInvoiceNumber.trim())
             )
           : invoiceHash;
-        claimType = approvedAppeal.proposedClaimType || claimType;
+        claimType = activeAppeal.proposedClaimType || claimType;
         claimAmountEth =
-          approvedAppeal.proposedClaimAmountEth || claimAmountEth;
-        verificationSource = "APPROVED_APPEAL_CORRECTION";
+          activeAppeal.proposedClaimAmountEth || claimAmountEth;
+        verificationSource = "PENDING_APPEAL_CORRECTION";
+      } else {
+        verificationSource = "PENDING_APPEAL_REVIEW";
       }
     }
 
@@ -636,7 +718,34 @@ const verifyHospitalRecord = async (req, res, next) => {
       invoiceHash: normalizedInvoiceHash,
       registrySnapshot,
     });
-    const modelRecords = await RegistryModel.find().lean();
+    const candidateDate = record?.admissionDate ? new Date(record.admissionDate) : null;
+    const dateRange = candidateDate
+      ? {
+          $gte: new Date(candidateDate.getTime() - 30 * DAY_IN_MS),
+          $lte: new Date(candidateDate.getTime() + 30 * DAY_IN_MS),
+        }
+      : undefined;
+    const duplicateScopes = [];
+    if (record?.claimantId) duplicateScopes.push({ claimantId: record.claimantId });
+    if (record?.patientHash) duplicateScopes.push({ patientHash: record.patientHash });
+    if (record?.hospitalId) {
+      duplicateScopes.push({
+        hospitalId: record.hospitalId,
+        ...(dateRange ? { admissionDate: dateRange } : {}),
+      });
+    }
+    const [duplicateRecords, runtimeRegistryRecordCount] = await Promise.all([
+      record && duplicateScopes.length
+        ? RegistryModel.find({
+            invoiceHash: { $ne: normalizedInvoiceHash },
+            $or: duplicateScopes,
+          })
+          .sort({ admissionDate: -1 })
+          .limit(250)
+          .lean()
+        : [],
+      RegistryModel.countDocuments({}),
+    ]);
 
     const comparison = buildVerificationComparison({
       record,
@@ -669,9 +778,7 @@ const verifyHospitalRecord = async (req, res, next) => {
             documentText: `${record.diagnosisCode} ${record.treatmentType}`,
             amount: claimAmountEth || record.billAmount,
           },
-          modelRecords
-            .filter((item) => normalizeHash(item.invoiceHash) !== normalizedInvoiceHash)
-            .map((item) => ({
+          duplicateRecords.map((item) => ({
               claimId: item.recordId || item.invoiceNumber,
               claimantId: item.claimantId || item.patientHash,
               providerSignedInvoiceId: item.invoiceHash,
@@ -688,7 +795,8 @@ const verifyHospitalRecord = async (req, res, next) => {
       record,
       comparison,
       query: verificationQuery,
-      records: modelRecords,
+      records: duplicateRecords,
+      runtimeRegistryRecordCount,
       duplicateIntelligence,
     });
     if (
@@ -710,13 +818,14 @@ const verifyHospitalRecord = async (req, res, next) => {
         success: true,
         verified: false,
         riskLevel: getHigherRiskLevel("HIGH", riskAssessment.riskLevel),
-        message: "No matching synthetic healthcare registry record found",
+        message: "No matching external healthcare registry record found",
         comparison,
         riskAssessment,
         merkleProof,
         query: verificationQuery,
         registrySnapshot,
         boundaryNote: BOUNDARY_NOTE,
+        appealCommitment,
       });
     }
 
@@ -746,12 +855,12 @@ const verifyHospitalRecord = async (req, res, next) => {
       riskLevel,
       message: verified
         ? comparison.warningFailureCount > 0
-          ? "Synthetic healthcare registry record matched with non-blocking warnings"
-          : "Synthetic healthcare registry record matched"
+          ? "External healthcare registry record matched with non-blocking warnings"
+          : "External healthcare registry record matched"
         : comparisonVerified
           ? riskAssessment.recommendation === "MANUAL_REVIEW_RECOMMENDED"
             ? "Fraud or duplicate intelligence requires manual review; it is not an automatic fraud rejection"
-            : "Bernoulli fraud model rejected oracle verification for high fraud probability"
+            : "Authoritative registry integrity rules rejected oracle verification"
           : `Registry verification failed: ${failureSummary || record.fraudLabel}`,
       comparison,
       duplicateIntelligence,
@@ -760,6 +869,7 @@ const verifyHospitalRecord = async (req, res, next) => {
       query: verificationQuery,
       registrySnapshot,
       boundaryNote: BOUNDARY_NOTE,
+      appealCommitment,
       recordCommitment: {
         hospitalId: record.hospitalId,
         invoiceHash: record.invoiceHash,

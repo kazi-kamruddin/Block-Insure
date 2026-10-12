@@ -4,6 +4,7 @@ import {
   getBrowserProvider,
   parseTransactionError,
   REQUIRED_CHAIN_ID,
+  REQUIRED_NETWORK_NAME,
 } from "../services/contractService";
 import {
   clearStoredSession,
@@ -26,6 +27,14 @@ const ROLE_WORKSPACES = {
   AUDITOR: {
     home: "/auditor/dashboard",
     label: "Auditor workspace",
+  },
+  HOSPITAL: {
+    home: "/hospital/dashboard",
+    label: "Hospital workspace",
+  },
+  BANK: {
+    home: "/bank/dashboard",
+    label: "Bank workspace",
   },
 };
 
@@ -113,7 +122,6 @@ export function WalletProvider({ children }) {
       const message = getSignableMessage(nonceData);
 
       if (!message) {
-        console.log("Nonce response:", nonceData);
         throw new Error("Backend did not return a signable login message");
       }
 
@@ -123,7 +131,6 @@ export function WalletProvider({ children }) {
       const token = getToken(loginData);
 
       if (!token) {
-        console.log("Login response:", loginData);
         throw new Error("Backend did not return a JWT token");
       }
 
@@ -253,7 +260,7 @@ export function WalletProvider({ children }) {
     function handleChainChanged(chainId) {
       if (Number(chainId) !== REQUIRED_CHAIN_ID) {
         clearSessionState(
-          `MetaMask switched networks. Select Hardhat Localhost (chain ID ${REQUIRED_CHAIN_ID}) and connect again.`
+          `MetaMask switched networks. Select ${REQUIRED_NETWORK_NAME} (chain ID ${REQUIRED_CHAIN_ID}) and connect again.`
         );
       }
     }

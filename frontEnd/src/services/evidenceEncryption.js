@@ -253,9 +253,10 @@ export async function encryptEvidenceFile(file, context) {
   const identity = await ensureEvidenceIdentity(uploader);
   const keyPair = deserializeCryptoObject(identity.keyPair);
   const signingKeyPair = deserializeCryptoObject(identity.signingKeyPair);
-  const rawKey = window.crypto.getRandomValues(new Uint8Array(32));
+  const recryptPlaintext = api.generatePlaintext();
+  const rawKey = api.deriveSymmetricKey(recryptPlaintext);
   const encryptedKeyCapsule = api.encrypt(
-    rawKey,
+    recryptPlaintext,
     keyPair.publicKey,
     signingKeyPair.privateKey
   );
@@ -342,7 +343,11 @@ export async function downloadDecryptedEvidence(
   const responseEnvelope = await getEvidenceDecryptionKey(documentId);
   const envelope = responseEnvelope?.decryption || responseEnvelope?.data?.decryption;
   const privateKey = deserializeCryptoObject(identity.keyPair).privateKey;
-  const rawKey = api.decrypt(deserializeCryptoObject(envelope.keyCapsule), privateKey);
+  const recryptPlaintext = api.decrypt(
+    deserializeCryptoObject(envelope.keyCapsule),
+    privateKey
+  );
+  const rawKey = api.deriveSymmetricKey(recryptPlaintext);
   const gateway = gatewayBase.endsWith("/") ? gatewayBase : `${gatewayBase}/`;
   const response = await fetch(`${gateway}${String(cid).replace("ipfs://", "")}`);
   if (!response.ok) throw new Error("Could not download encrypted evidence from IPFS");

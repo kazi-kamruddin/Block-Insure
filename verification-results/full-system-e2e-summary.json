@@ -1,0 +1,314 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-16T20:28:30.067Z",
+  "verdict": "PASS",
+  "source": {
+    "commit": "49aa84ed7bccfd29354afaddfade053ffb79c1cb",
+    "branch": "postPreDefence",
+    "dirtyAtStart": true,
+    "preExistingChanges": ["tmp/"]
+  },
+  "environment": {
+    "frontendUrl": "http://localhost:5173",
+    "backendUrl": "http://localhost:5000",
+    "rpcUrl": "http://127.0.0.1:8545",
+    "configuredChainId": 31337,
+    "observedChainId": 31337,
+    "mongoDatabase": "block_insure_e2e",
+    "mongoHostClass": "atlas-isolated-baseline-and-disposable-loopback-docker-final",
+    "originalMongoDatabase": "block_insure",
+    "originalDocumentCountBefore": 10079,
+    "originalDocumentCountAfter": 10079,
+    "walletClass": "Hardhat default development accounts",
+    "dockerMongoBinding": "127.0.0.1:27018",
+    "dockerMongoPersistentVolume": false,
+    "pinataProviderClass": "loopback-simulator",
+    "browserMode": "headed Chromium",
+    "secretsRedacted": true
+  },
+  "counts": {
+    "uniqueStandardTestsPassed": 304,
+    "contractTestsPassed": 133,
+    "backendTestsPassed": 113,
+    "oracleTestsPassed": 13,
+    "integratedPlaywrightTestsPassed": 40,
+    "productionPlaywrightTestsPassed": 5,
+    "mutationCasesKilled": 8,
+    "productDefectsFixed": 14,
+    "launcherHardeningItems": 7,
+    "remainingTestFailures": 0,
+    "toolOrScopeBlockers": 0
+  },
+  "results": [
+    {
+      "suite": "integrated Playwright general",
+      "scenario": "17 public, SIWE/session, role-authentication, authorization, and route-inventory tests",
+      "role": "guest/user/admin/bank/hospital/4 auditors",
+      "result": "PASS",
+      "durationMs": 112909,
+      "evidencePath": "playwright-reports/general/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "integrated Playwright workflow",
+      "scenario": "mandate approval, automatic EFT, invalid and valid OTP, payment ledger reconciliation",
+      "role": "user/bank",
+      "result": "PASS",
+      "durationMs": 17500,
+      "evidencePath": "playwright-reports/workflow/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "integrated Playwright workflow",
+      "scenario": "mandate rejection, replacement, and policyholder cancellation",
+      "role": "user/bank",
+      "result": "PASS",
+      "durationMs": 12900,
+      "evidencePath": "playwright-reports/workflow/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "integrated Playwright workflow",
+      "scenario": "policy purchase, encrypted evidence, hospital verification, two-oracle quorum, allocation, withdrawal, settlement",
+      "role": "user/hospital/admin/oracle1/oracle2",
+      "result": "PASS",
+      "durationMs": 36700,
+      "evidencePath": "playwright-reports/workflow/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "integrated Playwright workflow",
+      "scenario": "oracle failure, manual review, three assigned-auditor approvals, allocation, withdrawal, settlement",
+      "role": "user/hospital/admin/3 auditors/2 oracles",
+      "result": "PASS",
+      "durationMs": 44900,
+      "evidencePath": "playwright-reports/workflow/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "integrated Playwright showcase",
+      "scenario": "pricing, benefits, settled claims, notifications, package lifecycle, health, research, history, export, integrity, reputation",
+      "role": "user/admin/auditor",
+      "result": "PASS",
+      "durationMs": 47945,
+      "evidencePath": "playwright-reports/showcase/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "integrated Playwright maintenance",
+      "scenario": "hospital-owned record and invoice update, restoration, and auditor Merkle-root match",
+      "role": "hospital/auditor",
+      "result": "PASS",
+      "durationMs": 14240,
+      "evidencePath": "playwright-reports/maintenance/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "cross-system reconciliation",
+      "scenario": "disposable MongoDB, contract storage, event totals, payments, evidence commitments, notifications, audit logs, and Atlas original-database preservation",
+      "role": "system/all roles",
+      "result": "PASS",
+      "durationMs": 1504,
+      "evidencePath": "verification-results/docker-e2e-post-run-state.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "frontend production Playwright",
+      "scenario": "mobile, tablet, laptop, desktop, refresh, 404, keyboard focus, headings, and browser-error monitoring",
+      "role": "guest",
+      "result": "PASS",
+      "durationMs": 9900,
+      "evidencePath": "playwright-report-frontend/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "verify:full",
+      "scenario": "complete Hardhat contract suite",
+      "role": "all on-chain roles",
+      "result": "PASS",
+      "durationMs": 8671,
+      "evidencePath": "verification-results/phase5-verification.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "verify:full",
+      "scenario": "analytics harness and 104 backend tests",
+      "role": "API/all roles",
+      "result": "PASS",
+      "durationMs": 4991,
+      "evidencePath": "verification-results/phase5-verification.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "verify:full",
+      "scenario": "Oracle protocol and worker logic",
+      "role": "oracle1/oracle2",
+      "result": "PASS",
+      "durationMs": 1187,
+      "evidencePath": "verification-results/phase5-verification.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "verify:full",
+      "scenario": "frontend lint and production build",
+      "role": "all UI roles",
+      "result": "PASS",
+      "durationMs": 20776,
+      "evidencePath": "verification-results/phase5-verification.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "verify:full",
+      "scenario": "hybrid dataset, repository integrity, and runtime synchronization",
+      "role": "system",
+      "result": "PASS",
+      "durationMs": 15931,
+      "evidencePath": "verification-results/phase5-verification.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "contract coverage",
+      "scenario": "132 passing plus one instrumentation skip; 95.23% statements, 64.83% branches, 92.18% functions, 95.52% lines",
+      "role": "all on-chain roles",
+      "result": "PASS",
+      "durationMs": null,
+      "evidencePath": "contracts/coverage/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "stateful invariants",
+      "scenario": "financial and protocol state-machine invariants",
+      "role": "claimant/oracle/auditor/admin",
+      "result": "PASS",
+      "durationMs": 1000,
+      "evidencePath": "contracts/test/invariants/protocol-invariants.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "mutation campaign",
+      "scenario": "all eight valid protocol mutants killed",
+      "role": "contract protocol",
+      "result": "PASS",
+      "durationMs": null,
+      "evidencePath": "contracts/mutation-results.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "integrated Playwright resilience",
+      "scenario": "live security headers, CORS, malformed JSON, unsupported method, Oracle key rejection, and nonce rate limiting",
+      "role": "guest/oracle/system",
+      "result": "PASS",
+      "durationMs": 5195,
+      "evidencePath": "playwright-reports/resilience/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "Docker dependency resilience",
+      "scenario": "MongoDB pause, unpause, restart and local Pinata-compatible encrypted uploads",
+      "role": "system/user",
+      "result": "PASS",
+      "durationMs": null,
+      "evidencePath": "verification-results/docker-resilience-results.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright unfinished benefits",
+      "scenario": "death beneficiary, six-installment surrender, maturity, allocation, withdrawal, and replay prevention",
+      "role": "user/beneficiary/admin",
+      "result": "PASS",
+      "durationMs": 72000,
+      "evidencePath": "playwright-reports/unfinished-benefits/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright unfinished boundaries",
+      "scenario": "expired JWT, second-hospital IDOR, OTP expiry, concurrent confirmation, and replay",
+      "role": "user/bank/hospital1/hospital2",
+      "result": "PASS",
+      "durationMs": 17500,
+      "evidencePath": "playwright-reports/unfinished-boundaries/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright encrypted evidence",
+      "scenario": "pre-grant denial, owner grant, proxy transform, exact plaintext recovery, CID/hash verification, access logging, revoke, and post-revoke denial",
+      "role": "user/assigned auditor/admin/oracles",
+      "result": "PASS",
+      "durationMs": 60000,
+      "evidencePath": "playwright-reports/unfinished-evidence/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright manual-review finality",
+      "scenario": "concurrent rejection submissions converge to one final result; expired review rejects for insufficient quorum",
+      "role": "user/hospital/admin/auditor1/auditor2/auditor3/oracles",
+      "result": "PASS",
+      "durationMs": 90000,
+      "evidencePath": "playwright-reports/unfinished-claims/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright appeal finality",
+      "scenario": "rejected version 1, encrypted committed correction, version-2 hospital attestation, Admin Oracle request, two-Oracle approval, allocation, claimant withdrawal, and SETTLED reconciliation",
+      "role": "user/hospital/admin/auditor1/auditor2/oracle1/oracle2",
+      "result": "PASS",
+      "durationMs": 90000,
+      "evidencePath": "playwright-reports/unfinished-appeal/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "focused Playwright RPC readiness",
+      "scenario": "backend readiness fails closed during local RPC proxy outage while liveness remains healthy, then recovers after reconnection",
+      "role": "system",
+      "result": "PASS",
+      "durationMs": 1000,
+      "evidencePath": "playwright-reports/unfinished-rpc/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "isolated evidence routing",
+      "scenario": "isolated launcher forwards the E2E evidence endpoint to backend uploads and the matching VITE_IPFS_GATEWAY to browser downloads",
+      "role": "system/user",
+      "result": "PASS",
+      "durationMs": 58500,
+      "evidencePath": "playwright-reports/workflow/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "changed-code verification",
+      "scenario": "113 backend tests, 13 Oracle tests, 133 contract tests, frontend lint, and production build",
+      "role": "API/contracts/oracles/all UI roles",
+      "result": "PASS",
+      "durationMs": 37915,
+      "evidencePath": "docs/full-system-e2e-test-report.md",
+      "failureCategory": null
+    },
+    {
+      "suite": "final vulnerable-path Playwright rehearsal",
+      "scenario": "authentication/session security, four clean critical workflows, expired-session and cross-hospital boundaries, concurrent OTP, encrypted appeal, and RPC outage recovery",
+      "role": "guest/user/admin/bank/hospital/4 auditors/2 oracles/system",
+      "result": "PASS",
+      "durationMs": 357000,
+      "evidencePath": "docs/full-system-e2e-test-report.md",
+      "failureCategory": null
+    },
+    {
+      "suite": "claim limiter wallet isolation regression",
+      "scenario": "authenticated wallets sharing one client IP receive independent short-window claim throttling keys and the local reset clears both limiter layers",
+      "role": "user/API",
+      "result": "PASS",
+      "durationMs": 253,
+      "evidencePath": "backEnd/test/securityMiddleware.test.js",
+      "failureCategory": null
+    },
+    {
+      "suite": "final marginal stabilization",
+      "scenario": "40-scenario stopped-stack catalog, non-duplicating two-test manual-finality filter, complete E2E actor template, seven offline verification gates, synchronization, release template, and five production-preview browser checks",
+      "role": "system/all UI roles",
+      "result": "PASS",
+      "durationMs": null,
+      "evidencePath": "verification-results/phase5-verification.json",
+      "failureCategory": null
+    }
+  ]
+}

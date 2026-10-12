@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-12T20:54:07.563Z",
+  "safety": {
+    "frontendUrl": "http://localhost:5173",
+    "backendUrl": "http://localhost:5000",
+    "rpcUrl": "http://127.0.0.1:8545",
+    "chainId": 31337,
+    "mongoDatabase": "block_insure_e2e",
+    "originalDatabase": "block_insure",
+    "wallets": "Hardhat default development accounts",
+    "secretsRedacted": true
+  },
+  "mongo": {
+    "e2e": {
+      "database": "block_insure_e2e",
+      "totalDocuments": 10168,
+      "counts": {
+        "adminactionlogs": 5,
+        "appeals": 1,
+        "bankaccounts": 3,
+        "bankotpchallenges": 0,
+        "banks": 1,
+        "banktransactions": 0,
+        "claimsubmissionattempts": 1,
+        "eftmandates": 0,
+        "evidenceaccesslogs": 0,
+        "evidenceevents": 1,
+        "evidencegrants": 0,
+        "evidencetreeheads": 0,
+        "files": 2,
+        "hospitalclaimverifications": 2,
+        "hospitals": 5,
+        "indexedblockchainevents": 59,
+        "indexedblocks": 54,
+        "indexercheckpoints": 1,
+        "mockhospitalrecordoracle2": 5000,
+        "mockhospitalrecords": 5000,
+        "notifications": 12,
+        "oraclehealths": 2,
+        "oraclelogs": 4,
+        "policytermsacceptances": 1,
+        "revokedtokens": 0,
+        "users": 14,
+        "votingfinalizations": 0
+      },
+      "distributions": {
+        "userRoles": [
+          {
+            "value": "HOSPITAL",
+            "count": 5
+          },
+          {
+            "value": "AUDITOR",
+            "count": 4
+          },
+          {
+            "value": "ORACLE",
+            "count": 2
+          },
+          {
+            "value": "ADMIN",
+            "count": 1
+          },
+          {
+            "value": "BANK",
+            "count": 1
+          },
+          {
+            "value": "USER",
+            "count": 1
+          }
+        ],
+        "mandateStatuses": [],
+        "paymentStatuses": [],
+        "paymentTypes": [],
+        "hospitalVerificationOutcomes": [
+          {
+            "value": "NOT_FOUND",
+            "count": 1
+          },
+          {
+            "value": "VERIFIED",
+            "count": 1
+          }
+        ],
+        "oracleRiskLevels": [
+          {
+            "value": "HIGH",
+            "count": 2
+          },
+          {
+            "value": "LOW",
+            "count": 2
+          }
+        ],
+        "oracleVerified": [
+          {
+            "value": "false",
+            "count": 2
+          },
+          {
+            "value": "true",
+            "count": 2
+          }
+        ],
+        "evidenceEncrypted": [
+          {
+            "value": "true",
+            "count": 2
+          }
+        ]
+      }
+    },
+    "original": {
+      "database": "block_insure",
+      "totalDocuments": 0,
+      "counts": {},
+      "distributions": {
+        "userRoles": [],
+        "mandateStatuses": [],
+        "paymentStatuses": [],
+        "paymentTypes": [],
+        "hospitalVerificationOutcomes": [],
+        "oracleRiskLevels": [],
+        "oracleVerified": [],
+        "evidenceEncrypted": []
+      }
+    }
+  },
+  "chain": {
+    "managerAddress": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+    "latestBlock": 66,
+    "policyCount": 1,
+    "claimCount": 1,
+    "managerBalanceWei": "938000000000000000",
+    "policies": [
+      {
+        "policyId": 1,
+        "status": "ACTIVE",
+        "active": true,
+        "premiumPaidWei": "10000000000000000",
+        "installmentsPaid": 1
+      }
+    ],
+    "claims": [
+      {
+        "claimId": 1,
+        "policyId": 1,
+        "status": "SETTLED",
+        "amountWei": "100000000000000000",
+        "evidenceCidPresent": true,
+        "evidenceHashPresent": true
+      }
+    ],
+    "eventCounts": {
+      "InsuranceManager": {
+        "RoleGranted": 9,
+        "OracleModelVersionUpdated": 1,
+        "ClaimAdjudicatorConfigured": 1,
+        "PolicyPackageCreated": 1,
+        "ContractFunded": 1,
+        "PolicyPurchased": 1,
+        "PremiumPaid": 1,
+        "ClaimSubmitted": 1,
+        "DocumentAdded": 2,
+        "OracleRequested": 2,
+        "ManualReviewEligibilitySet": 1,
+        "OracleResultSubmitted": 2,
+        "ClaimSentToManualReview": 1,
+        "AuditorVoteCast": 2,
+        "ClaimRejected": 1,
+        "ClaimDecisionRecorded": 2,
+        "ClaimAppealed": 1,
+        "SettlementCalculated": 1,
+        "PayoutAllocated": 1,
+        "ClaimApproved": 1,
+        "SettlementWithdrawn": 1,
+        "ClaimSettled": 1
+      },
+      "OracleCoordinator": {
+        "HospitalVerificationRegistryConfigured": 1,
+        "OracleRegistrationUpdated": 2,
+        "RegistrySnapshotPublished": 1,
+        "OracleRequested": 2,
+        "OracleCommitmentSubmitted": 4,
+        "OracleResultRevealed": 4,
+        "OracleRequestFinalized": 2
+      },
+      "ClaimAdjudicator": {
+        "AuditorRegistrationUpdated": 4,
+        "ManualReviewOpened": 1,
+        "AuditorVoteCast": 2,
+        "AuditorReputationObserved": 2,
+        "DecisionRecorded": 2,
+        "ManualReviewFinalized": 1,
+        "AppealStarted": 1,
+        "PayoutRecorded": 1,
+        "PayoutWithdrawn": 1
+      },
+      "HospitalVerificationRegistry": {
+        "RoleGranted": 6,
+        "HospitalIdentityRegistered": 5,
+        "HospitalClaimVerified": 2
+      },
+      "BankIdentityRegistry": {
+        "RoleGranted": 2,
+        "BankIdentityRegistered": 1
+      }
+    }
+  }
+}

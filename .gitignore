@@ -8,11 +8,18 @@ node_modules/
 .env.*
 !.env.example
 !.env.oracle2.example
+deploy/production.env
+contracts/deployments/*.json
 
 # Build outputs
 dist/
 build/
 coverage/
+
+# Large local hybrid healthcare source and generated row files
+backEnd/datasets/hybrid-v1/raw/*.csv
+backEnd/datasets/hybrid-v1/processed/*.jsonl
+backEnd/datasets/hybrid-v1/runtime/*.jsonl
 playwright-report/
 test-results/
 
@@ -46,3 +53,6 @@ reference/*
 # Local reference/planning files
 project overview.docx
 task checklist.md
+.project-context/
+paper-evidence/
+contracts/.venv-slither/

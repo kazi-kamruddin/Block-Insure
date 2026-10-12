@@ -1,5 +1,5 @@
-const { spawn } = require("child_process");
-const path = require("path");
+const { spawn } = require("node:child_process");
+const path = require("node:path");
 
 const contractsDirectory = path.resolve(__dirname, "..");
 const projectRoot = path.resolve(contractsDirectory, "..");
@@ -22,11 +22,14 @@ const child = spawn(process.execPath, [hardhatCli, ...process.argv.slice(2)], {
   stdio: "inherit",
 });
 
-child.on("error", (error) => {
+child.once("error", (error) => {
   console.error("Unable to start Hardhat:", error.message);
-  process.exit(1);
+  process.exitCode = 1;
 });
 
-child.on("exit", (code, signal) => {
+// On Windows, the process "exit" event can fire before inherited stdio handles
+// have closed. Waiting for "close" avoids a libuv teardown race on newer Node
+// releases when Hardhat is nested under the managed launcher.
+child.once("close", (code, signal) => {
   process.exitCode = code ?? (signal ? 1 : 0);
 });

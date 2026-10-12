@@ -1,4 +1,8 @@
-const { getReadOnlyContract } = require("./contractService");
+const {
+  getHospitalVerificationRegistry,
+  getBankIdentityRegistry,
+  getReadOnlyContract,
+} = require("./contractService");
 
 const ROLE_CONSTANTS = Object.freeze({
   ADMIN: "ADMIN_ROLE",
@@ -7,6 +11,16 @@ const ROLE_CONSTANTS = Object.freeze({
 });
 
 const hasCurrentOnChainRole = async (role, walletAddress) => {
+  if (role === "HOSPITAL") {
+    const registry = getHospitalVerificationRegistry();
+    const hospitalRole = await registry.HOSPITAL_ROLE();
+    return registry.hasRole(hospitalRole, walletAddress);
+  }
+  if (role === "BANK") {
+    const registry = getBankIdentityRegistry();
+    const bankRole = await registry.BANK_ROLE();
+    return registry.hasRole(bankRole, walletAddress);
+  }
   const constantName = ROLE_CONSTANTS[role];
   if (!constantName) return true;
   const contract = getReadOnlyContract();

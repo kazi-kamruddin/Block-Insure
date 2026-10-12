@@ -8,6 +8,7 @@ import {
   markNotificationRead,
 } from "../services/api";
 import { showToast } from "../services/toast";
+import TransactionLink from "../components/TransactionLink";
 import "../styles/pages/NotificationsPage.css";
 
 function extractNotifications(data) {
@@ -29,6 +30,8 @@ const NOTIFICATION_TYPE_LABELS = {
   CLAIM_SUBMITTED: "New claim",
   EVIDENCE_LINKED: "Evidence update",
   RESERVE_LOW_WARNING: "Reserve warning",
+  PREMIUM_PAYMENT_CONFIRMED: "Payment confirmation",
+  PREMIUM_DUE_REMINDER: "Premium reminder",
 };
 
 function notificationTypeLabel(type) {
@@ -138,6 +141,12 @@ export default function NotificationsPage() {
 
             <p>{notification.message}</p>
 
+            {notification.transactionHash ? (
+              <p className="notification-reference">
+                Transaction: <TransactionLink txHash={notification.transactionHash} />
+              </p>
+            ) : null}
+
             <div className="action-row">
               {notification.link ? (
                 <Link
@@ -148,7 +157,11 @@ export default function NotificationsPage() {
                     }
                   }}
                 >
-                  {notification.claimId ? "View Claim" : "Open Details"}
+                  {notification.claimId
+                    ? "View Claim"
+                    : notification.policyId
+                      ? "View Payments"
+                      : "Open Details"}
                 </Link>
               ) : null}
 

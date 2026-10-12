@@ -15,6 +15,12 @@ const {
   paginate,
   parsePagination,
 } = require("../services/contractQueryService");
+const PolicyTermsAcceptance = require("../models/PolicyTermsAcceptance");
+const { buildPolicyDocument } = require("../services/policyDocumentService");
+const {
+  formatTerms: formatBenefitTerms,
+  getReadOnlyBenefitsContract,
+} = require("../services/policyBenefitsService");
 
 /* ---------------------- Format Contract Responses ---------------------- */
 
@@ -50,6 +56,39 @@ const formatPolicyStatus = (statusValue) => {
   return {
     code,
     label: POLICY_STATUS[code] || "UNKNOWN",
+  };
+};
+
+const loadPublicPolicyPackage = async (contract, packageId) => {
+  const formattedPackage = formatPolicyPackage(
+    await contract.getPolicyPackage(packageId)
+  );
+  let benefitTerms = null;
+
+  try {
+    benefitTerms = formatBenefitTerms(
+      await getReadOnlyBenefitsContract().getBenefitTerms(packageId)
+    );
+  } catch {
+    // A policy document remains available when the optional benefits deployment
+    // has not yet been configured.
+  }
+
+  const document = buildPolicyDocument({
+    policyPackage: formattedPackage,
+    benefitTerms,
+  });
+
+  return {
+    ...formattedPackage,
+    benefitTerms,
+    policyDocument: {
+      documentVersion: document.documentVersion,
+      documentHash: document.documentHash,
+      benefitVersion: document.benefitVersion,
+      downloadPath: `/api/policy-packages/${formattedPackage.packageId}/document?download=1`,
+    },
+    document,
   };
 };
 
@@ -172,8 +211,9 @@ const getActivePolicyPackages = async (req, res, next) => {
 
     const packages = await Promise.all(
       packageIds.map(async (packageId) => {
-        const policyPackage = await contract.getPolicyPackage(packageId);
-        return formatPolicyPackage(policyPackage);
+        const loaded = await loadPublicPolicyPackage(contract, packageId);
+        const { document, ...policyPackage } = loaded;
+        return policyPackage;
       })
     );
 
@@ -188,13 +228,116 @@ const getActivePolicyPackages = async (req, res, next) => {
   }
 };
 
+const getPublicPolicyPackage = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const loaded = await loadPublicPolicyPackage(contract, req.params.packageId);
+
+    if (!loaded.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: "This policy package is not publicly available",
+      });
+    }
+
+    const { document, ...publicPackage } = loaded;
+    res.status(200).json({
+      success: true,
+      policyPackage: {
+        ...publicPackage,
+        policyDocument: {
+          ...loaded.policyDocument,
+          content: document.markdown,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const downloadPublicPolicyDocument = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const loaded = await loadPublicPolicyPackage(contract, req.params.packageId);
+
+    if (!loaded.isActive) {
+      return res.status(404).send("Policy package is not publicly available");
+    }
+
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `${req.query.download === "1" ? "attachment" : "inline"}; filename="policy-package-${loaded.packageId}-terms.md"`
+    );
+    res.status(200).send(loaded.document.markdown);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const acceptPublicPolicyTerms = async (req, res, next) => {
+  try {
+    const contract = getReadOnlyContract();
+    const loaded = await loadPublicPolicyPackage(contract, req.params.packageId);
+    const suppliedVersion = String(req.body.documentVersion || "").trim();
+    const suppliedHash = String(req.body.documentHash || "").trim().toLowerCase();
+
+    if (!loaded.isActive) {
+      return res.status(409).json({
+        success: false,
+        message: "This policy package is no longer available for purchase",
+      });
+    }
+
+    if (
+      suppliedVersion !== loaded.document.documentVersion ||
+      suppliedHash !== loaded.document.documentHash.toLowerCase()
+    ) {
+      return res.status(409).json({
+        success: false,
+        message: "Policy terms changed. Review and accept the latest document before purchasing.",
+        latestDocument: loaded.policyDocument,
+      });
+    }
+
+    const acceptance = await PolicyTermsAcceptance.findOneAndUpdate(
+      {
+        walletAddress: req.user.walletAddress.toLowerCase(),
+        packageId: loaded.packageId,
+        documentHash: loaded.document.documentHash.toLowerCase(),
+      },
+      {
+        $setOnInsert: {
+          documentVersion: loaded.document.documentVersion,
+          acceptedAt: new Date(),
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      acceptance: {
+        packageId: acceptance.packageId,
+        walletAddress: acceptance.walletAddress,
+        documentVersion: acceptance.documentVersion,
+        documentHash: acceptance.documentHash,
+        acceptedAt: acceptance.acceptedAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getRiskPremiumQuote = async (req, res, next) => {
   try {
     const contract = getReadOnlyContract();
     const policyPackage = await contract.getPolicyPackage(req.params.packageId);
     const quote = quoteRiskAdjustedPremium({
-      basePremiumWei: policyPackage.premiumAmount,
       ...req.body,
+      basePremiumWei: policyPackage.premiumAmount,
     });
 
     res.status(200).json({
@@ -371,7 +514,10 @@ const previewPurchasedPolicyEligibility = async (req, res, next) => {
 };
 
 module.exports = {
+  acceptPublicPolicyTerms,
+  downloadPublicPolicyDocument,
   getActivePolicyPackages,
+  getPublicPolicyPackage,
   getPolicyRuleCatalog,
   getRealisticScenarios,
   getRiskPremiumQuote,

@@ -6,21 +6,33 @@ const readline = require("node:readline");
 const { writeEvent } = require("./observability");
 
 const projectRoot = path.resolve(__dirname, "..");
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+const npmCli = process.env.npm_execpath || path.join(
+  path.dirname(process.execPath),
+  "node_modules",
+  "npm",
+  "bin",
+  "npm-cli.js"
+);
 const children = [];
+const bootstrap = process.argv.includes("--bootstrap");
+const hybrid = process.argv.includes("--hybrid");
+let shuttingDown = false;
 
 function prefixStream(stream, label, output) {
   const reader = readline.createInterface({ input: stream });
   reader.on("line", (line) => {
-    writeEvent(label, "info", line);
-    output.write(`[${label}] ${line}\n`);
+    const sanitizedLine = /private\s+key|seed\s+phrase|mnemonic/i.test(line)
+      ? "[REDACTED SENSITIVE STARTUP OUTPUT]"
+      : line;
+    writeEvent(label, "info", sanitizedLine);
+    output.write(`[${label}] ${sanitizedLine}\n`);
   });
 }
 
-function startService(label, directory, args) {
-  const child = spawn(npmCommand, args, {
+function startService(label, directory, args, environment = process.env) {
+  const child = spawn(process.execPath, [npmCli, ...args], {
     cwd: path.join(projectRoot, directory),
-    env: process.env,
+    env: environment,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
@@ -28,16 +40,44 @@ function startService(label, directory, args) {
   prefixStream(child.stdout, label, process.stdout);
   prefixStream(child.stderr, label, process.stderr);
   child.on("exit", (code, signal) => {
+    if (shuttingDown) return;
     if (code && code !== 0) {
       writeEvent(label, "error", `exited with code ${code}`);
       console.error(`[Launcher] ${label} exited with code ${code}.`);
     } else if (signal) {
       writeEvent(label, "warn", `stopped (${signal})`);
       console.log(`[Launcher] ${label} stopped (${signal}).`);
-    }
+    } else console.error(`[Launcher] ${label} stopped unexpectedly.`);
+    shuttingDown = true;
+    stopAll("SIGTERM");
+    setTimeout(() => process.exit(code || 1), 250);
   });
   children.push(child);
   return child;
+}
+
+function runCommand(directory, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [npmCli, ...args], {
+      cwd: path.join(projectRoot, directory),
+      env: process.env,
+      stdio: "inherit",
+      windowsHide: true,
+    });
+    children.push(child);
+
+    let spawnError;
+    child.once("error", (error) => {
+      spawnError = error;
+    });
+    child.once("close", (code, signal) => {
+      const childIndex = children.indexOf(child);
+      if (childIndex >= 0) children.splice(childIndex, 1);
+      if (spawnError) reject(spawnError);
+      else if (code === 0) resolve();
+      else reject(new Error(`Command exited with ${signal || `code ${code}`}`));
+    });
+  });
 }
 
 function readEnvValue(relativePath, key) {
@@ -107,9 +147,35 @@ async function verifyLocalDeployment() {
 }
 
 function stopAll(signal = "SIGTERM") {
+  shuttingDown = true;
   for (const child of children) {
     if (!child.killed) child.kill(signal);
   }
+}
+
+async function waitFor(check, description, timeoutMs = 30_000) {
+  const startedAt = Date.now();
+  let lastError;
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      await check();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  throw new Error(`${description} was not ready within ${timeoutMs} ms: ${lastError?.message || "unknown error"}`);
+}
+
+async function waitForHttp(url, expectedText) {
+  await waitFor(async () => {
+    const response = await fetch(url, { signal: AbortSignal.timeout(1500) });
+    const body = await response.text();
+    if (!response.ok || (expectedText && !body.includes(expectedText))) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  }, url);
 }
 
 async function main() {
@@ -119,23 +185,75 @@ async function main() {
   });
   if (preflight.status !== 0) process.exit(preflight.status || 1);
 
+  let deploymentReady = false;
   try {
     await verifyLocalDeployment();
-  } catch (error) {
-    throw new Error(
-      `A ready local deployment was not found (${error.message}). ` +
-        "Start `npm --prefix contracts run node`, keep that terminal open, " +
-        "run `npm run setup:local` in a second terminal, and then rerun this command."
+    deploymentReady = true;
+  } catch (initialError) {
+    if (!bootstrap) {
+      throw new Error(
+        `A ready local deployment was not found (${initialError.message}). ` +
+          "Run `npm run dev:bootstrap` for a one-command local chain, deployment, and application startup."
+      );
+    }
+    try {
+      await jsonRpc("eth_chainId");
+    } catch {
+      console.log("[Launcher] Starting a managed local Hardhat chain...");
+      startService("Chain", "contracts", ["run", "node"]);
+      await waitFor(() => jsonRpc("eth_chainId"), "Local Hardhat chain");
+    }
+  }
+
+  if (bootstrap && (hybrid || !deploymentReady)) {
+    try {
+      await jsonRpc("eth_chainId");
+    } catch {
+      console.log("[Launcher] Starting a managed local Hardhat chain...");
+      startService("Chain", "contracts", ["run", "node"]);
+      await waitFor(() => jsonRpc("eth_chainId"), "Local Hardhat chain");
+    }
+    const setupCommand = hybrid ? "setup:hybrid" : "setup:local";
+    console.log(
+      hybrid
+        ? "[Launcher] Preparing a clean hybrid-registry deployment..."
+        : "[Launcher] Preparing a clean local deployment..."
     );
+    try {
+      await runCommand(".", ["run", setupCommand]);
+    } catch (error) {
+      throw new Error(`Local setup failed: ${error.message}`);
+    }
+    await verifyLocalDeployment();
   }
   console.log("[Launcher] Reusing the verified local deployment on port 8545.");
 
   console.log("[Launcher] Chain is ready. Starting application services...");
-  startService("Backend", "backEnd", ["run", "dev"]);
+  const backendRpcUrl = process.env.E2E_BACKEND_RPC_URL;
+  if (backendRpcUrl) {
+    const parsedProxy = new URL(backendRpcUrl);
+    if (!["127.0.0.1", "localhost", "::1"].includes(parsedProxy.hostname)) {
+      throw new Error("E2E_BACKEND_RPC_URL must be loopback-only");
+    }
+    startService("RPC Proxy", ".", ["run", "dev:rpc-proxy"]);
+    await waitForHttp(`${backendRpcUrl}/__control/status`, '"paused":false');
+  }
+  startService("Backend", "backEnd", ["run", "dev"], {
+    ...process.env,
+    ...(backendRpcUrl ? { RPC_URL: backendRpcUrl } : {}),
+  });
   startService("Frontend", "frontEnd", ["run", "dev"]);
   startService("Oracle 1", "oracle", ["run", "dev"]);
   startService("Oracle 2", "oracle", ["run", "dev:oracle2"]);
-  console.log("[Launcher] All processes started. Press Ctrl+C to stop them together.");
+  const backendPort = readEnvValue("backEnd/.env", "PORT") || "5000";
+  await Promise.all([
+    waitForHttp(
+      `http://127.0.0.1:${backendPort}/health/ready`,
+      '"status":"ready"'
+    ),
+    waitForHttp("http://localhost:5173", "Block-Insure"),
+  ]);
+  console.log("[Launcher] Chain/deployment verified and application services are ready. Press Ctrl+C to stop them together.");
 }
 
 process.on("SIGINT", () => {

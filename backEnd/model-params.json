@@ -1,9 +1,9 @@
 {
   "artifactSchemaVersion": 3,
-  "modelVersion": "bernoulli-fraud-v3.0.0",
-  "trainedAt": "2026-08-15T00:00:00.000Z",
-  "source": "phase5/normal seed=202605 size=600",
-  "gitCommit": "0d88ea662abc811d061ea59f5d79465ab9d3c7ed",
+  "modelVersion": "bernoulli-fraud-v3.1.0",
+  "trainedAt": "2026-08-27T00:00:00.000Z",
+  "source": "phase5/normal seed=202605 size=600; canonical duplicate invoice suffixes",
+  "gitCommit": "f981db4a2965a0f072e322443b75660c85701ff9",
   "trainingDataHash": "7bb4669e76e54f9c55abc1e32233141e0274aa908ba8449e0a66e030417aeafc",
   "calibrationDataHash": "b2424b890fdad486eec6b4d5569b50a223fcf52d813404309bd8e716223774d1",
   "featureSchemaVersion": "fraud-features-v3",
@@ -13,7 +13,7 @@
     "version": "platt-v1",
     "slope": 0.5386002105011548,
     "intercept": -0.5857824076187182,
-    "trainedOn": "latest 20 percent temporal validation partition",
+    "trainedOn": "latest 20 percent chronological calibration partition",
     "records": 120
   },
   "trainingSet": {
@@ -311,6 +311,6 @@
       }
     }
   },
-  "artifactHash": "812722b152b9c43545db2b1de3fb535382ba7b7069c0837a9b22fcfb258db611",
-  "modelIdentityHash": "0xfe23d521b89b254072149fd8168328def5b772ce069d23e3c068b43405626ba2"
+  "artifactHash": "f172016bc1c801b085e20180f7ab204205a1d783b2d8ac3f5d66e40dcb9abe86",
+  "modelIdentityHash": "0xf1ead0b09877c9a7894f109515f0776b3fba8d21e96c8b60963dc2eba8d4ebc1"
 }

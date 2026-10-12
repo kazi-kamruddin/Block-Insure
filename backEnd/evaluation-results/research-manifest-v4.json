@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-10-12T10:51:50.659Z",
+  "source": {
+    "gitCommit": "49aa84ed7bccfd29354afaddfade053ffb79c1cb",
+    "dirty": true,
+    "branch": "postPreDefence"
+  },
+  "environment": {
+    "node": "v24.16.0",
+    "platform": "win32",
+    "architecture": "x64",
+    "solidity": "0.8.26",
+    "evmVersion": "cancun",
+    "optimizerRuns": 1,
+    "viaIR": true
+  },
+  "packages": {
+    "root": {
+      "name": "block-insure-local-workflow",
+      "version": "1.0.0",
+      "packageJsonSha256": "47614ca95b7138f17ecdc4e755c73f7a79cda37fefddfb8a05519ded66446428",
+      "packageLockSha256": "ab1cd59e1bc12401bc826293981260ce3f18fbff801982f4c607d3b0f5d1a710"
+    },
+    "backend": {
+      "name": "backend",
+      "version": "1.0.0",
+      "packageJsonSha256": "01cace33eb597cd11003d7b70d314efc40ad3e904e043dda19c1af0adf22797f",
+      "packageLockSha256": "9a51c01ac960f8079cefa704df23106ecef830442fe160bf5bd199db0796e8a2"
+    },
+    "contracts": {
+      "name": "contracts",
+      "version": "1.0.0",
+      "packageJsonSha256": "fd86b19edd0613adba45b670712a73bafd87be4ae5c7d7d6756704e4891e7566",
+      "packageLockSha256": "2e76185ac3fd2c77f1db14a4ad51fbc3474c260783e161fa44b4699044fa3105"
+    },
+    "frontend": {
+      "name": "frontend",
+      "version": "1.0.0",
+      "packageJsonSha256": "2fd28609e2a90eec92119ac8b1ec5ce1c2e68edb551a8b7600e72df2efd33e5b",
+      "packageLockSha256": "664b91d95822fa5a030bb840b3473a574425a3b89b7cef51e1eea2d9bdbad19f"
+    },
+    "oracle": {
+      "name": "oracle",
+      "version": "1.0.0",
+      "packageJsonSha256": "7d14f6e3b551be4b80683dbdf2704528786c02c7c3ceb1d1ba33e68fdfcc0c9e",
+      "packageLockSha256": "cc3ed4fcb36ed515c3df8466dc5bfea38641252a3f05e1ca0dc9e90846cf3356"
+    }
+  },
+  "implementation": {
+    "backEnd/services/phase5EvaluationService.js": "9ab6d6998990f4c6831b271ebc59b382bf6830a047553e126dd0fe2904f93ee7",
+    "backEnd/services/triageEvaluationService.js": "5066e8aaab428eaceb04d1edba2dd669c7d3e423d88877ea30b62277c543fc2c",
+    "backEnd/services/triagePolicyService.js": "93b1fef5209279c5521f33c6840456485aa68f47fbffea9c07208d3b9b50e663",
+    "backEnd/services/reserveSimulationService.js": "74c890606ccb58225cfb6af7b878fea7536e26afc09f849a7a24134273aabaa1",
+    "backEnd/services/evidenceBenchmarkService.js": "60d2f371096c8888fe860114a126cc5f2e0b594d41362858899677293dde0f15",
+    "backEnd/services/researchArtifactService.js": "992a5780ab965e6ec4ef18acbd68eacfc9ee4e56730cf6207b5bd634c269f91b",
+    "backEnd/services/hybridDatasetAdapterService.js": "4c22b70f094f98473dfac9b77c6e646997178e1ded015d70ab9f2e5f14a560d7",
+    "backEnd/services/hybridDatasetIntegrityService.js": "57fc82af7f7eb4a658eb623af1705465b6736eda3e52273c438d4159d9524350",
+    "backEnd/services/merkleRegistryService.js": "fda187cdbbcececadee140fd3c04d3d553dbbe6ee69345b8663d04f9d2c35573",
+    "backEnd/scripts/evaluatePhase5.js": "2d18c896b8bec5398f813ea2749c1c0fa838b1dcf4603415575338cfb3d359e7",
+    "backEnd/scripts/evaluateReserveAdequacy.js": "779efd5db5cf04b627a144c9b21cabd554b4d70999ca48cc0a8500f9e84d22c4",
+    "backEnd/scripts/evaluateEvidenceLifecycle.js": "b89af0a18e020e28f77298186111a767dfb1099122a6069b8dc3108721a4a7c0",
+    "backEnd/scripts/freezeModelArtifact.js": "dc8841046098c45a6d56a28dcdbaf514ad5a0fdd5bc434cf1008267183fc2936",
+    "backEnd/scripts/freezeTriagePolicy.js": "9dab4bd54aee6877f14d3f9dbc9fc92cea7e0eeffe64137188fbc8b1b9e5669b",
+    "backEnd/scripts/generateSyntheticDatasets.js": "77e9f5455f6d0fc569749f68693a00074b854942008250e3bc019819680c8dc6",
+    "backEnd/scripts/generateEvaluationCharts.js": "fa922dd9aedd297b0be9ac1afd6642741d129bd729a7005952ebda97a630040c",
+    "backEnd/scripts/generatePhase34Charts.js": "b4dfff7f0e2dcf4024e717f1d0cfb9224da217c191a9a33f1a2df8151808a372",
+    "backEnd/scripts/generateChartManifest.js": "e963bdf148a7a1005609d28af1d188d18bf008c4c0adeb1350545356309a02fa",
+    "backEnd/scripts/generateResearchManifest.js": "e230eaa44d28e8aa1dd831c1155cdf6f319565126f0a5cbcbdd64da96f580db0",
+    "backEnd/scripts/buildHybridDataset.js": "6b6f1d526676b0077c138cf5780dfaf427ab7cd179ad528cec79f7f135b24ab6",
+    "backEnd/scripts/validateHybridDataset.js": "59465df4e22762b9b6b0744048fc69d15a02c025cbde4156ed45a4d563d22e7a",
+    "backEnd/scripts/evaluateHybridDataset.js": "981e01c696f4d08a31692ecffa352b152e372bcee3bf8f4952f8950652be14e2",
+    "backEnd/scripts/benchmarkHybridRuntime.js": "2fc9d34e128c960cdbb1a551dd063c57b4cc44a12e237bfcc59883338ee8374f",
+    "oracle/independentAssessment.js": "da8eb0fb4510ba41e1cc4e92b9766ac900c042e168d1f5f51c8f228e1d132b24",
+    "backEnd/test/phase6CapacityTriage.test.js": "d792002c9306650b61f0d4b3c94ad1ab7541dfb1c3815c6d2b299be724768947",
+    "backEnd/test/phase7ReserveEvidence.test.js": "a5971ea0e016c053eec88e37e38ad5f1a4681cc30a685e669fb336765deaa777",
+    "backEnd/test/phase8OperationalHardening.test.js": "024b7882219c9fcc8c5605f852418071a72eca7428b4ef458975a1d756f9c78d",
+    "contracts/hardhat.config.js": "b6b0937cee5de666cfb029e6b57944cec4111fb99353a980bf8ca31f7da13513",
+    "contracts/mutations/manifest.json": "6e5bd5d9e6f0346d684a7b22c00dfc39dcca60b6929b538eb9ab50444d2fa792",
+    "contracts/scripts/runMutationCampaign.js": "80d4883c3f7f7f861a9c4dbf970c44f35861bc158b9641363b239e6e0e242bf4",
+    "contracts/test/invariants/protocol-invariants.json": "e01afb5460b5502850789a4a1655697ee3bf39c50b78caede5e32df08fcf35b1",
+    "contracts/test/Phase6ProtocolStatefulInvariants.test.js": "8ff2468b3d34786d1389b95bf87c09aecf492c5ad5aa757edc1dd19840520c59",
+    "scripts/devAll.js": "bf002bd00abfcd441f7807228f0b43cc89dd8bc544341761c934df931feb0571",
+    "scripts/verifyRepository.js": "2669c31cb48447f1d202e42c77506fdca88e233dce57f84efb67b057d8ef1ad1",
+    "scripts/runVerification.js": "5d431ff5b088ffb63c77183c6a98409a58a6061828bbcad914778b6fcec74707"
+  },
+  "contracts": {
+    "InsuranceManager": {
+      "compiled": true,
+      "deployedBytecodeBytes": 24338,
+      "artifactSha256": "3d75d87e3863c63e55c0ca2da56d4bcdc04bc4cdb687872ac468226c66355296"
+    },
+    "OracleCoordinator": {
+      "compiled": true,
+      "deployedBytecodeBytes": 7543,
+      "artifactSha256": "3756a95c2df466e7d50131c519766dc858c132bce6f7fd47b659a706bcf02fb6"
+    },
+    "ClaimAdjudicator": {
+      "compiled": true,
+      "deployedBytecodeBytes": 10880,
+      "artifactSha256": "79ecade70419edf54919d08e81e2ad7ea196b45ae0ef34614aff93309328432d"
+    },
+    "PolicyEconomics": {
+      "compiled": true,
+      "deployedBytecodeBytes": 9484,
+      "artifactSha256": "deb87fe82a16f25e95a40b9870c043b3eb617f49d55c939f03033b68b7b8c88a"
+    },
+    "EvidenceRegistry": {
+      "compiled": true,
+      "deployedBytecodeBytes": 4135,
+      "artifactSha256": "e2c0e3e05eb59f057585254c07f21ee30aa9a5b974bca55b0b3d4d5a2eda7e81"
+    },
+    "PolicyBenefitsManager": {
+      "compiled": true,
+      "deployedBytecodeBytes": 9981,
+      "artifactSha256": "543b0eab7e141ae5a6cc10ae22bd1825a781ac1537992b1d28e3bb521bc29ba7"
+    },
+    "ProtocolDeploymentRegistry": {
+      "compiled": true,
+      "deployedBytecodeBytes": 923,
+      "artifactSha256": "0f421698bef3d5ecf51c9ea88d149d2505ccf46acba9e2296853bf6219292257"
+    }
+  },
+  "artifacts": {
+    "fraudModel": {
+      "path": "backEnd/model-params.json",
+      "artifactHash": "f172016bc1c801b085e20180f7ab204205a1d783b2d8ac3f5d66e40dcb9abe86",
+      "modelIdentityHash": "0xf1ead0b09877c9a7894f109515f0776b3fba8d21e96c8b60963dc2eba8d4ebc1",
+      "fileSha256": "34ffd8361c7c63967eddff99a85f0f3b96becfcd30796fb2a6935548b7c13148"
+    },
+    "triagePolicy": {
+      "path": "backEnd/triage-policy.json",
+      "artifactHash": "2909efceb13e47db01b324ce2816f7e95d5d49b04b91ca89da8d298a522f4eac",
+      "policyIdentityHash": "0xe91d2d192c37b50e062a8f3204686e85cc3107601584563a14e7e89d23dead1c",
+      "fileSha256": "2eea456423da8085c781d3e74070141ec71c1e3d9142e24d0fa910eb0f440386"
+    },
+    "datasets": {
+      "path": "backEnd/datasets/phase5/manifest.json",
+      "manifestHash": "58c749eefb771e568cf043d727d29a33a4f2d0c5fdb1f7875760514e58e8df53",
+      "integrity": {
+        "valid": true,
+        "entries": {
+          "normal": {
+            "file": "normal.jsonl",
+            "records": 600,
+            "expectedSha256": "3aefc2f2627ac53fce37af958fac4169265671403471e34d4d7595948aa89fba",
+            "actualSha256": "3aefc2f2627ac53fce37af958fac4169265671403471e34d4d7595948aa89fba",
+            "valid": true
+          },
+          "high_fraud_stress": {
+            "file": "high_fraud_stress.jsonl",
+            "records": 600,
+            "expectedSha256": "78fe2769fecbe5927686fcf35c69c32f053a4e1ea773b6fe4ede55df3448272b",
+            "actualSha256": "78fe2769fecbe5927686fcf35c69c32f053a4e1ea773b6fe4ede55df3448272b",
+            "valid": true
+          },
+          "provider_compromise": {
+            "file": "provider_compromise.jsonl",
+            "records": 600,
+            "expectedSha256": "fffcd3b70b4ea7e7827b9c55197b5e4cef329af3117161d10356b2df33231efd",
+            "actualSha256": "fffcd3b70b4ea7e7827b9c55197b5e4cef329af3117161d10356b2df33231efd",
+            "valid": true
+          },
+          "temporal_distribution_shift": {
+            "file": "temporal_distribution_shift.jsonl",
+            "records": 600,
+            "expectedSha256": "50588f9f90813417de07df392ab01e955f3b8e1ab5b02d3dadda4b8434439167",
+            "actualSha256": "50588f9f90813417de07df392ab01e955f3b8e1ab5b02d3dadda4b8434439167",
+            "valid": true
+          }
+        }
+      }
+    },
+    "evaluation": {
+      "path": "backEnd/evaluation-results/phase5-evaluation.json",
+      "schemaVersion": 4,
+      "reproducibilityHash": "bd9740f24671de19f7281cdeb8adf25e5b497391bde011d6aaf4a2805e791ed6"
+    },
+    "hybridDataset": {
+      "path": "backEnd/datasets/hybrid-v1/manifest.json",
+      "datasetVersion": "blockinsure-hybrid-v1.2.0",
+      "sourceClaims": 558211,
+      "runtimeHybridRecords": 4995,
+      "fileSha256": "3e29cb4a25425b4e7174f7055a8a672ea406d5e04d82155e8ca68ac3d45941fa",
+      "outputSha256": {
+        "train": "bad8ae17409b2547b50b05483b243c9902f23b303f3d435d244fe8932090eb34",
+        "calibration": "732fd1ee1715907be5dd50b58d7cb419344ff1df9ece0a5cd249e7f2f6b1194e",
+        "testUntouched": "1e9a85db394ea0c48b95e2ac71bc1a630f343c1a0c863d18ab639dbda7aa024d",
+        "testAttacks": "7ddfdd9233331a64d4c1e610e54c6b1c6543a4fc35cb8cdca3ed03da6b6ae07a",
+        "runtimeHybrid": "323136176edc3eef0816617916c5a1ff8fd58051fd13130afdeaac4e32ef887f"
+      }
+    },
+    "hybridEvaluation": {
+      "path": "backEnd/evaluation-results/hybrid-v1-evaluation.json",
+      "schemaVersion": 2,
+      "reproducibilityHash": "526943f75823bf9b7738a013883d620dd90986742f87131ccbeeec2c8895fd0f",
+      "providerRiskModelVersion": "provider-risk-real-v1.0.0",
+      "controlledAttackRoutingRecall": 1
+    },
+    "providerRiskModel": {
+      "path": "backEnd/evaluation-results/provider-risk-real-v1.0.0.json",
+      "artifactHash": "943477f2f0d209f81a4672c65f9acdb3b581c0a9619cde89868bad168033bc49",
+      "modelIdentityHash": "0xf5ab0e8ffece79578b50c64e4c0bd034de31d02efcc966e29c1830a681f34073",
+      "target": {
+        "field": "providerPotentialFraud",
+        "unit": "provider",
+        "interpretation": "Weak provider-level audit-prioritization label; not adjudicated claim fraud"
+      },
+      "fileSha256": "f90855654cfd554443b8028ce54ee82c8bbe1de7af0287632281e61081a93aa7"
+    },
+    "hybridRuntimeBenchmark": {
+      "path": "backEnd/evaluation-results/hybrid-runtime-benchmark.json",
+      "reproducibilityHash": "356dcbf30643a9d435654bdfca845c24ad59f843ec073db19112d12cc2b00ab3",
+      "leafCount": 5000,
+      "sampledProofsValid": true
+    },
+    "reserveEvaluation": {
+      "path": "backEnd/evaluation-results/phase3-reserve-evaluation.json",
+      "schemaVersion": 1,
+      "reproducibilityHash": "06ebd48e7d8f4a2c7e736bb0fa882ff39e98e710fc6f55ea1a132364b7a63038",
+      "executionFileSha256": "d74ae05b8938b290f42eb8335d14eda1691354833b56b57ead8e46db8eecec4e",
+      "advisoryOnly": true
+    },
+    "evidenceEvaluation": {
+      "path": "backEnd/evaluation-results/phase4-evidence-evaluation.json",
+      "schemaVersion": 1,
+      "reproducibilityHash": "b2ca6dec0f9201e8d127d757e531ea7cdb0bbef5bcb537426932d8fba99eabc9",
+      "executionFileSha256": "cca720e8838a4c63b71a43251568ef85e504df6f5e0c0d0fb15c3f01c893f3c9",
+      "adversarialDetection": {
+        "cases": [
+          {
+            "key": "ciphertext_bit_flip",
+            "threat": "Ciphertext modification",
+            "control": "AES-256-GCM authentication tag",
+            "detected": true
+          },
+          {
+            "key": "wrong_aad",
+            "threat": "Evidence moved to another claim version",
+            "control": "Authenticated associated data",
+            "detected": true
+          },
+          {
+            "key": "replaced_receipt",
+            "threat": "Stored bytes replaced",
+            "control": "Encrypted SHA-256 receipt",
+            "detected": true
+          },
+          {
+            "key": "replaced_cid",
+            "threat": "CID substituted",
+            "control": "Content-addressed retrieval",
+            "detected": true
+          },
+          {
+            "key": "gateway_unavailable",
+            "threat": "Temporary content gateway outage",
+            "control": "Conservative retrieval failure",
+            "detected": true
+          },
+          {
+            "key": "corrupted_proof",
+            "threat": "Evidence history proof modified",
+            "control": "RFC6962 inclusion verification",
+            "detected": true
+          },
+          {
+            "key": "revoked_grant",
+            "threat": "Access requested after revocation",
+            "control": "Grant revocation check",
+            "detected": true
+          },
+          {
+            "key": "stale_key_version",
+            "threat": "Grant replayed after key rotation",
+            "control": "Versioned encryption identity",
+            "detected": true
+          }
+        ],
+        "detected": 8,
+        "total": 8,
+        "detectionRate": 1
+      }
+    },
+    "chartOutputs": {
+      "path": "backEnd/evaluation-results/evaluation-charts/chart-manifest.json",
+      "chartCount": 16,
+      "executionFileSha256": "ef02fb3fef48bb11f84813db29d15b40d291448c8943ae588d95e3f69ad634da"
+    },
+    "protocolAssurance": {
+      "invariantCatalogue": {
+        "path": "contracts/test/invariants/protocol-invariants.json",
+        "fileSha256": "e01afb5460b5502850789a4a1655697ee3bf39c50b78caede5e32df08fcf35b1"
+      },
+      "mutationManifest": {
+        "path": "contracts/mutations/manifest.json",
+        "fileSha256": "6e5bd5d9e6f0346d684a7b22c00dfc39dcca60b6929b538eb9ab50444d2fa792"
+      },
+      "mutationCampaign": {
+        "path": "contracts/mutation-results.json",
+        "executionFileSha256": "da5749db1dd61cdc3990d6bc3d165c06381c528c35afba873ce9bdc9fb1b657d",
+        "summary": {
+          "requested": 8,
+          "valid": 8,
+          "killed": 8,
+          "survived": 0,
+          "invalid": 0,
+          "timedOut": 0,
+          "infrastructureErrors": 0,
+          "mutationScore": 1
+        }
+      }
+    }
+  },
+  "experimentDefaults": {
+    "datasetSeed": 202605,
+    "groupedEvaluationSeeds": [
+      11,
+      29,
+      47
+    ],
+    "bootstrapIterations": 250,
+    "triageCapacityRates": [
+      0.05,
+      0.1,
+      0.2,
+      0.3,
+      0.5
+    ],
+    "primaryTriageScenario": "fraud_averse",
+    "primaryNominalReviewRate": 0.2,
+    "reserveSimulationPeriods": 5000,
+    "reserveTargetShortfallProbability": 0.01,
+    "evidenceBenchmarkRepetitions": 30
+  },
+  "commands": {
+    "reproduceResearch": "npm --prefix backEnd run research:baseline",
+    "fullVerification": "npm run verify:all",
+    "contractStateful": "npm --prefix contracts run test:stateful",
+    "contractMutationCampaign": "npm --prefix contracts run test:mutations",
+    "reserveAdequacy": "npm --prefix backEnd run evaluate:reserve",
+    "evidenceLifecycle": "npm --prefix backEnd run evaluate:evidence",
+    "hybridEvaluation": "npm --prefix backEnd run evaluate:hybrid",
+    "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
+    "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
+  },
+  "reproducibilityHash": "d2569e17e8610c595b992d0e25a36a4c254f727c997acfec28be383f386c9920"
+}

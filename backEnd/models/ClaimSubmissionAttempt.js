@@ -29,6 +29,8 @@ const claimSubmissionAttemptSchema = new mongoose.Schema(
       incidentDate: { type: String, default: "" },
       claimType: { type: String, default: "" },
       claimAmountWei: { type: String, default: "" },
+      hospitalId: { type: String, default: "" },
+      invoiceHash: { type: String, default: "" },
       preExistingCondition: { type: Boolean, default: false },
       disclosedAtPurchase: { type: Boolean, default: false },
     },

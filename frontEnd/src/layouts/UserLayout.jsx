@@ -1,30 +1,23 @@
-import { Navigate, NavLink, Outlet } from "react-router-dom";
-import { useWallet } from "../context/useWallet";
+import RoleWorkspaceLayout from "./RoleWorkspaceLayout";
+
+const POLICYHOLDER_LINKS = [
+  { to: "/user/dashboard", label: "Overview", end: true },
+  { to: "/user/policies/buy", label: "Buy Policy" },
+  { to: "/user/policies", label: "My Policies", end: true },
+  { to: "/user/payments", label: "Payments & Statements" },
+  { to: "/user/banking", label: "Banking & EFT" },
+  { to: "/user/claims", label: "My Claims", end: true },
+  { to: "/user/claims/new", label: "Submit Claim" },
+  { to: "/user/benefits", label: "Beneficiary Benefits" },
+  { to: "/user/notifications", label: "Notifications" },
+];
 
 export default function UserLayout() {
-  const { isConnected, role, workspace } = useWallet();
-
-  if (!isConnected) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (role !== "USER") {
-    return <Navigate to={workspace?.home || "/"} replace />;
-  }
-
   return (
-    <div>
-      <nav className="subnav" aria-label="Policyholder navigation">
-        <NavLink to="/user/dashboard" end>Overview</NavLink>
-        <NavLink to="/user/policies/buy">Buy Policy</NavLink>
-        <NavLink to="/user/policies" end>My Policies</NavLink>
-        <NavLink to="/user/claims" end>My Claims</NavLink>
-        <NavLink to="/user/claims/new">Submit Claim</NavLink>
-        <NavLink to="/user/benefits">Beneficiary Benefits</NavLink>
-        <NavLink to="/user/notifications">Notifications</NavLink>
-      </nav>
-
-      <Outlet />
-    </div>
+    <RoleWorkspaceLayout
+      expectedRole="USER"
+      navigationLabel="Policyholder navigation"
+      links={POLICYHOLDER_LINKS}
+    />
   );
 }

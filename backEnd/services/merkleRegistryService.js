@@ -1,8 +1,10 @@
 const { calculateTextSHA256 } = require("./hashService");
 const { getRegistryModel } = require("./oracleRegistryService");
 
-const TREE_VERSION = "phase-6-registry-merkle-v1";
+const TREE_VERSION = "blockinsure-registry-merkle-v3";
 const HASH_ALGORITHM = "SHA-256";
+const treeCache = new Map();
+const treeBuildPromises = new Map();
 
 const normalizeHash = (value) => String(value || "").trim().toLowerCase();
 
@@ -48,6 +50,32 @@ const getCanonicalRecordPayload = (record) => ({
   invoiceStatus: record.invoiceStatus,
   recordStatus: record.recordStatus,
   fraudLabel: record.fraudLabel,
+  datasetProfile: record.datasetProfile,
+  baseDataOrigin: record.baseDataOrigin,
+  claimSetting: record.claimSetting,
+  providerPotentialFraud: record.providerPotentialFraud,
+  providerLabelType: record.providerLabelType,
+  scenarioInjected: record.scenarioInjected,
+  scenarioType: record.scenarioType,
+  scenarioVersion: record.scenarioVersion,
+  sourceClaimAmountUsd: record.sourceClaimAmountUsd,
+  sourceProcedureCode: record.sourceProcedureCode,
+  amountNormalizationVersion: record.amountNormalizationVersion,
+  amountNormalizationDivisor: record.amountNormalizationDivisor,
+  previousClaimCount: record.previousClaimCount,
+  providerVelocityAnomaly: record.providerVelocityAnomaly,
+  claimantVelocityAnomaly: record.claimantVelocityAnomaly,
+  nearDuplicateAdvisory: record.nearDuplicateAdvisory,
+  isMissingOrNoisy: record.isMissingOrNoisy,
+  dataQuality: record.dataQuality,
+  recurringLegitimate: record.recurringLegitimate,
+  fraudSignals: {
+    usedInvoice: record.fraudSignals?.usedInvoice,
+    cancelledRecord: record.fraudSignals?.cancelledRecord,
+    inflatedAmount: record.fraudSignals?.inflatedAmount,
+    blacklistedHospital: record.fraudSignals?.blacklistedHospital,
+    dateMismatch: record.fraudSignals?.dateMismatch,
+  },
 });
 
 const getCanonicalLeafInput = (record) => {
@@ -140,6 +168,9 @@ const buildMerkleTree = (records) => {
     rootHash,
     leaves,
     levels,
+    leafByInvoiceHash: new Map(
+      leaves.map((leaf) => [normalizeHash(leaf.invoiceHash), leaf])
+    ),
   };
 };
 
@@ -148,14 +179,38 @@ const getRegistryRecordsForMerkle = async (registrySnapshot = "primary") => {
 
   return RegistryModel.find()
     .select(
-      "hospitalId hospitalName licenseStatus patientHash treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel"
+      "hospitalId hospitalName licenseStatus patientHash treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel datasetProfile baseDataOrigin claimSetting providerPotentialFraud providerLabelType scenarioInjected scenarioType scenarioVersion sourceClaimAmountUsd sourceProcedureCode amountNormalizationVersion amountNormalizationDivisor previousClaimCount providerVelocityAnomaly claimantVelocityAnomaly nearDuplicateAdvisory isMissingOrNoisy dataQuality recurringLegitimate fraudSignals"
     )
     .lean();
 };
 
+const invalidateRegistryMerkleCache = (registrySnapshot) => {
+  if (registrySnapshot) {
+    treeCache.delete(registrySnapshot);
+    treeBuildPromises.delete(registrySnapshot);
+    return;
+  }
+  treeCache.clear();
+  treeBuildPromises.clear();
+};
+
+const getCachedRegistryTree = async (registrySnapshot = "primary") => {
+  if (treeCache.has(registrySnapshot)) return treeCache.get(registrySnapshot);
+  if (treeBuildPromises.has(registrySnapshot)) return treeBuildPromises.get(registrySnapshot);
+
+  const buildPromise = getRegistryRecordsForMerkle(registrySnapshot)
+    .then((records) => {
+      const tree = buildMerkleTree(records);
+      treeCache.set(registrySnapshot, tree);
+      return tree;
+    })
+    .finally(() => treeBuildPromises.delete(registrySnapshot));
+  treeBuildPromises.set(registrySnapshot, buildPromise);
+  return buildPromise;
+};
+
 const buildRegistryMerkleRoot = async (registrySnapshot = "primary") => {
-  const records = await getRegistryRecordsForMerkle(registrySnapshot);
-  const tree = buildMerkleTree(records);
+  const tree = await getCachedRegistryTree(registrySnapshot);
 
   return {
     treeVersion: tree.treeVersion,
@@ -173,12 +228,9 @@ const exportMerkleRoot = async () => {
 };
 
 const buildRegistryMerkleProof = async ({ invoiceHash, registrySnapshot = "primary" }) => {
-  const records = await getRegistryRecordsForMerkle(registrySnapshot);
-  const tree = buildMerkleTree(records);
+  const tree = await getCachedRegistryTree(registrySnapshot);
   const normalizedInvoiceHash = normalizeHash(invoiceHash);
-  const leaf = tree.leaves.find(
-    (item) => normalizeHash(item.invoiceHash) === normalizedInvoiceHash
-  );
+  const leaf = tree.leafByInvoiceHash.get(normalizedInvoiceHash);
 
   if (!leaf) {
     return {
@@ -227,16 +279,26 @@ const buildRegistryMerkleProof = async ({ invoiceHash, registrySnapshot = "prima
       invoiceStatus: leaf.canonicalRecord.invoiceStatus,
       licenseStatus: leaf.canonicalRecord.licenseStatus,
       fraudLabel: leaf.canonicalRecord.fraudLabel,
+      datasetProfile: leaf.canonicalRecord.datasetProfile,
+      baseDataOrigin: leaf.canonicalRecord.baseDataOrigin,
+      claimSetting: leaf.canonicalRecord.claimSetting,
+      providerPotentialFraud: leaf.canonicalRecord.providerPotentialFraud,
+      scenarioInjected: leaf.canonicalRecord.scenarioInjected,
+      scenarioType: leaf.canonicalRecord.scenarioType,
     },
     generatedAt: new Date().toISOString(),
   };
 };
 
 module.exports = {
+  TREE_VERSION,
   buildMerkleTree,
   buildRegistryMerkleProof,
   buildRegistryMerkleRoot,
   exportMerkleRoot,
+  getCachedRegistryTree,
+  getProofPath,
   getCanonicalRecordPayload,
+  invalidateRegistryMerkleCache,
   verifyMerkleProof,
 };

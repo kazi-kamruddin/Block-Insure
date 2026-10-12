@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
 import "../styles/pages/HomePage.css";
 
@@ -40,9 +40,9 @@ export default function HomePage() {
                   ? "Connecting wallet..."
                   : "Connect wallet to enter"}
             </button>
-            <a className="home-secondary-action" href="#how-it-works">
-              Explore the workflow
-            </a>
+            <Link className="home-secondary-action" to="/policies">
+              Browse policies
+            </Link>
           </div>
 
           {error ? (
@@ -177,8 +177,8 @@ export default function HomePage() {
           <h2>One identity. One workspace. Clear authority.</h2>
           <p>
             Connecting a wallet opens only the workspace assigned to that
-            identity. Administrative, policyholder, and auditor responsibilities
-            remain deliberately separate.
+            identity. Administrative, policyholder, bank, hospital, and auditor
+            responsibilities remain deliberately separate.
           </p>
         </div>
 
@@ -197,6 +197,16 @@ export default function HomePage() {
             <span>Auditor</span>
             <h3>Independently examine disputes</h3>
             <p>Inspect timelines and evidence, verify document integrity, vote, and build a reputation record.</p>
+          </article>
+          <article>
+            <span>Hospital</span>
+            <h3>Own patient and invoice records</h3>
+            <p>Use a separate provider wallet and view only records belonging to the contracted hospital identity.</p>
+          </article>
+          <article>
+            <span>Bank</span>
+            <h3>Authorize standing payment instructions</h3>
+            <p>Operate a separate bank wallet and manage the simulated account ledger, EFT mandates, and scheduled premium transfers.</p>
           </article>
         </div>
       </section>

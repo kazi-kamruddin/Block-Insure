@@ -7,6 +7,7 @@ import {
   authorizeClaimSubmission,
   attachDocumentToClaim,
   getMyPolicies,
+  getNetworkHospitals,
   previewPurchasedPolicyEligibility,
   reconcileClaimSubmission,
   recordClaimSubmissionTransaction,
@@ -36,6 +37,7 @@ import {
 import { getClaimIdsByWallet } from "../utils/contractQueries";
 import "../styles/pages/SubmitClaimPage.css";
 import { showToast } from "../services/toast";
+import { formatDateOnly, formatDateTime } from "../utils/dateFormat";
 
 const VALID_MOCK_HOSPITAL_PRESETS = [
   {
@@ -148,11 +150,6 @@ function dateTimeLocalToUnixSeconds(dateTimeValue) {
   return Math.floor(new Date(dateTimeValue).getTime() / 1000);
 }
 
-function formatUnixDate(unixSeconds) {
-  if (!unixSeconds) return "-";
-  return new Date(Number(unixSeconds) * 1000).toLocaleString();
-}
-
 export default function SubmitClaimPage() {
   const { isConnected, walletAddress, connectWallet } = useWallet();
 
@@ -183,11 +180,17 @@ export default function SubmitClaimPage() {
     refetch: refetchPolicies,
   } = useQuery({
     queryKey: ["myPolicies", walletAddress],
-    queryFn: getMyPolicies,
+    queryFn: () => getMyPolicies(),
     enabled: isConnected,
   });
 
   const policies = extractPolicies(policiesData);
+  const { data: hospitalNetworkData } = useQuery({
+    queryKey: ["contractedHospitalNetwork"],
+    queryFn: getNetworkHospitals,
+    staleTime: 60_000,
+  });
+  const networkHospitals = hospitalNetworkData?.hospitals || [];
 
   const activePolicies = useMemo(
     () => policies.filter((policy) => policy.isActive !== false),
@@ -341,10 +344,13 @@ export default function SubmitClaimPage() {
 
       setIsSubmitting(true);
 
+      const invoiceHash = hashInvoiceNumber(invoiceNumber.trim());
       const authorization = await authorizeClaimSubmission(policyId, {
         incidentDate: incidentSeconds,
         claimType,
         claimAmountEth: claimAmount,
+        hospitalId,
+        invoiceHash,
         preExistingCondition,
         disclosedAtPurchase,
       });
@@ -380,7 +386,6 @@ export default function SubmitClaimPage() {
       const documentId = getUploadedDocumentId(uploadResponse);
 
       if (!sha256Hash || !ipfsCID || !documentId) {
-        console.log("Upload response:", uploadResponse);
         throw new Error(
           "Backend upload did not return document metadata needed to submit and link the claim"
         );
@@ -401,8 +406,6 @@ export default function SubmitClaimPage() {
       });
 
       const documentHashBytes32 = toBytes32FromBackendSha256(sha256Hash);
-      const invoiceHash = hashInvoiceNumber(invoiceNumber.trim());
-
       const tx = await contract.submitClaim(
         BigInt(policyId),
         parseEth(claimAmount),
@@ -578,8 +581,11 @@ export default function SubmitClaimPage() {
       {selectedPolicy ? (
         <div className="card">
           <h3>Selected Policy Timing</h3>
-          <p>Start: {formatUnixDate(selectedPolicy.startDate)}</p>
-          <p>End: {formatUnixDate(selectedPolicy.endDate)}</p>
+          <div className="policy-date-summary">
+            <div><span>Coverage begins</span><strong>{formatDateOnly(selectedPolicy.startDate)}</strong></div>
+            <div><span>Coverage ends</span><strong>{formatDateOnly(selectedPolicy.endDate)}</strong></div>
+            <div><span>Selected incident</span><strong>{incidentDateTime ? formatDateTime(incidentDateTime) : "Not selected"}</strong></div>
+          </div>
           <PolicyTermsPanel terms={selectedPolicy.policyTerms} />
           {eligibilityError ? (
             <p className="warning-text">
@@ -595,6 +601,7 @@ export default function SubmitClaimPage() {
         <label>
           Policy
           <select
+            aria-label="Policy"
             value={policyId}
             onChange={(event) => handlePolicyChange(event.target.value)}
             required
@@ -613,6 +620,7 @@ export default function SubmitClaimPage() {
         <label>
           Test data preset
           <select
+            aria-label="Test data preset"
             defaultValue=""
             onChange={(event) => applyMockPreset(event.target.value)}
           >
@@ -643,8 +651,9 @@ export default function SubmitClaimPage() {
         </label>
 
         <label>
-          Incident date/time
+          Incident date and time
           <input
+            aria-label="Incident date/time"
             type="datetime-local"
             step="60"
             value={incidentDateTime}
@@ -653,7 +662,8 @@ export default function SubmitClaimPage() {
           />
           <small>
             Enter when the incident actually occurred. This value is never
-            replaced with the policy purchase time.
+            replaced with the policy purchase time. Dates are shown in your local
+            timezone.
           </small>
         </label>
 
@@ -669,12 +679,20 @@ export default function SubmitClaimPage() {
 
         <label>
           Hospital ID
-          <input
-            type="text"
+          <select
+            aria-label="Hospital ID"
             value={hospitalId}
             onChange={(event) => setHospitalId(event.target.value)}
             required
-          />
+          >
+            <option value="">Select a contracted hospital</option>
+            {networkHospitals.map((hospital) => (
+              <option key={hospital.hospitalId} value={hospital.hospitalId}>
+                {hospital.hospitalId} — {hospital.name}
+              </option>
+            ))}
+          </select>
+          <small>Only hospitals contracted with the insurer are claim eligible.</small>
         </label>
 
         <label>

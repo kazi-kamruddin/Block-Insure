@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { getMyPolicies } from "../services/api";
+import { confirmPremiumPayment, getMyPolicies } from "../services/api";
 import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
 import PolicyBenefitsPanel from "../components/PolicyBenefitsPanel";
@@ -14,18 +14,13 @@ import {
   reinstatePolicy,
 } from "../services/contractService";
 import "../styles/pages/MyPoliciesPage.css";
+import { formatDateOnly } from "../utils/dateFormat";
 
 function extractPolicies(data) {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.policies)) return data.policies;
   if (Array.isArray(data?.data)) return data.data;
   return [];
-}
-
-function formatUnixDate(unixSeconds) {
-  const value = Number(unixSeconds || 0);
-  if (!value) return "-";
-  return new Date(value * 1000).toLocaleString();
 }
 
 function getInstallmentProgress(policy) {
@@ -81,6 +76,9 @@ export default function MyPoliciesPage() {
           : await payPolicyPremium(policy.policyId, premiumWei);
 
       await tx.wait();
+      await confirmPremiumPayment(tx.hash).catch((confirmationError) => {
+        console.warn("Payment confirmation will be reconciled from chain history", confirmationError);
+      });
       setTransactionHash(tx.hash);
       const message =
         actionType === "reinstate"
@@ -168,10 +166,10 @@ export default function MyPoliciesPage() {
               );
             })()}
             <div className="policy-timeline">
-              <div><span>Coverage began</span><strong>{formatUnixDate(policy.startDate)}</strong></div>
-              <div><span>Next premium due</span><strong>{formatUnixDate(policy.nextPremiumDueDate)}</strong></div>
-              <div><span>Grace deadline</span><strong>{formatUnixDate(policy.gracePeriodEnd)}</strong></div>
-              <div><span>Coverage ends</span><strong>{formatUnixDate(policy.endDate)}</strong></div>
+              <div><span>Coverage began</span><strong>{formatDateOnly(policy.startDate)}</strong></div>
+              <div><span>Next premium due</span><strong>{formatDateOnly(policy.nextPremiumDueDate)}</strong></div>
+              <div><span>Grace deadline</span><strong>{formatDateOnly(policy.gracePeriodEnd)}</strong></div>
+              <div><span>Coverage ends</span><strong>{formatDateOnly(policy.endDate)}</strong></div>
             </div>
             <div className="action-row">
               {["ACTIVE", "GRACE_PERIOD"].includes(policy.status?.label) ? <button
@@ -188,6 +186,9 @@ export default function MyPoliciesPage() {
               >
                 Reinstate
               </button> : null}
+              <Link to={`/user/payments?policyId=${policy.policyId}`}>
+                View Payments & Statements
+              </Link>
             </div>
             <PolicyBenefitsPanel policy={policy} onPolicyChanged={refetch} />
             <details className="technical-details">

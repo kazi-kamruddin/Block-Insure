@@ -1,9 +1,11 @@
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const loadedModelArtifact = require("../model-params.json");
+const loadedTriagePolicy = require("../triage-policy.json");
 const { calibrateProbability } = require("./calibrationService");
 const { predictBernoulliNaiveBayes } = require("./bernoulliNaiveBayesService");
 const { extractRuntimeFeatures } = require("./featureEngineeringService");
 const { verifyModelArtifact } = require("./modelArtifactService");
+const { routeRiskAssessment, verifyTriagePolicy } = require("./triagePolicyService");
 
 const calculateStats = (values) => {
   const cleanValues = values.filter(Number.isFinite);
@@ -26,11 +28,24 @@ const buildRiskAssessment = async ({
   comparison,
   duplicateIntelligence = null,
   records: suppliedRecords,
+  runtimeRegistryRecordCount,
   modelParams = loadedModelArtifact,
+  triagePolicy = loadedTriagePolicy,
 }) => {
   const integrity = verifyModelArtifact(modelParams);
   if (!integrity.valid) {
     throw new Error(`Fraud model artifact integrity failure: ${integrity.errors.join("; ")}`);
+  }
+  const policyIntegrity = verifyTriagePolicy(triagePolicy);
+  if (!policyIntegrity.valid) {
+    throw new Error(`Triage policy artifact integrity failure: ${policyIntegrity.errors.join("; ")}`);
+  }
+  if (
+    triagePolicy.modelIdentityHash !== modelParams.modelIdentityHash ||
+    triagePolicy.modelArtifactHash !== modelParams.artifactHash ||
+    triagePolicy.featureSchemaVersion !== modelParams.featureSchemaVersion
+  ) {
+    throw new Error("Triage policy is not bound to the active fraud model artifact");
   }
   const records = suppliedRecords || await MockHospitalRecord.find().lean();
   const features = extractRuntimeFeatures({ record, comparison, duplicateIntelligence });
@@ -40,11 +55,13 @@ const buildRiskAssessment = async ({
   const fraudLevel = getFraudLevel(fraudProbability);
   const hardBlockingComparison = Number(comparison?.blockingFailureCount || 0) > 0;
   const fuzzyOnly = Boolean(duplicateIntelligence?.requiresManualReview) && !hardBlockingComparison;
-  const recommendation = hardBlockingComparison || (!fuzzyOnly && fraudProbability >= 0.85)
-    ? "REJECT_ORACLE_VERIFICATION"
-    : fuzzyOnly || fraudProbability >= Number(modelParams.threshold)
-      ? "MANUAL_REVIEW_RECOMMENDED"
-      : "AUTO_VERIFY_RECOMMENDED";
+  const routingDecision = routeRiskAssessment({
+    fraudProbability,
+    features,
+    hardBlockingComparison,
+    fuzzyDuplicate: fuzzyOnly,
+    policy: triagePolicy,
+  });
   const evidence = raw.contributions.map((contribution) => ({
     key: contribution.feature,
     label: contribution.feature.replaceAll("_", " "),
@@ -68,8 +85,21 @@ const buildRiskAssessment = async ({
     fraudLevel,
     // Retained as the response risk category consumed by the oracle metadata API.
     riskLevel: fraudLevel,
-    recommendation,
-    threshold: modelParams.threshold,
+    recommendation: routingDecision.recommendation,
+    recommendationReason: routingDecision.reason,
+    threshold: triagePolicy.routing.manualReviewThreshold,
+    legacyModelThreshold: modelParams.threshold,
+    triagePolicy: {
+      policyVersion: triagePolicy.policyVersion,
+      policyIdentityHash: triagePolicy.policyIdentityHash,
+      artifactHash: triagePolicy.artifactHash,
+      nominalReviewRate: triagePolicy.capacity.nominalReviewRate,
+      manualReviewThreshold: triagePolicy.routing.manualReviewThreshold,
+      economicReviewThreshold: triagePolicy.routing.economicReviewThreshold,
+      capacityReviewThreshold: triagePolicy.routing.capacityReviewThreshold,
+      capacityConstrained: routingDecision.capacityConstrained,
+      runtimeCapacityGuarantee: false,
+    },
     features,
     evidence,
     activeEvidence: evidence.filter((item) => item.active),
@@ -78,7 +108,7 @@ const buildRiskAssessment = async ({
       totalRecords: modelParams.trainingSet.totalRecords,
       fraudRecords: modelParams.trainingSet.fraudRecords,
       legitimateRecords: modelParams.trainingSet.legitimateRecords,
-      runtimeRegistryRecords: records.length,
+      runtimeRegistryRecords: runtimeRegistryRecordCount ?? records.length,
       smoothing: modelParams.trainingSet.smoothing,
     },
     duplicateIntelligence,

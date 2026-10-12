@@ -204,7 +204,7 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
         require(accounts.length > 0 && accounts.length <= MAX_BENEFICIARIES, "Use one to three beneficiaries");
         require(accounts.length == sharesBps.length, "Beneficiary input mismatch");
 
-        uint256 totalShares;
+        uint256 totalShares = 0;
         delete beneficiariesByPolicy[policyId];
 
         for (uint256 i = 0; i < accounts.length; i++) {
@@ -342,7 +342,7 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
 
         if (benefitRequest.benefitType == BenefitType.DEATH) {
             Beneficiary[] memory beneficiaries = beneficiariesByPolicy[benefitRequest.policyId];
-            uint256 distributed;
+            uint256 distributed = 0;
             for (uint256 i = 0; i < beneficiaries.length; i++) {
                 uint256 payment = i == beneficiaries.length - 1
                     ? benefitRequest.amount - distributed

@@ -15,7 +15,7 @@ const registerUser = async (req, res, next) => {
         hashedNid: hashedNid || "",
       },
       {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         setDefaultsOnInsert: true,
       }

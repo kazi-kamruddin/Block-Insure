@@ -1,8 +1,11 @@
 require("dotenv").config();
 const hre = require("hardhat");
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 const { verifyModelArtifact } = require("../../backEnd/services/modelArtifactService");
+
+const networkName = hre.network.name;
+const isLocalNetwork = networkName === "localhost" || networkName === "hardhat";
 
 function updateEnvValue(filePath, key, value) {
   if (!fs.existsSync(filePath)) {
@@ -28,7 +31,9 @@ function syncLocalContractDeployment(
   benefitsDeploymentBlock,
   economicsAddress,
   evidenceRegistryAddress,
-  deploymentRegistryAddress
+  deploymentRegistryAddress,
+  hospitalVerificationRegistryAddress,
+  bankIdentityRegistryAddress
 ) {
   const projectRoot = path.resolve(__dirname, "..", "..");
   const targets = [
@@ -54,6 +59,16 @@ function syncLocalContractDeployment(
     { file: path.join(projectRoot, "backEnd", ".env"), key: "EVIDENCE_REGISTRY_ADDRESS" },
     { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_EVIDENCE_REGISTRY_ADDRESS" },
   ].forEach(({ file, key }) => updateEnvValue(file, key, evidenceRegistryAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_HOSPITAL_VERIFICATION_REGISTRY_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, hospitalVerificationRegistryAddress));
+
+  [
+    { file: path.join(projectRoot, "backEnd", ".env"), key: "BANK_IDENTITY_REGISTRY_ADDRESS" },
+    { file: path.join(projectRoot, "frontEnd", ".env"), key: "VITE_BANK_IDENTITY_REGISTRY_ADDRESS" },
+  ].forEach(({ file, key }) => updateEnvValue(file, key, bankIdentityRegistryAddress));
 
   [
     { file: path.join(projectRoot, "backEnd", ".env"), key: "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS" },
@@ -105,6 +120,8 @@ function syncContractAbi() {
     "PolicyEconomics",
     "EvidenceRegistry",
     "ProtocolDeploymentRegistry",
+    "HospitalVerificationRegistry",
+    "BankIdentityRegistry",
   ].forEach((contractName) => {
     const artifactPath = path.join(
       projectRoot,
@@ -143,11 +160,12 @@ async function main() {
 
   console.log("Deploying InsuranceManager with admin wallet:");
   console.log("Admin address:", adminWallet.address);
-  console.log("Admin local balance:", hre.ethers.formatEther(adminBalance), "ETH");
+  console.log("Deployment network:", networkName);
+  console.log("Admin balance:", hre.ethers.formatEther(adminBalance), "ETH");
 
   if (adminBalance === 0n) {
     throw new Error(
-      "Admin wallet has 0 local ETH. Fund adminAccount on localhost before deploying."
+      `Admin wallet has 0 ETH on ${networkName}. Fund it before deploying.`
     );
   }
 
@@ -167,6 +185,45 @@ async function main() {
   console.log("InsuranceManager deployed to:", contractAddress);
   console.log("InsuranceManager deployment block:", deploymentBlock);
   console.log("OracleCoordinator deployed to:", await insuranceManager.oracleCoordinator());
+  const HospitalVerificationRegistry = await hre.ethers.getContractFactory(
+    "HospitalVerificationRegistry",
+    adminWallet
+  );
+  const hospitalVerificationRegistry = await HospitalVerificationRegistry.deploy(
+    contractAddress,
+    adminWallet.address
+  );
+  await hospitalVerificationRegistry.waitForDeployment();
+  const hospitalVerificationRegistryAddress =
+    await hospitalVerificationRegistry.getAddress();
+  const oracleCoordinator = await hre.ethers.getContractAt(
+    "OracleCoordinator",
+    await insuranceManager.oracleCoordinator(),
+    adminWallet
+  );
+  await (
+    await oracleCoordinator.configureHospitalVerificationRegistry(
+      hospitalVerificationRegistryAddress
+    )
+  ).wait();
+  console.log(
+    "HospitalVerificationRegistry deployed to:",
+    hospitalVerificationRegistryAddress
+  );
+  const BankIdentityRegistry = await hre.ethers.getContractFactory(
+    "BankIdentityRegistry",
+    adminWallet
+  );
+  const bankIdentityRegistry = await BankIdentityRegistry.deploy(
+    contractAddress,
+    adminWallet.address
+  );
+  await bankIdentityRegistry.waitForDeployment();
+  const bankIdentityRegistryAddress = await bankIdentityRegistry.getAddress();
+  await (
+    await insuranceManager.configureBankPaymentRegistry(bankIdentityRegistryAddress)
+  ).wait();
+  console.log("BankIdentityRegistry deployed to:", bankIdentityRegistryAddress);
   const modelArtifactPath = path.resolve(__dirname, "..", "..", "backEnd", "model-params.json");
   const modelArtifact = JSON.parse(fs.readFileSync(modelArtifactPath, "utf8"));
   const modelVerification = verifyModelArtifact(modelArtifact);
@@ -197,8 +254,12 @@ async function main() {
   const evidenceRegistryAddress = await evidenceRegistry.getAddress();
   console.log("EvidenceRegistry deployed to:", evidenceRegistryAddress);
 
-  const premiumAmount = hre.ethers.parseEther("0.01");
-  const coverageAmount = hre.ethers.parseEther("1");
+  const premiumAmount = hre.ethers.parseEther(
+    process.env.INITIAL_POLICY_PREMIUM_ETH || "0.01"
+  );
+  const coverageAmount = hre.ethers.parseEther(
+    process.env.INITIAL_POLICY_COVERAGE_ETH || "1"
+  );
 
   const tx = await insuranceManager.createPolicyPackage(
     "Health Basic",
@@ -249,12 +310,17 @@ async function main() {
       hre.ethers.keccak256(hre.ethers.toUtf8Bytes(defaultTermsDocument))
     )
   ).wait();
-  await (
-    await adminWallet.sendTransaction({
-      to: benefitsAddress,
-      value: hre.ethers.parseEther("2"),
-    })
-  ).wait();
+  const benefitsReserve = hre.ethers.parseEther(
+    process.env.INITIAL_BENEFITS_RESERVE_ETH || (isLocalNetwork ? "2" : "0.02")
+  );
+  if (benefitsReserve > 0n) {
+    await (
+      await adminWallet.sendTransaction({
+        to: benefitsAddress,
+        value: benefitsReserve,
+      })
+    ).wait();
+  }
 
   console.log("PolicyBenefitsManager deployed to:", benefitsAddress);
   const migrationManifest = fs.readFileSync(
@@ -278,6 +344,8 @@ async function main() {
     ["PolicyEconomics", economicsAddress, "IPolicyEconomics/1"],
     ["EvidenceRegistry", evidenceRegistryAddress, "IEvidenceRegistry/1"],
     ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/1"],
+    ["HospitalVerificationRegistry", hospitalVerificationRegistryAddress, "IHospitalVerificationRegistry/1"],
+    ["BankIdentityRegistry", bankIdentityRegistryAddress, "IBankIdentityRegistry/1"],
   ]) {
     await (
       await deploymentRegistry.registerComponent(
@@ -290,18 +358,54 @@ async function main() {
   }
   console.log("ProtocolDeploymentRegistry deployed to:", deploymentRegistryAddress);
   syncContractAbi();
-  syncLocalContractDeployment(
-    contractAddress,
+  const network = await provider.getNetwork();
+  const deployment = {
+    schemaVersion: 1,
+    network: networkName,
+    chainId: network.chainId.toString(),
+    deployedAt: new Date().toISOString(),
     deploymentBlock,
-    adjudicatorAddress,
-    benefitsAddress,
     benefitsDeploymentBlock,
-    economicsAddress,
-    evidenceRegistryAddress,
-    deploymentRegistryAddress
+    deployer: adminWallet.address,
+    components: {
+      InsuranceManager: contractAddress,
+      OracleCoordinator: await insuranceManager.oracleCoordinator(),
+      ClaimAdjudicator: adjudicatorAddress,
+      PolicyEconomics: economicsAddress,
+      EvidenceRegistry: evidenceRegistryAddress,
+      PolicyBenefitsManager: benefitsAddress,
+      ProtocolDeploymentRegistry: deploymentRegistryAddress,
+      HospitalVerificationRegistry: hospitalVerificationRegistryAddress,
+      BankIdentityRegistry: bankIdentityRegistryAddress,
+    },
+  };
+  const deploymentsDirectory = path.resolve(__dirname, "..", "deployments");
+  fs.mkdirSync(deploymentsDirectory, { recursive: true });
+  const deploymentPath = path.join(
+    deploymentsDirectory,
+    `${networkName}-${network.chainId}.json`
   );
-  console.log("");
-  console.log("The local contract address was synchronized to backend, frontend, and oracle environment files.");
+  fs.writeFileSync(deploymentPath, `${JSON.stringify(deployment, null, 2)}\n`, "utf8");
+  console.log("Deployment manifest written to:", deploymentPath);
+
+  if (isLocalNetwork) {
+    syncLocalContractDeployment(
+      contractAddress,
+      deploymentBlock,
+      adjudicatorAddress,
+      benefitsAddress,
+      benefitsDeploymentBlock,
+      economicsAddress,
+      evidenceRegistryAddress,
+      deploymentRegistryAddress,
+      hospitalVerificationRegistryAddress,
+      bankIdentityRegistryAddress
+    );
+    console.log("");
+    console.log("The local deployment was synchronized to backend, frontend, and oracle environment files.");
+  } else {
+    console.log("Environment files were not modified for this non-local deployment.");
+  }
   console.log("");
   console.log("CONTRACT_ADDRESS =", contractAddress);
   console.log("CLAIM_ADJUDICATOR_ADDRESS =", adjudicatorAddress);
@@ -309,6 +413,8 @@ async function main() {
   console.log("POLICY_ECONOMICS_ADDRESS =", economicsAddress);
   console.log("EVIDENCE_REGISTRY_ADDRESS =", evidenceRegistryAddress);
   console.log("PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS =", deploymentRegistryAddress);
+  console.log("HOSPITAL_VERIFICATION_REGISTRY_ADDRESS =", hospitalVerificationRegistryAddress);
+  console.log("BANK_IDENTITY_REGISTRY_ADDRESS =", bankIdentityRegistryAddress);
 }
 
 main().catch((error) => {

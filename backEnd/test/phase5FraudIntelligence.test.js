@@ -114,7 +114,10 @@ test("leakage-safe evaluation reports calibration, temporal, confidence, ablatio
   assert.ok(result.confidenceIntervals.prAuc.mean >= 0 && result.confidenceIntervals.prAuc.mean <= 1);
   assert.ok(result.confidenceIntervals.brierScore.mean >= 0);
   assert.ok(result.temporalHoldout.testRecords > 0);
+  assert.ok(result.temporalHoldout.calibrationRecords > 0);
+  assert.ok(result.providerHoldout.heldOutProviders.length > 0);
   assert.equal(result.ablations.length, FEATURE_NAMES.length);
+  assert.ok(result.ablations.every((item) => item.method.includes("out-of-fold")));
   assert.ok(result.performance.meanInferenceTimeMs >= 0);
   assert.ok(result.evaluations.every((item) => item.candidates.some((candidate) => candidate.method === "platt")));
 });

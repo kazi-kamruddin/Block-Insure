@@ -1,0 +1,126 @@
+services:
+  - type: web
+    runtime: node
+    plan: free
+    name: block-insure-api
+    buildCommand: npm --prefix backEnd ci --omit=dev --no-audit --no-fund
+    startCommand: npm --prefix backEnd start
+    healthCheckPath: /health/live
+    maxShutdownDelaySeconds: 30
+    buildFilter:
+      paths:
+        - backEnd/**
+        - scripts/observability.js
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BLOCKCHAIN_RUNTIME_ENABLED
+        sync: false
+      - key: TRUST_PROXY
+        value: "1"
+      - key: FORCE_PUBLIC_DNS
+        value: "false"
+      - key: EXPOSE_INTERNAL_ERRORS
+        value: "false"
+      - key: DEV_ALLOW_CLAIM_LIMIT_RESET
+        value: "false"
+      - key: DEMO_USE_HARDHAT_ACCOUNTS
+        value: "false"
+      - key: ENABLE_SIMULATED_HOSPITAL_API
+        value: "true"
+      - key: INDEXER_ENABLED
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SIWE_URI
+        sync: false
+      - key: SIWE_DOMAIN
+        sync: false
+      - key: PINATA_JWT
+        sync: false
+      - key: PRE_PROXY_SIGNING_KEYS_JSON
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: BANK_OTP_SECRET
+        generateValue: true
+      - fromGroup: block-insure-oracle-auth
+
+  - type: web
+    runtime: node
+    plan: free
+    name: block-insure-oracle-one
+    buildCommand: npm --prefix oracle ci --omit=dev --no-audit --no-fund
+    startCommand: npm --prefix oracle start
+    healthCheckPath: /health/live
+    maxShutdownDelaySeconds: 30
+    buildFilter:
+      paths:
+        - oracle/**
+        - backEnd/model-params.json
+        - backEnd/triage-policy.json
+        - scripts/observability.js
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ORACLE_INSTANCE_ID
+        value: "1"
+      - key: ORACLE_WORKER_ENABLED
+        sync: false
+      - key: ORACLE_CURSOR_MODE
+        value: backend
+      - key: ORACLE_REGISTRY_SNAPSHOT
+        value: primary
+      - key: ORACLE_POLL_INTERVAL_MS
+        value: "15000"
+      - key: ORACLE_HEARTBEAT_INTERVAL_MS
+        value: "60000"
+      - key: ORACLE_START_RETRY_MS
+        value: "30000"
+      - fromGroup: block-insure-oracle-auth
+
+  - type: web
+    runtime: node
+    plan: free
+    name: block-insure-oracle-two
+    buildCommand: npm --prefix oracle ci --omit=dev --no-audit --no-fund
+    startCommand: npm --prefix oracle start
+    healthCheckPath: /health/live
+    maxShutdownDelaySeconds: 30
+    buildFilter:
+      paths:
+        - oracle/**
+        - backEnd/model-params.json
+        - backEnd/triage-policy.json
+        - scripts/observability.js
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ORACLE_INSTANCE_ID
+        value: "2"
+      - key: ORACLE_WORKER_ENABLED
+        sync: false
+      - key: ORACLE_CURSOR_MODE
+        value: backend
+      - key: ORACLE_REGISTRY_SNAPSHOT
+        value: oracle2
+      - key: ORACLE_POLL_INTERVAL_MS
+        value: "15000"
+      - key: ORACLE_HEARTBEAT_INTERVAL_MS
+        value: "60000"
+      - key: ORACLE2_SIMULATED_NETWORK_DELAY_MS
+        value: "3000"
+      - key: ORACLE_START_RETRY_MS
+        value: "30000"
+      - fromGroup: block-insure-oracle-auth
+
+envVarGroups:
+  - name: block-insure-oracle-auth
+    envVars:
+      - key: ORACLE_API_KEY
+        generateValue: true

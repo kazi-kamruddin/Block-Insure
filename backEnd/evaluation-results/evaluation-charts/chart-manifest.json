@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-28T20:57:43.229Z",
+  "charts": [
+    {
+      "file": "baseline_f1_comparison.png",
+      "format": "png",
+      "bytes": 10528,
+      "sha256": "fab12f4c665d770b9c2fe28b9236972d8dcd2db8d5bf19369d3f215d67ae8fdf"
+    },
+    {
+      "file": "confusion_matrix.png",
+      "format": "png",
+      "bytes": 11876,
+      "sha256": "394eb1f89e7d2278bca79dc16b4f0fc50b52e6b18ba77459b753e6b87e782e47"
+    },
+    {
+      "file": "evidence_aes_latency.svg",
+      "format": "svg",
+      "bytes": 2034,
+      "sha256": "9c64ee23a991cbdb14c8ea6023e04d9c466896fb06f48059035ac73266b546fd"
+    },
+    {
+      "file": "evidence_pre_latency.svg",
+      "format": "svg",
+      "bytes": 1805,
+      "sha256": "54ae112f05e27db6e3826b52254e6629d22e3f39631f614b5f06b861207fe968"
+    },
+    {
+      "file": "fraud_label_breakdown.png",
+      "format": "png",
+      "bytes": 8615,
+      "sha256": "c6cacea2968fe5a296bbdb48179ab810c64257f260ac4aa45bb867b3a2c82390"
+    },
+    {
+      "file": "fraud_probability_distribution.png",
+      "format": "png",
+      "bytes": 10216,
+      "sha256": "235c308acf0e90b8425505cc50c2b4d4e9d66048702e99d03fc79ca8183b782a"
+    },
+    {
+      "file": "precision_recall_curve.png",
+      "format": "png",
+      "bytes": 9679,
+      "sha256": "2cd1ca5a29f2b601eb9c7af4856905b229c33720afa8e4f0266ff374205b401a"
+    },
+    {
+      "file": "precision_recall_f1.png",
+      "format": "png",
+      "bytes": 13514,
+      "sha256": "b99c73b9e0eb4954d5585f9635d3b7e42fb4cd5eb2f83e6309b739ecc6b63917"
+    },
+    {
+      "file": "reserve_expected_shortfall.svg",
+      "format": "svg",
+      "bytes": 2463,
+      "sha256": "de0ede39b74c9af2cd912096dd480a1117ff929d8ff4567696f087fc9c6774ff"
+    },
+    {
+      "file": "reserve_shortfall_frontier.svg",
+      "format": "svg",
+      "bytes": 2338,
+      "sha256": "b598909b931d58df483c9928acfcc5a61d7de3a42aec24a2c63431f4b0c2c114"
+    },
+    {
+      "file": "risk_score_distribution.png",
+      "format": "png",
+      "bytes": 10248,
+      "sha256": "38f9ffc0a3274cdfb7cdccf00ce6fd13e962c673d76e4cad478c45cc3bb54225"
+    },
+    {
+      "file": "roc_curve.png",
+      "format": "png",
+      "bytes": 9531,
+      "sha256": "ff5d352af92dcfa408384a9b9de7da857f6f61a285420c933efb3bd40ef4b295"
+    },
+    {
+      "file": "threshold_sensitivity.png",
+      "format": "png",
+      "bytes": 13940,
+      "sha256": "4422b61bc2dde49d6d47d675ae18f0629d1b468c842c3295d3c2e5f6155a6e43"
+    },
+    {
+      "file": "throughput_vs_latency.png",
+      "format": "png",
+      "bytes": 11757,
+      "sha256": "cf96482459fda7a5c8245e2d9d2aa0b9565ba0e48e0408decd6404e92a376018"
+    },
+    {
+      "file": "triage_cost_capacity.png",
+      "format": "png",
+      "bytes": 12698,
+      "sha256": "5b41de36bd5a808d0b28f749334713caf73d04865dbad7c2b55b209149c6deb4"
+    },
+    {
+      "file": "triage_recall_capacity.png",
+      "format": "png",
+      "bytes": 12414,
+      "sha256": "dd4bccb78a0e5393227c6516671e79d33cd6f5d5d88896a43e1b51a819c21274"
+    }
+  ]
+}

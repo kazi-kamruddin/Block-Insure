@@ -15,6 +15,10 @@ interface IOracleConsumer {
     ) external;
 }
 
+interface IHospitalVerificationGate {
+    function isClaimVerificationComplete(uint256 claimId, uint64 version) external view returns (bool);
+}
+
 contract OracleCoordinator {
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint8 public constant FINALIZED_EXACT_QUORUM = 1;
@@ -54,6 +58,7 @@ contract OracleCoordinator {
     uint8 public quorumThreshold = 2;
     uint256 public commitWindowBlocks = 25;
     uint256 public revealWindowBlocks = 25;
+    address public hospitalVerificationRegistry;
 
     uint64 public currentRegistryVersion;
     bytes32 public currentRegistryRoot;
@@ -122,6 +127,7 @@ contract OracleCoordinator {
         uint256 timestamp,
         uint256 blockNumber
     );
+    event HospitalVerificationRegistryConfigured(address indexed registry);
 
     modifier onlyManager() {
         require(msg.sender == manager, "Caller is not manager");
@@ -185,6 +191,13 @@ contract OracleCoordinator {
         emit ConsensusConfigUpdated(threshold, commitBlocks, revealBlocks);
     }
 
+    function configureHospitalVerificationRegistry(address registry) external onlyManagerAdmin {
+        require(registry != address(0), "Hospital registry required");
+        require(hospitalVerificationRegistry == address(0), "Hospital registry already configured");
+        hospitalVerificationRegistry = registry;
+        emit HospitalVerificationRegistryConfigured(registry);
+    }
+
     function publishRegistrySnapshot(
         bytes32 root,
         uint256 leafCount,
@@ -234,6 +247,13 @@ contract OracleCoordinator {
         require(queryHash != bytes32(0), "Query hash required");
         require(claimVersion > 0, "Claim version required");
         require(modelVersion != bytes32(0), "Model version required");
+        if (hospitalVerificationRegistry != address(0)) {
+            require(
+                IHospitalVerificationGate(hospitalVerificationRegistry)
+                    .isClaimVerificationComplete(claimId, claimVersion),
+                "Hospital verification required"
+            );
+        }
 
         requestId = requestCounter++;
         uint256 commitDeadline = block.number + commitWindowBlocks;
@@ -261,7 +281,8 @@ contract OracleCoordinator {
         });
         requestByClaimId[claimId] = requestId;
 
-        for (uint256 i = 0; i < activeOracles.length; i++) {
+        uint256 oracleCount = activeOracles.length;
+        for (uint256 i = 0; i < oracleCount; i++) {
             eligibleForRequest[requestId][activeOracles[i]] = true;
         }
 

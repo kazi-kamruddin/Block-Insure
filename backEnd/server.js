@@ -19,6 +19,12 @@ const {
   startEvidenceAnchorScheduler,
   stopEvidenceAnchorScheduler,
 } = require("./services/evidenceAnchorService");
+const {
+  startBankPaymentScheduler,
+  stopBankPaymentScheduler,
+} = require("./services/bankPaymentService");
+const { assertRuntimeEnvironment } = require("./config/runtimeConfig");
+const { buildHealthPayload } = require("./services/readinessService");
 
 /* ----------------------------- DNS Config ----------------------------- */
 
@@ -31,23 +37,24 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 /* ----------------------------- App Setup ------------------------------ */
 
 const app = express();
+let httpServer = null;
+let shuttingDown = false;
 
 /* --------------------------- Basic Config ------------------------------ */
 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const DEFAULT_ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-];
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-const allowedOrigins =
-  ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : DEFAULT_ALLOWED_ORIGINS;
+let runtimeConfig;
+
+try {
+  runtimeConfig = assertRuntimeEnvironment();
+  runtimeConfig.warnings.forEach((warning) =>
+    console.warn(`[Backend configuration] ${warning}`)
+  );
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
 if (!MONGODB_URI) {
   console.error("Missing required environment variable: MONGODB_URI");
@@ -72,16 +79,24 @@ if (!process.env.RPC_URL) {
 
 app.disable("x-powered-by");
 
+if (runtimeConfig.trustProxy !== false) {
+  app.set("trust proxy", runtimeConfig.trustProxy);
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || runtimeConfig.allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      return callback(new Error(`CORS origin not allowed: ${origin}`));
+      const error = new Error(`CORS origin not allowed: ${origin}`);
+      error.status = 403;
+      error.statusCode = 403;
+      return callback(error);
     },
     credentials: true,
+    exposedHeaders: ["Content-Disposition"],
   })
 );
 
@@ -116,25 +131,33 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/health", (req, res) => {
-  const databaseState =
-    mongoose.connection.readyState === 1 ? "connected" : "disconnected";
-  res.status(200).json({
+const healthPayload = async () => ({
+  ...(await buildHealthPayload({
+    databaseConnected: mongoose.connection.readyState === 1,
+  })),
+  uptime: process.uptime(),
+  timestamp: new Date().toISOString(),
+});
+
+app.get("/health/live", (req, res) => {
+  res.set("Cache-Control", "no-store").status(200).json({
     success: true,
-    message: "Backend is healthy",
-    services: {
-      database: databaseState,
-      blockchainRpc: process.env.RPC_URL ? "configured" : "missing",
-      contract: process.env.VITE_CONTRACT_ADDRESS ? "configured" : "missing",
-      evidenceEncryption: "client-aes256gcm-with-recrypt-pre",
-      evidenceTransparency: process.env.EVIDENCE_REGISTRY_ADDRESS
-        ? "anchored"
-        : "registry-address-missing",
-    },
+    status: "alive",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
 });
+
+const readinessHandler = async (req, res) => {
+  const payload = await healthPayload();
+  res
+    .set("Cache-Control", "no-store")
+    .status(payload.success ? 200 : 503)
+    .json(payload);
+};
+
+app.get("/health", readinessHandler);
+app.get("/health/ready", readinessHandler);
 
 app.get("/api", (req, res) => {
   res.status(200).json({
@@ -159,6 +182,8 @@ app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/audit", require("./routes/auditRoutes"));
 app.use("/api/oracle", require("./routes/oracleRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/hospitals", require("./routes/hospitalRoutes"));
+app.use("/api/banks", require("./routes/bankRoutes"));
 app.use("/api/indexer", require("./routes/indexerRoutes"));
 app.use(
   "/api/evidence-log",
@@ -167,7 +192,11 @@ app.use(
 
 /* ----------------------------- Mock Routes ---------------------------- */
 
-app.use("/mock/hospital", require("./routes/mockHospitalRoutes"));
+if (runtimeConfig.simulatedHospitalApiEnabled) {
+  app.use("/mock/hospital", require("./routes/mockHospitalRoutes"));
+} else {
+  console.log("[Backend] Simulated hospital API disabled");
+}
 
 /* ---------------------------- 404 Handler ----------------------------- */
 
@@ -181,19 +210,26 @@ app.use((req, res) => {
 /* ------------------------ Global Error Handler ------------------------- */
 
 app.use((err, req, res, next) => {
-  const statusCode = Number(err.statusCode) || 500;
+  const statusCode = Number(err.statusCode || err.status) || 500;
   const isServerError = statusCode >= 500;
   const exposeInternalErrors =
     process.env.NODE_ENV !== "production" ||
     process.env.EXPOSE_INTERNAL_ERRORS === "true";
 
-  console.error("Server error:", {
+  const requestFailure = {
     method: req.method,
     path: req.originalUrl,
     statusCode,
     message: err.message,
-    stack: process.env.NODE_ENV === "production" ? undefined : err.stack,
-  });
+  };
+  if (isServerError) {
+    console.error("Server error:", {
+      ...requestFailure,
+      stack: process.env.NODE_ENV === "production" ? undefined : err.stack,
+    });
+  } else if (statusCode !== 404) {
+    console.warn("Request rejected:", requestFailure);
+  }
   writeEvent("Backend", isServerError ? "error" : "warn", err.message);
 
   res.status(statusCode).json({
@@ -212,21 +248,50 @@ const connectDatabase = async () => {
   console.log("[Backend] MongoDB connected successfully");
 };
 
+const listenForRequests = () =>
+  new Promise((resolve, reject) => {
+    const server = app.listen(PORT, "0.0.0.0");
+    httpServer = server;
+    server.once("error", reject);
+    server.once("listening", () => {
+      server.off("error", reject);
+      console.log(`[Backend] Server running on port ${PORT}`);
+      console.log(`[Backend] Health check: http://localhost:${PORT}/health`);
+      resolve();
+    });
+  });
+
+const closeHttpServer = () =>
+  new Promise((resolve, reject) => {
+    if (!httpServer?.listening) return resolve();
+    httpServer.close((error) => (error ? reject(error) : resolve()));
+    httpServer.closeIdleConnections?.();
+  });
+
 /* -------------------------- Server Startup ----------------------------- */
 
 const startServer = async () => {
   try {
     await connectDatabase();
-    await startBlockchainIndexer();
-    startEvidenceAnchorScheduler();
-    await startBlockchainEventListener();
+    if (runtimeConfig.blockchainRuntimeEnabled) {
+      await startBlockchainIndexer();
+      startEvidenceAnchorScheduler();
+      await startBlockchainEventListener();
+      startBankPaymentScheduler();
+    } else {
+      console.warn("[Backend] Blockchain runtime disabled; starting in off-chain preview mode");
+    }
 
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`[Backend] Server running on port ${PORT}`);
-      console.log(`[Backend] Health check: http://localhost:${PORT}/health`);
-    });
+    await listenForRequests();
   } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
+    console.error("Backend startup failed:", error.message);
+    if (runtimeConfig.blockchainRuntimeEnabled) {
+      stopBlockchainIndexer();
+      stopEvidenceAnchorScheduler();
+      stopBankPaymentScheduler();
+      await stopBlockchainEventListener().catch(() => undefined);
+    }
+    await mongoose.connection.close().catch(() => undefined);
     process.exit(1);
   }
 };
@@ -236,13 +301,19 @@ startServer();
 /* ------------------------ Graceful Shutdown ---------------------------- */
 
 const shutdownServer = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   try {
-    console.log(`${signal} received. Closing MongoDB connection...`);
-    await stopBlockchainEventListener();
-    stopBlockchainIndexer();
-    stopEvidenceAnchorScheduler();
+    console.log(`${signal} received. Stopping backend services...`);
+    await closeHttpServer();
+    if (runtimeConfig.blockchainRuntimeEnabled) {
+      await stopBlockchainEventListener();
+      stopBlockchainIndexer();
+      stopEvidenceAnchorScheduler();
+      stopBankPaymentScheduler();
+    }
     await mongoose.connection.close();
-    console.log("MongoDB connection closed");
+    console.log("Backend services stopped cleanly");
     process.exit(0);
   } catch (error) {
     console.error("Error during shutdown:", error.message);

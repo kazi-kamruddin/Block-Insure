@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "description": "High-value functional mutants for insurance-specific safety properties. Mutants run in an isolated generated workspace.",
+  "mutants": [
+    {
+      "id": "MUT-QUORUM-APPROVAL-LOWER",
+      "faultFamily": "quorum",
+      "target": "contracts/ClaimAdjudicator.sol",
+      "search": "if (review.approvals == 3)",
+      "replacement": "if (review.approvals == 2)",
+      "testFile": "test/Phase2AutomaticAdjudication.test.js",
+      "grep": "finalizes three approvals"
+    },
+    {
+      "id": "MUT-QUORUM-REJECTION-HIGHER",
+      "faultFamily": "quorum",
+      "target": "contracts/ClaimAdjudicator.sol",
+      "search": "else if (review.rejections == 2)",
+      "replacement": "else if (review.rejections == 3)",
+      "testFile": "test/Phase2AutomaticAdjudication.test.js",
+      "grep": "rejects automatically after two"
+    },
+    {
+      "id": "MUT-ORACLE-AUTH-BYPASS",
+      "faultFamily": "access-control",
+      "target": "contracts/InsuranceManager.sol",
+      "search": "require(msg.sender == address(oracleCoordinator), \"Caller is not oracle coordinator\");",
+      "replacement": "require(msg.sender != address(0), \"Caller is not oracle coordinator\");",
+      "testFile": "test/Phase6ProtocolStatefulInvariants.test.js",
+      "grep": "privileged finalization"
+    },
+    {
+      "id": "MUT-ADJUDICATOR-AUTH-BYPASS",
+      "faultFamily": "access-control",
+      "target": "contracts/InsuranceManager.sol",
+      "search": "require(msg.sender == address(claimAdjudicator), \"Caller is not adjudicator\");",
+      "replacement": "require(msg.sender != address(0), \"Caller is not adjudicator\");",
+      "testFile": "test/Phase6ProtocolStatefulInvariants.test.js",
+      "grep": "privileged finalization"
+    },
+    {
+      "id": "MUT-COVERAGE-RESERVATION-OMITTED",
+      "faultFamily": "coverage-accounting",
+      "target": "contracts/PolicyEconomics.sol",
+      "search": "account.reservedCoverageWei += insurerLiabilityWei;",
+      "replacement": "account.reservedCoverageWei += 0;",
+      "testFile": "test/Phase3PolicyEconomics.test.js",
+      "grep": "prevents cumulative reservations"
+    },
+    {
+      "id": "MUT-INVOICE-UNIQUENESS-DISABLED",
+      "faultFamily": "duplicate-replay",
+      "target": "contracts/PolicyEconomics.sol",
+      "search": "require(invoiceId != bytes32(0) && invoiceClaimId[invoiceId] == 0, \"Invoice identity already used\");",
+      "replacement": "require(invoiceId != bytes32(0), \"Invoice identity already used\");",
+      "testFile": "test/Phase3PolicyEconomics.test.js",
+      "grep": "canonical invoice identity"
+    },
+    {
+      "id": "MUT-RESERVE-EXPOSURE-OMITTED",
+      "faultFamily": "reserve-accounting",
+      "target": "contracts/PolicyEconomics.sol",
+      "search": "return approvedUnfundedLiabilityWei + minimumCapitalBufferWei + ((activeExposureWei * reserveRatioBps) / BPS);",
+      "replacement": "return approvedUnfundedLiabilityWei + minimumCapitalBufferWei;",
+      "testFile": "test/Phase3PolicyEconomics.test.js",
+      "grep": "blocks treasury withdrawals"
+    },
+    {
+      "id": "MUT-PAYOUT-READY-INVERTED",
+      "faultFamily": "payout-state",
+      "target": "contracts/InsuranceManager.sol",
+      "search": "require(selectedClaim.status == ClaimStatus.PAYOUT_READY, \"Settlement is not ready\");",
+      "replacement": "require(selectedClaim.status != ClaimStatus.PAYOUT_READY, \"Settlement is not ready\");",
+      "testFile": "test/Phase6ProtocolStatefulInvariants.test.js",
+      "grep": "repeated finalization"
+    }
+  ]
+}

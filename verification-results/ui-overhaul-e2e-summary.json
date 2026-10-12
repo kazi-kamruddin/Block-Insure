@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-12T16:55:16.6639633+06:00",
+  "verdict": "PASS_WITH_RISKS",
+  "source": {
+    "commit": "49aa84ed7bccfd29354afaddfade053ffb79c1cb",
+    "branch": "postPreDefence",
+    "dirtyBeforeCampaign": true
+  },
+  "environment": {
+    "scope": "local-and-disposable-e2e-only",
+    "rpc": "http://127.0.0.1:8545",
+    "chainId": 31337,
+    "frontend": "http://localhost:5173",
+    "backend": "http://localhost:5000",
+    "database": "block_insure_e2e",
+    "walletClass": "Hardhat deterministic local accounts",
+    "evidenceProvider": "local Pinata-compatible simulator"
+  },
+  "results": [
+    {
+      "suite": "playwright-general",
+      "scenario": "public, SIWE, role workspaces, authorization, complete route inventory",
+      "role": "GUEST|USER|ADMIN|BANK|HOSPITAL|AUDITOR",
+      "result": "PASS",
+      "testsPassed": 17,
+      "testsFailed": 0,
+      "durationMs": 165721,
+      "evidencePath": "playwright-reports/general/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "playwright-workflow",
+      "scenario": "bank EFT/OTP plus automatic and manual claim adjudication and settlement",
+      "role": "USER|ADMIN|BANK|HOSPITAL|AUDITOR|ORACLE",
+      "result": "PASS",
+      "testsPassed": 4,
+      "testsFailed": 0,
+      "durationMs": 185319,
+      "evidencePath": "playwright-reports/workflow/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "playwright-showcase",
+      "scenario": "policy, package, protocol health, claim history, integrity, registry and reputation views",
+      "role": "USER|ADMIN|AUDITOR",
+      "result": "PASS",
+      "testsPassed": 4,
+      "testsFailed": 0,
+      "durationMs": 80093,
+      "evidencePath": "playwright-reports/showcase/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "playwright-maintenance",
+      "scenario": "hospital-owned record and invoice mutation with fixture restoration",
+      "role": "HOSPITAL",
+      "result": "PASS",
+      "testsPassed": 1,
+      "testsFailed": 0,
+      "durationMs": 24873,
+      "evidencePath": "playwright-reports/maintenance/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "playwright-resilience",
+      "scenario": "headers, CORS, malformed JSON, unsupported methods, Oracle API key and nonce rate limit",
+      "role": "API|ORACLE",
+      "result": "PASS",
+      "testsPassed": 4,
+      "testsFailed": 0,
+      "durationMs": 6426,
+      "evidencePath": "playwright-reports/resilience/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "frontend-production-quality",
+      "scenario": "production bundle at mobile, tablet, laptop and desktop plus navigation and keyboard quality",
+      "role": "GUEST",
+      "result": "PASS",
+      "testsPassed": 5,
+      "testsFailed": 0,
+      "durationMs": 10200,
+      "evidencePath": "playwright-report-frontend/index.html",
+      "failureCategory": null
+    },
+    {
+      "suite": "contracts",
+      "scenario": "unit, state machine, access control, economics, benefits and invariants",
+      "role": "ON_CHAIN_PROTOCOL",
+      "result": "PASS",
+      "testsPassed": 133,
+      "testsFailed": 0,
+      "durationMs": 7901,
+      "evidencePath": "verification-results/phase5-verification.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "backend",
+      "scenario": "unit, integration, security middleware, evidence, banking and analytics",
+      "role": "API",
+      "result": "PASS",
+      "testsPassed": 114,
+      "testsFailed": 0,
+      "durationMs": 4631,
+      "evidencePath": "verification-results/phase5-verification.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "oracle",
+      "scenario": "cursor isolation, proof reconstruction, frozen model binding and commit/reveal hashing",
+      "role": "ORACLE",
+      "result": "PASS",
+      "testsPassed": 13,
+      "testsFailed": 0,
+      "durationMs": 1560,
+      "evidencePath": "verification-results/phase5-verification.json",
+      "failureCategory": null
+    },
+    {
+      "suite": "contract-coverage",
+      "scenario": "instrumented Solidity coverage",
+      "role": "ON_CHAIN_PROTOCOL",
+      "result": "PASS",
+      "durationMs": null,
+      "evidencePath": "contracts/coverage/index.html",
+      "failureCategory": null,
+      "metrics": {
+        "statements": 95.22,
+        "branches": 65.04,
+        "functions": 92.18,
+        "lines": 95.51
+      }
+    },
+    {
+      "suite": "contract-mutation",
+      "scenario": "quorum, authorization, coverage, replay, reserve and payout faults",
+      "role": "ON_CHAIN_PROTOCOL",
+      "result": "PASS",
+      "durationMs": 412557,
+      "evidencePath": "contracts/mutation-results.json",
+      "failureCategory": null,
+      "mutantsKilled": 8,
+      "mutantsSurvived": 0
+    }
+  ],
+  "remainingRisks": [
+    {
+      "category": "DEV_DEPENDENCIES",
+      "severity": "LOW_RUNTIME_IMPACT",
+      "detail": "Backend retains 3 development-only advisories; contracts tooling retains 46 advisories requiring breaking toolchain migrations."
+    }
+  ]
+}

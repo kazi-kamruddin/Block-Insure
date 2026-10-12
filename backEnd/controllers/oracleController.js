@@ -31,6 +31,43 @@ const createError = (message, statusCode) => {
 
 const normalizeHash = (value) => String(value || "").trim().toLowerCase();
 
+const cursorMessage = ({
+  oracleInstanceId,
+  oracleWallet,
+  chainId,
+  contractAddress,
+  nextBlock,
+  timestamp,
+}) => [
+  "Block-Insure oracle cursor",
+  String(oracleInstanceId),
+  String(oracleWallet).toLowerCase(),
+  String(chainId),
+  String(contractAddress).toLowerCase(),
+  String(nextBlock),
+  String(timestamp),
+].join(":");
+
+const validateCursorIdentity = ({
+  oracleWallet,
+  oracleInstanceId,
+  chainId,
+  contractAddress,
+}) => {
+  if (!ethers.isAddress(oracleWallet)) {
+    throw createError("A valid oracle wallet is required", 400);
+  }
+  if (!/^[1-9]\d*$/.test(String(chainId || ""))) {
+    throw createError("A positive integer chainId is required", 400);
+  }
+  if (!ethers.isAddress(contractAddress)) {
+    throw createError("A valid oracle coordinator address is required", 400);
+  }
+  if (!/^[1-9]\d*$/.test(String(oracleInstanceId || ""))) {
+    throw createError("A positive integer oracleInstanceId is required", 400);
+  }
+};
+
 const verifyOracleSubmission = async ({
   contract,
   coordinator,
@@ -291,7 +328,7 @@ const upsertOracleHealth = async ({
         configIdentity,
       },
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
   );
 };
 
@@ -588,11 +625,155 @@ const getOracleHealth = async (req, res, next) => {
   }
 };
 
+const getOracleCursor = async (req, res, next) => {
+  try {
+    const {
+      oracleWallet = "",
+      oracleInstanceId = "",
+      chainId = "",
+      contractAddress = "",
+    } = req.query;
+    validateCursorIdentity({
+      oracleWallet,
+      oracleInstanceId,
+      chainId,
+      contractAddress,
+    });
+
+    const health = await OracleHealth.findOne({
+      oracleWallet: oracleWallet.toLowerCase(),
+      oracleInstanceId: String(oracleInstanceId),
+    }).lean();
+    const matchesDeployment =
+      health &&
+      String(health.cursorChainId) === String(chainId) &&
+      normalizeHash(health.cursorContractAddress) === normalizeHash(contractAddress) &&
+      Number.isSafeInteger(health.nextBlock) &&
+      health.nextBlock >= 0;
+
+    res.status(200).json({
+      success: true,
+      cursor: matchesDeployment
+        ? {
+            chainId: health.cursorChainId,
+            contractAddress: health.cursorContractAddress,
+            oracleInstanceId: health.oracleInstanceId,
+            oracleWallet: health.oracleWallet,
+            nextBlock: health.nextBlock,
+            updatedAt: health.cursorUpdatedAt,
+          }
+        : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const saveOracleCursor = async (req, res, next) => {
+  try {
+    const {
+      oracleWallet = "",
+      oracleInstanceId = "",
+      chainId = "",
+      contractAddress = "",
+      nextBlock,
+      timestamp = "",
+      signature = "",
+    } = req.body;
+    validateCursorIdentity({
+      oracleWallet,
+      oracleInstanceId,
+      chainId,
+      contractAddress,
+    });
+    const normalizedNextBlock = Number(nextBlock);
+    if (!Number.isSafeInteger(normalizedNextBlock) || normalizedNextBlock < 0) {
+      throw createError("nextBlock must be a non-negative safe integer", 400);
+    }
+    const signedAt = new Date(timestamp);
+    if (
+      Number.isNaN(signedAt.getTime()) ||
+      Math.abs(Date.now() - signedAt.getTime()) > 2 * 60 * 1000
+    ) {
+      throw createError("Oracle cursor timestamp is invalid or stale", 401);
+    }
+
+    let recoveredWallet;
+    try {
+      recoveredWallet = ethers.verifyMessage(
+        cursorMessage({
+          oracleInstanceId,
+          oracleWallet,
+          chainId,
+          contractAddress,
+          nextBlock: normalizedNextBlock,
+          timestamp,
+        }),
+        signature
+      );
+    } catch {
+      throw createError("Oracle cursor signature is invalid", 401);
+    }
+    if (normalizeHash(recoveredWallet) !== normalizeHash(oracleWallet)) {
+      throw createError("Oracle cursor signer does not match its wallet", 401);
+    }
+
+    const identity = {
+      oracleWallet: oracleWallet.toLowerCase(),
+      oracleInstanceId: String(oracleInstanceId),
+    };
+    const existing = await OracleHealth.findOne(identity).lean();
+    const sameDeployment =
+      existing &&
+      String(existing.cursorChainId) === String(chainId) &&
+      normalizeHash(existing.cursorContractAddress) === normalizeHash(contractAddress);
+    if (
+      sameDeployment &&
+      Number.isSafeInteger(existing.nextBlock) &&
+      normalizedNextBlock < existing.nextBlock
+    ) {
+      throw createError("Oracle cursor cannot move backwards for the same deployment", 409);
+    }
+
+    const health = await OracleHealth.findOneAndUpdate(
+      identity,
+      {
+        $set: {
+          oracleWallet: oracleWallet.toLowerCase(),
+          oracleInstanceId: String(oracleInstanceId),
+          cursorChainId: String(chainId),
+          cursorContractAddress: contractAddress.toLowerCase(),
+          nextBlock: normalizedNextBlock,
+          cursorUpdatedAt: new Date(),
+        },
+      },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      cursor: {
+        chainId: health.cursorChainId,
+        contractAddress: health.cursorContractAddress,
+        oracleInstanceId: health.oracleInstanceId,
+        oracleWallet: health.oracleWallet,
+        nextBlock: health.nextBlock,
+        updatedAt: health.cursorUpdatedAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
+  _cursorMessage: cursorMessage,
   _verifyHeartbeat: verifyHeartbeat,
   _verifyOracleSubmission: verifyOracleSubmission,
   createOracleLog,
   getOracleLogsByClaim,
   getOracleHealth,
+  getOracleCursor,
   recordOracleHeartbeat,
+  saveOracleCursor,
 };

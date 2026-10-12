@@ -68,10 +68,16 @@ const jsonSafe = (value) => {
   if (typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value)) {
     return value.toLowerCase();
   }
-  if (Array.isArray(value)) return value.map(jsonSafe);
   if (value && typeof value.toObject === "function") {
-    return jsonSafe(value.toObject());
+    try {
+      return jsonSafe(value.toObject());
+    } catch (error) {
+      // ethers Result#toObject throws when a tuple/array contains unnamed
+      // values. Those values are still safely serializable by position.
+      if (!Array.isArray(value)) throw error;
+    }
   }
+  if (Array.isArray(value)) return value.map(jsonSafe);
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value)
@@ -80,6 +86,48 @@ const jsonSafe = (value) => {
     );
   }
   return value;
+};
+
+const normalizeIndexedEventArgs = (sourceInterface, eventName, args) => {
+  if (!Array.isArray(args)) return jsonSafe(args);
+  const fragment = sourceInterface.getEvent(eventName);
+  if (!fragment || fragment.inputs.length !== args.length) return jsonSafe(args);
+
+  return Object.fromEntries(
+    fragment.inputs.map((input, index) => [
+      input.name || String(index),
+      jsonSafe(args[index]),
+    ])
+  );
+};
+
+const migrateLegacyIndexedEventArgs = async (indexedSources) => {
+  const legacyEvents = await IndexedBlockchainEvent.find({
+    args: { $type: "array" },
+  })
+    .select("_id contractAddress eventName args")
+    .lean();
+  const updates = legacyEvents.flatMap((event) => {
+    const source = indexedSources.get(event.contractAddress.toLowerCase());
+    if (!source) return [];
+    const args = normalizeIndexedEventArgs(
+      source.interface,
+      event.eventName,
+      event.args
+    );
+    if (Array.isArray(args)) return [];
+    return [{
+      updateOne: {
+        filter: { _id: event._id },
+        update: { $set: { args } },
+      },
+    }];
+  });
+
+  if (updates.length > 0) {
+    await IndexedBlockchainEvent.bulkWrite(updates);
+  }
+  return updates.length;
 };
 
 const rollbackReorgs = async (provider) => {
@@ -105,7 +153,7 @@ const rollbackReorgs = async (provider) => {
       blockNumber: latest.blockNumber,
       blockHash: latest.blockHash,
     },
-    { new: true, upsert: true }
+    { returnDocument: "after", upsert: true }
   );
 };
 
@@ -113,6 +161,7 @@ const indexConfirmedEvents = async () => {
   const provider = getProvider();
   const contractAddress = getContractAddress().toLowerCase();
   const indexedSources = await getIndexedSources(provider);
+  await migrateLegacyIndexedEventArgs(indexedSources);
   const checkpoint = await rollbackReorgs(provider);
   const latestBlock = await provider.getBlockNumber();
   const confirmedThrough = latestBlock - CONFIRMATIONS;
@@ -180,7 +229,11 @@ const indexConfirmedEvents = async () => {
             transactionHash: log.transactionHash,
             logIndex: log.index,
             eventName: parsed.name,
-            args: jsonSafe(parsed.args),
+            args: normalizeIndexedEventArgs(
+              source.interface,
+              parsed.name,
+              parsed.args
+            ),
           },
         },
         { upsert: true }
@@ -196,7 +249,7 @@ const indexConfirmedEvents = async () => {
         blockNumber: finalBlock.number,
         blockHash: finalBlock.hash,
       },
-      { new: true, upsert: true }
+      { returnDocument: "after", upsert: true }
     );
     indexedBlocks += blocks.length;
   }
@@ -271,6 +324,8 @@ module.exports = {
   getIndexedEventsPage,
   indexConfirmedEvents,
   jsonSafe,
+  migrateLegacyIndexedEventArgs,
+  normalizeIndexedEventArgs,
   rollbackReorgs,
   startBlockchainIndexer,
   stopBlockchainIndexer,

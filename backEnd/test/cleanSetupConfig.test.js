@@ -75,6 +75,28 @@ test("clean reset removes and verifies sensitive evidence-access history", () =>
   assert.equal(verificationScript.includes('"evidence access logs"'), true);
 });
 
+test("database reset allows local or explicitly disposable databases only", () => {
+  const { assertSafeResetTarget } = require("../scripts/resetLocalData");
+
+  assert.deepEqual(
+    assertSafeResetTarget("mongodb://127.0.0.1:27018/block_insure"),
+    { databaseName: "block_insure", localHost: true }
+  );
+  assert.equal(
+    assertSafeResetTarget("mongodb+srv://example.invalid/block_insure_e2e")
+      .databaseName,
+    "block_insure_e2e"
+  );
+  assert.throws(
+    () => assertSafeResetTarget("mongodb+srv://example.invalid/block_insure"),
+    /Refusing to reset external MongoDB database/
+  );
+  assert.throws(
+    () => assertSafeResetTarget("mongodb://127.0.0.1:27018"),
+    /explicit database name/
+  );
+});
+
 test("gas comparison uses an isolated in-memory Hardhat network", () => {
   const contractsPackage = require(path.join(projectRoot, "contracts", "package.json"));
   assert.equal(contractsPackage.scripts["gas:compare"].includes("--network localhost"), false);

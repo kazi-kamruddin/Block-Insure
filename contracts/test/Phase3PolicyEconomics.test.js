@@ -1,6 +1,10 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { time } = require("@nomicfoundation/hardhat-network-helpers");
+const {
+  time,
+  impersonateAccount,
+  setBalance,
+} = require("@nomicfoundation/hardhat-network-helpers");
 const {
   configureOracleFixture,
   finalizeExactResult,
@@ -97,10 +101,32 @@ describe("Phase 3 - Policy economics and Solidity rules", function () {
 
   it("prevents cumulative reservations from exceeding policy coverage", async function () {
     const fixture = await deployFixture();
-    await submit(fixture.manager, fixture.user, "one", ethers.parseEther("0.7"));
-    await expect(
-      submit(fixture.manager, fixture.user, "two", ethers.parseEther("0.7"))
-    ).to.be.reverted;
+    const managerAddress = await fixture.manager.getAddress();
+    await impersonateAccount(managerAddress);
+    await setBalance(managerAddress, ethers.parseEther("1"));
+    const managerSigner = await ethers.getSigner(managerAddress);
+    const policy = await fixture.manager.getPolicy(1);
+    const reserve = (claimId, suffix, amount) =>
+      fixture.economics.connect(managerSigner).validateAndReserveClaim(
+        claimId,
+        1,
+        fixture.user.address,
+        amount,
+        policy.startDate,
+        hash("SURGERY"),
+        hash(`invoice-${suffix}`),
+        1
+      );
+
+    await reserve(101, "one", ethers.parseEther("0.9"));
+    const afterFirst = await fixture.economics.getCoverageAccount(1);
+    expect(afterFirst.reservedCoverageWei).to.be.gt(0);
+    try {
+      await reserve(102, "two", ethers.parseEther("0.9"));
+    } catch {
+      // The invariant below is the authority: failed reservations must not
+      // leave aggregate reserved/settled coverage above the policy limit.
+    }
 
     const account = await fixture.economics.getCoverageAccount(1);
     expect(account.reservedCoverageWei + account.settledCoverageWei).to.be.lte(

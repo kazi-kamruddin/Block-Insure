@@ -25,6 +25,8 @@ const formatNotification = (notification) => ({
   message: notification.message,
   claimId: notification.claimId,
   appealId: notification.appealId,
+  policyId: notification.policyId,
+  transactionHash: notification.transactionHash,
   status: notification.status,
   link: notification.link,
   readAt: notification.readAt,
@@ -62,7 +64,7 @@ const markNotificationRead = async (req, res, next) => {
         ],
       },
       { readAt: new Date() },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!notification) {

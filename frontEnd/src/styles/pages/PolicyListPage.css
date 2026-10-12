@@ -15,3 +15,54 @@
 .page-policy-list .policy-simulator-card {
   margin: 18px 0;
 }
+
+.research-tools-panel > summary {
+  cursor: pointer;
+  color: var(--brand-strong);
+  font-weight: 900;
+}
+
+.risk-pricing-card[open] > summary,
+.simulator-advanced-options[open] > summary {
+  margin-bottom: 14px;
+}
+
+.simulator-derived-date {
+  align-self: end;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.simulator-advanced-options {
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.simulator-advanced-options label {
+  margin-top: 12px;
+}
+
+.policy-acceptance-control {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.policy-acceptance-control input {
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+
+.policy-document-hash {
+  display: block;
+  margin: 8px 0 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}

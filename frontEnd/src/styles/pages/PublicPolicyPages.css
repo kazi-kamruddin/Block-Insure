@@ -1,0 +1,130 @@
+.page-public-policies,
+.page-policy-document {
+  display: grid;
+  gap: 22px;
+}
+
+.public-policy-heading {
+  max-width: 780px;
+}
+
+.public-policy-heading h1,
+.policy-document-heading h1 {
+  margin: 8px 0;
+}
+
+.public-policy-heading p,
+.policy-document-heading p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.public-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.public-policy-card {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+
+.public-policy-card h2 {
+  margin: 0;
+}
+
+.public-policy-metrics,
+.policy-document-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.public-policy-metrics > div,
+.policy-document-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.public-policy-metrics span,
+.policy-document-grid dt,
+.policy-document-commitment span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.policy-document-grid dd {
+  margin: 0;
+  font-weight: 800;
+}
+
+.policy-document-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.policy-document-commitment {
+  display: grid;
+  gap: 7px;
+  min-width: min(100%, 320px);
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.policy-document-commitment code,
+.policy-document-source pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.policy-document-section,
+.policy-document-source {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.policy-document-section h2 {
+  margin-top: 0;
+}
+
+.policy-document-source summary {
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.policy-document-source pre {
+  margin: 18px 0 0;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.65;
+}
+
+.policy-document-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  .policy-document-heading {
+    flex-direction: column;
+  }
+}

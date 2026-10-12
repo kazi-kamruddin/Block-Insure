@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "scope": "Block-Insure policy, claim, oracle, adjudication, reserve, and payout state machines",
+  "properties": [
+    {
+      "id": "INV-COVERAGE-001",
+      "statement": "Reserved coverage plus settled coverage never exceeds the snapshotted policy coverage limit.",
+      "contracts": ["PolicyEconomics"],
+      "tests": ["Phase3PolicyEconomics", "Phase5StatefulInvariants", "Phase6ProtocolStatefulInvariants"],
+      "faultFamilies": ["arithmetic", "reservation", "boundary"]
+    },
+    {
+      "id": "INV-RESERVE-002",
+      "statement": "The aggregate reserved-coverage counter equals the sum of open policy reservations represented by the test model.",
+      "contracts": ["PolicyEconomics"],
+      "tests": ["Phase6ProtocolStatefulInvariants"],
+      "faultFamilies": ["accounting", "release", "settlement"]
+    },
+    {
+      "id": "INV-LIABILITY-003",
+      "statement": "Outstanding and unfunded liabilities equal allocated payouts minus funded or withdrawn amounts represented by the test model.",
+      "contracts": ["ClaimAdjudicator"],
+      "tests": ["Phase2AutomaticAdjudication", "Phase6ProtocolStatefulInvariants"],
+      "faultFamilies": ["accounting", "funding", "payout"]
+    },
+    {
+      "id": "INV-PAYOUT-004",
+      "statement": "A payout is allocated and withdrawn at most once, and a failed recipient cannot corrupt shared accounting.",
+      "contracts": ["InsuranceManager", "ClaimAdjudicator"],
+      "tests": ["Phase2AutomaticAdjudication", "Phase6ProtocolStatefulInvariants"],
+      "faultFamilies": ["replay", "reentrancy", "liveness"]
+    },
+    {
+      "id": "INV-VERSION-005",
+      "statement": "Oracle and manual decisions are bound to the active claim version; a completed version cannot be finalized again.",
+      "contracts": ["InsuranceManager", "OracleCoordinator", "ClaimAdjudicator"],
+      "tests": ["Phase2AutomaticAdjudication", "OracleLogic", "Phase6ProtocolStatefulInvariants"],
+      "faultFamilies": ["version", "replay", "appeal"]
+    },
+    {
+      "id": "INV-QUORUM-006",
+      "statement": "Approval requires three valid votes and rejection requires two invalid votes from the immutable four-auditor assignment.",
+      "contracts": ["ClaimAdjudicator"],
+      "tests": ["Phase2AutomaticAdjudication", "Phase6ProtocolStatefulInvariants"],
+      "faultFamilies": ["quorum", "assignment", "duplicate-vote"]
+    },
+    {
+      "id": "INV-AUTH-007",
+      "statement": "Only the configured coordinator and adjudicator may invoke their respective manager finalization entry points.",
+      "contracts": ["InsuranceManager"],
+      "tests": ["Phase6ProtocolStatefulInvariants"],
+      "faultFamilies": ["access-control", "authority-boundary"]
+    },
+    {
+      "id": "INV-INVOICE-008",
+      "statement": "A canonical provider invoice identity can enter at most one claim.",
+      "contracts": ["PolicyEconomics"],
+      "tests": ["Phase3PolicyEconomics"],
+      "faultFamilies": ["duplicate", "replay"]
+    },
+    {
+      "id": "INV-TREASURY-009",
+      "statement": "Administrative withdrawal cannot reduce the manager balance below approved liability, the configured capital buffer, and the exposure reserve.",
+      "contracts": ["InsuranceManager", "PolicyEconomics", "ClaimAdjudicator"],
+      "tests": ["Phase3PolicyEconomics", "Phase6ProtocolStatefulInvariants"],
+      "faultFamilies": ["reserve", "access-control", "liquidity"]
+    },
+    {
+      "id": "INV-APPEAL-010",
+      "statement": "A rejection may be appealed only within the configured appeal state machine and cannot erase the prior version decision.",
+      "contracts": ["InsuranceManager", "ClaimAdjudicator"],
+      "tests": ["Phase2AutomaticAdjudication", "Phase6ProtocolStatefulInvariants"],
+      "faultFamilies": ["appeal", "version", "history"]
+    }
+  ]
+}

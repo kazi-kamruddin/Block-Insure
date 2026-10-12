@@ -55,7 +55,11 @@ export default function IpfsLink({
                   sha256Hash
                 );
               } catch (error) {
-                setDecryptError(error.message);
+                setDecryptError(
+                  error.response?.data?.message ||
+                    error.message ||
+                    "Could not decrypt evidence"
+                );
               }
             }}
           >

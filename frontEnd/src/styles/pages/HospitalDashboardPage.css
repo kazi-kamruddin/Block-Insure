@@ -1,0 +1,85 @@
+.page-hospital-dashboard { display: grid; gap: 18px; }
+
+.hospital-heading { align-items: center; display: flex; gap: 20px; justify-content: space-between; }
+
+.hospital-heading h2,
+.hospital-heading p,
+.hospital-records-card h3,
+.hospital-records-card p { margin: 4px 0 0; }
+
+.hospital-heading p,
+.hospital-records-card p,
+.hospital-identity-card span,
+.hospital-metric-grid span,
+.hospital-records-card small { color: var(--muted); }
+
+.hospital-identity-card { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
+
+.hospital-identity-card > div,
+.hospital-metric-grid .card { display: grid; gap: 6px; }
+
+.hospital-wallet-field { grid-column: 1 / -1; }
+
+.hospital-wallet-field strong,
+.hospital-record-hash,
+.hospital-records-card td small { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+
+.hospital-metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.hospital-metric-grid .card { margin: 0; }
+.hospital-metric-grid strong { color: var(--brand-strong); font-size: 28px; }
+
+.hospital-foundation-note { border-left: 4px solid var(--brand); margin: 0; }
+.hospital-foundation-note h3 { margin-bottom: 6px; }
+.hospital-foundation-note > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.hospital-foundation-note > div span { border: 1px solid var(--line); border-radius: 999px; padding: 6px 9px; }
+
+.hospital-records-card { margin: 0; }
+.hospital-records-card table { min-width: 960px; }
+.hospital-records-card td small { display: block; margin-top: 5px; }
+
+.hospital-record-form { margin-bottom: 1rem; }
+.hospital-record-form h3,
+.hospital-record-form .muted-text { grid-column: 1 / -1; }
+
+.hospital-verification-layout {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 1.5fr);
+  gap: 1rem;
+}
+
+.hospital-request-list { align-self: start; display: grid; gap: 0.65rem; }
+.hospital-request-list button {
+  display: grid;
+  gap: 0.25rem;
+  text-align: left;
+  background: var(--surface, #f5f7fb);
+  color: inherit;
+  border: 1px solid var(--line);
+}
+.hospital-request-list button.is-selected {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px rgb(37 99 235 / 12%);
+}
+
+.hospital-request-title { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.hospital-claim-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+.hospital-claim-facts div { display: grid; gap: 0.25rem; overflow-wrap: anywhere; }
+.hospital-claim-facts span,
+.hospital-attestation-result small { color: var(--muted); }
+.hospital-check-list { list-style: none; padding: 0; display: grid; gap: 0.5rem; }
+.hospital-check-list li { display: flex; gap: 0.55rem; align-items: center; }
+.hospital-check-list .is-passed span { color: #16803a; }
+.hospital-check-list .is-failed span { color: #b42318; }
+.hospital-request-detail textarea { width: 100%; min-height: 5rem; }
+.hospital-attestation-result { padding: 0.8rem; background: var(--surface, #f5f7fb); border-radius: 0.6rem; overflow-wrap: anywhere; }
+
+@media (max-width: 800px) {
+  .hospital-heading { align-items: stretch; flex-direction: column; }
+  .hospital-identity-card, .hospital-metric-grid { grid-template-columns: 1fr 1fr; }
+  .hospital-verification-layout,
+  .hospital-claim-facts { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .hospital-identity-card, .hospital-metric-grid { grid-template-columns: 1fr; }
+}

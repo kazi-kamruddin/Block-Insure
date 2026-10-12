@@ -5,8 +5,6 @@ const { SiweMessage } = require("siwe");
 const RevokedToken = require("../models/RevokedToken");
 const User = require("../models/User");
 
-const normalizeWalletAddress = (walletAddress) =>
-  getAddress(walletAddress).toLowerCase();
 const JWT_ISSUER = process.env.JWT_ISSUER || "block-insure-api";
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "block-insure-client";
 const NONCE_TTL_MS = Number(process.env.AUTH_NONCE_TTL_MS || 5 * 60 * 1000);
@@ -18,9 +16,53 @@ const createError = (message, statusCode) => {
   return error;
 };
 
-const requestDomain = (req) => process.env.SIWE_DOMAIN || req.get("host");
-const requestUri = (req) =>
-  process.env.SIWE_URI || `${req.protocol}://${req.get("host")}`;
+const normalizeWalletAddress = (walletAddress) => {
+  try {
+    return getAddress(walletAddress).toLowerCase();
+  } catch {
+    throw createError("Invalid wallet address", 400);
+  }
+};
+
+const DEFAULT_ALLOWED_SIWE_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+];
+
+const allowedSiweOrigins = () => {
+  const configured = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return configured.length > 0 ? configured : DEFAULT_ALLOWED_SIWE_ORIGINS;
+};
+
+const resolveSiweOrigin = (req) => {
+  if (process.env.SIWE_DOMAIN || process.env.SIWE_URI) {
+    const configuredUri =
+      process.env.SIWE_URI || `${req.protocol}://${process.env.SIWE_DOMAIN}`;
+    return {
+      domain: process.env.SIWE_DOMAIN || new URL(configuredUri).host,
+      uri: configuredUri,
+    };
+  }
+
+  const browserOrigin = req.get("origin");
+  if (browserOrigin && allowedSiweOrigins().includes(browserOrigin)) {
+    const parsedOrigin = new URL(browserOrigin);
+    return { domain: parsedOrigin.host, uri: parsedOrigin.origin };
+  }
+
+  return {
+    domain: req.get("host"),
+    uri: `${req.protocol}://${req.get("host")}`,
+  };
+};
+
+const requestDomain = (req) => resolveSiweOrigin(req).domain;
+const requestUri = (req) => resolveSiweOrigin(req).uri;
 
 const getNonce = async (req, res, next) => {
   try {
@@ -32,7 +74,7 @@ const getNonce = async (req, res, next) => {
     const user = await User.findOneAndUpdate(
       { walletAddress },
       { walletAddress, nonce, nonceExpiresAt: expirationTime },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
     );
     const resources = [
       `urn:block-insure:role:${user.role.toLowerCase()}`,
@@ -123,7 +165,7 @@ const walletLogin = async (req, res, next) => {
         nonceExpiresAt: { $gt: new Date() },
       },
       { $set: { nonce: "", nonceExpiresAt: null } },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!consumedUser) {
       throw createError("SIWE nonce was already used or expired", 401);
@@ -179,7 +221,7 @@ const logout = async (req, res, next) => {
           expiresAt: new Date(exp * 1000),
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
     res.status(200).json({ success: true, message: "Logout successful" });
   } catch (error) {
@@ -187,4 +229,4 @@ const logout = async (req, res, next) => {
   }
 };
 
-module.exports = { getNonce, logout, walletLogin };
+module.exports = { getNonce, logout, resolveSiweOrigin, walletLogin };

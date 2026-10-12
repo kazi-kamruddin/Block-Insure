@@ -24,7 +24,7 @@ interface IClaimAdjudicator {
     function routingDelay() external view returns (uint64);
     function maxAppeals() external view returns (uint8);
     function setAuditor(address auditor, bool active) external;
-    function updateConfig(uint64 reviewDuration, uint64 routingDelay) external;
+    function updateConfig(uint64 reviewDuration, uint64 newRoutingDelay) external;
     function updateMaxAppeals(uint8 newMaximum) external;
     function startReview(uint256 claimId, uint64 version) external returns (uint64);
     function castVote(uint256 claimId, uint64 version, address auditor, uint8 vote) external;
