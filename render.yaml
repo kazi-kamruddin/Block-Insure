@@ -6,7 +6,6 @@ services:
     buildCommand: npm --prefix backEnd ci --omit=dev --no-audit --no-fund
     startCommand: npm --prefix backEnd start
     healthCheckPath: /health/live
-    maxShutdownDelaySeconds: 30
     buildFilter:
       paths:
         - backEnd/**
@@ -56,7 +55,6 @@ services:
     buildCommand: npm --prefix oracle ci --omit=dev --no-audit --no-fund
     startCommand: npm --prefix oracle start
     healthCheckPath: /health/live
-    maxShutdownDelaySeconds: 30
     buildFilter:
       paths:
         - oracle/**
@@ -90,7 +88,6 @@ services:
     buildCommand: npm --prefix oracle ci --omit=dev --no-audit --no-fund
     startCommand: npm --prefix oracle start
     healthCheckPath: /health/live
-    maxShutdownDelaySeconds: 30
     buildFilter:
       paths:
         - oracle/**
