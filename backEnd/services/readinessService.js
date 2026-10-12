@@ -51,6 +51,15 @@ const checkBlockchainReadiness = async ({
   environment = process.env,
   rpcRequest = requestJsonRpc,
 } = {}) => {
+  if (environment.BLOCKCHAIN_RUNTIME_ENABLED === "false") {
+    return {
+      ready: true,
+      blockchainRpc: "disabled",
+      contract: "disabled",
+      chainId: null,
+      expectedChainId: null,
+    };
+  }
   const rpcUrl = String(environment.RPC_URL || "").trim();
   const contractAddress = String(environment.VITE_CONTRACT_ADDRESS || "").trim();
   const expectedChainId = Number(environment.CHAIN_ID || 31337);
@@ -124,11 +133,16 @@ const buildHealthPayload = async ({
   const blockchain = await checkBlockchainReadiness({ environment, rpcRequest });
   const databaseState = databaseConnected ? "connected" : "disconnected";
   const ready = databaseConnected && blockchain.ready;
+  const limited = environment.BLOCKCHAIN_RUNTIME_ENABLED === "false";
 
   return {
     success: ready,
-    status: ready ? "ready" : "not_ready",
-    message: ready ? "Backend is ready" : "Backend dependencies are unavailable",
+    status: ready ? (limited ? "limited" : "ready") : "not_ready",
+    message: ready
+      ? limited
+        ? "Backend off-chain preview is ready"
+        : "Backend is ready"
+      : "Backend dependencies are unavailable",
     services: {
       database: databaseState,
       blockchainRpc: blockchain.blockchainRpc,

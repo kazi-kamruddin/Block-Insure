@@ -156,6 +156,13 @@ fields.
 
 ## Deployment
 
+For the no-cost, sleep-when-idle Vercel + Render + Atlas staging path, including
+an explicit off-chain preview phase and two restart-safe hosted Oracle web
+services, use the
+[free-tier staging guide](docs/free-tier-staging-deployment.md). This staging
+path is separate from the single-host Compose bundle below and does not alter
+the local `dev:hybrid` workflow.
+
 The tracked production bundle runs the frontend, backend, two independent oracle
 workers, and an automatic-TLS gateway while keeping MongoDB, Pinata, blockchain
 RPC, and wallet custody external. Start with the

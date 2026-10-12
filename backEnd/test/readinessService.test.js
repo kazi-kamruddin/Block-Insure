@@ -87,3 +87,19 @@ test("readiness rejects the wrong chain and an address without deployed code", a
     });
   });
 });
+
+test("off-chain preview readiness requires MongoDB but does not pretend a chain exists", async () => {
+  const payload = await buildHealthPayload({
+    databaseConnected: true,
+    environment: { BLOCKCHAIN_RUNTIME_ENABLED: "false" },
+    rpcRequest: async () => {
+      throw new Error("RPC must not be called in preview mode");
+    },
+  });
+
+  assert.equal(payload.success, true);
+  assert.equal(payload.status, "limited");
+  assert.equal(payload.services.database, "connected");
+  assert.equal(payload.services.blockchainRpc, "disabled");
+  assert.equal(payload.services.contract, "disabled");
+});

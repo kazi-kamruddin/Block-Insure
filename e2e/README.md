@@ -83,6 +83,14 @@ preferred. The ordered campaign retains separate HTML reports under
 `playwright-reports/resilience`, plus stage timings in
 `verification-results/playwright-e2e-run-results.json`.
 
+To inventory the integrated Playwright catalog without starting services or
+executing a scenario, use the isolated environment loader so all local actor
+identities are derived consistently:
+
+```powershell
+npm run test:e2e:list:isolated
+```
+
 The state-dependent supervisor showcase is intentionally separate from the
 clean-state suite. Run it after the workflow journeys have created policies,
 claims, payments, notifications, and audit history:
@@ -132,6 +140,9 @@ npm run test:e2e:unfinished:appeal
 npm run test:e2e:unfinished:rpc
 ```
 
+The focused `claims` command intentionally excludes the separately named
+appeal scenario, so the sequence above executes each unfinished scenario once.
+
 The appeal check is a headed multi-role workflow: original Oracle failure,
 four-Auditor manual-review snapshot and rejection, browser-side encrypted
 correction, version-2 Hospital attestation, Admin Oracle request, exact
@@ -143,8 +154,9 @@ proves `/health/ready` returns 503 during a paused loopback proxy while
 When using the local Pinata-compatible simulator with the isolated launcher,
 pass `E2E_PINATA_API_URL=http://127.0.0.1:5055/pinning/pinFileToIPFS` and a
 matching synthetic `E2E_PINATA_JWT`. The launcher translates these values to
-the backend's `PINATA_API_BASE_URL` and `PINATA_JWT` only inside spawned test
-processes and prints only the sanitized evidence hostname.
+the backend's `PINATA_API_BASE_URL`/`PINATA_JWT` and the frontend's matching
+`VITE_IPFS_GATEWAY` only inside spawned test processes, then prints only the
+sanitized evidence hostname.
 
 The workflow command uploads two small encrypted test artifacts through the
 backend's configured Pinata account and changes the current local

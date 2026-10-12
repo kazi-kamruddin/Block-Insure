@@ -12,6 +12,9 @@ const {
 } = require("../controllers/claimController");
 const authMiddleware = require("../middleware/authMiddleware");
 const claimSubmissionRateLimit = require("../middleware/claimSubmissionRateLimit");
+const {
+  resetClaimSubmissionRateLimit,
+} = require("../middleware/claimSubmissionRateLimit");
 
 const router = express.Router();
 
@@ -24,6 +27,7 @@ router.post(
 router.delete(
   "/submission-limit/me",
   authMiddleware,
+  resetClaimSubmissionRateLimit,
   resetMyClaimSubmissionLimit
 );
 router.patch(

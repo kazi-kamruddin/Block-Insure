@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-12T20:50:00.000Z",
-  "verdict": "PASS WITH RISKS",
+  "generatedAt": "2026-09-16T20:28:30.067Z",
+  "verdict": "PASS",
   "source": {
-    "commit": "be1acb7ecf29ecfa26899eb78eeb242a0168037b",
+    "commit": "49aa84ed7bccfd29354afaddfade053ffb79c1cb",
     "branch": "postPreDefence",
     "dirtyAtStart": true,
     "preExistingChanges": ["tmp/"]
@@ -27,18 +27,17 @@
     "secretsRedacted": true
   },
   "counts": {
-    "uniqueStandardTestsPassed": 303,
+    "uniqueStandardTestsPassed": 304,
     "contractTestsPassed": 133,
-    "backendTestsPassed": 112,
+    "backendTestsPassed": 113,
     "oracleTestsPassed": 13,
     "integratedPlaywrightTestsPassed": 40,
     "productionPlaywrightTestsPassed": 5,
     "mutationCasesKilled": 8,
-    "productDefectsFixed": 12,
-    "launcherHardeningItems": 6,
+    "productDefectsFixed": 14,
+    "launcherHardeningItems": 7,
     "remainingTestFailures": 0,
-    "toolOrScopeBlockers": 0,
-    "externalCleanupAuthorizationRequired": 1
+    "toolOrScopeBlockers": 0
   },
   "results": [
     {
@@ -268,20 +267,47 @@
     },
     {
       "suite": "isolated evidence routing",
-      "scenario": "final clean appeal run forwards the E2E evidence URL and synthetic token to the backend and reports a loopback-only evidence host",
+      "scenario": "isolated launcher forwards the E2E evidence endpoint to backend uploads and the matching VITE_IPFS_GATEWAY to browser downloads",
       "role": "system/user",
-      "result": "PASS_WITH_OPERATIONAL_CLEANUP",
-      "durationMs": 90000,
-      "evidencePath": "playwright-reports/unfinished-appeal/index.html",
-      "failureCategory": "INTERIM_EXTERNAL_CLEANUP_REQUIRES_AUTHORIZATION"
+      "result": "PASS",
+      "durationMs": 58500,
+      "evidencePath": "playwright-reports/workflow/index.html",
+      "failureCategory": null
     },
     {
       "suite": "changed-code verification",
-      "scenario": "112 backend tests, 13 Oracle tests, 133 contract tests, frontend lint, and production build",
+      "scenario": "113 backend tests, 13 Oracle tests, 133 contract tests, frontend lint, and production build",
       "role": "API/contracts/oracles/all UI roles",
       "result": "PASS",
       "durationMs": 37915,
       "evidencePath": "docs/full-system-e2e-test-report.md",
+      "failureCategory": null
+    },
+    {
+      "suite": "final vulnerable-path Playwright rehearsal",
+      "scenario": "authentication/session security, four clean critical workflows, expired-session and cross-hospital boundaries, concurrent OTP, encrypted appeal, and RPC outage recovery",
+      "role": "guest/user/admin/bank/hospital/4 auditors/2 oracles/system",
+      "result": "PASS",
+      "durationMs": 357000,
+      "evidencePath": "docs/full-system-e2e-test-report.md",
+      "failureCategory": null
+    },
+    {
+      "suite": "claim limiter wallet isolation regression",
+      "scenario": "authenticated wallets sharing one client IP receive independent short-window claim throttling keys and the local reset clears both limiter layers",
+      "role": "user/API",
+      "result": "PASS",
+      "durationMs": 253,
+      "evidencePath": "backEnd/test/securityMiddleware.test.js",
+      "failureCategory": null
+    },
+    {
+      "suite": "final marginal stabilization",
+      "scenario": "40-scenario stopped-stack catalog, non-duplicating two-test manual-finality filter, complete E2E actor template, seven offline verification gates, synchronization, release template, and five production-preview browser checks",
+      "role": "system/all UI roles",
+      "result": "PASS",
+      "durationMs": null,
+      "evidencePath": "verification-results/phase5-verification.json",
       "failureCategory": null
     }
   ]

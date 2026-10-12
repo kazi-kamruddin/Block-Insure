@@ -7,6 +7,7 @@ require("dotenv").config({ path: envFile });
 
 const axios = require("axios");
 const crypto = require("node:crypto");
+const nodeHttp = require("node:http");
 const path = require("node:path");
 const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("./abi/InsuranceManager.json");
@@ -44,13 +45,20 @@ const getRequiredEnv = (key) => {
   return value;
 };
 
-const RPC_URL = getRequiredEnv("RPC_URL");
-const CONTRACT_ADDRESS = getRequiredEnv("CONTRACT_ADDRESS");
+const ORACLE_WORKER_ENABLED = process.env.ORACLE_WORKER_ENABLED !== "false";
+const RPC_URL = ORACLE_WORKER_ENABLED
+  ? getRequiredEnv("RPC_URL")
+  : "http://127.0.0.1:8545";
+const CONTRACT_ADDRESS = ORACLE_WORKER_ENABLED
+  ? getRequiredEnv("CONTRACT_ADDRESS")
+  : ethers.ZeroAddress;
 const ORACLE_INSTANCE_ID = process.env.ORACLE_INSTANCE_ID || instanceFromEnvironment;
 const ORACLE_PRIVATE_KEY =
-  ORACLE_INSTANCE_ID === "2" && process.env.ORACLE_PRIVATE_KEY_2
-    ? process.env.ORACLE_PRIVATE_KEY_2
-    : getRequiredEnv("ORACLE_PRIVATE_KEY");
+  !ORACLE_WORKER_ENABLED
+    ? ""
+    : ORACLE_INSTANCE_ID === "2" && process.env.ORACLE_PRIVATE_KEY_2
+      ? process.env.ORACLE_PRIVATE_KEY_2
+      : getRequiredEnv("ORACLE_PRIVATE_KEY");
 const BACKEND_API_URL = process.env.BACKEND_API_URL || "http://localhost:5000";
 const MOCK_HOSPITAL_API_URL =
   process.env.MOCK_HOSPITAL_API_URL ||
@@ -64,7 +72,7 @@ const ORACLE_HTTP_TIMEOUT_MS = Math.max(
   1_000,
   Number(process.env.ORACLE_HTTP_TIMEOUT_MS || 30_000)
 );
-const http = axios.create({ timeout: ORACLE_HTTP_TIMEOUT_MS });
+const backendHttp = axios.create({ timeout: ORACLE_HTTP_TIMEOUT_MS });
 const ORACLE_EVENT_QUERY_CHUNK_SIZE = Math.max(
   1,
   Number(process.env.ORACLE_EVENT_QUERY_CHUNK_SIZE || 2000)
@@ -84,6 +92,19 @@ const ORACLE_REGISTRY_SNAPSHOT =
 const ORACLE_CURSOR_FILE =
   process.env.ORACLE_CURSOR_FILE ||
   path.join(__dirname, ".oracle-state", `cursor-${ORACLE_INSTANCE_ID}.json`);
+const ORACLE_CURSOR_MODE = String(process.env.ORACLE_CURSOR_MODE || "file")
+  .trim()
+  .toLowerCase();
+if (!["file", "backend"].includes(ORACLE_CURSOR_MODE)) {
+  throw new Error("ORACLE_CURSOR_MODE must be file or backend");
+}
+const ORACLE_HEALTH_PORT = Number(
+  process.env.PORT || process.env.ORACLE_HEALTH_PORT || 0
+);
+const ORACLE_START_RETRY_MS = Math.max(
+  5_000,
+  Number(process.env.ORACLE_START_RETRY_MS || 30_000)
+);
 const simulatedNetworkDelayMs =
   ORACLE_INSTANCE_ID === "2"
     ? Number(process.env.ORACLE2_SIMULATED_NETWORK_DELAY_MS || 3000)
@@ -93,11 +114,13 @@ const runtimeModelArtifact = loadAndVerifyModelArtifact(
 );
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-const oracleWallet = new ethers.Wallet(ORACLE_PRIVATE_KEY, provider);
+const oracleWallet = ORACLE_WORKER_ENABLED
+  ? new ethers.Wallet(ORACLE_PRIVATE_KEY, provider)
+  : null;
 const manager = new ethers.Contract(
   CONTRACT_ADDRESS,
   InsuranceManagerArtifact.abi,
-  oracleWallet
+  oracleWallet || null
 );
 let coordinator;
 let coordinatorAddress;
@@ -106,6 +129,16 @@ let isPolling = false;
 let cachedRegistryRoot = ethers.ZeroHash;
 let lastHeartbeatSentAt = 0;
 const processingRequests = new Set();
+let pollTimer = null;
+let startRetryTimer = null;
+let healthServer = null;
+const serviceState = {
+  initialized: false,
+  startedAt: new Date().toISOString(),
+  lastPollAt: null,
+  lastSuccessfulPollAt: null,
+  lastError: "Waiting for blockchain initialization",
+};
 
 const normalizeHash = (value) => String(value || "").trim().toLowerCase();
 const sleep = (milliseconds) =>
@@ -130,6 +163,22 @@ const retryTransaction = async (label, operation) => {
 
 const loadPersistedCursor = async () => {
   const network = await provider.getNetwork();
+  if (ORACLE_CURSOR_MODE === "backend") {
+    const response = await backendHttp.get(`${BACKEND_API_URL}/api/oracle/cursor`, {
+      params: {
+        oracleWallet: oracleWallet.address,
+        oracleInstanceId: ORACLE_INSTANCE_ID,
+        chainId: network.chainId.toString(),
+        contractAddress: coordinatorAddress,
+      },
+      headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
+    });
+    const remoteCursor = response.data?.cursor;
+    nextOracleScanBlock = remoteCursor
+      ? Math.max(ORACLE_START_BLOCK, Number(remoteCursor.nextBlock))
+      : ORACLE_START_BLOCK;
+    return;
+  }
   const cursor = loadCursorState({
     filePath: ORACLE_CURSOR_FILE,
     chainId: network.chainId.toString(),
@@ -145,6 +194,33 @@ const loadPersistedCursor = async () => {
 
 const persistCursor = async () => {
   const network = await provider.getNetwork();
+  if (ORACLE_CURSOR_MODE === "backend") {
+    const timestamp = new Date().toISOString();
+    const message = [
+      "Block-Insure oracle cursor",
+      ORACLE_INSTANCE_ID,
+      oracleWallet.address.toLowerCase(),
+      network.chainId.toString(),
+      coordinatorAddress.toLowerCase(),
+      String(nextOracleScanBlock),
+      timestamp,
+    ].join(":");
+    const signature = await oracleWallet.signMessage(message);
+    await backendHttp.put(
+      `${BACKEND_API_URL}/api/oracle/cursor`,
+      {
+        oracleWallet: oracleWallet.address,
+        oracleInstanceId: ORACLE_INSTANCE_ID,
+        chainId: network.chainId.toString(),
+        contractAddress: coordinatorAddress,
+        nextBlock: nextOracleScanBlock,
+        timestamp,
+        signature,
+      },
+      { headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {} }
+    );
+    return;
+  }
   persistCursorState({
     filePath: ORACLE_CURSOR_FILE,
     chainId: network.chainId.toString(),
@@ -172,7 +248,7 @@ const sendHeartbeat = async ({ requestId = "", claimId = "", txHash = "", force 
     const heartbeatSignature = await oracleWallet.signMessage(
       heartbeatMessage({ timestamp, requestId, claimId, txHash })
     );
-    await http.post(
+    await backendHttp.post(
       `${BACKEND_API_URL}/api/oracle/heartbeat`,
       {
         oracleWallet: oracleWallet.address,
@@ -197,7 +273,7 @@ const sendHeartbeat = async ({ requestId = "", claimId = "", txHash = "", force 
 
 const saveOracleLog = async (payload) => {
   try {
-    await http.post(`${BACKEND_API_URL}/api/oracle/logs`, payload, {
+    await backendHttp.post(`${BACKEND_API_URL}/api/oracle/logs`, payload, {
       headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
     });
   } catch (error) {
@@ -380,7 +456,7 @@ const handleOracleRequested = async (requestId, claimId) => {
       modelVersion: request.modelVersion,
       modelArtifactHash: runtimeModelArtifact.artifactHash,
     };
-    const hospitalResponse = await http.get(MOCK_HOSPITAL_API_URL, {
+    const hospitalResponse = await backendHttp.get(MOCK_HOSPITAL_API_URL, {
       params: { ...queryData, registrySnapshot: ORACLE_REGISTRY_SNAPSHOT },
       headers: ORACLE_API_KEY ? { "x-oracle-api-key": ORACLE_API_KEY } : {},
     });
@@ -487,10 +563,13 @@ const handleOracleRequested = async (requestId, claimId) => {
 const pollOracleRequests = async () => {
   if (isPolling) return;
   isPolling = true;
+  serviceState.lastPollAt = new Date().toISOString();
   try {
     const latestBlock = await provider.getBlockNumber();
     if (nextOracleScanBlock > latestBlock) {
       await sendHeartbeat();
+      serviceState.lastSuccessfulPollAt = new Date().toISOString();
+      serviceState.lastError = "";
       return;
     }
     const endBlock = Math.min(
@@ -518,7 +597,10 @@ const pollOracleRequests = async () => {
     nextOracleScanBlock = endBlock + 1;
     await persistCursor();
     await sendHeartbeat();
+    serviceState.lastSuccessfulPollAt = new Date().toISOString();
+    serviceState.lastError = "";
   } catch (error) {
+    serviceState.lastError = error.message;
     console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Polling failed:`, error.message);
   } finally {
     isPolling = false;
@@ -546,10 +628,90 @@ const startOracle = async () => {
   }
   await loadPersistedCursor();
   await pollOracleRequests();
-  setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);
+  serviceState.initialized = true;
+  serviceState.lastError = "";
+  pollTimer = setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);
 };
 
-startOracle().catch((error) => {
-  console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Service failed:`, error.message);
-  process.exit(1);
+const sanitizedHealth = () => ({
+  success: serviceState.initialized,
+  status: serviceState.initialized ? "ready" : "starting",
+  oracleInstanceId: ORACLE_INSTANCE_ID,
+  workerEnabled: ORACLE_WORKER_ENABLED,
+  oracleWallet: oracleWallet?.address || "",
+  registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
+  cursorMode: ORACLE_CURSOR_MODE,
+  nextScanBlock: nextOracleScanBlock,
+  startedAt: serviceState.startedAt,
+  lastPollAt: serviceState.lastPollAt,
+  lastSuccessfulPollAt: serviceState.lastSuccessfulPollAt,
+  healthDetail: serviceState.lastError
+    ? ORACLE_WORKER_ENABLED
+      ? "Oracle worker is not ready; inspect private service logs"
+      : "Oracle worker is disabled until a shared blockchain is configured"
+    : null,
+  timestamp: new Date().toISOString(),
 });
+
+const startHealthServer = () => {
+  if (!Number.isSafeInteger(ORACLE_HEALTH_PORT) || ORACLE_HEALTH_PORT <= 0) return;
+  healthServer = nodeHttp.createServer((request, response) => {
+    response.setHeader("Content-Type", "application/json; charset=utf-8");
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Access-Control-Allow-Origin", "*");
+    if (request.method !== "GET") {
+      response.writeHead(405).end(JSON.stringify({ success: false, message: "Method not allowed" }));
+      return;
+    }
+    if (request.url === "/" || request.url === "/health/live") {
+      response.writeHead(200).end(JSON.stringify({
+        ...sanitizedHealth(),
+        success: true,
+        status: serviceState.initialized ? "ready" : "alive",
+      }));
+      return;
+    }
+    if (request.url === "/health/ready") {
+      response.writeHead(serviceState.initialized ? 200 : 503).end(
+        JSON.stringify(sanitizedHealth())
+      );
+      return;
+    }
+    response.writeHead(404).end(JSON.stringify({ success: false, message: "Not found" }));
+  });
+  healthServer.listen(ORACLE_HEALTH_PORT, "0.0.0.0", () => {
+    console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Health server listening on port ${ORACLE_HEALTH_PORT}`);
+  });
+};
+
+const startWithRetry = async () => {
+  if (!ORACLE_WORKER_ENABLED) {
+    serviceState.lastError = "Oracle worker is disabled until a shared blockchain deployment is configured";
+    return;
+  }
+  try {
+    await startOracle();
+  } catch (error) {
+    serviceState.initialized = false;
+    serviceState.lastError = error.message;
+    console.error(
+      `[Oracle ${ORACLE_INSTANCE_ID}] Initialization failed; retrying in ${ORACLE_START_RETRY_MS}ms:`,
+      error.message
+    );
+    startRetryTimer = setTimeout(startWithRetry, ORACLE_START_RETRY_MS);
+  }
+};
+
+const shutdown = () => {
+  if (pollTimer) clearInterval(pollTimer);
+  if (startRetryTimer) clearTimeout(startRetryTimer);
+  healthServer?.close(() => process.exit(0));
+  if (!healthServer) process.exit(0);
+  setTimeout(() => process.exit(0), 5_000).unref();
+};
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+startHealthServer();
+startWithRetry();

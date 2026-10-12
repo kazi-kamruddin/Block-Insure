@@ -3,6 +3,10 @@ const test = require("node:test");
 
 const { getNonce } = require("../controllers/authController");
 const requireOracleApiKey = require("../middleware/oracleApiKeyMiddleware");
+const {
+  claimSubmissionKey,
+  isDevelopmentClaimResetEnabled,
+} = require("../middleware/claimSubmissionRateLimit");
 const { requireRole } = require("../middleware/roleMiddleware");
 
 function responseRecorder() {
@@ -55,6 +59,49 @@ test("role middleware distinguishes missing authentication from wrong role", () 
     continued = true;
   });
   assert.equal(continued, true);
+});
+
+test("claim submission throttling is isolated per authenticated wallet", () => {
+  const sharedNetwork = { ip: "127.0.0.1" };
+  const firstWallet = claimSubmissionKey({
+    ...sharedNetwork,
+    user: { walletAddress: "0xAa00000000000000000000000000000000000001" },
+  });
+  const sameWalletDifferentCase = claimSubmissionKey({
+    ...sharedNetwork,
+    user: { walletAddress: "0xaa00000000000000000000000000000000000001" },
+  });
+  const secondWallet = claimSubmissionKey({
+    ...sharedNetwork,
+    user: { walletAddress: "0xBb00000000000000000000000000000000000002" },
+  });
+
+  assert.equal(firstWallet, sameWalletDifferentCase);
+  assert.notEqual(firstWallet, secondWallet);
+});
+
+test("claim limiter reset requires an explicitly enabled development environment", () => {
+  assert.equal(
+    isDevelopmentClaimResetEnabled({
+      NODE_ENV: "development",
+      DEV_ALLOW_CLAIM_LIMIT_RESET: "true",
+    }),
+    true
+  );
+  assert.equal(
+    isDevelopmentClaimResetEnabled({
+      NODE_ENV: "development",
+      DEV_ALLOW_CLAIM_LIMIT_RESET: "false",
+    }),
+    false
+  );
+  assert.equal(
+    isDevelopmentClaimResetEnabled({
+      NODE_ENV: "production",
+      DEV_ALLOW_CLAIM_LIMIT_RESET: "true",
+    }),
+    false
+  );
 });
 
 test("oracle API middleware rejects missing and invalid credentials", () => {

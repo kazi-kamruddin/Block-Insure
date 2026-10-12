@@ -93,9 +93,13 @@ test("root orchestration exposes clean install, bootstrap, research, and verific
     "verify:all",
     "verify:full",
     "doctor",
+    "test:e2e:list:isolated",
   ]) assert.ok(scripts[command], `${command} is missing`);
   assert.match(scripts["research:all"], /research:artifacts/);
   assert.match(scripts["verify:all"], /runVerification\.js/);
+  assert.match(scripts["test:e2e:list:isolated"], /runIsolatedE2E\.js test:e2e:list/);
+  assert.match(scripts["test:e2e:unfinished:claims"], /--grep-invert/);
+  assert.doesNotMatch(scripts["test:e2e:unfinished:claims"], /--grep /);
 });
 
 test("contract coverage restores non-instrumented build artifacts", () => {
@@ -138,6 +142,7 @@ test("isolated E2E launcher supports and enforces a loopback MongoDB override", 
   assert.match(source, /E2E_RPC_PROXY/);
   assert.match(source, /E2E_PINATA_API_URL/);
   assert.match(source, /PINATA_API_BASE_URL: e2ePinataBaseUrl/);
+  assert.match(source, /VITE_IPFS_GATEWAY: `\$\{e2ePinataBaseUrl\}\/ipfs\/`/);
   assert.match(source, /PINATA_JWT: process\.env\.E2E_PINATA_JWT/);
 });
 

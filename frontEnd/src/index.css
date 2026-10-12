@@ -1,3 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI Variable", "Segoe UI", Inter, Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono",
+    monospace;
+  --color-ink-950: #07101f;
+  --color-ink-900: #0b1629;
+  --color-ink-800: #111f36;
+  --color-aqua-300: #67e8f9;
+  --color-aqua-400: #22d3ee;
+  --color-mint-300: #5eead4;
+  --color-mint-400: #2dd4bf;
+}
+
 :root {
   --font-sans: "Segoe UI Variable", "Segoe UI", Inter, Roboto, Helvetica, Arial,
     sans-serif;
@@ -5,7 +21,7 @@
     monospace;
   font-family: var(--font-sans);
   color: #f8fafc;
-  background: #0b1324;
+  background: #07101f;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -16,6 +32,14 @@ html {
   min-width: 320px;
   scroll-behavior: smooth;
   scrollbar-color: #2a3850 #0b1324;
+}
+
+body {
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 * {

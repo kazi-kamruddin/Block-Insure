@@ -4,9 +4,11 @@ const mongoose = require("../../backEnd/node_modules/mongoose");
 const {
   localDateTimeValue,
   loginActor,
+  resetLocalClaimSubmissionLimit,
   uniqueEvidenceFile,
 } = require("../support/actions");
 const { closeActor, createActorContext } = require("../support/walletBridge");
+const { requireDisposableE2EMongoUri } = require("../support/environment");
 
 async function verifyClaimAsHospital(browser, claimId, expectedOutcome) {
   const hospitalSession = await createActorContext(browser, "hospital");
@@ -31,6 +33,7 @@ test.describe("@workflow policyholder transaction journey", () => {
     const session = await createActorContext(browser, "user");
     try {
       await loginActor(session.page, session.actor);
+      await resetLocalClaimSubmissionLimit(session.page);
 
       await session.page.goto("/user/policies/buy");
       await expect(session.page.getByRole("heading", { name: "Buy Policy" })).toBeVisible();
@@ -134,6 +137,7 @@ test.describe("@workflow policyholder transaction journey", () => {
     const session = await createActorContext(browser, "user");
     try {
       await loginActor(session.page, session.actor);
+      await resetLocalClaimSubmissionLimit(session.page);
       await session.page.goto("/user/policies/buy");
       await session.page.getByRole("checkbox", { name: /I have read and agree/ }).first().check();
       await session.page.getByRole("button", { name: "Buy Policy" }).first().click();
@@ -245,10 +249,7 @@ test.describe("@workflow policyholder transaction journey", () => {
         const download = await downloadPromise;
         expect(fs.readFileSync(await download.path())).toEqual(evidenceFile.buffer);
 
-        const mongoUri = process.env.MONGODB_URI || "";
-        const parsedMongo = new URL(mongoUri);
-        expect(["127.0.0.1", "localhost", "::1"]).toContain(parsedMongo.hostname);
-        expect(parsedMongo.pathname).toBe("/block_insure_e2e");
+        const mongoUri = requireDisposableE2EMongoUri();
         const mongo = await mongoose.createConnection(mongoUri).asPromise();
         try {
           const fileRecord = await mongo.db.collection("files").findOne({ claimId: String(claimId) });

@@ -1,5 +1,11 @@
 const fs = require("node:fs");
+const dns = require("node:dns");
 const path = require("node:path");
+
+dns.setDefaultResultOrder("ipv4first");
+if (process.env.FORCE_PUBLIC_DNS === "true") {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+}
 
 const projectRoot = path.resolve(__dirname, "../..");
 const DEFAULT_LOCAL_USER_PRIVATE_KEY =
@@ -34,6 +40,25 @@ function readEnv(relativePath) {
 function normalizePrivateKey(value) {
   const key = String(value || "").trim();
   return /^[0-9a-fA-F]{64}$/.test(key) ? `0x${key}` : key;
+}
+
+function requireDisposableE2EMongoUri(value = process.env.MONGODB_URI) {
+  if (!value) throw new Error("MONGODB_URI is required for database-backed E2E assertions");
+
+  const parsed = new URL(value);
+  const databaseName = parsed.pathname.replace(/^\//, "");
+  if (databaseName !== "block_insure_e2e") {
+    throw new Error("Refusing database-backed E2E assertions outside block_insure_e2e");
+  }
+
+  if (
+    process.env.E2E_REQUIRE_LOCAL_MONGO === "true" &&
+    !["127.0.0.1", "localhost", "::1"].includes(parsed.hostname)
+  ) {
+    throw new Error("E2E_REQUIRE_LOCAL_MONGO requires a loopback MongoDB host");
+  }
+
+  return value;
 }
 
 function requirePrivateKey(value, label) {
@@ -128,4 +153,8 @@ function auditorActor(e2e, index) {
   };
 }
 
-module.exports = { getE2EConfig, normalizePrivateKey };
+module.exports = {
+  getE2EConfig,
+  normalizePrivateKey,
+  requireDisposableE2EMongoUri,
+};

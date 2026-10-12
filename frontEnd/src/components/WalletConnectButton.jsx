@@ -19,12 +19,17 @@ export default function WalletConnectButton() {
 
   if (isConnected) {
     return (
-      <div className="wallet-box">
-        <span className="wallet-status-dot" aria-hidden="true" />
-        <span className="wallet-address" title={walletAddress}>
-          {shortAddress(walletAddress)}
+      <div className="wallet-box" data-connected="true">
+        <span className="wallet-avatar" aria-hidden="true">
+          <span className="wallet-status-dot" />
+          {role?.slice(0, 1) || "W"}
         </span>
-        <span className="wallet-role">{role}</span>
+        <span className="wallet-identity">
+          <span className="wallet-address" title={walletAddress}>
+            {shortAddress(walletAddress)}
+          </span>
+          <span className="wallet-role">{role}</span>
+        </span>
         <button type="button" onClick={logout}>
           Logout
         </button>
@@ -33,7 +38,7 @@ export default function WalletConnectButton() {
   }
 
   return (
-    <div className="wallet-box">
+    <div className="wallet-box" data-connected="false">
       <button
         type="button"
         onClick={connectWallet}
@@ -43,7 +48,7 @@ export default function WalletConnectButton() {
           ? "Checking session..."
           : isConnecting
             ? "Connecting..."
-            : "Connect Wallet"}
+            : "Connect wallet"}
       </button>
       {error ? (
         <small className="error-text" role="alert">

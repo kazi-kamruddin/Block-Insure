@@ -54,14 +54,23 @@ test.describe("@frontend-production public quality", () => {
       await expect(page.getByRole("heading", {
         name: "Insurance decisions that leave an evidence trail.",
       })).toBeVisible();
+      await expect(page.getByLabel("Local protocol status")).toContainText("Hardhat 31337");
+      await expect(page.getByRole("link", { name: "Block-Insure home" }).first()).toBeVisible();
       await expectAccessibleDocument(page);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      expect(await page.locator(".app-shell").evaluate((element) =>
+        getComputedStyle(element).overflowX
+      )).toBe("clip");
       expect(durationMs).toBeLessThan(5_000);
       expect(failures).toEqual([]);
 
       await testInfo.attach(`${viewport.name}-metrics.json`, {
         body: Buffer.from(JSON.stringify({ viewport, durationMs }, null, 2)),
         contentType: "application/json",
+      });
+      await testInfo.attach(`${viewport.name}-landing.png`, {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: "image/png",
       });
       await page.close();
     });

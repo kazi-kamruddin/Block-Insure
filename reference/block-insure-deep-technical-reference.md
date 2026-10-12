@@ -9,13 +9,15 @@
 **Audience:** thesis supervisor, examiner, implementer, reviewer, and future maintainer  
 **Authority rule:** current source code, deployment scripts, tests, and frozen artifacts override older prose
 
-**Last source audit:** 2026-09-04 against repository `HEAD` `2bf4adb8b7d71fede3ef337f493210b7f45e744b` plus the current Hospital, Bank, E2E, and documentation working-tree update
+**Last source audit:** 2026-09-13 against repository `HEAD` `49aa84ed7bccfd29354afaddfade053ffb79c1cb` plus the current documentation and orchestration polish
 
-**Current research manifest:** schema 4, reproducibility hash `35bea03aa734dedd6c69a0a10f4db5d15c098296449ed8afc169c5c39c11f11f`
+**Current research manifest:** schema 4, reproducibility hash `71d093646f161678012c37a46d74da85a76f9b6b06f00b38461d6eb9dcf95809`
 
 > **Hybrid and paper-evidence update (2026-08-29):** this reference now covers the complete `blockinsure-hybrid-v1.2.0` architecture, 558,211-claim offline study, 5,000-record runtime registry, provider-risk model, comparator and ablation experiments, provider bootstrap intervals, controlled-attack routing study, reserve/evidence benchmarks, current coverage and mutation results, and the final live browser workflows. Source code and frozen JSON/CSV artifacts remain authoritative when a timing or generated timestamp changes.
 
 > **Hospital, Bank, and regression update (2026-09-04):** the current system also includes five wallet-bound Hospital identities, version-bound on-chain Hospital claim attestations that gate Oracle request creation, one independently authorized simulated Bank, policyholder EFT mandates, quarterly BDT debit automation, manual OTP payments, replay-protected on-chain premium receipts, and complete role/route/workflow Playwright coverage. Sections 46 and 47 are the detailed implementation references for these subsystems.
+
+> **Appeal finality and readiness update (2026-09-13):** a corrected appeal now uses a canonical cross-system commitment, waits for a fresh version-2 Hospital attestation, permits an Admin to request the new Oracle cycle, and requires each worker to validate the appeal transaction/event/commitment and corrected Merkle proof before exact quorum. Separate liveness/readiness endpoints, a loopback RPC fault proxy, a local Pinata-compatible simulator, and an isolated launcher now support deterministic local-only browser proof. The current catalog is 40 integrated Playwright scenarios plus five production-bundle browser scenarios.
 
 ---
 
@@ -365,15 +367,23 @@ the conditional BDT debit and records a failed transaction.
 | `npm run install:all` | Reproducible `npm ci` across root, backend, contracts, frontend, and oracle packages |
 | `npm run dev:all` | Start/reuse the expected local service topology |
 | `npm run dev:hybrid` | One-command managed hybrid bootstrap and service launch |
+| `npm run dev:e2e-isolated` | Clean hybrid stack with disposable DB override, Hardhat actors, headed browser mode, and optional RPC/evidence isolation |
+| `npm run dev:pinata-mock` | Loopback in-memory Pinata-compatible encrypted-evidence service |
+| `npm run dev:rpc-proxy` | Loopback-only Hardhat RPC proxy with test pause/resume controls |
 | `npm run dev:observe` | Start development services with redacted event observation |
 | `npm run verify:all` | Cross-project verification suite |
 | `npm run verify:full` | Verification plus runtime synchronization checks |
 | `npm run verify:sync` | ABI, address, bytecode-size, and configuration synchronization checks |
-| `npm run test:e2e` | Thirteen repeatable read-only public/role/route browser checks after E2E preflight |
+| `npm run test:e2e` | Seventeen repeatable public/authentication/role/route browser checks after E2E preflight |
 | `npm run test:e2e:workflow` | Four state-changing Bank and claim/adjudication journeys |
 | `npm run test:e2e:showcase` | Four state-dependent deep workspace demonstrations |
 | `npm run test:e2e:maintenance` | Reversible Hospital record/invoice mutation and root-restoration check |
-| `npm run test:e2e:all` | Ordered complete 22-test browser regression after clean setup |
+| `npm run test:e2e:resilience` | Four live HTTP/security resilience checks |
+| `npm run test:e2e:all` | Ordered complete 30-test integrated browser regression after clean setup |
+| `npm run test:e2e:unfinished` | Eleven focused benefits, boundary, evidence, finality, appeal, and RPC checks |
+| `npm run test:e2e:unfinished:appeal` | Headed corrected-appeal journey through withdrawal and `SETTLED` |
+| `npm run test:e2e:unfinished:rpc` | Live readiness failure/recovery through the local RPC proxy |
+| `npm run test:e2e:frontend-production` | Five production-bundle Chromium quality scenarios |
 | `npm run deploy:benefits:local` | Deploy the benefits extension without the complete clean reset |
 | `npm run research:all` | Regenerate Phase 0–4 studies, charts, invariants, mutation results, and manifest |
 | `npm run research:paper-evidence` | Generate paper-facing JSON, CSV, and SVG evidence |
@@ -860,7 +870,27 @@ The adjudicator begins an appeal round.
 
 The manager enters `APPEALED`.
 
-The new oracle request binds the new version.
+Appeal submission does not immediately request Oracle processing. A fresh
+Hospital attestation must first be recorded for the new claim version; only
+then may an Admin call `requestOracleVerification` for the `APPEALED` claim.
+
+The browser and backend build the canonical `BLOCK_INSURE_APPEAL_V1` payload.
+It binds:
+
+- Claim ID.
+- Appeal reason, category, and description.
+- Additional encrypted-document CID and ciphertext hash.
+- Proposed Hospital ID, invoice hash, claim type, and claim amount.
+
+The backend recomputes this hash and verifies the mined `ClaimAppealed` event.
+The Hospital assesses the version-2 corrected facts rather than the original
+invoice snapshot. Each Oracle independently recomputes the payload hash,
+verifies transaction destination/signer/event, checks the query matches the
+committed corrections, and reconstructs the corrected registry proof.
+
+The resulting Oracle request binds the new version. An old Hospital
+attestation, Oracle response, manual-review vote, or altered Mongo appeal cannot
+finalize the new cycle.
 
 ### 5.18 Manager events
 
@@ -1926,6 +1956,8 @@ Finalized requests are skipped.
 The worker executes these stages:
 
 - Request loaded.
+- For version 2, appeal payload loaded and canonical hash recomputed.
+- Appeal transaction signer/destination/receipt/event and query corrections verified.
 - Snapshot selected.
 - Hospital query started.
 - Hospital record received.
@@ -1943,6 +1975,13 @@ the worker posts one structured backend oracle log containing query data,
 hospital response/proof, independent assessment, result/commitment hashes,
 model identity, transaction hash, and elapsed response time. It does not persist
 a separate backend row for every intermediate stage.
+
+An appeal response contains the canonical correction payload, appeal reason
+hash, and appeal transaction hash. The worker does not trust those fields merely
+because the backend supplied them: it recomputes the digest, verifies the mined
+`ClaimAppealed` event, checks all corrected query fields, and only then evaluates
+the corrected registry leaf. Invalid appeal binding produces a conservative
+negative result rather than a valid version-2 approval.
 
 ### 12.4 Result categories
 
@@ -2315,11 +2354,18 @@ The backend:
 5. Starts the Bank payment scheduler.
 6. Starts the Express listener and serves the already-mounted API routes.
 
-Missing `MONGODB_URI` is a startup-fatal configuration error. Missing JWT,
-manager-address, or RPC configuration currently emits a startup warning and
-causes the dependent routes/services to fail when used; the server does not
-globally fail closed for all three at process start. `preflight`/`doctor` are the
-intended stricter readiness gates.
+Missing `MONGODB_URI` is a startup-fatal configuration error. Configuration
+preflight remains the strict static gate. Runtime health is split:
+
+- `GET /health/live` reports that the Express process is serving requests.
+- `GET /health/ready` requires MongoDB connectivity, a bounded successful
+  `eth_chainId` response matching the configured chain, and nonempty deployed
+  bytecode at the Manager address.
+
+Readiness returns a sanitized 503 when a dependency is unavailable or wrong;
+it does not expose the underlying RPC/provider error. The isolated campaign can
+place `scripts/localRpcProxy.js` between backend and Hardhat, pause forwarding,
+observe liveness 200/readiness 503, resume it, and observe readiness 200 again.
 
 ### 15.2 Route families
 
@@ -2343,6 +2389,8 @@ intended stricter readiness gates.
 | `/api/banks` | Bank profile/accounts/mandates/transactions/automation and User banking operations |
 | `/api/indexer` | Indexed block/event visibility |
 | `/mock/hospital` | Hybrid healthcare-registry lookup and verification |
+| `/health/live` | Process liveness, independent of dependency readiness |
+| `/health/ready` | MongoDB/RPC/chain/deployed-Manager readiness |
 | `/api/evidence-log` | Tree heads and inclusion/consistency proofs |
 
 ### 15.3 Claim controller responsibilities
@@ -2360,6 +2408,11 @@ The claim controller handles:
 - Oracle/manual routing requests.
 
 The controller does not finalize the contract decision itself.
+
+The appeal controller separately normalizes `BLOCK_INSURE_APPEAL_V1`, verifies
+its SHA-256 commitment against the request, confirms the claimant-signed
+`ClaimAppealed` receipt/event, persists the committed corrections, and projects
+the final protocol decision without becoming an adjudicator.
 
 ### 15.4 Document controller responsibilities
 
@@ -2451,7 +2504,7 @@ Typical messages explain:
 | `EvidenceTreeHead` | Signed tree-head metadata |
 | `EvidenceGrant` | Owner-to-recipient transformation authorization |
 | `EvidenceAccessLog` | Evidence access/transformation history |
-| `Appeal` | Appeal workflow metadata |
+| `Appeal` | Canonical committed correction, transaction reconciliation, versioned history, and projected final status |
 | `ClaimSubmissionAttempt` | Precheck/transaction/reconciliation attempt |
 | `AdminActionLog` | Administrative action audit |
 | `OracleLog` | Oracle request/result/commit/reveal metadata |
@@ -2638,11 +2691,19 @@ The form must handle a wallet rejection separately from an upload failure.
 The appeal page:
 
 - Displays the rejected claim.
-- Collects an appeal reason hash/reference.
-- Optionally encrypts new evidence.
-- Calls the appeal contract function.
-- Attaches evidence metadata after the transaction.
-- Refreshes the new claim version.
+- Collects reason/category/description and any corrected
+  Hospital/invoice/type/amount facts.
+- Encrypts additional evidence in the browser and obtains its CID/hash.
+- Constructs and hashes the canonical `BLOCK_INSURE_APPEAL_V1` payload.
+- Calls the claimant-only appeal contract function with that commitment.
+- Sends the same normalized payload and transaction hash to the backend.
+- Requires backend receipt/event/commitment reconciliation.
+- Refreshes the claim as version 2 in `APPEALED`, not prematurely
+  `ORACLE_PENDING`.
+- Waits for a version-2 Hospital assessment/attestation.
+- Exposes the Admin Oracle-request action after that attestation.
+- Displays exact two-Oracle approval, allocation, withdrawal, and final
+  `SETTLED` history when the corrected proof succeeds.
 
 ### 17.5 Auditor workflow
 
@@ -2690,7 +2751,14 @@ connect wallet
 `dev:hybrid` runs preflight, starts a managed Hardhat chain when necessary,
 always executes the destructive hybrid setup, verifies the deployment, and then
 starts backend, frontend, Oracle 1, and Oracle 2. It waits for backend and
-frontend readiness before declaring the stack ready.
+frontend readiness before declaring the stack ready. Backend readiness includes
+MongoDB, RPC chain ID, and deployed Manager bytecode rather than a static HTTP
+response.
+
+For deterministic browser QA, `npm run dev:e2e-isolated` wraps the same hybrid
+bootstrap with the `block_insure_e2e` database, Hardhat default actor identities,
+optional loopback-Mongo enforcement, headed execution, loopback evidence
+configuration, and the RPC fault proxy.
 
 For a previously deployed chain that must be reused without reset, use
 `npm run dev:all`; it verifies chain ID `31337` and manager bytecode before
@@ -2771,6 +2839,12 @@ Backend configuration normally includes:
 - Oracle API keys.
 - Rate limits.
 
+Isolated E2E configuration includes `E2E_MONGODB_URI`,
+`E2E_REQUIRE_LOCAL_MONGO`, `E2E_PINATA_API_URL`, a synthetic
+`E2E_PINATA_JWT`, and `E2E_RPC_PROXY`. The wrapper translates E2E evidence
+values to the backend's `PINATA_API_BASE_URL`/`PINATA_JWT` only for spawned test
+processes and logs only the sanitized evidence hostname.
+
 Frontend configuration includes:
 
 - API base URL.
@@ -2813,6 +2887,10 @@ Before starting application services, the launcher verifies:
 If the check fails, the operator must start the chain and run setup.
 
 This prevents a backend from connecting to an empty chain.
+
+The readiness endpoint repeats the chain-ID and bytecode proof while the server
+is running. Startup verification and runtime readiness therefore cover
+different moments of the same dependency boundary.
 
 ---
 
@@ -2895,7 +2973,7 @@ stateDiagram-v2
     FUNDING_REQUIRED --> PAYOUT_READY
     PAYOUT_READY --> SETTLED
     REJECTED --> APPEALED
-    APPEALED --> ORACLE_PENDING
+    APPEALED --> ORACLE_PENDING: v2 Hospital attestation then Admin request
 ```
 
 The graph omits internal validation reverts.
@@ -3171,7 +3249,11 @@ The query hash includes the version.
 
 The coordinator reveal includes the version.
 
-Old results therefore fail the new-cycle binding checks.
+The canonical appeal hash also binds the corrected facts and encrypted evidence,
+and each Oracle verifies the appeal transaction/event before using those facts.
+
+Old results or altered off-chain corrections therefore fail the new-cycle
+binding checks.
 
 ### 22.9 Treasury abuse
 
@@ -3354,30 +3436,31 @@ Frontend verification includes:
 
 ### 24.6 Recorded suite results
 
-The latest cross-project verification and live-validation records from
-2026-09-04 report:
+The latest cross-project verification and live-validation records through
+2026-09-13 report:
 
-- 132 passing Solidity tests.
-- 84 passing backend analytics and unit tests.
+- 133 passing Solidity tests.
+- 112 passing backend analytics and unit tests.
 - 13 passing Oracle tests.
-- Passing frontend lint/build (383 transformed production modules).
-- Six passing repository-integrity check groups and passing ABI/address/size/config synchronization.
-- A 22-test Playwright catalog: 13 repeatable read-only route/role tests, four
-  state-changing Bank/claim journeys, four state-dependent showcase checks, and
-  one reversible Hospital record-maintenance check.
-
-The current coverage run reported 126 passing instrumented tests plus one
-instrumentation-only pending size case; use the structured verification report
-for current non-coverage suite counts.
+- Passing frontend lint/build (384 transformed production modules).
+- Seven passing repository-integrity check groups and passing
+  ABI/address/size/config synchronization.
+- A 45-scenario Playwright catalog: 40 integrated scenarios plus five
+  production-bundle browser scenarios.
+- The integrated set comprises 17 general public/authentication/role/route
+  checks, four workflows, four showcase checks, one Hospital maintenance check,
+  four HTTP/security resilience checks, and 11 focused benefit/boundary/
+  evidence/finality/appeal/RPC checks.
+- The final corrected-appeal and RPC-readiness reports each pass independently.
 
 ### 24.7 Coverage
 
 The current Solidity coverage run records:
 
-- Statements: 93.77%.
-- Branches: 65.07%.
-- Functions: 90.59%.
-- Lines: 94.39%.
+- Statements: 95.23%.
+- Branches: 64.83%.
+- Functions: 92.18%.
+- Lines: 95.52%.
 
 Branch coverage is lower than statement coverage.
 
@@ -3393,14 +3476,6 @@ Those findings are not silently eliminated with a force upgrade.
 
 They require toolchain maintenance and compatibility review.
 
-### 24.9 Optional analyzers
-
-Slither, Forge, Echidna, and Solhint are not assumed to be installed.
-
-Their absence does not mean the contracts are formally proven.
-
-Their use should be recorded when available.
-
 ---
 
 ## 25. Gas, size, and performance reference
@@ -3411,7 +3486,7 @@ Recorded deployed bytecode sizes are:
 
 | Contract | Bytes | EIP-170 limit |
 |---|---:|---:|
-| `InsuranceManager` | 24,358 | 24,576 |
+| `InsuranceManager` | 24,338 | 24,576 |
 | `OracleCoordinator` | 7,543 | 24,576 |
 | `ClaimAdjudicator` | 10,880 | 24,576 |
 | `PolicyEconomics` | 9,484 | 24,576 |
@@ -3421,8 +3496,8 @@ Recorded deployed bytecode sizes are:
 | `HospitalVerificationRegistry` | 3,327 | 24,576 |
 | `BankIdentityRegistry` | 2,423 | 24,576 |
 
-The manager has only 218 bytes of headroom. `npm run verify:sync` is
-authoritative for the current compiled sizes.
+The current Manager margin is 238 bytes. `npm run verify:sync` is authoritative
+for the current compiled sizes.
 
 This is a design constraint.
 
@@ -3906,6 +3981,10 @@ Never change canonicalization silently.
 - `backEnd/services/settlementIntelligenceService.js`: portfolio/reserve summaries.
 - `backEnd/services/hospitalDirectoryService.js`: Hospital directory and wallet-scoped identity resolution.
 - `backEnd/services/hospitalVerificationService.js`: deterministic claim/record assessment and attestation payload.
+- `backEnd/services/appealCommitmentService.js`: normalized
+  `BLOCK_INSURE_APPEAL_V1` payload and deterministic SHA-256 commitment.
+- `backEnd/services/readinessService.js`: bounded chain-ID and deployed-bytecode
+  readiness verification.
 - `backEnd/services/bankDirectoryService.js`: Bank directory and demo account bootstrap.
 - `backEnd/services/bankPaymentService.js`: mandates, reminders, OTP challenges, debit serialization, compensation, and scheduler.
 - `backEnd/scripts/evaluateHybridDataset.js`: provider-risk, comparator, ablation, bootstrap, and paired-attack study.
@@ -3918,6 +3997,8 @@ Never change canonicalization silently.
 - `frontEnd/src/services/evidenceEncryption.js`: browser envelope, AES-GCM, Recrypt capsule, identity recovery, and associated data.
 - `frontEnd/src/pages/SubmitClaimPage.jsx`: encrypted claim choreography.
 - `frontEnd/src/pages/ClaimDetailPage.jsx`: claim, evidence, appeal, and withdrawal state.
+- `frontEnd/src/pages/AdminClaimDetailPage.jsx`: permitted routing, including
+  post-attestation Oracle request for an appealed claim.
 - `frontEnd/src/pages/AuditorVotingPage.jsx`: assigned wallet-signed contract vote.
 - `frontEnd/src/pages/HospitalDashboardPage.jsx`: Hospital profile and operational summary.
 - `frontEnd/src/pages/HospitalRecordsPage.jsx`: scoped record/invoice maintenance.
@@ -3926,7 +4007,22 @@ Never change canonicalization silently.
 - `frontEnd/src/pages/BankingPage.jsx`: Policyholder mandates, transfers, and manual OTP flow.
 - `frontEnd/src/pages/ThesisResultsDashboardPage.jsx`: frozen evaluation/result presentation.
 
-### 31.5 Documentation source map
+### 31.5 E2E and local-resilience source map
+
+- `e2e/tests/unfinished-claim-finality.workflow.spec.js`: concurrent/expired
+  manual finality and complete corrected-appeal settlement.
+- `e2e/tests/rpc-readiness.resilience.spec.js`: live dependency outage and
+  recovery assertions.
+- `e2e/tests/unfinished-benefits.workflow.spec.js`: beneficiary, surrender, and
+  maturity journeys.
+- `e2e/tests/unfinished-boundaries.spec.js`: JWT, Hospital IDOR, OTP expiry,
+  replay, and concurrency boundaries.
+- `scripts/runIsolatedE2E.js`: disposable DB, Hardhat actors, headed mode,
+  evidence override translation, and RPC-proxy environment.
+- `scripts/localRpcProxy.js`: loopback JSON-RPC forwarding and pause/resume.
+- `scripts/localPinataMock.js`: in-memory authenticated synthetic evidence store.
+
+### 31.6 Documentation source map
 
 - [`README.md`](../README.md): current setup and operator workflow.
 - [`docs/phase-5-operational-hardening.md`](../docs/phase-5-operational-hardening.md): verification, runtime synchronization, and future-run guidance.
@@ -3946,8 +4042,11 @@ Before calling the repository “ready for a demonstration,” confirm:
 - Chain ID is `31337` for local work.
 - Manager bytecode exists at the configured address.
 - ABI/configuration files are synchronized.
-- Mongo points to a disposable local database.
-- IPFS credentials are available for evidence tests.
+- Mongo points to the explicitly disposable `block_insure_e2e` database and
+  loopback enforcement is enabled for isolated runs.
+- Synthetic evidence tests point to the loopback Pinata-compatible simulator.
+- `/health/live` is 200 and `/health/ready` proves MongoDB, chain ID, and
+  deployed Manager bytecode.
 - Oracle workers have distinct identities.
 - Oracle snapshots match the published root versions.
 - Model identity matches the deployed model metadata.
@@ -3962,24 +4061,13 @@ Before calling the repository “ready for a demonstration,” confirm:
 - Notifications are being created.
 - Claim receipts reconcile.
 - Conflict/timeout paths are tested.
-- Appeal version increments are visible.
+- Appeal version increments are visible, the canonical correction commitment
+  matches the `ClaimAppealed` event, and version 2 has its own Hospital
+  attestation before the Admin requests Oracle processing.
 - Historical roots are retained.
 - Bank transfer references cannot be replayed.
 - Invalid manual-payment OTP does not terminate a valid SIWE session.
 - Test and verification commands pass.
-
-Before calling the project “production ready,” additionally require:
-
-- Real authenticated external data sources.
-- Independent oracle governance.
-- HSM/KMS key custody.
-- Privacy/legal review.
-- Production monitoring and incident response.
-- Formal contract audit.
-- Dependency patch policy.
-- Disaster recovery for Mongo/IPFS/evidence trees.
-- A real actuarial/economic model.
-- Regulatory and insurance-domain approval.
 
 ---
 
@@ -4782,7 +4870,7 @@ MongoDB, and synthetic concurrency prevent public-chain extrapolation.
 
 | Contract | Bytes | EIP-170 headroom |
 |---|---:|---:|
-| `InsuranceManager` | 24,358 | 218 |
+| `InsuranceManager` | 24,338 | 238 |
 | `OracleCoordinator` | 7,543 | 17,033 |
 | `ClaimAdjudicator` | 10,880 | 13,696 |
 | `PolicyEconomics` | 9,484 | 15,092 |
@@ -4792,36 +4880,45 @@ MongoDB, and synthetic concurrency prevent public-chain extrapolation.
 | `HospitalVerificationRegistry` | 3,327 | 21,249 |
 | `BankIdentityRegistry` | 2,423 | 22,153 |
 
-The manager's 218-byte headroom is a material maintainability risk. Additional
-logic should move to modules rather than expanding the manager.
+The current Manager build remains deployable under the recorded limit;
+subsequent contract changes must continue to use the synchronization gate.
 
 ## 41. Verification, reproducibility, and artifact authority
 
 ### 41.1 Current assurance snapshot
 
-- Contract tests: 132 passing.
-- Backend analytics/unit tests: 84 passing.
+- Contract tests: 133 passing.
+- Backend analytics/unit tests: 112 passing.
 - Oracle tests: 13 passing.
 - Hybrid adapter focused tests: 8 passing.
-- Solidity coverage: 93.77% statements, 65.07% branches, 90.59% functions,
-  94.39% lines.
+- Solidity coverage: 95.23% statements, 64.83% branches, 92.18% functions,
+  95.52% lines.
 - Stateful/invariant campaigns: passed.
 - Mutation campaign: 8 requested, 8 valid, 8 killed, 0 survived; score 1.0.
 - Frontend lint and production build: passed.
 - Repository integrity and runtime synchronization: passed.
+- Unique current standard tests: 303 (133 contract + 112 backend + 13 Oracle
+  + 40 integrated Playwright + 5 production Playwright), with focused reruns
+  excluded from double-counting.
 
 Lower branch coverage must remain visible. Passing tests and killed sampled
 mutants are evidence of assurance effort, not formal verification.
 
 ### 41.2 Live end-to-end validation
 
-On 2026-09-04 the managed hybrid stack—Hardhat, MongoDB, backend, frontend, and
-two Oracle workers—passed the complete current browser catalog:
+Through 2026-09-13 the managed hybrid stack—Hardhat, disposable MongoDB,
+backend, frontend, two Oracle workers, loopback evidence simulator, and optional
+RPC proxy—passed the complete 45-scenario browser catalog:
 
-1. 13 repeatable read-only public, role, route, cross-role, HTTP-5xx, and page-error checks;
+1. 17 repeatable public, SIWE/session, role, route, cross-role, HTTP-5xx, and page-error checks;
 2. four state-changing workflows covering Bank and claim/adjudication journeys;
-3. four state-dependent Policyholder/Admin/Auditor showcase checks; and
-4. one reversible Hospital record/invoice maintenance and root-restoration check.
+3. four state-dependent Policyholder/Admin/Auditor showcase checks;
+4. one reversible Hospital record/invoice maintenance and root-restoration check;
+5. four live HTTP/security resilience checks;
+6. 11 focused benefits, boundary, evidence, manual-finality, corrected-appeal,
+   and RPC-readiness checks; and
+7. five production-bundle Chromium checks across representative viewports and
+   navigation/accessibility behavior.
 
 The workflow tests cover:
 
@@ -4851,6 +4948,22 @@ bank rejection
   → policyholder observes rejection
   → replacement mandate
   → policyholder cancellation
+
+manual-review rejection
+  → claimant submits browser-encrypted committed correction
+  → version-2 Hospital attestation
+  → Admin requests version-2 Oracle processing
+  → both Oracles independently validate corrected facts and exact result
+  → payout allocation
+  → claimant withdrawal
+  → SETTLED
+
+RPC proxy pause
+  → backend liveness remains 200
+  → readiness fails closed with 503
+  → proxy resume
+  → chain ID and Manager bytecode revalidate
+  → readiness returns 200
 ```
 
 These results establish demonstration functionality on the frozen local stack.
@@ -4873,6 +4986,10 @@ terminal 2: npm run test:e2e
 terminal 2: npm run test:e2e:workflow
 terminal 2: npm run test:e2e:showcase
 terminal 2: npm run test:e2e:maintenance
+terminal 2: npm run test:e2e:resilience
+terminal 2: node scripts/runIsolatedE2E.js test:e2e:unfinished:appeal
+terminal 2: node scripts/runIsolatedE2E.js test:e2e:unfinished:rpc
+terminal 2: npm run test:e2e:frontend-production
 ```
 
 After a clean setup, `npm run test:e2e:all` executes those groups in the
@@ -4899,7 +5016,7 @@ process tree before a fresh `dev:hybrid` launch.
 Research reproducibility identity:
 
 ```text
-35bea03aa734dedd6c69a0a10f4db5d15c098296449ed8afc169c5c39c11f11f
+71d093646f161678012c37a46d74da85a76f9b6b06f00b38461d6eb9dcf95809
 ```
 
 Hybrid evaluation reproducibility hash:
@@ -5196,6 +5313,13 @@ The Hospital claim queue reads current on-chain claims and retains only claims
 whose `hospitalId` exactly matches the authenticated Hospital. Detail lookup
 repeats the ownership check and loads the primary record using both Hospital ID
 and lowercased invoice hash.
+
+For claim version 2, the controller first loads the active normalized appeal,
+recomputes its canonical commitment, and overlays only the committed corrected
+invoice/type/amount facts. It refuses incomplete or tampered correction metadata
+and forbids changing the claim's Hospital ID. The Hospital therefore assesses
+the facts actually committed by the claimant for the new version rather than
+silently reusing version-1 facts.
 
 The deterministic assessment contains six checks:
 

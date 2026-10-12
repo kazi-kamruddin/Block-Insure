@@ -36,6 +36,16 @@ const PRODUCTION_REQUIRED_KEYS = [
   "DEMO_BANK_ACCOUNT_OWNER_ADDRESSES",
 ];
 
+const OFFCHAIN_PREVIEW_REQUIRED_KEYS = [
+  "MONGODB_URI",
+  "JWT_SECRET",
+  "ALLOWED_ORIGINS",
+  "SIWE_URI",
+  "ORACLE_API_KEY",
+  "BANK_OTP_SECRET",
+  "PRE_PROXY_SIGNING_KEYS_JSON",
+];
+
 const CONTRACT_ADDRESS_KEYS = [
   "VITE_CONTRACT_ADDRESS",
   "POLICY_BENEFITS_ADDRESS",
@@ -69,6 +79,7 @@ const parseTrustProxy = (value) => {
 
 const inspectRuntimeEnvironment = (environment = process.env) => {
   const production = environment.NODE_ENV === "production";
+  const blockchainRuntimeEnabled = environment.BLOCKCHAIN_RUNTIME_ENABLED !== "false";
   const failures = [];
   const warnings = [];
   const configuredOrigins = splitCommaSeparated(environment.ALLOWED_ORIGINS);
@@ -81,7 +92,10 @@ const inspectRuntimeEnvironment = (environment = process.env) => {
     : environment.ENABLE_SIMULATED_HOSPITAL_API !== "false";
 
   if (production) {
-    for (const key of PRODUCTION_REQUIRED_KEYS) {
+    const requiredKeys = blockchainRuntimeEnabled
+      ? PRODUCTION_REQUIRED_KEYS
+      : OFFCHAIN_PREVIEW_REQUIRED_KEYS;
+    for (const key of requiredKeys) {
       if (!String(environment[key] || "").trim()) failures.push(`${key} is required`);
     }
 
@@ -91,7 +105,7 @@ const inspectRuntimeEnvironment = (environment = process.env) => {
     if (!validUrl(environment.MONGODB_URI, ["mongodb:", "mongodb+srv:"])) {
       failures.push("MONGODB_URI must be a valid MongoDB connection URL");
     }
-    if (!validUrl(environment.RPC_URL, ["https:", "wss:"])) {
+    if (blockchainRuntimeEnabled && !validUrl(environment.RPC_URL, ["https:", "wss:"])) {
       failures.push("RPC_URL must use HTTPS or WSS in production");
     }
     if (!validUrl(environment.SIWE_URI, ["https:"])) {
@@ -102,43 +116,43 @@ const inspectRuntimeEnvironment = (environment = process.env) => {
         failures.push(`ALLOWED_ORIGINS contains a non-HTTPS origin: ${origin}`);
       }
     }
-    if (!Number.isSafeInteger(Number(environment.CHAIN_ID)) || Number(environment.CHAIN_ID) <= 0) {
+    if (blockchainRuntimeEnabled && (!Number.isSafeInteger(Number(environment.CHAIN_ID)) || Number(environment.CHAIN_ID) <= 0)) {
       failures.push("CHAIN_ID must be a positive integer");
     }
-    if (Number(environment.CHAIN_ID) === 31337) {
+    if (blockchainRuntimeEnabled && Number(environment.CHAIN_ID) === 31337) {
       failures.push("Production must not use the local Hardhat chain ID 31337");
     }
-    for (const key of CONTRACT_ADDRESS_KEYS) {
+    for (const key of blockchainRuntimeEnabled ? CONTRACT_ADDRESS_KEYS : []) {
       if (environment[key] && !isAddress(environment[key])) {
         failures.push(`${key} must be a valid Ethereum address`);
       }
     }
-    for (const key of [
+    for (const key of blockchainRuntimeEnabled ? [
       "CLAIM_OFFICER_WALLET_ADDRESS",
       "AUDITOR_WALLET_ADDRESS",
       "AUDITOR_WALLET_ADDRESS_2",
       "AUDITOR_WALLET_ADDRESS_3",
       "AUDITOR_WALLET_ADDRESS_4",
       "BANK_WALLET_ADDRESS",
-    ]) {
+    ] : []) {
       if (environment[key] && !isAddress(environment[key])) {
         failures.push(`${key} must be a valid Ethereum address`);
       }
     }
-    for (const [key, expectedCount] of [
+    for (const [key, expectedCount] of blockchainRuntimeEnabled ? [
       ["HOSPITAL_WALLET_ADDRESSES", 5],
       ["DEMO_BANK_ACCOUNT_OWNER_ADDRESSES", 3],
-    ]) {
+    ] : []) {
       const addresses = splitCommaSeparated(environment[key]);
       if (addresses.length !== expectedCount || addresses.some((value) => !isAddress(value))) {
         failures.push(`${key} must contain exactly ${expectedCount} valid Ethereum addresses`);
       }
     }
-    for (const key of [
+    for (const key of blockchainRuntimeEnabled ? [
       "ADMIN_PRIVATE_KEY",
       "BANK_PRIVATE_KEY",
       "EVIDENCE_LOG_SIGNER_PRIVATE_KEY",
-    ]) {
+    ] : []) {
       try {
         if (environment[key]) new Wallet(environment[key]);
       } catch {
@@ -147,6 +161,7 @@ const inspectRuntimeEnvironment = (environment = process.env) => {
     }
     try {
       if (
+        blockchainRuntimeEnabled &&
         environment.BANK_PRIVATE_KEY &&
         environment.BANK_WALLET_ADDRESS &&
         new Wallet(environment.BANK_PRIVATE_KEY).address.toLowerCase() !==
@@ -205,12 +220,18 @@ const inspectRuntimeEnvironment = (environment = process.env) => {
         "Simulated hospital API is disabled; hybrid registry and oracle demo endpoints will be unavailable"
       );
     }
+    if (!blockchainRuntimeEnabled) {
+      warnings.push(
+        "Blockchain runtime is disabled; this deployment supports off-chain preview and hosting checks only"
+      );
+    }
   }
 
   if (trustProxy === null) failures.push("TRUST_PROXY must be true, false, or a positive integer");
 
   return {
     allowedOrigins,
+    blockchainRuntimeEnabled,
     failures,
     production,
     simulatedHospitalApiEnabled,
@@ -232,6 +253,7 @@ const assertRuntimeEnvironment = (environment = process.env) => {
 module.exports = {
   CONTRACT_ADDRESS_KEYS,
   LOCAL_ORIGINS,
+  OFFCHAIN_PREVIEW_REQUIRED_KEYS,
   PRODUCTION_REQUIRED_KEYS,
   assertRuntimeEnvironment,
   inspectRuntimeEnvironment,

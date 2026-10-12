@@ -1,11 +1,11 @@
 # Block-Insure Full-System QA Report
 
-Status: **PASS WITH RISKS** — the complete clean-state integrated Playwright campaign passed 30/30, the focused extension passed 11/11 in headed Chromium, and the production-preview suite passed 5/5. The final appeal proof used disposable Docker MongoDB and loopback evidence storage, and both retained follow-up requirements—complete appeal finality and live RPC outage recovery—pass. No executed test remains failing. One operational cleanup risk is documented under BI-QA-013 because interim appeal reruns preceded the final evidence-override fix.
+Status: **PASS** — the complete clean-state integrated Playwright campaign passed 30/30, the focused extension passed 11/11 in headed Chromium, and the production-preview suite passed 5/5. A final 2026-09-17 vulnerable-path rehearsal passed 13/13 selected browser scenarios: four authentication/session checks, four clean-state critical workflows, three boundary/security checks, the encrypted appeal, and RPC outage recovery. No executed final-state test remains failing and no issue remains in the user-retained scope.
 
 ## Environment and source
 
-- Date: 2026-09-11 through 2026-09-13 (Asia/Dhaka)
-- Tested commit: `be1acb7ecf29ecfa26899eb78eeb242a0168037b` on `postPreDefence`; the QA changes and retained reports listed in this document are uncommitted working-tree additions
+- Date: 2026-09-11 through 2026-09-17 (Asia/Dhaka)
+- Tested source tree: now committed as `49aa84ed7bccfd29354afaddfade053ffb79c1cb` on `postPreDefence`; the report/context refinements and final orchestration polish listed in this document remain working-tree additions
 - Initial working tree: one pre-existing untracked `tmp/` directory
 - Runtime URLs: frontend `http://localhost:5173`, API `http://localhost:5000`, RPC `http://127.0.0.1:8545`
 - Configured and observed local chain ID: `31337`
@@ -113,8 +113,26 @@ Integrated authentication passed for User, Admin, Bank, Hospital, and all four A
 | `npm --prefix backEnd run research:manifest` then `npm run verify:repository` | PASS | Reconciled the mutation campaign's regenerated timestamp/hash |
 | Final `npm --prefix contracts run coverage` then `npm run verify:sync` | PASS | 132 pass/1 instrumentation skip; 95.23/64.83/92.18/95.52 percent; normal artifacts restored; manager 24,361/24,576 bytes |
 | Final `npm run verify:full` | PASS | 8/8 aggregate tasks; 133 contract, 104 backend, 13 Oracle, lint, build, repository, dataset, synchronization |
+| Final marginal pass: `npm run verify:all` | PASS | 7/7 offline gates; 133 contract, 112 backend, 13 Oracle, repository integrity, dataset integrity, frontend lint, and 384-module production build |
+| `npm run test:e2e:list:isolated` | PASS | Safe stopped-stack inventory: 40 integrated scenarios in 13 files; no service or database access |
+| Focused claims catalog with the appeal excluded | PASS | Exactly 2 manual-review-finality scenarios; the separately named appeal is no longer executed twice |
+| Final `npm run verify:sync` and `npm run release:check:template` | PASS | ABI/address/authentication synchronization passed; deployment template complete; manager 24,338/24,576 bytes |
+| Final `npm run test:e2e:frontend-production` | PASS | 5/5 in 9.9 s after granting the local runner permission to spawn Chromium; the preceding sandbox `EPERM` was an execution restriction, not an application failure |
+| Final focused authentication/session filter (2026-09-17) | PASS | 4/4 headed: missing token, invalid signature/wrong wallet/wrong chain, nonce replay/logout, and guest direct-navigation/refresh |
+| Final clean `node scripts/runIsolatedE2E.js test:e2e:workflow` | PASS | 4/4 in 2.2 min: EFT/OTP, mandate rejection/replacement/cancellation, automatic Oracle settlement, and manual Auditor settlement |
+| Final `test:e2e:unfinished:boundaries` / `appeal` / `rpc` | PASS | 3/3 in 18.2 s, 1/1 in 1.3 min, and 1/1 in 0.9 s respectively |
+| Final `npm --prefix backEnd test` | PASS | Section 3 analytics harness plus 113/113 backend tests |
+| Final manifest regeneration and `npm run verify:repository` | PASS | Research manifest refreshed; all seven repository-integrity groups passed |
 
-Unique current tests are 303 standard tests (133 contract + 112 backend + 13 Oracle + 40 integrated Playwright + 5 production Playwright), plus eight killed mutation cases. Stateful, coverage, and focused reruns repeat subsets and are not double-counted. The backend command also contains its separate Section 3 analytics harness.
+Unique current tests are 304 standard tests (133 contract + 113 backend + 13 Oracle + 40 integrated Playwright + 5 production Playwright), plus eight killed mutation cases. Stateful, coverage, and focused reruns repeat subsets and are not double-counted. The backend command also contains its separate Section 3 analytics harness.
+
+The 2026-09-13 marginal pass made no product or protocol change. It completed
+three small maintenance improvements: a stopped-stack Playwright catalog
+command, an exact two-test filter for manual-review finality so the appeal is
+not duplicated, and complete second-Hospital/beneficiary entries in the E2E
+environment template. A regression assertion guards the orchestration scripts,
+and the research manifest was regenerated after the tracked source inventory
+changed.
 
 Evidence:
 
@@ -221,11 +239,17 @@ Reproduction: the old readiness response could remain healthy when the configure
 
 Fix: readiness now performs bounded loopback JSON-RPC checks for `eth_chainId` and manager `eth_getCode`, requires chain ID 31337 in the local campaign, and fails closed with a sanitized 503. A local RPC proxy provides deterministic pause/resume injection. Unit tests cover outage, wrong chain, and missing bytecode; live Playwright proves readiness 200 → 503 → 200 while liveness remains 200.
 
-### BI-QA-013 — isolated evidence override was not forwarded to the backend (High, fixed; cleanup authorization required)
+### BI-QA-013 — isolated evidence gateway was not forwarded to the browser (Medium)
 
-Reproduction: start the isolated launcher with `E2E_PINATA_API_URL` and `E2E_PINATA_JWT`. Before the fix, those names stayed in the parent environment while the backend reads `PINATA_API_BASE_URL` and `PINATA_JWT`; interim appeal executions could therefore use the saved provider configuration instead of the loopback simulator.
+Reproduction: start the isolated launcher with `E2E_PINATA_API_URL` and `E2E_PINATA_JWT`, submit encrypted evidence, grant an assigned Auditor access, and request browser decryption. The backend uploaded to the loopback Pinata simulator, but the frontend still used its public default gateway, so the download failed even though upload and delegation succeeded.
 
-Fix: the launcher now translates the E2E-only variables into backend variables inside spawned processes, reduces the supplied upload URL to its loopback origin, and prints only a sanitized `evidenceHost`. A source regression guards the mapping. The final clean headed run reported `evidenceHost=127.0.0.1`, uploaded both synthetic encrypted files through the local simulator, and passed in 1.5 minutes. Any synthetic encrypted pins created by interim runs were not inspected or removed because that would require an external Pinata operation outside the local-only authorization.
+Fix: the launcher now translates the E2E-only variables into backend variables and also injects a matching `VITE_IPFS_GATEWAY` into the frontend. A source regression guards the mapping. The exact failed journey then passed in 58.5 seconds, its repeat passed in 57.0 seconds, and the clean four-test workflow suite passed 4/4. All final evidence traffic stayed on `127.0.0.1:5055`.
+
+### BI-API-014 — claim burst limiter shared one counter across wallets (Medium)
+
+Reproduction: submit claims from authenticated wallets behind the same IP address. The database's 24-hour business rule was wallet-scoped, but the short-window Express limiter used only the client IP, allowing one wallet to consume the allowance for every other wallet on the same NAT or local runner.
+
+Fix: the authenticated claim limiter now keys on a normalized wallet address, while retaining an IPv6-safe IP fallback. The development-only reset endpoint clears both the persistent attempt allowance and the matching in-memory limiter key. A unit regression proves wallets on one network receive independent keys, the complete backend suite passes 113/113, and repeated headed claim workflows no longer fail from a shared IP counter. On-chain duplicate-invoice protection remains intentionally immutable, so state-changing workflow suites must still begin from the documented clean chain.
 
 ## Isolation and safety evidence
 
@@ -234,7 +258,7 @@ Fix: the launcher now translates the E2E-only variables into backend variables i
 - The final launcher used `mongodb://127.0.0.1:27018/block_insure_e2e` and enforced loopback MongoDB. The container had no persistent volume, was named exactly `block-insure-e2e-mongo`, and was confirmed absent after `docker stop` auto-removed it.
 - The original `block_insure` inventory was 10,079 documents before testing and 10,079 after testing. No collection count changed.
 - All ten privileged/non-privileged actor categories used publicly documented Hardhat development accounts. No live wallet or network was queried.
-- Synthetic registry records and two small encrypted synthetic evidence files were used. The final proof used only the local Pinata-compatible simulator. BI-QA-013 records the separate interim-routing cleanup risk without exposing any provider credential or content identifier.
+- Synthetic registry records and two small encrypted synthetic evidence files were used. The final proof used only the local Pinata-compatible simulator. The project owner accepted any interim encrypted synthetic pins as harmless test residue.
 - The Atlas `block_insure_e2e` evidence remains retained at 10,228 documents for inspection. The disposable Docker database independently reached the same 10,228-document deterministic state before its container was removed.
 
 ## Accessibility, responsive, performance, and browser observations
@@ -263,7 +287,7 @@ The final integrated suite completed in approximately 298 seconds across five or
 
 ## Retained-scope completion
 
-The complete 30-test integrated campaign, 11 focused executions, and five-test production suite all passed. The project owner's retained product scope contained two requirements: the full appeal journey and live RPC outage/readiness/recovery. Both are now implemented, regression-tested, exercised against the disposable local stack, and supported by separate passing Playwright HTML reports. There are no remaining product failures or blockers in that scope. The only outstanding action is optional external cleanup described in BI-QA-013, which was not authorized by the local-only campaign.
+The complete 30-test integrated campaign, 11 focused executions, and five-test production suite all passed. The project owner's retained product scope contained two requirements: the full appeal journey and live RPC outage/readiness/recovery. Both are now implemented, regression-tested, exercised against the disposable local stack, and supported by separate passing Playwright HTML reports. There are no remaining failures, risks, cleanup actions, or blockers in that retained scope.
 
 ## Exact full-campaign reproduction
 

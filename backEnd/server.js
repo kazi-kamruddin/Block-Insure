@@ -273,18 +273,24 @@ const closeHttpServer = () =>
 const startServer = async () => {
   try {
     await connectDatabase();
-    await startBlockchainIndexer();
-    startEvidenceAnchorScheduler();
-    await startBlockchainEventListener();
-    startBankPaymentScheduler();
+    if (runtimeConfig.blockchainRuntimeEnabled) {
+      await startBlockchainIndexer();
+      startEvidenceAnchorScheduler();
+      await startBlockchainEventListener();
+      startBankPaymentScheduler();
+    } else {
+      console.warn("[Backend] Blockchain runtime disabled; starting in off-chain preview mode");
+    }
 
     await listenForRequests();
   } catch (error) {
     console.error("Backend startup failed:", error.message);
-    stopBlockchainIndexer();
-    stopEvidenceAnchorScheduler();
-    stopBankPaymentScheduler();
-    await stopBlockchainEventListener().catch(() => undefined);
+    if (runtimeConfig.blockchainRuntimeEnabled) {
+      stopBlockchainIndexer();
+      stopEvidenceAnchorScheduler();
+      stopBankPaymentScheduler();
+      await stopBlockchainEventListener().catch(() => undefined);
+    }
     await mongoose.connection.close().catch(() => undefined);
     process.exit(1);
   }
@@ -300,10 +306,12 @@ const shutdownServer = async (signal) => {
   try {
     console.log(`${signal} received. Stopping backend services...`);
     await closeHttpServer();
-    await stopBlockchainEventListener();
-    stopBlockchainIndexer();
-    stopEvidenceAnchorScheduler();
-    stopBankPaymentScheduler();
+    if (runtimeConfig.blockchainRuntimeEnabled) {
+      await stopBlockchainEventListener();
+      stopBlockchainIndexer();
+      stopEvidenceAnchorScheduler();
+      stopBankPaymentScheduler();
+    }
     await mongoose.connection.close();
     console.log("Backend services stopped cleanly");
     process.exit(0);

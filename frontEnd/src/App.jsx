@@ -75,6 +75,7 @@ const BankDashboardPage = lazy(() => import("./pages/BankDashboardPage"));
 const BankingPage = lazy(() => import("./pages/BankingPage"));
 
 import "./App.css";
+import "./styles/modern-system.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

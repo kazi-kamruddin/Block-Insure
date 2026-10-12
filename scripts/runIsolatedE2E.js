@@ -68,7 +68,12 @@ const isolatedEnvironment = {
   E2E_APP_URL: "http://localhost:5173",
   E2E_API_URL: "http://localhost:5000",
   E2E_HEADED: process.env.E2E_HEADED || "true",
-  ...(e2ePinataBaseUrl ? { PINATA_API_BASE_URL: e2ePinataBaseUrl } : {}),
+  ...(e2ePinataBaseUrl
+    ? {
+        PINATA_API_BASE_URL: e2ePinataBaseUrl,
+        VITE_IPFS_GATEWAY: `${e2ePinataBaseUrl}/ipfs/`,
+      }
+    : {}),
   ...(process.env.E2E_PINATA_JWT
     ? { PINATA_JWT: process.env.E2E_PINATA_JWT }
     : {}),

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-09-12T20:58:25.477Z",
+  "generatedAt": "2026-10-12T10:51:50.659Z",
   "source": {
-    "gitCommit": "be1acb7ecf29ecfa26899eb78eeb242a0168037b",
+    "gitCommit": "49aa84ed7bccfd29354afaddfade053ffb79c1cb",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -19,32 +19,32 @@
     "root": {
       "name": "block-insure-local-workflow",
       "version": "1.0.0",
-      "packageJsonSha256": "3c879dcd71cdbae40b9de03d476dbe3a38c1a1ba821c02dc9b7bc070b178ffa5",
+      "packageJsonSha256": "47614ca95b7138f17ecdc4e755c73f7a79cda37fefddfb8a05519ded66446428",
       "packageLockSha256": "ab1cd59e1bc12401bc826293981260ce3f18fbff801982f4c607d3b0f5d1a710"
     },
     "backend": {
       "name": "backend",
       "version": "1.0.0",
       "packageJsonSha256": "01cace33eb597cd11003d7b70d314efc40ad3e904e043dda19c1af0adf22797f",
-      "packageLockSha256": "c9fd8c21c869e331faef2c2d2a38202e72a87e33e66531ea49c3690b2804d066"
+      "packageLockSha256": "9a51c01ac960f8079cefa704df23106ecef830442fe160bf5bd199db0796e8a2"
     },
     "contracts": {
       "name": "contracts",
       "version": "1.0.0",
       "packageJsonSha256": "fd86b19edd0613adba45b670712a73bafd87be4ae5c7d7d6756704e4891e7566",
-      "packageLockSha256": "756cb5ab8430401385a9ba3aa63885bbc40054c7e7a0843b63c54e7532de71d9"
+      "packageLockSha256": "2e76185ac3fd2c77f1db14a4ad51fbc3474c260783e161fa44b4699044fa3105"
     },
     "frontend": {
       "name": "frontend",
       "version": "1.0.0",
-      "packageJsonSha256": "0fb2af2e646cba0a555ff93b47d77b6efae744bd028a6c4930b576aae0fb5960",
-      "packageLockSha256": "4c6aa15dd745e9d6e25cf4c097819c0edcc82a04e3366f66ab81cad5c868daf3"
+      "packageJsonSha256": "2fd28609e2a90eec92119ac8b1ec5ce1c2e68edb551a8b7600e72df2efd33e5b",
+      "packageLockSha256": "664b91d95822fa5a030bb840b3473a574425a3b89b7cef51e1eea2d9bdbad19f"
     },
     "oracle": {
       "name": "oracle",
       "version": "1.0.0",
       "packageJsonSha256": "7d14f6e3b551be4b80683dbdf2704528786c02c7c3ceb1d1ba33e68fdfcc0c9e",
-      "packageLockSha256": "ac6c5360a74fef8fc1783d344ce59073066acc116c9b130c37ade0836be909a0"
+      "packageLockSha256": "cc3ed4fcb36ed515c3df8466dc5bfea38641252a3f05e1ca0dc9e90846cf3356"
     }
   },
   "implementation": {
@@ -74,7 +74,7 @@
     "oracle/independentAssessment.js": "da8eb0fb4510ba41e1cc4e92b9766ac900c042e168d1f5f51c8f228e1d132b24",
     "backEnd/test/phase6CapacityTriage.test.js": "d792002c9306650b61f0d4b3c94ad1ab7541dfb1c3815c6d2b299be724768947",
     "backEnd/test/phase7ReserveEvidence.test.js": "a5971ea0e016c053eec88e37e38ad5f1a4681cc30a685e669fb336765deaa777",
-    "backEnd/test/phase8OperationalHardening.test.js": "c2e1b55a3b7e97debdf9818422b842b4e8055f85155cf05a64f82d65ebcc42f2",
+    "backEnd/test/phase8OperationalHardening.test.js": "024b7882219c9fcc8c5605f852418071a72eca7428b4ef458975a1d756f9c78d",
     "contracts/hardhat.config.js": "b6b0937cee5de666cfb029e6b57944cec4111fb99353a980bf8ca31f7da13513",
     "contracts/mutations/manifest.json": "6e5bd5d9e6f0346d684a7b22c00dfc39dcca60b6929b538eb9ab50444d2fa792",
     "contracts/scripts/runMutationCampaign.js": "80d4883c3f7f7f861a9c4dbf970c44f35861bc158b9641363b239e6e0e242bf4",
@@ -298,7 +298,7 @@
       },
       "mutationCampaign": {
         "path": "contracts/mutation-results.json",
-        "executionFileSha256": "5522d5120864198ade02b0e64162a98c636eca544f93bcfd0caeca364a982440",
+        "executionFileSha256": "da5749db1dd61cdc3990d6bc3d165c06381c528c35afba873ce9bdc9fb1b657d",
         "summary": {
           "requested": 8,
           "valid": 8,
@@ -344,5 +344,5 @@
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "5c56954b88599c0b706289c485e4bb0b9db9cc8f915f78cca8b0cc1d1b86f7c2"
+  "reproducibilityHash": "d2569e17e8610c595b992d0e25a36a4c254f727c997acfec28be383f386c9920"
 }

@@ -25,14 +25,25 @@ export default function RoleWorkspaceLayout({
   }
 
   return (
-    <div>
-      <nav className="subnav" aria-label={navigationLabel}>
-        {links.map(({ end = false, label, to }) => (
-          <NavLink key={to} to={to} end={end}>
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+    <div className="workspace-shell" data-role={expectedRole.toLowerCase()}>
+      <div className="workspace-navigation">
+        <div className="workspace-identity" aria-hidden="true">
+          <span className="workspace-identity-icon">
+            {expectedRole.slice(0, 1)}
+          </span>
+          <span>
+            <small>Secure workspace</small>
+            <strong>{workspace?.label || expectedRole}</strong>
+          </span>
+        </div>
+        <nav className="subnav" aria-label={navigationLabel}>
+          {links.map(({ end = false, label, to }) => (
+            <NavLink key={to} to={to} end={end}>
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
       <Outlet />
     </div>
   );

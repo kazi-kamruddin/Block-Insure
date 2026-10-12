@@ -95,3 +95,33 @@ test("keeps local development defaults compatible", () => {
   assert.equal(result.simulatedHospitalApiEnabled, true);
   assert.ok(result.allowedOrigins.some((origin) => origin.includes("localhost")));
 });
+
+test("accepts a deliberately limited production off-chain preview", () => {
+  const environment = productionEnvironment();
+  environment.BLOCKCHAIN_RUNTIME_ENABLED = "false";
+  for (const key of [
+    "RPC_URL",
+    "CHAIN_ID",
+    "VITE_CONTRACT_ADDRESS",
+    "POLICY_BENEFITS_ADDRESS",
+    "EVIDENCE_REGISTRY_ADDRESS",
+    "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS",
+    "BANK_IDENTITY_REGISTRY_ADDRESS",
+    "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS",
+    "ADMIN_PRIVATE_KEY",
+    "BANK_PRIVATE_KEY",
+    "BANK_WALLET_ADDRESS",
+    "CLAIM_OFFICER_WALLET_ADDRESS",
+    "AUDITOR_WALLET_ADDRESS",
+    "AUDITOR_WALLET_ADDRESS_2",
+    "AUDITOR_WALLET_ADDRESS_3",
+    "AUDITOR_WALLET_ADDRESS_4",
+    "HOSPITAL_WALLET_ADDRESSES",
+    "DEMO_BANK_ACCOUNT_OWNER_ADDRESSES",
+  ]) delete environment[key];
+
+  const result = assertRuntimeEnvironment(environment);
+  assert.equal(result.production, true);
+  assert.equal(result.blockchainRuntimeEnabled, false);
+  assert.match(result.warnings.join("\n"), /off-chain preview/i);
+});

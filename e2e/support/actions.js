@@ -7,6 +7,24 @@ async function loginActor(page, actor) {
   await expect(page.locator(".wallet-role")).toHaveText(actor.role);
 }
 
+async function resetLocalClaimSubmissionLimit(page) {
+  const apiBaseUrl = process.env.E2E_API_URL || "http://localhost:5000";
+  const result = await page.evaluate(async (baseUrl) => {
+    const token = localStorage.getItem("blockinsure_jwt");
+    const response = await fetch(`${baseUrl}/api/claims/submission-limit/me`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    return { ok: response.ok, status: response.status, body: await response.text() };
+  }, apiBaseUrl);
+
+  if (!result.ok) {
+    throw new Error(
+      `Could not reset the local E2E claim allowance (${result.status}): ${result.body}`
+    );
+  }
+}
+
 function uniqueEvidenceFile() {
   const onePixelPng = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -26,4 +44,9 @@ function localDateTimeValue(date = new Date()) {
   return local.toISOString().slice(0, 19);
 }
 
-module.exports = { localDateTimeValue, loginActor, uniqueEvidenceFile };
+module.exports = {
+  localDateTimeValue,
+  loginActor,
+  resetLocalClaimSubmissionLimit,
+  uniqueEvidenceFile,
+};

@@ -11,6 +11,7 @@ const {
   uniqueEvidenceFile,
 } = require("../support/actions");
 const { closeActor, createActorContext } = require("../support/walletBridge");
+const { requireDisposableE2EMongoUri } = require("../support/environment");
 
 function backendEnv(name) {
   const source = fs.readFileSync(path.resolve(__dirname, "../../backEnd/.env"), "utf8");
@@ -324,10 +325,7 @@ test.describe("@unfinished manual-review finality", () => {
       const documents = await manager.getClaimDocuments(claimId);
       expect(documents).toHaveLength(2);
 
-      const mongoUri = process.env.MONGODB_URI || "";
-      const parsedMongo = new URL(mongoUri);
-      expect(["127.0.0.1", "localhost", "::1"]).toContain(parsedMongo.hostname);
-      expect(parsedMongo.pathname).toBe("/block_insure_e2e");
+      const mongoUri = requireDisposableE2EMongoUri();
       const mongo = await mongoose.createConnection(mongoUri).asPromise();
       let appeal;
       try {
