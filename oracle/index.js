@@ -21,6 +21,7 @@ const {
   buildSalt,
 } = require("./protocol");
 const { loadCursorState, persistCursorState } = require("./cursorState");
+const { isWorkerReady } = require("./workerHealth");
 const {
   assertRequestModelIdentity,
   loadAndVerifyModelArtifact,
@@ -624,18 +625,23 @@ const startOracle = async () => {
 
   const oracleRole = await manager.ORACLE_ROLE();
   if (!(await manager.hasRole(oracleRole, oracleWallet.address))) {
-    console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Wallet does not have ORACLE_ROLE`);
+    throw new Error("Configured wallet does not have ORACLE_ROLE");
   }
   await loadPersistedCursor();
   await pollOracleRequests();
   serviceState.initialized = true;
-  serviceState.lastError = "";
   pollTimer = setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);
 };
 
+const workerReady = () => isWorkerReady({
+  enabled: ORACLE_WORKER_ENABLED,
+  state: serviceState,
+  pollIntervalMs: ORACLE_POLL_INTERVAL_MS,
+});
+
 const sanitizedHealth = () => ({
-  success: serviceState.initialized,
-  status: serviceState.initialized ? "ready" : "starting",
+  success: workerReady(),
+  status: workerReady() ? "ready" : serviceState.initialized ? "degraded" : "starting",
   oracleInstanceId: ORACLE_INSTANCE_ID,
   workerEnabled: ORACLE_WORKER_ENABLED,
   oracleWallet: oracleWallet?.address || "",
@@ -645,7 +651,7 @@ const sanitizedHealth = () => ({
   startedAt: serviceState.startedAt,
   lastPollAt: serviceState.lastPollAt,
   lastSuccessfulPollAt: serviceState.lastSuccessfulPollAt,
-  healthDetail: serviceState.lastError
+  healthDetail: !workerReady()
     ? ORACLE_WORKER_ENABLED
       ? "Oracle worker is not ready; inspect private service logs"
       : "Oracle worker is disabled until a shared blockchain is configured"
@@ -667,12 +673,12 @@ const startHealthServer = () => {
       response.writeHead(200).end(JSON.stringify({
         ...sanitizedHealth(),
         success: true,
-        status: serviceState.initialized ? "ready" : "alive",
+        status: workerReady() ? "ready" : "alive",
       }));
       return;
     }
     if (request.url === "/health/ready") {
-      response.writeHead(serviceState.initialized ? 200 : 503).end(
+      response.writeHead(workerReady() ? 200 : 503).end(
         JSON.stringify(sanitizedHealth())
       );
       return;

@@ -11,7 +11,9 @@ const allowedMimeTypes = [
 
 const fileFilter = (req, file, cb) => {
   if (!allowedMimeTypes.includes(file.mimetype)) {
-    return cb(new Error("Only PDF, JPG, and PNG files are allowed"), false);
+    const error = new Error("Only PDF, JPG, PNG, or encrypted evidence files are allowed");
+    error.statusCode = 415;
+    return cb(error, false);
   }
 
   cb(null, true);
@@ -22,7 +24,21 @@ const upload = multer({
   fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024,
+    files: 1,
   },
 });
+
+const single = upload.single.bind(upload);
+upload.single = (fieldName) => {
+  const parse = single(fieldName);
+  return (req, res, next) => parse(req, res, (error) => {
+    if (error instanceof multer.MulterError) {
+      error.statusCode = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+    } else if (error && !error.statusCode) {
+      error.statusCode = 400;
+    }
+    next(error);
+  });
+};
 
 module.exports = upload;

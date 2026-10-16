@@ -183,6 +183,12 @@ npm run test:e2e:frontend-production
 
 Its HTML report is written to `playwright-report-frontend/`.
 
+The production-quality suite uses Playwright's matching Chromium build by
+default. If that build is unavailable, an explicitly installed Chromium can be
+selected for a local smoke check with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
+Record that browser override with the result; it is not proof of the default
+bundled browser. Clear the variable to restore the default.
+
 ## File layout
 
 - `tests/public-smoke.spec.js` — public site and API availability

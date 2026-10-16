@@ -1,8 +1,10 @@
-# Block-Insure Deep Technical Reference
+# Block-Insure Deep Technical Reference — historical snapshot
 
-> A standalone code-oriented reference for the current repository.
+> **Historical material, last source audit 2026-09-13.** This tracked file is retained for detailed implementation and research history. It is not the current project context. For the 2026-10-13 review, use `reference/context Block_Insure 13oct.md` and the four files in `.project-context/`. Recheck every historical claim against current source before using it as current evidence.
+
+> A standalone code-oriented reference for the repository as audited in September 2026.
 >
-> This document is intentionally more detailed than the supervisor overview. It explains the implementation boundaries, state machines, data contracts, algorithms, transaction choreography, operational assumptions, and research interpretation of the current repository.
+> This document preserves implementation boundaries, state machines, data contracts, algorithms, transaction choreography, operational assumptions, and research interpretation from that audit.
 
 **Repository:** `Block-Insure`  
 **Reference directory:** `reference/` (singular)  

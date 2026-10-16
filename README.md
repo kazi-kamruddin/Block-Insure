@@ -318,4 +318,5 @@ cannot replace a valid JSON file with a partially written one.
 - [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
 - [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
 - [Six-page thesis paper](output/pdf/block-insure-six-page-paper.pdf)
-- [Deep technical reference](reference/block-insure-deep-technical-reference.md)
+- [Current portable project context](reference/context%20Block_Insure%2013oct.md) (local, ignored by Git)
+- [Historical deep technical reference](reference/block-insure-deep-technical-reference.md)

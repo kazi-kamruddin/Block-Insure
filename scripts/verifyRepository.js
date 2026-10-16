@@ -20,9 +20,13 @@ const assert = (condition, message, failures) => {
   if (!condition) failures.push(message);
 };
 
-const validateNodeVersion = () => {
-  const [major, minor] = process.versions.node.split(".").map(Number);
-  return major > 22 || (major === 22 && minor >= 12) || (major === 20 && minor >= 19);
+const validateNodeVersion = (version = process.versions.node) => {
+  const [major, minor] = String(version).replace(/^v/, "").split(".").map(Number);
+  return (
+    (major === 20 && minor >= 19) ||
+    (major === 22 && minor >= 12) ||
+    major === 24
+  );
 };
 
 const verifyPackageMetadata = (failures) => {
@@ -188,7 +192,11 @@ const verifyTemporaryState = (failures) => {
 
 const run = () => {
   const failures = [];
-  assert(validateNodeVersion(), `Node ${process.versions.node} is unsupported; use Node 20.19+, 22.12+, or newer`, failures);
+  assert(
+    validateNodeVersion(),
+    `Node ${process.versions.node} is unsupported; use Node 20.19+, 22.12+, or 24.x`,
+    failures
+  );
   verifyPackageMetadata(failures);
   verifyEnvironmentTemplates(failures);
   verifyDeploymentAssets(failures);

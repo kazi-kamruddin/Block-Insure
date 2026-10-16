@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { getNonce } = require("../controllers/authController");
+const { getNonce, walletLogin } = require("../controllers/authController");
 const requireOracleApiKey = require("../middleware/oracleApiKeyMiddleware");
 const {
   claimSubmissionKey,
@@ -38,6 +38,24 @@ test("malformed SIWE wallet input is a client error and never reaches MongoDB", 
   assert.equal(receivedError?.statusCode, 400);
   assert.equal(receivedError?.message, "Invalid wallet address");
   assert.equal(response.statusCode, 0);
+});
+
+test("malformed SIWE payloads return client errors without database access or parser details", async () => {
+  const originalSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = "synthetic-auth-validation-test-secret";
+  try {
+    for (const body of [undefined, {}, { message: {}, signature: [] },
+      { message: "invalid SIWE text", signature: "0x00" }]) {
+      let error;
+      await walletLogin({ body }, responseRecorder(), (received) => { error = received; });
+      assert.equal(error?.statusCode, 400);
+      assert.match(error.message, /SIWE message/);
+      assert.doesNotMatch(error.message, /parser|line [0-9]|position|input length/i);
+    }
+  } finally {
+    if (originalSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = originalSecret;
+  }
 });
 
 test("role middleware distinguishes missing authentication from wrong role", () => {

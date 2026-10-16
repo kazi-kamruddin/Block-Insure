@@ -42,17 +42,12 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Local-only reference material. Keep the current authoritative overview trackable;
-# the older archive remains local-only.
-reference/*
-!reference/
-!reference/block-insure-current-project-overview.md
-!reference/block-insure-deep-technical-reference.md
-!reference/BLOCK_INSURE_PROJECT_RESEARCH_CONTEXT.md
+# Portable context and local research references. Existing tracked files stay tracked.
+/reference/
+/.project-context/
 
 # Local reference/planning files
 project overview.docx
 task checklist.md
-.project-context/
 paper-evidence/
 contracts/.venv-slither/
