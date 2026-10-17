@@ -1,5 +1,6 @@
 import { Link, Outlet } from "react-router-dom";
 import Footer from "../components/Footer";
+import ThemeToggle from "../components/ThemeToggle";
 import WalletConnectButton from "../components/WalletConnectButton";
 import { useWallet } from "../context/useWallet";
 
@@ -7,7 +8,7 @@ export default function PublicLayout() {
   const { isConnected, workspace } = useWallet();
 
   return (
-    <div className="app-shell relative isolate overflow-x-clip bg-ink-950 text-slate-100">
+    <div className="app-shell relative isolate overflow-x-clip">
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
@@ -46,7 +47,10 @@ export default function PublicLayout() {
           )}
         </div>
 
-        <WalletConnectButton />
+        <div className="nav-actions">
+          <ThemeToggle />
+          <WalletConnectButton />
+        </div>
       </nav>
 
       <main className="app-main relative z-1" id="main-content" tabIndex="-1">

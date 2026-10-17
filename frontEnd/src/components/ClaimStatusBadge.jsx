@@ -10,6 +10,7 @@ export default function ClaimStatusBadge({ status, showHelp = false }) {
         className={`status-badge status-${label.toLowerCase()}`}
         title={explanation}
       >
+        <span className="status-dot" aria-hidden="true" />
         {label}
       </span>
 

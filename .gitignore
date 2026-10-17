@@ -51,3 +51,16 @@ project overview.docx
 task checklist.md
 paper-evidence/
 contracts/.venv-slither/
+
+# ==========================================
+# AI Agent files and local skill packages
+# ==========================================
+.agents/
+.agent/
+_agents/
+_agent/
+skills/
+AGENTS.md
+AGENT.md
+agent.md
+GEMINI.md
