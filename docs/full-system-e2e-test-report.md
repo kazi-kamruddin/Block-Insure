@@ -136,6 +136,10 @@ changed.
 
 Evidence:
 
+The HTML reports and coverage pages listed below are generated local artifacts,
+excluded from Git. The dated JSON summaries remain tracked. Historical report
+paths describe that campaign; a fresh run produces evidence for its own revision.
+
 - `verification-results/phase5-verification.json` — final aggregate and durations
 - `contracts/coverage/index.html` — contract coverage
 - `contracts/mutation-results.json` — mutation outcomes

@@ -289,8 +289,9 @@ npm run research:paper-evidence
 ```
 
 The paper-evidence command writes its generated tables, figures, and section map
-to the ignored local `paper-evidence/` directory. The tracked six-page paper is
-available at [`output/pdf/block-insure-six-page-paper.pdf`](output/pdf/block-insure-six-page-paper.pdf).
+to the ignored local `paper-evidence/` directory. Generated paper PDFs and source
+archives live in the ignored local `output/` directory and are not included in a
+fresh clone. See [repository artifact storage](docs/repository-artifacts.md).
 
 The admin **Thesis Results** dashboard reads generated artifacts from
 `backEnd/evaluation-results`.
@@ -317,6 +318,6 @@ cannot replace a valid JSON file with a partially written one.
 - [Current protocol migration manifest](docs/protocol-v2-migration.json)
 - [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
 - [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
-- [Six-page thesis paper](output/pdf/block-insure-six-page-paper.pdf)
+- Six-page thesis paper: local `output/pdf/block-insure-six-page-paper.pdf` (ignored)
 - [Current portable project context](reference/context%20Block_Insure%2013oct.md) (local, ignored by Git)
-- [Historical deep technical reference](reference/block-insure-deep-technical-reference.md)
+- Historical deep technical reference: local `reference/block-insure-deep-technical-reference.md` (ignored)

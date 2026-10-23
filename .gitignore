@@ -1,8 +1,5 @@
 # Dependencies
 node_modules/
-/tmp/stabilization-*/
-/playwright-reports/stabilization/
-/playwright-report-frontend/
 .hardhat-appdata/
 .hardhat-localappdata/
 
@@ -18,6 +15,20 @@ contracts/deployments/*.json
 dist/
 build/
 coverage/
+
+# Local exports, scratch work, and generated browser reports
+/tmp/
+/output/
+/playwright-reports/
+/playwright-report-frontend/
+# Keep small dated verification summaries; exclude generated media and traces.
+/verification-results/**/*.png
+/verification-results/**/*.jpg
+/verification-results/**/*.jpeg
+/verification-results/**/*.webp
+/verification-results/**/*.mp4
+/verification-results/**/*.webm
+/verification-results/**/*.zip
 
 # Large local hybrid healthcare source and generated row files
 backEnd/datasets/hybrid-v1/raw/*.csv
@@ -45,7 +56,7 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Portable context and local research references. Existing tracked files stay tracked.
+# Portable context and local research references
 /reference/
 /.project-context/
 
