@@ -34,6 +34,7 @@ const IndexedBlockchainEvent = require("../models/IndexedBlockchainEvent");
 const IndexerCheckpoint = require("../models/IndexerCheckpoint");
 const RegistryPublication = require("../models/RegistryPublication");
 const RegistrySnapshotChunk = require("../models/RegistrySnapshotChunk");
+const ChainReadSnapshot = require("../models/ChainReadSnapshot");
 const {
   buildSyntheticRecords,
 } = require("./seedMockData");
@@ -48,6 +49,7 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 }
 
 const collections = [
+  ["chain read projections", ChainReadSnapshot],
   ["registry publication jobs", RegistryPublication],
   ["registry snapshot archives", RegistrySnapshotChunk],
   ["admin action logs", AdminActionLog],

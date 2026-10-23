@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ethers } from "ethers";
 
 import { downloadPolicyTerms, getPolicyBenefits } from "../services/api";
@@ -80,6 +81,7 @@ export default function BenefitClaimPage() {
   return (
     <section className="page-container page-benefit-claim">
       <h2>Beneficiary Benefit Request</h2>
+      <p>For surrender, maturity and beneficiary management, open the relevant policy in <Link to="/user/policies">My Policies</Link>. This page handles registered beneficiaries' death-benefit requests.</p>
       <p className="muted-text">
         Registered beneficiaries can inspect a policy's death-benefit schedule and
         submit a hashed evidence reference. Administrators must verify the original

@@ -334,7 +334,8 @@ export async function downloadDecryptedEvidence(
   cid,
   gatewayBase,
   documentId,
-  expectedEncryptedSha256Hash = ""
+  expectedEncryptedSha256Hash = "",
+  preview = false
 ) {
   if (!documentId) throw new Error("Document identity is required for protected evidence");
   const walletAddress = localStorage.getItem("blockinsure_wallet");
@@ -381,9 +382,9 @@ export async function downloadDecryptedEvidence(
     aesKey,
     ciphertext
   );
-  const objectUrl = URL.createObjectURL(
-    new Blob([plaintext], { type: envelope.originalMimeType || "application/octet-stream" })
-  );
+  const blob = new Blob([plaintext], { type: envelope.originalMimeType || "application/octet-stream" });
+  if (preview) return blob;
+  const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
   anchor.download = envelope.originalName || "decrypted-evidence";

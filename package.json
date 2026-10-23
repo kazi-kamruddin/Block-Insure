@@ -39,9 +39,11 @@
     "test:stabilization:stack": "node scripts/stabilizationStack.js",
     "test:stabilization": "node scripts/runStabilizationE2E.js",
     "test:stabilization:storage": "node --test backEnd/test/stabilizationStorage.integration.js",
+    "dev": "node scripts/devAll.js",
+    "dev:chain": "npm --prefix contracts run node",
     "dev:all": "node scripts/devAll.js",
-    "dev:bootstrap": "node scripts/devAll.js --bootstrap",
-    "dev:hybrid": "node scripts/devAll.js --bootstrap --hybrid",
+    "dev:bootstrap": "node scripts/devAll.js --bootstrap --reset",
+    "dev:hybrid": "node scripts/devAll.js --bootstrap --hybrid --reset",
     "dev:e2e-isolated": "node scripts/runIsolatedE2E.js dev:hybrid",
     "dev:pinata-mock": "node scripts/localPinataMock.js",
     "dev:rpc-proxy": "node scripts/localRpcProxy.js",
@@ -65,7 +67,6 @@
     "verify:sync": "node scripts/verifySynchronization.js"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
-    "mongodb-memory-server": "^11.3.0"
+    "@playwright/test": "^1.55.0"
   }
 }

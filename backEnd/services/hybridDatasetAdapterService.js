@@ -263,6 +263,7 @@ const buildBaseHybridRecord = ({
     previousClaimCount,
     providerVelocityAnomaly,
     claimantVelocityAnomaly,
+    observableHistory: { previousClaimCount, providerVelocityAnomaly, claimantVelocityAnomaly },
     nearDuplicateAdvisory: false,
     isMissingOrNoisy: false,
     dataQuality: "COMPLETE",

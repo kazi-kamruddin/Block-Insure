@@ -78,6 +78,7 @@ export default function BankingPage() {
       <span className="dashboard-eyebrow">Policyholder banking</span>
       <h2>Premium payments and standing EFT instructions</h2>
       <p>Quarterly EFT runs automatically after bank approval and never asks for OTP. OTP is required only when you initiate a manual bank payment.</p>
+      <p>Bank balances and OTP delivery are simulated. A paid premium is confirmed separately by its blockchain transaction.</p>
     </header>
 
     <div className="banking-grid">
@@ -95,7 +96,7 @@ export default function BankingPage() {
         <div className="eft-summary"><span>Destination</span><strong>Block-Insure premium treasury</strong><span>Frequency</span><strong>Every 90 days</strong><span>Premium</span><strong>{selectedPolicy?.premiumAmountEth || "—"} ETH / bank BDT equivalent</strong></div>
         <button type="submit" disabled={mandateMutation.isPending || !accounts.length}>{mandateMutation.isPending ? "Submitting..." : "Send mandate to bank"}</button>
         <button type="button" className="button-secondary" disabled={!accountReference || !policyId || otpRequestMutation.isPending} onClick={requestOtp}>{otpRequestMutation.isPending ? "Issuing OTP..." : "Make a manual bank payment"}</button>
-        {otpState ? <div className="otp-box"><p>OTP expires at {new Date(otpState.expiresAt).toLocaleTimeString()}. {otpState.demoOtp ? "Demo mode prefilled the issued OTP." : "Enter the OTP delivered by the bank."}</p><input aria-label="Bank payment OTP" inputMode="numeric" maxLength="6" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /><button type="button" disabled={otp.length !== 6 || otpConfirmMutation.isPending} onClick={() => otpConfirmMutation.mutate({ challengeId: otpState.challengeId, otp })}>{otpConfirmMutation.isPending ? "Confirming..." : "Confirm manual payment"}</button></div> : null}
+        {otpState ? <div className="otp-box"><aside aria-label="Simulated bank inbox" role="status"><h3>Simulated bank inbox</h3><p>No SMS or email was sent. This preview displays the bank's demo message.</p>{otpState.demoOtp && <p>Your payment code: <strong>{otpState.demoOtp}</strong> (prefilled for this demo).</p>}</aside><p>OTP expires at {new Date(otpState.expiresAt).toLocaleTimeString()}.</p><input aria-label="Bank payment OTP" inputMode="numeric" autoComplete="one-time-code" maxLength="6" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /><button type="button" disabled={otp.length !== 6 || otpConfirmMutation.isPending} onClick={() => otpConfirmMutation.mutate({ challengeId: otpState.challengeId, otp })}>{otpConfirmMutation.isPending ? "Confirming..." : "Confirm manual payment"}</button></div> : null}
       </form>
 
       <section className="card"><h3>My bank accounts</h3>{accounts.length ? accounts.map((account) => <article className="bank-account-row" key={account.accountReference}><div><strong>{account.maskedAccount}</strong><small>{account.accountHolderName}</small></div><strong>{account.balance} {account.currency}</strong></article>) : <p>No simulated bank account is linked to this wallet.</p>}</section>

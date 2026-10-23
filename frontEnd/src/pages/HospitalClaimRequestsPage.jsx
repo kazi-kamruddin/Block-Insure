@@ -12,6 +12,7 @@ import { showToast } from "../services/toast";
 import "../styles/pages/HospitalDashboardPage.css";
 
 const checkLabels = {
+  patientMatches: "Claimant is authorized for this patient record",
   invoiceFound: "Invoice exists in hospital data",
   invoiceHashMatches: "Invoice identity matches",
   amountMatches: "Claim amount matches the bill",

@@ -21,5 +21,9 @@ indexedBlockchainEventSchema.index(
   { unique: true }
 );
 indexedBlockchainEventSchema.index({ eventName: 1, blockNumber: -1, logIndex: -1 });
+indexedBlockchainEventSchema.index({ indexerId: 1, eventName: 1, "args.holderWallet": 1 });
+indexedBlockchainEventSchema.index({ indexerId: 1, eventName: 1, "args.claimantWallet": 1 });
+indexedBlockchainEventSchema.index({ indexerId: 1, "args.claimId": 1, blockNumber: 1, logIndex: 1 });
+indexedBlockchainEventSchema.index({ indexerId: 1, "args.requestId": 1, blockNumber: 1, logIndex: 1 });
 
 module.exports = mongoose.model("IndexedBlockchainEvent", indexedBlockchainEventSchema);

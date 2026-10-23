@@ -6,7 +6,12 @@ const {
   buildPaymentStatement,
   buildStatementCsv,
   getFiscalYear,
-} = require("../services/paymentStatementService");
+} = require("./helpers/loadIsolatedModule")("services/paymentStatementService.js", {
+  "./contractQueryService": {
+    ...require("../services/contractQueryService"),
+    getPolicyIdsByWallet: async () => [1n],
+  },
+});
 
 const walletAddress = "0x0000000000000000000000000000000000000001";
 

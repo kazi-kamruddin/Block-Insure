@@ -2,6 +2,7 @@ import RoleWorkspaceLayout from "./RoleWorkspaceLayout";
 
 const POLICYHOLDER_LINKS = [
   { to: "/user/dashboard", label: "Overview", end: true },
+  { to: "/user/profile", label: "My Profile" },
   { to: "/user/policies/buy", label: "Buy Policy" },
   { to: "/user/policies", label: "My Policies", end: true },
   { to: "/user/payments", label: "Payments & Statements" },

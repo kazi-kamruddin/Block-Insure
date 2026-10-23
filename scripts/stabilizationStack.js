@@ -21,6 +21,7 @@ const environment = {
   LOCAL_PINATA_PORT: "5055", EVIDENCE_KEY_DIRECTORY: path.join(output, "keys"),
   DEPLOY_WRITE_ENV: "false", DEPLOYMENT_OUTPUT_DIR: output,
   SKIP_LOCAL_ORACLE_CURSOR_RESET: "true",
+  CLAIM_SUBMISSION_RATE_LIMIT: "100",
   APPDATA: path.join(root, ".hardhat-appdata"), LOCALAPPDATA: path.join(root, ".hardhat-localappdata"),
 };
 const database = new URL(environment.MONGODB_URI);
@@ -65,15 +66,20 @@ async function cleanup() {
 }
 async function main() {
   if (process.argv.length === 2) {
+    if (!environment.E2E_BACKEND_RPC_URL) throw new Error("The full stabilization campaign requires E2E_RPC_PROXY=true for its RPC recovery stage.");
     // Time-travel scenarios require independent deployments, not merely fresh
     // browser contexts. Never let maturity/expiry poison a later claim fixture.
     const campaign = [
-      ["e2e/tests/user-policy-claim.workflow.spec.js"],
+      ["e2e/tests/public-smoke.spec.js", "e2e/tests/authentication-security.spec.js", "e2e/tests/role-workspaces.spec.js", "e2e/tests/route-inventory.spec.js"],
+      ["e2e/tests/resilience-security.spec.js"],
+      ["e2e/tests/part1-profile.workflow.spec.js"],
+      ["e2e/tests/user-policy-claim.workflow.spec.js", "--with-showcase"],
       ["e2e/tests/bank-eft.workflow.spec.js"],
       ["e2e/tests/hospital-records.maintenance.spec.js"],
       ["e2e/tests/unfinished-benefits.workflow.spec.js"],
       ["e2e/tests/unfinished-boundaries.spec.js"],
       ...["simultaneous rejection", "expired review", "encrypted corrected appeal"].map((grep) => ["e2e/tests/unfinished-claim-finality.workflow.spec.js", "--grep", grep]),
+      ["e2e/tests/rpc-readiness.resilience.spec.js"],
     ];
     for (const selection of campaign) {
       await run("Browser regression", __filename, selection);
@@ -101,14 +107,20 @@ async function main() {
   await backend("fundContractLocal.js", ["5"]);
   await backend("pushMerkleRoot.js");
   start("Pinata simulator", path.join(root, "scripts/localPinataMock.js"));
-  start("Backend", path.join(root, "backEnd/server.js"), [], path.join(root, "backEnd"));
+  if (environment.E2E_BACKEND_RPC_URL) {
+    start("RPC recovery proxy", path.join(root, "scripts/localRpcProxy.js"));
+    await waitFor(async () => (await fetch(`${environment.E2E_BACKEND_RPC_URL}/__control/status`)).ok, "RPC proxy");
+  }
+  start("Backend", path.join(root, "backEnd/server.js"), [], path.join(root, "backEnd"), environment.E2E_BACKEND_RPC_URL ? { RPC_URL: environment.E2E_BACKEND_RPC_URL } : {});
   start("Frontend", path.join(root, "frontEnd/node_modules/vite/bin/vite.js"), ["--host", "localhost", "--port", "5173", "--strictPort"], path.join(root, "frontEnd"));
   for (const instance of [1, 2]) start(`Oracle ${instance}`, path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), { PORT: String(5100 + instance), ORACLE_INSTANCE_ID: String(instance), ORACLE_REGISTRY_SNAPSHOT: instance === 1 ? "primary" : "oracle2", ORACLE_START_BLOCK: String(deployment.deploymentBlock) });
   await waitFor(async () => (await (await fetch("http://localhost:5000/health/ready")).json()).status === "ready", "Backend");
   await waitFor(async () => (await fetch("http://localhost:5173")).ok, "Frontend");
   for (const instance of [1, 2]) await waitFor(async () => (await fetch(`http://localhost:${5100 + instance}/health/ready`)).ok, `Oracle ${instance}`);
-  const specs = process.argv.slice(2);
+  const showcase = process.argv.includes("--with-showcase");
+  const specs = process.argv.slice(2).filter((arg) => arg !== "--with-showcase");
   await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/unfinished-benefits.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, { E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: "playwright-reports/stabilization" });
+  if (showcase) await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", "e2e/tests/showcase-coverage.spec.js", "--workers=1"], root, { E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: "playwright-reports/stabilization" });
 }
 process.once("SIGINT", () => cleanup().then(() => process.exit(130)));
 process.once("SIGTERM", () => cleanup().then(() => process.exit(143)));

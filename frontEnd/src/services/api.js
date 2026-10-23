@@ -68,6 +68,10 @@ export async function getCurrentUser() {
   return response.data;
 }
 
+export async function saveProfile(profile) {
+  return (await api.post("/api/users/register", profile)).data;
+}
+
 export async function getPolicyPackages(params = {}) {
   const response = await api.get("/api/policy-packages", { params });
   return response.data;

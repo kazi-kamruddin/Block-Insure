@@ -86,19 +86,23 @@ const getActivePolicyPackageIds = async (contract) => {
 };
 
 const getPolicyIdsByWallet = async (contract, walletAddress) => {
-  const events = await queryEventsInChunks(
-    contract,
-    contract.filters.PolicyPurchased(null, null, walletAddress)
-  );
-  return events.map((event) => event.args.policyId);
+  return indexedWalletIds("PolicyPurchased", walletAddress, "policyId");
 };
 
 const getClaimIdsByWallet = async (contract, walletAddress) => {
-  const events = await queryEventsInChunks(
-    contract,
-    contract.filters.ClaimSubmitted(null, null, walletAddress)
-  );
-  return events.map((event) => event.args.claimId);
+  return indexedWalletIds("ClaimSubmitted", walletAddress, "claimId");
+};
+
+const indexedWalletIds = async (eventName, wallet, field) => {
+  const { indexConfirmedEvents, getIndexerContext } = require("./blockchainIndexerService");
+  const { getProvider } = require("./contractService");
+  await indexConfirmedEvents();
+  const { indexerId } = await getIndexerContext(getProvider());
+  const events = require("../models/IndexedBlockchainEvent");
+  const ids = await events.distinct(`args.${field}`, { indexerId, eventName, $or: [
+    { "args.holderWallet": normalizeAddress(wallet) }, { "args.claimantWallet": normalizeAddress(wallet) },
+  ] });
+  return ids.map(BigInt).sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
 };
 
 const getActiveRoleMembers = async (contract, role) => {

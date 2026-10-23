@@ -1,6 +1,7 @@
 const { test, expect } = require("@playwright/test");
 
 const viewports = [
+  { name: "minimum mobile", width: 320, height: 800 },
   { name: "mobile", width: 360, height: 800 },
   { name: "tablet", width: 768, height: 1024 },
   { name: "laptop", width: 1366, height: 768 },
@@ -54,7 +55,7 @@ test.describe("@frontend-production public quality", () => {
       await expect(page.getByRole("heading", {
         name: "Insurance decisions that leave an evidence trail.",
       })).toBeVisible();
-      await expect(page.getByLabel("Local protocol status")).toContainText("Hardhat 31337");
+      await expect(page.getByLabel("Configured network")).toContainText("Hardhat 31337");
       await expect(page.getByRole("link", { name: "Block-Insure home" }).first()).toBeVisible();
       await expectAccessibleDocument(page);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);

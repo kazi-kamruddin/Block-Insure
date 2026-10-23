@@ -73,6 +73,7 @@ const HospitalClaimRequestsPage = lazy(
 );
 const BankDashboardPage = lazy(() => import("./pages/BankDashboardPage"));
 const BankingPage = lazy(() => import("./pages/BankingPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 
 import "./App.css";
 import "./styles/modern-system.css";
@@ -112,6 +113,7 @@ export default function App() {
                 <Route path="user" element={<UserLayout />}>
                   <Route index element={<Navigate to="/user/dashboard" replace />} />
                   <Route path="dashboard" element={<UserDashboardPage />} />
+                  <Route path="profile" element={<ProfilePage />} />
                   <Route path="policies" element={<MyPoliciesPage />} />
                   <Route path="policies/buy" element={<PolicyListPage />} />
                   <Route path="payments" element={<PaymentHistoryPage />} />

@@ -3,6 +3,7 @@ import Footer from "../components/Footer";
 import ThemeToggle from "../components/ThemeToggle";
 import WalletConnectButton from "../components/WalletConnectButton";
 import { useWallet } from "../context/useWallet";
+import { REQUIRED_CHAIN_ID, REQUIRED_NETWORK_NAME } from "../services/contractService";
 
 export default function PublicLayout() {
   const { isConnected, workspace } = useWallet();
@@ -12,11 +13,11 @@ export default function PublicLayout() {
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
-      <div className="network-ribbon" aria-label="Local protocol status">
+      <div className="network-ribbon" aria-label="Configured network">
         <span className="network-ribbon-dot" aria-hidden="true" />
-        <span>Local protocol</span>
+        <span>Configured network</span>
         <span className="network-ribbon-divider" aria-hidden="true" />
-        <span>Hardhat 31337</span>
+        <span>{REQUIRED_CHAIN_ID === 31337 ? "Hardhat 31337" : `${REQUIRED_NETWORK_NAME} (${REQUIRED_CHAIN_ID})`}</span>
         <span className="network-ribbon-divider" aria-hidden="true" />
         <span>Encrypted evidence</span>
       </div>

@@ -19,6 +19,8 @@ coverage/
 # Local exports, scratch work, and generated browser reports
 /tmp/
 /output/
+/docs/synthea_sample_data_csv_latest.zip
+/docs/synthea_sample_data_csv_latest/
 /playwright-reports/
 /playwright-report-frontend/
 # Keep small dated verification summaries; exclude generated media and traces.

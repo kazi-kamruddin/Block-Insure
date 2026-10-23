@@ -3,7 +3,16 @@ const User = require("../models/User");
 const registerUser = async (req, res, next) => {
   try {
     const walletAddress = req.user.walletAddress;
-    const { name, email, phone, hashedNid } = req.body;
+    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+      return res.status(400).json({ success: false, message: "Supply a contact profile object." });
+    }
+    const { name = "", email = "", phone = "" } = req.body;
+    if (Object.keys(req.body).some((key) => !["name", "email", "phone"].includes(key)) ||
+        typeof name !== "string" || name.length > 100 ||
+        typeof email !== "string" || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
+        typeof phone !== "string" || phone.length > 30 || (phone && !/^[+\d\s().-]+$/.test(phone))) {
+      return res.status(400).json({ success: false, message: "Supply a name (up to 100 characters), valid email, and optional phone number only." });
+    }
 
     const user = await User.findOneAndUpdate(
       { walletAddress },
@@ -12,7 +21,6 @@ const registerUser = async (req, res, next) => {
         name: name || "",
         email: email || "",
         phone: phone || "",
-        hashedNid: hashedNid || "",
       },
       {
         returnDocument: "after",
@@ -29,7 +37,6 @@ const registerUser = async (req, res, next) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        hashedNid: user.hashedNid,
         role: user.role,
       },
     });
@@ -42,7 +49,7 @@ const getMe = async (req, res, next) => {
   try {
     const user = await User.findOne({
       walletAddress: req.user.walletAddress,
-    }).select("-nonce");
+    }).select("walletAddress name email phone role");
 
     if (!user) {
       return res.status(404).json({

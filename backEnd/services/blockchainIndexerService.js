@@ -361,6 +361,7 @@ const stopBlockchainIndexer = () => {
 };
 
 module.exports = {
+  getIndexerContext,
   INDEXER_ID,
   ensureIndexerIndexes,
   eventIdentity,

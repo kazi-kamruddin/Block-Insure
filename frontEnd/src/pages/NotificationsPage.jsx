@@ -63,15 +63,19 @@ export default function NotificationsPage() {
   const unreadCount = Number(data?.unreadCount || 0);
 
   async function handleMarkRead(notificationId) {
-    await markNotificationRead(notificationId);
-    await refetch();
-    showToast("Notification marked as read.", { title: "Updated" });
+    try {
+      await markNotificationRead(notificationId);
+      await refetch();
+      showToast("Notification marked as read.", { title: "Updated" });
+    } catch { showToast("Could not update the notification. Please retry.", { tone: "error" }); }
   }
 
   async function handleMarkAllRead() {
-    await markAllNotificationsRead();
-    await refetch();
-    showToast("All notifications marked as read.", { title: "Inbox updated" });
+    try {
+      await markAllNotificationsRead();
+      await refetch();
+      showToast("All notifications marked as read.", { title: "Inbox updated" });
+    } catch { showToast("Could not update notifications. Please retry.", { tone: "error" }); }
   }
 
   return (

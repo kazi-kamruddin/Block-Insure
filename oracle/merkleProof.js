@@ -8,6 +8,11 @@ const getCanonicalRecordPayload = (record = {}) => ({
   hospitalName: record.hospitalName,
   licenseStatus: record.licenseStatus,
   patientHash: record.patientHash,
+  ...(record.observableHistory ? { observableHistory: {
+    previousClaimCount: Number(record.observableHistory.previousClaimCount || 0),
+    providerVelocityAnomaly: record.observableHistory.providerVelocityAnomaly === true,
+    claimantVelocityAnomaly: record.observableHistory.claimantVelocityAnomaly === true,
+  } } : {}),
   ...(record.authorizedClaimants?.length ? { authorizedClaimants: [...record.authorizedClaimants].map((wallet) => wallet.toLowerCase()).sort() } : {}),
   treatmentType: record.treatmentType,
   diagnosisCode: record.diagnosisCode,

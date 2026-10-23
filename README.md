@@ -54,18 +54,21 @@ and run:
 npm run dev:bootstrap
 ```
 
-The managed launcher starts Hardhat when needed, waits for RPC readiness,
-runs the clean deployment workflow only when no valid deployment exists, then
-starts and health-checks the backend, frontend, and both oracle workers. Ctrl+C
-stops every process started by the launcher. Because bootstrap invokes the
-clean setup when deployment is absent, it may reset only the configured local
-Block-Insure database.
+`dev:bootstrap` explicitly requests a reset and clean deployment, even if a
+deployment already exists. The managed launcher starts Hardhat when needed and
+health-checks the backend, frontend and both Oracle workers. Use this command only
+with disposable data. Ctrl+C stops processes started by the launcher.
 
 To reuse an already running and deployed local chain without resetting data:
 
 ```powershell
 npm run dev:all
 ```
+
+`npm run dev` is the same non-resetting daily launch. Keep the chain running
+separately with `npm run dev:chain`; restarting Hardhat loses its in-memory state.
+See [Part 1 startup and verification](docs/part1-stabilization.md) for generated
+deployment configuration, prepared test databases and sequential regression runs.
 
 ### Hybrid healthcare-claims simulation
 

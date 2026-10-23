@@ -4,6 +4,7 @@ const { closeActor, createActorContext } = require("../support/walletBridge");
 
 const roleRoutes = {
   user: [
+    ["/user/profile", "My profile"],
     ["/user/dashboard", "Coverage and claims overview"],
     ["/user/policies/buy", "Buy Policy"],
     ["/user/policies", "My Policies"],

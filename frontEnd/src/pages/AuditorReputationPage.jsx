@@ -19,7 +19,6 @@ function toNumber(value) {
 }
 
 function getReliabilityLevel(score) {
-  if (score >= 90) return "Expert";
   if (score >= 70) return "High";
   if (score >= 40) return "Medium";
   return "Low";
@@ -70,6 +69,7 @@ export default function AuditorReputationPage() {
   return (
     <section className="page-container page-auditor-reputation">
       <h2>Auditor Reputation</h2>
+      <p>This score measures agreement with finalized quorum decisions. It does not measure independently verified fraud-detection accuracy or clinical expertise. Review expiry is not a merits observation.</p>
 
       <button type="button" onClick={() => refetch()} disabled={isFetching}>
         {isFetching ? "Refreshing..." : "Refresh Reputation"}
@@ -98,7 +98,7 @@ export default function AuditorReputationPage() {
                 <th>Wallet</th>
                 <th>Total Votes</th>
                 <th>Reputation Score</th>
-                <th>Reliability Level</th>
+                <th>Agreement band</th>
               </tr>
             </thead>
             <tbody>

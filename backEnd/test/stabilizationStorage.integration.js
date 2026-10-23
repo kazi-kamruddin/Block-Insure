@@ -1,7 +1,5 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const path = require("node:path");
-const { MongoMemoryServer } = require("mongodb-memory-server");
 const mongoose = require("mongoose");
 const { ethers } = require("ethers");
 const load = require("./helpers/loadIsolatedModule");
@@ -16,13 +14,20 @@ const IndexedBlock = require("../models/IndexedBlock");
 const Checkpoint = require("../models/IndexerCheckpoint");
 const merkle = require("../services/merkleRegistryService");
 const { finalizeEvidence } = require("../services/evidenceFinalizationService");
-let database;
+let databaseName;
 test.before(async () => {
-  database = await MongoMemoryServer.create({ binary: { downloadDir: path.resolve(__dirname, "../../node_modules/.cache/mongodb-binaries") }, instance: { ip: "127.0.0.1" } });
-  await mongoose.connect(database.getUri("stabilization_storage_test"));
+  if (!process.env.E2E_MONGODB_URI) throw new Error("Prepare a local MongoDB and set E2E_MONGODB_URI before storage tests.");
+  const uri = new URL(process.env.E2E_MONGODB_URI);
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(uri.hostname)) throw new Error("Storage tests require local MongoDB");
+  databaseName = `stabilization_storage_${Date.now()}_test`;
+  uri.pathname = `/${databaseName}`;
+  await mongoose.connect(uri.toString());
   await Promise.all([Primary, Secondary, Publication, Chunk, File, EvidenceEvent, IndexedEvent, IndexedBlock, Checkpoint].map((model) => model.init()));
 });
-test.after(async () => { await mongoose.disconnect(); await database?.stop(); });
+test.after(async () => {
+  if (mongoose.connection.name === databaseName && /^stabilization_storage_\d+_test$/.test(databaseName)) await mongoose.connection.dropDatabase();
+  await mongoose.disconnect();
+});
 
 const record = (invoice) => ({
   hospitalId: "HOSP-001", patientHash: ethers.id(`patient-${invoice}`),
@@ -136,4 +141,41 @@ test("real MongoDB indexer replay repairs partial batches and scopes uniqueness"
   delete sample._id;
   await IndexedEvent.create({ ...sample, indexerId: "another-deployment" });
   assert.equal(await IndexedEvent.countDocuments(), 3);
+});
+
+test("read projections replay interrupted snapshots and reuse unchanged entities", async () => {
+  const Snapshot = require("../models/ChainReadSnapshot");
+  await Snapshot.init();
+  const scope = "projection-integration";
+  let blockNumber = 1, reads = 0, fail = false, branch = "canonical";
+  const provider = { getBlock: async (number) => ({ hash: `${branch}-${number}`, timestamp: 100 }) };
+  const result = (value) => ({ toObject: () => value });
+  const manager = { target: `0x${"7".repeat(40)}`, runner: { provider },
+    getClaim: async () => { reads++; return result({ claimId: 1n, policyId: 1n, claimAmount: 20n, status: BigInt(blockNumber) }); },
+    calculateSettlement: async () => result({ claimAmount: 20n, insurerPays: 15n }),
+  };
+  const snapshots = Object.create(Snapshot);
+  snapshots.updateOne = async (...args) => { if (fail) throw new Error("interrupted projection"); return Snapshot.updateOne(...args); };
+  const service = load("services/chainReadProjectionService.js", {
+    "./blockchainIndexerService": { getIndexerContext: async () => ({ indexerId: scope }), indexConfirmedEvents: async () => {} },
+    "./contractService": { getReadOnlyContract: () => manager, getPolicyEconomics: async () => ({ getPolicyTerms: async () => result({ insurerShareBps: 7500n }) }) },
+    "../models/ChainReadSnapshot": snapshots,
+  });
+  const checkpoint = () => Checkpoint.findOneAndUpdate({ indexerId: scope }, { contractAddress: manager.target, blockNumber, blockHash: `${branch}-${blockNumber}` }, { upsert: true });
+  const event = () => IndexedEvent.create({ indexerId: scope, contractAddress: manager.target, contractName: "InsuranceManager", blockNumber, blockHash: `${branch}-${blockNumber}`, transactionHash: `project-tx-${branch}-${blockNumber}`, logIndex: 0, eventName: "ClaimSubmitted", args: { claimId: "1" } });
+  await checkpoint(); await event();
+  assert.equal((await service.readEntities("claim"))[0].status, 1n);
+  await service.readEntities("claim"); assert.equal(reads, 1);
+  blockNumber = 2; await checkpoint(); await event(); fail = true;
+  await assert.rejects(service.readEntities("claim"), /interrupted projection/);
+  assert.equal((await Checkpoint.findOne({ indexerId: `read:${scope}` })).blockNumber, 1);
+  fail = false;
+  assert.equal((await service.readEntities("claim"))[0].status, 2n);
+  // Model the raw indexer's completed canonical replay before derived reads.
+  branch = "replacement"; blockNumber = 1;
+  await IndexedEvent.deleteMany({ indexerId: scope });
+  await checkpoint(); await event();
+  assert.equal((await service.readEntities("claim"))[0].status, 1n);
+  assert.equal(await Snapshot.countDocuments({ indexerId: `read:${scope}`, blockHash: /^canonical-/ }), 0);
+  assert.equal((await Checkpoint.findOne({ indexerId: `read:${scope}` })).blockHash, "replacement-1");
 });

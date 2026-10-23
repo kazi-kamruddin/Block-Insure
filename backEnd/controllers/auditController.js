@@ -1,8 +1,4 @@
 const { ethers } = require("ethers");
-const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
-const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
-const ClaimAdjudicatorArtifact = require("../abi/ClaimAdjudicator.json");
-const HospitalVerificationRegistryArtifact = require("../abi/HospitalVerificationRegistry.json");
 const AdminActionLog = require("../models/AdminActionLog");
 const Appeal = require("../models/Appeal");
 const OracleLog = require("../models/OracleLog");
@@ -10,10 +6,7 @@ const HospitalClaimVerification = require("../models/HospitalClaimVerification")
 const {
   getProvider,
   getContractAddress,
-  getOracleCoordinator,
-  getClaimAdjudicator,
   getReadOnlyContract,
-  getHospitalVerificationRegistry,
 } = require("../services/contractService");
 
 const CLAIM_EVENT_NAMES = new Set([
@@ -53,26 +46,6 @@ const CLAIM_EVENT_NAMES = new Set([
   "HospitalClaimVerified",
 ]);
 
-const serializeValue = (value) => {
-  if (typeof value === "bigint") return value.toString();
-  if (Array.isArray(value)) return value.map(serializeValue);
-
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(([key]) => Number.isNaN(Number(key)))
-        .map(([key, nestedValue]) => [key, serializeValue(nestedValue)])
-    );
-  }
-
-  return value;
-};
-
-const getClaimIdFromParsedLog = (parsedLog) => {
-  if (!parsedLog?.args || parsedLog.args.claimId === undefined) return null;
-  return parsedLog.args.claimId.toString();
-};
-
 const safeContractCall = async (callback, fallback = null) => {
   try {
     return await callback();
@@ -82,77 +55,30 @@ const safeContractCall = async (callback, fallback = null) => {
 };
 
 const buildClaimTimeline = async (id) => {
+  const { indexConfirmedEvents, getIndexerContext } = require("../services/blockchainIndexerService");
+  const IndexedEvent = require("../models/IndexedBlockchainEvent");
   const provider = getProvider();
-  const contractAddress = getContractAddress();
-  const contract = getReadOnlyContract();
-  const coordinator = await getOracleCoordinator(contract);
-  const adjudicator = await getClaimAdjudicator(contract);
-  const hospitalRegistry = getHospitalVerificationRegistry(contract.runner);
-  const coordinatorAddress = await coordinator.getAddress();
-  const adjudicatorAddress = await adjudicator.getAddress();
-  const hospitalRegistryAddress = await hospitalRegistry.getAddress();
-  const interfaces = new Map([
-    [contractAddress.toLowerCase(), new ethers.Interface(InsuranceManagerArtifact.abi)],
-    [coordinatorAddress.toLowerCase(), new ethers.Interface(OracleCoordinatorArtifact.abi)],
-    [adjudicatorAddress.toLowerCase(), new ethers.Interface(ClaimAdjudicatorArtifact.abi)],
-    [hospitalRegistryAddress.toLowerCase(), new ethers.Interface(HospitalVerificationRegistryArtifact.abi)],
-  ]);
-  const latestBlock = await provider.getBlockNumber();
-  const logs = await provider.getLogs({
-    address: [contractAddress, coordinatorAddress, adjudicatorAddress, hospitalRegistryAddress],
-    fromBlock: 0,
-    toBlock: latestBlock,
-  });
-  const blockTimestampCache = new Map();
+  await indexConfirmedEvents();
+  const { indexerId } = await getIndexerContext(provider);
+  const direct = await IndexedEvent.find({ indexerId, "args.claimId": String(id) }).select("args.requestId").lean();
+  const requestIds = [...new Set(direct.map((event) => event.args?.requestId).filter(Boolean))];
+  const events = await IndexedEvent.find({ indexerId, $or: [
+    { "args.claimId": String(id) }, { "args.requestId": { $in: requestIds } },
+  ] }).sort({ blockNumber: 1, logIndex: 1 }).limit(1001).lean();
+  if (events.length > 1000) throw Object.assign(new Error("Claim timeline exceeds the export limit"), { statusCode: 413 });
+  const blocks = new Map();
   const timeline = [];
-
-  for (const log of logs) {
-    let parsedLog;
-
-    try {
-      parsedLog = interfaces.get(log.address.toLowerCase()).parseLog(log);
-    } catch (_) {
-      continue;
-    }
-
-    if (!parsedLog || !CLAIM_EVENT_NAMES.has(parsedLog.name)) continue;
-
-    let eventClaimId = getClaimIdFromParsedLog(parsedLog);
-    if (eventClaimId === null && parsedLog.args.requestId !== undefined) {
-      const request = await safeContractCall(() =>
-        coordinator.getRequest(parsedLog.args.requestId)
-      );
-      eventClaimId = request?.claimId?.toString?.() || null;
-    }
-
-    if (eventClaimId !== id.toString()) continue;
-
-    let blockTimestamp = blockTimestampCache.get(log.blockNumber);
-
-    if (!blockTimestamp) {
-      const block = await provider.getBlock(log.blockNumber);
-      blockTimestamp = block.timestamp;
-      blockTimestampCache.set(log.blockNumber, blockTimestamp);
-    }
-
-    timeline.push({
-      eventName: parsedLog.name,
-      claimId: eventClaimId,
-      blockNumber: log.blockNumber,
-      transactionHash: log.transactionHash,
-      logIndex: log.index ?? log.logIndex,
-      timestamp: {
-        unix: blockTimestamp.toString(),
-        iso: new Date(blockTimestamp * 1000).toISOString(),
-      },
-      args: serializeValue(parsedLog.args),
-    });
+  for (const event of events) {
+    if (!CLAIM_EVENT_NAMES.has(event.eventName)) continue;
+    if (!blocks.has(event.blockNumber)) blocks.set(event.blockNumber, await provider.getBlock(event.blockNumber));
+    const block = blocks.get(event.blockNumber);
+    if (!block || block.hash !== event.blockHash) throw Object.assign(new Error("Timeline is catching up with the chain"), { statusCode: 503 });
+    timeline.push({ eventName: event.eventName, claimId: String(id), blockNumber: event.blockNumber,
+      transactionHash: event.transactionHash, logIndex: event.logIndex,
+      timestamp: { unix: String(block.timestamp), iso: new Date(block.timestamp * 1000).toISOString() },
+      args: event.args });
   }
-
-  return timeline.sort((a, b) => {
-    if (a.blockNumber !== b.blockNumber) return a.blockNumber - b.blockNumber;
-    return a.logIndex - b.logIndex;
-  });
+  return timeline;
 };
 
 const formatClaimExport = (claim) => {

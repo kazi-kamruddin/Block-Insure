@@ -244,6 +244,11 @@ test.describe("@workflow policyholder transaction journey", () => {
 
         await auditorEvidenceSession.page.reload();
         const delegatedEvidence = auditorEvidenceSession.page.locator(".evidence-chain-item").first();
+        await delegatedEvidence.getByRole("button", { name: "Preview decrypted", exact: true }).click();
+        const preview = auditorEvidenceSession.page.getByRole("dialog", { name: "Decrypted evidence preview" });
+        await expect(preview).toBeVisible();
+        await auditorEvidenceSession.page.keyboard.press("Escape");
+        await expect(preview).toBeHidden();
         const downloadPromise = auditorEvidenceSession.page.waitForEvent("download");
         await delegatedEvidence.getByRole("button", { name: "Download decrypted" }).click();
         const download = await downloadPromise;

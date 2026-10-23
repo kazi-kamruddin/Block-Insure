@@ -130,7 +130,9 @@ test("contract coverage restores non-instrumented build artifacts", () => {
 
 test("managed launcher has bootstrap, readiness, and fail-fast child supervision", () => {
   const source = fs.readFileSync(path.join(projectRoot, "scripts", "devAll.js"), "utf8");
-  assert.match(source, /--bootstrap/);
+  assert.match(source, /--reset/);
+  assert.match(source, /if \(reset\)/);
+  assert.doesNotMatch(source, /bootstrap && \(hybrid/);
   assert.match(source, /waitForHttp/);
   assert.match(source, /stopped unexpectedly/);
   assert.match(source, /setup:local/);
@@ -138,7 +140,31 @@ test("managed launcher has bootstrap, readiness, and fail-fast child supervision
   assert.match(source, /E2E_BACKEND_RPC_URL/);
   assert.match(source, /dev:rpc-proxy/);
   assert.match(source, /npm-cli\.js/);
+  assert.match(source, /oracleModelVersion/);
+  assert.match(source, /different model identity/);
   assert.doesNotMatch(source, /npm\.cmd/);
+});
+
+test("local deployment configuration validates generated addresses and block boundaries", () => {
+  const { readLocalDeployment } = require("../../scripts/localDeploymentConfig");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "block-insure-manifest-"));
+  try {
+    assert.deepEqual(readLocalDeployment(root), {});
+    const directory = path.join(root, "contracts", "deployments");
+    fs.mkdirSync(directory, { recursive: true });
+    const filename = path.join(directory, "localhost-31337.json");
+    const components = Object.fromEntries(["InsuranceManager", "OracleCoordinator", "ClaimAdjudicator", "PolicyEconomics", "PolicyBenefitsManager", "EvidenceRegistry", "HospitalVerificationRegistry", "BankIdentityRegistry", "ProtocolDeploymentRegistry"].map((key) => [key, `0x${"1".repeat(40)}`]));
+    const manifest = { chainId: "31337", deploymentBlock: 1, benefitsDeploymentBlock: 2, components };
+    fs.writeFileSync(filename, JSON.stringify(manifest));
+    assert.equal(readLocalDeployment(root).VITE_CONTRACT_ADDRESS, components.InsuranceManager);
+    assert.equal(readLocalDeployment(root).CONTRACT_DEPLOYMENT_BLOCK, "1");
+    fs.writeFileSync(filename, JSON.stringify({ ...manifest, chainId: "1" }));
+    assert.throws(() => readLocalDeployment(root), /chain ID/);
+    fs.writeFileSync(filename, JSON.stringify({ ...manifest, deploymentBlock: -1 }));
+    assert.throws(() => readLocalDeployment(root), /deploymentBlock/);
+    fs.writeFileSync(filename, JSON.stringify({ ...manifest, components: { ...components, PolicyBenefitsManager: `0x${"0".repeat(40)}` } }));
+    assert.throws(() => readLocalDeployment(root), /PolicyBenefitsManager/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
 test("isolated E2E launcher supports and enforces a loopback MongoDB override", () => {

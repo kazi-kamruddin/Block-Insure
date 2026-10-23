@@ -33,7 +33,7 @@ const buildRiskAssessment = async ({
   triagePolicy = loadedTriagePolicy,
 }) => {
   const integrity = verifyModelArtifact(modelParams);
-  if (modelParams.inferenceEngineVersion !== "observable-runtime-v1") throw new Error("Unsupported runtime inference engine");
+  if (modelParams.inferenceEngineVersion !== "observable-runtime-v2") throw new Error("Unsupported runtime inference engine");
   if (!integrity.valid) {
     throw new Error(`Fraud model artifact integrity failure: ${integrity.errors.join("; ")}`);
   }

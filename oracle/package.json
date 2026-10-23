@@ -5,7 +5,7 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "test": "node --check index.js && node --test test/*.test.js",
+    "test": "node --check index.js && node --test --test-concurrency=1 test/*.test.js",
     "dev": "node index.js",
     "dev:oracle2": "node -e \"process.env.ORACLE_INSTANCE_ID='2'; require('./index')\"",
     "start": "node index.js"

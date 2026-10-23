@@ -89,11 +89,11 @@ const extractProofBoundFeatures = ({ record, comparison }) => {
     cancelled_record: Boolean(cancelledRecord),
     license_suspended: record.licenseStatus === "SUSPENDED",
     license_blacklisted: record.licenseStatus === "BLACKLISTED" || Boolean(signals.blacklistedHospital),
-    repeat_claim_pattern: Number(record.previousClaimCount || 0) >= 2,
-    provider_velocity_anomaly: Boolean(record.providerVelocityAnomaly),
-    claimant_velocity_anomaly: Boolean(record.claimantVelocityAnomaly),
-    near_duplicate_advisory: Boolean(record.nearDuplicateAdvisory),
-    missing_or_noisy_record: Boolean(record.isMissingOrNoisy || record.dataQuality === "NOISY"),
+    repeat_claim_pattern: Number(record.observableHistory?.previousClaimCount || 0) >= 2,
+    provider_velocity_anomaly: record.observableHistory?.providerVelocityAnomaly === true,
+    claimant_velocity_anomaly: record.observableHistory?.claimantVelocityAnomaly === true,
+    near_duplicate_advisory: false,
+    missing_or_noisy_record: false,
   };
   features.clean_registry_match = !Object.entries(features).some(
     ([name, active]) => name !== "clean_registry_match" && active

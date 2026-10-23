@@ -145,6 +145,8 @@ const run = ({ writeOutput = true } = {}) => {
     "backEnd/services/hybridDatasetAdapterService.js",
     "backEnd/services/hybridDatasetIntegrityService.js",
     "backEnd/services/merkleRegistryService.js",
+    "backEnd/services/featureEngineeringService.js",
+    "backEnd/services/chainReadProjectionService.js",
     "backEnd/scripts/evaluatePhase5.js",
     "backEnd/scripts/evaluateReserveAdequacy.js",
     "backEnd/scripts/evaluateEvidenceLifecycle.js",
@@ -212,8 +214,17 @@ const run = ({ writeOutput = true } = {}) => {
       "EvidenceRegistry",
       "PolicyBenefitsManager",
       "ProtocolDeploymentRegistry",
+      "HospitalVerificationRegistry",
+      "BankIdentityRegistry",
     ].map((contractName) => [contractName, contractArtifactDetails(contractName)])),
     artifacts: {
+      evidenceBoundary: {
+        historicalEvaluationGeneratedAt: evaluation.generatedAt,
+        evaluatedModelArtifactHash: evaluation.runtimeModel.evaluatedArtifactHash,
+        currentRuntimeModelArtifactHash: model.artifactHash,
+        currentRuntimeEvaluated: evaluation.runtimeModel.evaluatedArtifactHash === model.artifactHash,
+        interpretation: "This inventory does not rerun experiments. Historical classification metrics do not validate a different runtime artifact or inference implementation.",
+      },
       fraudModel: {
         path: "backEnd/model-params.json",
         artifactHash: model.artifactHash,

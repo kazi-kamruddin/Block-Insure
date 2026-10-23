@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import CopyableText from "./CopyableText";
 import {
@@ -27,6 +27,14 @@ export default function IpfsLink({
   sha256Hash = "",
 }) {
   const [decryptError, setDecryptError] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [previewPending, setPreviewPending] = useState(false);
+  const dialog = useRef(null);
+  useEffect(() => {
+    if (!preview) return;
+    dialog.current?.showModal();
+    return () => URL.revokeObjectURL(preview.url);
+  }, [preview]);
 
   if (!cid) {
     return <span>-</span>;
@@ -41,6 +49,15 @@ export default function IpfsLink({
       </a>
       {hasLocalEvidenceKey(cid) || (recoverable && documentId) ? (
         <>
+          <button type="button" disabled={previewPending} onClick={async () => {
+            setPreviewPending(true); setDecryptError("");
+            try {
+              const blob = await downloadDecryptedEvidence(cid, DEFAULT_GATEWAY, documentId, sha256Hash, true);
+              if (!["application/pdf", "image/png", "image/jpeg"].includes(blob.type)) throw new Error("Preview supports PDF, PNG and JPEG. Use the decrypted download for other files.");
+              setPreview({ url: URL.createObjectURL(blob), type: blob.type });
+            } catch (error) { setDecryptError(error.response?.data?.message || error.message || "Preview unavailable"); }
+            finally { setPreviewPending(false); }
+          }}>{previewPending ? "Opening evidence…" : "Preview decrypted"}</button>
           {" "}
           <button
             type="button"
@@ -67,7 +84,13 @@ export default function IpfsLink({
           </button>
         </>
       ) : null}
-      {decryptError ? <span className="error-text"> {decryptError}</span> : null}
+      {decryptError ? <span className="error-text" role="alert"> {decryptError}</span> : null}
+      <dialog ref={dialog} aria-label="Decrypted evidence preview" onClose={() => setPreview(null)} className="w-[90vw] max-w-4xl max-h-[90dvh] overflow-auto rounded-xl bg-[var(--surface)] text-[var(--text)] p-4">
+        <h2>Decrypted evidence preview</h2>
+        <p>Visible only in this browser after the existing access and integrity checks.</p>
+        <button type="button" onClick={() => dialog.current?.close()}>Close preview</button>
+        {preview && (preview.type === "application/pdf" ? <iframe title="Evidence PDF" sandbox="" src={preview.url} className="h-[65vh] w-full" /> : <img alt="Decrypted claim evidence" src={preview.url} className="max-h-[65vh] max-w-full object-contain" />)}
+      </dialog>
     </span>
   );
 }

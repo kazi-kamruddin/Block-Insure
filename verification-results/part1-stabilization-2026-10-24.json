@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "reviewDate": "2026-10-24",
+  "timezone": "Asia/Dhaka",
+  "verificationDates": ["2026-10-23", "2026-10-24"],
+  "source": {
+    "baseCommit": "c9e12aa",
+    "workingTree": "Uncommitted Part 1 implementation; not a clean release tag",
+    "researchInventoryHash": "820c8553684ba8f76cb5f1e5f744de0e2f8cfbd2c2d51e0f724a1bb408ef77c1"
+  },
+  "scope": [
+    "Revalidate the existing first-ten stabilization fixes, including corrected appeal settlement",
+    "Exclude residual experiment markers from runtime inference and bind preserved source history into Merkle leaves",
+    "Add deployment-scoped, checkpointed claim/policy read projections and indexed wallet/timeline reads",
+    "Separate non-resetting daily launch from explicit clean setup and validate generated local configuration",
+    "Add optional contact profiles, simulated OTP inbox, protected evidence preview and clearer workflow presentation",
+    "Run resource-conscious authenticated local and production-build regressions"
+  ],
+  "checks": {
+    "authenticatedLocalCampaign": {
+      "command": "E2E_MONGODB_URI=<prepared loopback block_insure_e2e>; E2E_RPC_PROXY=true; npm run test:stabilization",
+      "passed": 42,
+      "failed": 0,
+      "workers": 1,
+      "groups": [
+        { "specs": ["public-smoke", "authentication-security", "role-workspaces", "route-inventory"], "passed": 17 },
+        { "specs": ["resilience-security"], "passed": 4 },
+        { "specs": ["part1-profile.workflow"], "passed": 1 },
+        { "specs": ["user-policy-claim.workflow", "showcase-coverage"], "passed": 6 },
+        { "specs": ["bank-eft.workflow"], "passed": 2 },
+        { "specs": ["hospital-records.maintenance"], "passed": 2 },
+        { "specs": ["unfinished-benefits.workflow"], "passed": 3 },
+        { "specs": ["unfinished-boundaries"], "passed": 3 },
+        { "specs": ["unfinished-claim-finality.workflow"], "passed": 3, "isolation": "One fresh deployment per time-sensitive finality scenario" },
+        { "specs": ["rpc-readiness.resilience"], "passed": 1 }
+      ]
+    },
+    "updatedProfileValidationRerun": {
+      "command": "npm run test:stabilization -- e2e/tests/part1-profile.workflow.spec.js",
+      "passed": 1,
+      "failed": 0,
+      "coverage": "Invalid email blocks submission; valid contacts save and survive reload; 320px layout; no unhandled page exceptions",
+      "counting": "Rerun of a campaign case, not an additional distinct journey"
+    },
+    "backendUnit": {
+      "command": "npm --prefix backEnd run test:unit",
+      "passed": 148,
+      "failed": 0,
+      "testFileConcurrency": 1
+    },
+    "oracle": {
+      "command": "npm --prefix oracle test",
+      "passed": 19,
+      "failed": 0,
+      "testFileConcurrency": 1
+    },
+    "mongoRecovery": {
+      "command": "npm run test:stabilization:storage",
+      "passed": 6,
+      "failed": 0,
+      "coverage": "Publication replay and historical proofs, idempotent evidence receipts, interrupted raw indexer batches, deployment uniqueness, interrupted derived snapshots and canonical reorganization replay"
+    },
+    "frontendLint": { "command": "npm --prefix frontEnd run lint", "status": "passed" },
+    "productionFrontend": {
+      "command": "npm run test:e2e:frontend-production",
+      "build": "passed",
+      "passed": 7,
+      "failed": 0,
+      "workers": 1,
+      "viewportWidths": [320, 360, 768, 1366, 1920],
+      "additionalCoverage": "Keyboard skip link, focus indicator, refresh, 404, theme persistence and browser failure monitoring"
+    },
+    "contracts": {
+      "command": "npm --prefix contracts test",
+      "passed": 136,
+      "failed": 0,
+      "includesStatefulInvariantCases": 4,
+      "solidityChangedInThisWorkingTree": false
+    },
+    "synchronization": { "command": "npm run verify:sync", "status": "passed" },
+    "repository": { "command": "npm run verify:repository", "passedGroups": 7, "node": "v24.16.0" },
+    "dailyLauncherMissingChain": {
+      "command": "node scripts/devAll.js with no listener on local port 8545",
+      "status": "passed",
+      "expectedBehavior": "Nonzero exit with recovery instructions, without starting services or resetting data"
+    },
+    "diffWhitespace": { "command": "git diff --check", "status": "passed" }
+  },
+  "environment": {
+    "database": "Disposable loopback block_insure_e2e; Atlas was not used",
+    "container": "block-insure-part1-mongo",
+    "limits": { "cpus": 0.75, "memoryMB": 768, "hostPort": 27019 },
+    "containerFinalStatus": "stopped, retained for reuse",
+    "temporaryStorageDatabases": "Only newly named stabilization_storage_*_test databases were dropped after their tests",
+    "serviceCleanup": "Owned Hardhat, backend, frontend, Pinata simulator, RPC proxy and Oracle processes stopped",
+    "normalEnvironmentFilesAndDeploymentManifest": "Not rewritten; observed last-write timestamps predate this implementation",
+    "hostedConfiguration": "Not changed",
+    "gitCommitCreated": false
+  },
+  "researchBoundary": {
+    "datasetDecision": "Existing Kaggle/provider-risk source retained; local Synthea downloads ignored, not integrated",
+    "runtimeModelVersion": "bernoulli-fraud-v3.1.0-observable.2",
+    "inferenceEngineVersion": "observable-runtime-v2",
+    "currentRuntimeEvaluatedByHistoricalClassificationArtifact": false,
+    "historicalClassificationEvaluation": "2026-08-28T20:57:12.810Z",
+    "inventoryOnlyRefresh": true,
+    "numericalResearchOutputsRegenerated": false
+  },
+  "resolvedVerificationIssues": [
+    "Separate sustained nonce-rate-limit tests from role-login scenarios",
+    "Give expiry/time-travel finality scenarios independent deployments",
+    "Forward selected Playwright arguments through npm without losing --grep",
+    "Update the production test's stale accessible-label assertion to Configured network; retain browser-error and layout assertions and add 320px coverage"
+  ],
+  "remainingLimits": [
+    "InsuranceManager is 24320 bytes: 256 bytes below EIP-170 and 128 below the stricter 24448-byte maintenance budget",
+    "Revised runtime inputs need fresh predictive-performance and calibration evaluation; historical numerical results are not validation of this revision",
+    "Existing generated runtime rows lacking observableHistory do not contribute history features until source artifacts are deliberately rebuilt",
+    "Hardhat state remains in memory; compatibility .env files remain necessary for secrets and standalone tooling",
+    "Projection reads can lag chain tip by configured confirmations; single-process refresh locking is not distributed multi-writer certification",
+    "Profiles are not KYC; bank balances and OTP delivery remain simulations",
+    "No public-network deployment, hosted integration rerun, new research benchmark, Slither run or fresh mutation campaign was performed",
+    "The complete ordinary dev launcher was not exercised against a pre-existing valid user deployment; its manifest validation and missing-chain fail-closed path were checked"
+  ]
+}

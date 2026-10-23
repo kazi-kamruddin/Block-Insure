@@ -94,7 +94,14 @@ const extractRecordFeatures = (record) => {
 };
 
 const extractRuntimeFeatures = ({ record, comparison, duplicateIntelligence }) => {
-  const features = extractRecordFeatures(record ? { ...record, fraudSignals: {}, hospitalIdMismatch: false, invoiceHashMismatch: false, treatmentTypeMismatch: false } : record);
+  // Runtime history must come from the pre-mutation source, never experiment flags.
+  const history = record?.observableHistory || {};
+  const features = extractRecordFeatures(record ? { ...record, fraudSignals: {}, hospitalIdMismatch: false, invoiceHashMismatch: false, treatmentTypeMismatch: false,
+    previousClaimCount: history.previousClaimCount || 0,
+    providerVelocityAnomaly: history.providerVelocityAnomaly === true,
+    claimantVelocityAnomaly: history.claimantVelocityAnomaly === true,
+    nearDuplicateAdvisory: false, isMissingOrNoisy: false, dataQuality: "COMPLETE",
+  } : record);
   features.registry_record_missing = !record;
   features.hospital_id_mismatch = failed(comparison, "hospitalId");
   features.invoice_hash_mismatch = failed(comparison, "invoiceHash");

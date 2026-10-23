@@ -50,7 +50,7 @@
     "analyze:auditors": "node scripts/analyzeAuditorReputation.js",
     "loadtest:claims": "node scripts/loadTestClaims.js",
     "test:section3": "node scripts/testSection3Analytics.js",
-    "test:unit": "node --test test/*.test.js",
+    "test:unit": "node --test --test-concurrency=1 test/*.test.js",
     "role:set": "node scripts/setUserRole.js",
     "keys:pre:generate": "node scripts/generateProxySigningKeys.js"
   },
