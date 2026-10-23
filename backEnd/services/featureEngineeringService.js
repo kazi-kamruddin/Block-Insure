@@ -94,7 +94,7 @@ const extractRecordFeatures = (record) => {
 };
 
 const extractRuntimeFeatures = ({ record, comparison, duplicateIntelligence }) => {
-  const features = extractRecordFeatures(record);
+  const features = extractRecordFeatures(record ? { ...record, fraudSignals: {}, hospitalIdMismatch: false, invoiceHashMismatch: false, treatmentTypeMismatch: false } : record);
   features.registry_record_missing = !record;
   features.hospital_id_mismatch = failed(comparison, "hospitalId");
   features.invoice_hash_mismatch = failed(comparison, "invoiceHash");
@@ -104,7 +104,7 @@ const extractRuntimeFeatures = ({ record, comparison, duplicateIntelligence }) =
   features.date_mismatch =
     failed(comparison, "dateConsistency") || features.date_mismatch;
   features.near_duplicate_advisory = Boolean(
-    duplicateIntelligence?.requiresManualReview || features.near_duplicate_advisory
+    (duplicateIntelligence?.authority !== "ADVISORY_ONLY" && duplicateIntelligence?.requiresManualReview) || features.near_duplicate_advisory
   );
   features.clean_registry_match = Boolean(record) && !Object.entries(features).some(
     ([name, active]) => name !== "clean_registry_match" && active

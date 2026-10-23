@@ -118,6 +118,7 @@ function syncContractAbi() {
     "OracleCoordinator",
     "ClaimAdjudicator",
     "PolicyEconomics",
+    "PolicyBenefitsManager",
     "EvidenceRegistry",
     "ProtocolDeploymentRegistry",
     "HospitalVerificationRegistry",
@@ -283,6 +284,8 @@ async function main() {
   );
   await benefitsManager.waitForDeployment();
   const benefitsAddress = await benefitsManager.getAddress();
+  const economics = await hre.ethers.getContractAt("PolicyEconomics", economicsAddress, adminWallet);
+  await (await economics.configureBenefitsManager(benefitsAddress)).wait();
   const benefitsReceipt = await benefitsManager.deploymentTransaction().wait();
   const benefitsDeploymentBlock = benefitsReceipt.blockNumber;
   const defaultTermsDocument = JSON.stringify({
@@ -379,7 +382,7 @@ async function main() {
       BankIdentityRegistry: bankIdentityRegistryAddress,
     },
   };
-  const deploymentsDirectory = path.resolve(__dirname, "..", "deployments");
+  const deploymentsDirectory = process.env.DEPLOYMENT_OUTPUT_DIR || path.resolve(__dirname, "..", "deployments");
   fs.mkdirSync(deploymentsDirectory, { recursive: true });
   const deploymentPath = path.join(
     deploymentsDirectory,
@@ -388,7 +391,7 @@ async function main() {
   fs.writeFileSync(deploymentPath, `${JSON.stringify(deployment, null, 2)}\n`, "utf8");
   console.log("Deployment manifest written to:", deploymentPath);
 
-  if (isLocalNetwork) {
+  if (isLocalNetwork && process.env.DEPLOY_WRITE_ENV !== "false") {
     syncLocalContractDeployment(
       contractAddress,
       deploymentBlock,

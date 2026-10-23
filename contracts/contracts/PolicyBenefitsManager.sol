@@ -38,6 +38,7 @@ interface IInsurancePolicySource {
     function getEffectivePolicyStatus(uint256 policyId) external view returns (PolicyStatus);
     function hasRole(bytes32 role, address account) external view returns (bool);
     function packageCounter() external view returns (uint256);
+    function closePolicyForBenefit(uint256 policyId) external;
 }
 
 contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
@@ -104,6 +105,7 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
     mapping(uint256 => BenefitRequest) private benefitRequests;
     mapping(uint256 => mapping(BenefitType => uint256)) public requestByPolicyAndType;
     mapping(address => uint256) public claimableBenefitWei;
+    mapping(uint256 => bool) public terminalBenefitSettled;
 
     event BenefitTermsPublished(
         uint256 indexed packageId,
@@ -237,6 +239,7 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
         BenefitType benefitType,
         bytes32 evidenceHash
     ) external whenNotPaused returns (uint256) {
+        require(!terminalBenefitSettled[policyId], "Terminal benefit already settled");
         uint256 previousRequestId = requestByPolicyAndType[policyId][benefitType];
         require(
             previousRequestId == 0 ||
@@ -306,6 +309,7 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
     function approveBenefit(uint256 requestId) external onlyInsuranceAdmin whenNotPaused {
         BenefitRequest storage benefitRequest = _getBenefitRequest(requestId);
         require(benefitRequest.status == BenefitStatus.REQUESTED, "Benefit is not pending");
+        require(!terminalBenefitSettled[benefitRequest.policyId], "Terminal benefit already settled");
         require(address(this).balance >= totalReservedLiabilityWei + benefitRequest.amount, "Insufficient benefit reserve");
 
         benefitRequest.status = BenefitStatus.APPROVED;
@@ -336,6 +340,9 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
     function settleBenefit(uint256 requestId) external onlyInsuranceAdmin whenNotPaused {
         BenefitRequest storage benefitRequest = _getBenefitRequest(requestId);
         require(benefitRequest.status == BenefitStatus.APPROVED, "Benefit is not approved");
+        require(!terminalBenefitSettled[benefitRequest.policyId], "Terminal benefit already settled");
+        terminalBenefitSettled[benefitRequest.policyId] = true;
+        insuranceManager.closePolicyForBenefit(benefitRequest.policyId);
 
         benefitRequest.status = BenefitStatus.ALLOCATED;
         benefitRequest.allocatedAt = block.timestamp;

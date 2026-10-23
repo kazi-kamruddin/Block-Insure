@@ -25,6 +25,10 @@ const buildSyntheticRecords = () => {
     records[index] = {
       ...records[index],
       recordId: `demo-preset-${index + 1}`,
+      // Explicit synthetic association, never a mapping to a real Medicare person.
+      authorizedClaimants: [process.env.E2E_USER_PRIVATE_KEY
+        ? new ethers.Wallet(process.env.E2E_USER_PRIVATE_KEY).address.toLowerCase()
+        : (process.env.DEMO_BANK_ACCOUNT_OWNER_ADDRESSES?.split(",")[0]?.trim().toLowerCase() || require("../config/bankNetwork").DEMO_BANK_ACCOUNTS[1].ownerWalletAddress)],
       hospitalId,
       providerId: hospitalId,
       hospitalName: getHospitalNetworkEntry(hospitalId).name,

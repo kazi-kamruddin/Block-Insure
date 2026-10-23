@@ -6,7 +6,7 @@ const { atomicWriteFileSync } = require("../../backEnd/services/researchArtifact
 const CONTRACTS_ROOT = path.resolve(__dirname, "..");
 const WORKSPACE_ROOT = path.join(CONTRACTS_ROOT, ".mutation-workspace");
 const MANIFEST_PATH = path.join(CONTRACTS_ROOT, "mutations", "manifest.json");
-const OUTPUT_PATH = path.join(CONTRACTS_ROOT, "mutation-results.json");
+const OUTPUT_PATH = process.env.MUTATION_OUTPUT_PATH || path.join(CONTRACTS_ROOT, "mutation-results.json");
 const HARDHAT_CLI = path.join(
   CONTRACTS_ROOT,
   "node_modules",
@@ -75,7 +75,7 @@ const runMutant = (mutation) => {
     {
       cwd: workspace,
       encoding: "utf8",
-      timeout: 120000,
+      timeout: Number(process.env.MUTATION_TIMEOUT_MS || 120000),
       env: hardhatEnvironment(),
     }
   );

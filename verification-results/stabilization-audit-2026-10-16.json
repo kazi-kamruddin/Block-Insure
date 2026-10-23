@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 1,
+  "reviewDate": "2026-10-16",
+  "timezone": "Asia/Dhaka",
+  "verdict": "PASS_WITH_LIMITATIONS",
+  "scope": "Repository stabilization audit with source review, regression fixes, offline verification, production-browser smoke tests, and read-only hosted preview checks.",
+  "source": {
+    "commit": "a809c536665f63ff6c7caf2cfe68d11392aa3bcc",
+    "dirty": true,
+    "preExistingChangesPreserved": [
+      ".gitignore",
+      "README.md",
+      "reference/block-insure-deep-technical-reference.md"
+    ],
+    "commitCreated": false
+  },
+  "environment": {
+    "node": "24.16.0",
+    "platform": "win32",
+    "browser": "Chromium 153.0.8010.12 (existing Playwright revision 1243, explicit executable override)",
+    "expectedDefaultBrowserRevision": 1234,
+    "localBackendReachable": false,
+    "localHardhatReachable": false,
+    "dockerDaemonAvailable": false,
+    "databaseResets": 0,
+    "hostedWrites": 0,
+    "deploymentPerformed": false
+  },
+  "findings": [
+    {
+      "id": "AUD-01",
+      "severity": "low",
+      "category": "artifact-mismatch",
+      "status": "FIXED",
+      "problem": "Repository verification failed because the research manifest no longer matched current package and implementation hashes.",
+      "fix": "Regenerated only the research manifest; retained the existing datasets, models, evaluations, contracts, and measurements.",
+      "verification": "Repository integrity passes all seven groups; frozen research artifacts remain valid."
+    },
+    {
+      "id": "AUD-02",
+      "severity": "low",
+      "category": "runtime-compatibility",
+      "status": "FIXED",
+      "problem": "The root engines range and repository verifier accepted untested future Node majors, including Node 26, which previously failed installing Recrypt.",
+      "fix": "Bound root engines to Node 20.19+, 22.12+, and 24.x; aligned the lockfile and verifier; added boundary regression coverage.",
+      "verification": "Supported LTS lines accepted; Node 25/26 and older 20/22 minors rejected."
+    },
+    {
+      "id": "AUD-03",
+      "severity": "low",
+      "category": "request-validation",
+      "status": "FIXED",
+      "problem": "Malformed or non-string SIWE messages could throw parser/type errors that became HTTP 500.",
+      "fix": "Validate input types and translate SIWE parsing failures into a sanitized HTTP 400.",
+      "verification": "Malformed payload regressions pass without database access or parser-detail disclosure."
+    },
+    {
+      "id": "AUD-04",
+      "severity": "moderate",
+      "category": "upload-validation",
+      "status": "FIXED",
+      "problem": "Unsupported evidence MIME types and Multer size/count errors lacked HTTP client-error status codes and reached the global handler as server errors.",
+      "fix": "Return HTTP 415 for unsupported MIME, 413 for oversized files, and 400 for multipart count/format errors; keep one-file and 10 MiB limits.",
+      "verification": "Local HTTP multipart tests pass for valid encrypted data, unsupported MIME, duplicate files, and oversized data."
+    },
+    {
+      "id": "AUD-05",
+      "severity": "moderate",
+      "category": "diagnostic-and-token-output",
+      "status": "FIXED",
+      "problem": "The wallet-login diagnostic omitted the required SIWE message, printed the entire login response including the token, and did not signal CLI failure reliably.",
+      "fix": "Send the full SIWE payload, verify the protected profile and wallet, revoke the diagnostic session in finally, print only public identity/status, and return a failing exit code on CLI error.",
+      "verification": "Mocked protocol tests verify payload, protected request, logout, missing challenge rejection, and absence of the token from logs."
+    },
+    {
+      "id": "AUD-06",
+      "severity": "moderate",
+      "category": "oracle-readiness",
+      "status": "FIXED",
+      "problem": "An Oracle could become initialized despite a failed first poll, erase that failure, and remain ready after later poll failures or stale progress; missing role only emitted a warning.",
+      "fix": "Require successful recent polling and no current error for readiness; retain poll failures; reject initialization without ORACLE_ROLE while keeping retry behavior.",
+      "verification": "Readiness tests cover startup, disabled workers, stale progress, polling errors, and recovery. A real disabled child process returns liveness 200 and readiness 503."
+    },
+    {
+      "id": "AUD-07",
+      "severity": "low",
+      "category": "deployment-verification",
+      "status": "FIXED",
+      "problem": "Hosted preflight accepted any nonempty Oracle instance ID, allowing both URLs to point to the same worker; enabled but unready workers could pass. IPv6 loopback detection used the wrong hostname form.",
+      "fix": "Require expected worker IDs 1 and 2, a boolean enabled flag, and readiness when enabled; reject credential-bearing URLs and bracketed IPv6 loopback.",
+      "verification": "Focused response/URL regressions and the real hosted preview preflight pass."
+    },
+    {
+      "id": "AUD-08",
+      "severity": "moderate",
+      "category": "authentication-availability",
+      "status": "FIXED",
+      "problem": "Authentication middleware mapped database/RPC outages and role revocations to HTTP 401, causing the frontend interceptor to clear valid sessions during infrastructure failures.",
+      "fix": "Keep JWT/session failures at 401, return 403 for role revocation, and return sanitized 503 for authentication dependency failures.",
+      "verification": "Regressions verify valid access, expired/revoked sessions, role revocation, RPC outage, MongoDB outage, and recovery using the same token."
+    }
+  ],
+  "checks": [
+    {
+      "suite": "javascript-syntax",
+      "command": "node --check across backend, Oracle, root scripts, and contract scripts",
+      "result": "PASS",
+      "filesChecked": 232,
+      "failures": 0
+    },
+    {
+      "suite": "verify:all",
+      "command": "npm run verify:all",
+      "result": "PASS",
+      "groupsPassed": 7,
+      "groupsFailed": 0,
+      "durationMs": 35308,
+      "evidencePath": "verification-results/phase5-verification.json"
+    },
+    {
+      "suite": "contracts",
+      "command": "npm --prefix contracts test (included in verify:all)",
+      "result": "PASS",
+      "testsPassed": 133,
+      "testsFailed": 0
+    },
+    {
+      "suite": "backend",
+      "command": "npm --prefix backEnd test (included in verify:all)",
+      "result": "PASS",
+      "testsPassed": 135,
+      "testsFailed": 0,
+      "notes": "Also executes Section 3 analytics. Node counts include nested test containers."
+    },
+    {
+      "suite": "oracle",
+      "command": "npm --prefix oracle test",
+      "result": "PASS",
+      "testsPassed": 17,
+      "testsFailed": 0,
+      "durationMs": 1124,
+      "notes": "Latest targeted rerun includes the process-level health test added after the combined verifier's 16-test Oracle run."
+    },
+    {
+      "suite": "contract-coverage",
+      "command": "npm --prefix contracts run coverage",
+      "result": "PASS",
+      "testsPassed": 132,
+      "instrumentationSkips": 1,
+      "coverage": {
+        "statements": 95.22,
+        "branches": 65.04,
+        "functions": 92.18,
+        "lines": 95.51
+      },
+      "evidencePath": "contracts/coverage/index.html",
+      "notes": "Bytecode-size test intentionally skips instrumented builds. Runner successfully restored ordinary compiled artifacts afterward."
+    },
+    {
+      "suite": "stateful-invariants",
+      "command": "npm --prefix contracts run test:stateful",
+      "result": "PASS",
+      "testsPassed": 4,
+      "notes": "Subset of the main contract suite; not added again to unique suite totals."
+    },
+    {
+      "suite": "frontend-production",
+      "command": "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=<installed Chromium path>; npm run test:e2e:frontend-production",
+      "result": "PASS",
+      "testsPassed": 5,
+      "testsFailed": 0,
+      "durationMs": 12700,
+      "evidencePath": "playwright-report-frontend/index.html",
+      "notes": "Four viewports, browser/request errors, overflow, headings, keyboard focus, login alias, refresh, and 404. Chromium revision 1243 used explicitly; default revision 1234 was unavailable."
+    },
+    {
+      "suite": "synchronization",
+      "command": "npm run verify:sync",
+      "result": "PASS"
+    },
+    {
+      "suite": "release-template",
+      "command": "npm run release:check:template",
+      "result": "PASS"
+    },
+    {
+      "suite": "e2e-catalog",
+      "command": "npm run test:e2e:list:isolated",
+      "result": "PASS",
+      "scenariosDiscovered": 40,
+      "files": 13,
+      "notes": "Inventory only; does not execute authenticated multi-role workflows."
+    },
+    {
+      "suite": "production-dependency-advisories",
+      "command": "npm --prefix <backEnd|frontEnd|oracle> audit --omit=dev --json",
+      "result": "PASS",
+      "vulnerabilities": {
+        "backend": 0,
+        "frontend": 0,
+        "oracle": 0
+      },
+      "notes": "Advisory database queried during this audit; no automatic dependency upgrade performed."
+    },
+    {
+      "suite": "hosted-preview",
+      "command": "npm run preflight:hosted with the four explicit deployed URLs",
+      "result": "PASS",
+      "frontendHttpStatus": 200,
+      "backendHttpStatus": 200,
+      "backendMode": "limited",
+      "blockchain": "disabled",
+      "oracleOne": {
+        "httpStatus": 200,
+        "workerEnabled": false,
+        "workerReady": false
+      },
+      "oracleTwo": {
+        "httpStatus": 200,
+        "workerEnabled": false,
+        "workerReady": false
+      },
+      "notes": "Read-only checks of the existing deployment. Local audit fixes have not been deployed."
+    },
+    {
+      "suite": "diff-whitespace",
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "initialFailures": [
+    {
+      "command": "npm run verify:all",
+      "category": "artifact-mismatch",
+      "result": "RESOLVED",
+      "detail": "One repository-integrity task failed on the stale research manifest; all seven groups pass after regeneration."
+    },
+    {
+      "command": "npm run test:e2e:frontend-production",
+      "category": "environment",
+      "result": "RESOLVED_WITH_BROWSER_OVERRIDE",
+      "detail": "Five tests could not launch missing Chromium revision 1234. Matching-browser download stalled and audit-owned installers were stopped. All five pass using installed Chromium revision 1243."
+    },
+    {
+      "command": "git diff --check",
+      "category": "formatting",
+      "result": "RESOLVED",
+      "detail": "CRLF in edited files was flagged as trailing whitespace; normalized only the three edited JavaScript files to LF."
+    }
+  ],
+  "coverageBoundary": {
+    "uniqueSuiteTestsPassed": 290,
+    "calculation": "133 contracts + 135 backend + 17 Oracle + 5 production-browser; excludes duplicate coverage/stateful/targeted reruns.",
+    "newTestsByRunnerCount": 22,
+    "liveMultiRoleCampaign": "NOT_RUN",
+    "reason": "No running local backend or Hardhat node, Docker daemon unavailable, and no local mongod found. The existing Atlas database was not reset or mutated to substitute for a local fixture.",
+    "latestEarlierFullLocalCampaign": "2026-10-12; retained as historical evidence only, not verification of these new fixes.",
+    "mutationCampaign": "NOT_RERUN; no Solidity or mutation/invariant implementation changed.",
+    "optionalSlither": "NOT_RUN; executable not on PATH.",
+    "hostedFullBlockchain": "Unavailable by design until Sepolia activation; preview is deliberately limited."
+  },
+  "reviewNotes": {
+    "architecture": "Existing architecture, contract state machines, payment rules, and role boundaries retained.",
+    "refactoring": "Extracted a small testable Oracle readiness predicate; made hosted preflight and wallet diagnostic import-safe and testable. Avoided broad rewrites or speculative deletion of compatibility/research code.",
+    "evidencePreservation": "Retained new production HTML/screenshots and restored the four earlier tracked screenshots removed by report generation.",
+    "secrets": "No environment files modified and no credential material included in this summary.",
+    "nextAction": "Review the local diff and commit/deploy separately when desired. A local multi-role E2E rerun requires the disposable MongoDB/Hardhat stack."
+  }
+}

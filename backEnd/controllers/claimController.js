@@ -1,4 +1,5 @@
 const { ethers } = require("ethers");
+const { finalizeEvidence } = require("../services/evidenceFinalizationService");
 const {
   getClaimAdjudicator,
   getReadOnlyContract,
@@ -9,9 +10,6 @@ const File = require("../models/File");
 const Hospital = require("../models/Hospital");
 const HospitalClaimVerification = require("../models/HospitalClaimVerification");
 const { formatHospitalVerification } = require("../services/hospitalVerificationService");
-const {
-  assignEvidenceChainLink,
-} = require("../services/evidenceChainService");
 const { unpinFromPinata } = require("../services/ipfsService");
 const { notifyAdmins } = require("../services/notificationService");
 const {
@@ -643,15 +641,7 @@ const reconcileClaimSubmission = async (req, res, next) => {
       req.user.walletAddress
     );
 
-    if (attempt.status === "COMPLETED") {
-      return res.status(200).json({
-        success: true,
-        message: "Claim submission was already reconciled",
-        attempt,
-      });
-    }
-
-    if (attempt.status !== "TX_SUBMITTED" || !attempt.transactionHash) {
+    if (!["TX_SUBMITTED", "COMPLETED"].includes(attempt.status) || !attempt.transactionHash) {
       throw createError("Attempt does not have a submitted transaction", 409);
     }
 
@@ -726,7 +716,7 @@ const reconcileClaimSubmission = async (req, res, next) => {
       throw createError("Confirmed claim evidence does not match the uploaded document", 409);
     }
 
-    await assignEvidenceChainLink(fileRecord, claimId);
+    await finalizeEvidence({ file: fileRecord, claim, version: await contract.claimVersion(claimId), attempt, actorWallet: req.user.walletAddress });
 
     attempt.claimId = claimId;
     attempt.status = "COMPLETED";

@@ -85,6 +85,21 @@ contract PolicyEconomics {
     mapping(bytes32 => uint256) public invoiceClaimId;
     mapping(uint256 => bool) public coverageTerminated;
     mapping(uint256 => bool) public exposureClosed;
+    address public benefitsManager;
+    mapping(uint256 => bool) public terminalBenefitSettled;
+
+    function configureBenefitsManager(address benefits) external onlyManagerAdmin {
+        require(benefitsManager == address(0) && benefits.code.length > 0, "Invalid benefits configuration");
+        benefitsManager = benefits;
+    }
+
+    function closeTerminalCoverage(uint256 policyId, address caller) external onlyManager {
+        require(caller == benefitsManager && caller != address(0), "Caller is not benefits manager");
+        require(!terminalBenefitSettled[policyId], "Terminal benefit already settled");
+        terminalBenefitSettled[policyId] = true;
+        coverageTerminated[policyId] = true;
+        _closeExposure(policyId);
+    }
 
     event PackageRulesPublished(uint256 indexed packageId, uint64 indexed version, bytes32 policyRuleVersion);
     event PolicyTermsSnapshotted(uint256 indexed policyId, uint256 indexed packageId, uint64 ruleVersion);
@@ -279,6 +294,7 @@ contract PolicyEconomics {
     ) external onlyManager returns (uint256 insurerLiabilityWei) {
         PolicyTerms memory terms = policyTerms[policyId];
         require(terms.holder == claimant, "Policy owner mismatch");
+        require(!terminalBenefitSettled[policyId], "Policy closed by terminal benefit");
         require(claimAmountWei > 0 && claimAmountWei <= terms.maximumClaimWei, "Claim amount not covered");
         require(incidentAt <= block.timestamp, "Incident is in the future");
         require(block.timestamp <= uint256(incidentAt) + terms.claimDeadline, "Claim deadline expired");
@@ -316,6 +332,7 @@ contract PolicyEconomics {
 
     function reserveAppeal(uint256 claimId) external onlyManager {
         ClaimReservation storage reservation = claimReservations[claimId];
+        require(!terminalBenefitSettled[reservation.policyId], "Policy closed by terminal benefit");
         require(!reservation.reserved && !reservation.settled, "Claim coverage unavailable");
         CoverageAccount storage account = coverageAccounts[reservation.policyId];
         require(
@@ -329,6 +346,22 @@ contract PolicyEconomics {
         }
         reservation.reserved = true;
         emit CoverageReserved(reservation.policyId, claimId, reservation.liabilityWei, remainingCoverage(reservation.policyId));
+    }
+
+    function amendRejectedClaim(uint256 claimId, uint256 amount, bytes32 invoiceId) external onlyManager {
+        ClaimReservation storage reservation = claimReservations[claimId];
+        require(!reservation.reserved && !reservation.settled, "Claim coverage unavailable");
+        require(!terminalBenefitSettled[reservation.policyId], "Policy closed by terminal benefit");
+        PolicyTerms memory terms = policyTerms[reservation.policyId];
+        require(amount > 0 && amount <= terms.maximumClaimWei, "Claim amount not covered");
+        require(invoiceId != bytes32(0) && (invoiceClaimId[invoiceId] == 0 || invoiceClaimId[invoiceId] == claimId), "Invoice identity already used");
+        (, , , uint256 liability, ) = _calculate(terms, amount);
+        require(liability > 0, "Settlement is zero");
+        // Old invoice identities remain bound to this claim to prevent replay.
+        invoiceClaimId[invoiceId] = claimId;
+        reservation.invoiceId = invoiceId;
+        reservation.claimAmountWei = amount;
+        reservation.liabilityWei = liability;
     }
 
     function releaseClaim(uint256 claimId) external onlyManager {

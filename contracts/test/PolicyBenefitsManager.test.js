@@ -22,6 +22,8 @@ describe("PolicyBenefitsManager - Phase 2 benefits", function () {
 
     const Benefits = await ethers.getContractFactory("PolicyBenefitsManager");
     const benefits = await Benefits.deploy(await insurance.getAddress());
+    const economics = await ethers.getContractAt("PolicyEconomics", await insurance.policyEconomics());
+    await economics.configureBenefitsManager(await benefits.getAddress());
     const termsHash = ethers.keccak256(ethers.toUtf8Bytes("family-protection-v1"));
     await benefits.publishBenefitTerms(
       1,
@@ -129,6 +131,26 @@ describe("PolicyBenefitsManager - Phase 2 benefits", function () {
         ethers.keccak256(ethers.toUtf8Bytes("late-death-record"))
       )
     ).to.be.reverted;
+  });
+
+  it("terminal allocation closes the policy, blocks other benefits and new claims, but preserves reservations", async function () {
+    const { benefits, holder, beneficiaryOne, insurance, outsider } = await deployFixture();
+    const economics = await ethers.getContractAt("PolicyEconomics", await insurance.policyEconomics());
+    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
+    const policy = await insurance.getPolicy(1);
+    const submit = (suffix) => insurance.connect(holder).submitClaim(1, ethers.parseEther("0.1"), policy.startDate, "HOSPITALIZATION", "HOSP-001", ethers.id(`invoice-${suffix}`), ethers.id(`doc-${suffix}`), `ipfs://${suffix}`);
+    await submit("reserved");
+    const before = await economics.getCoverageAccount(1);
+    await expect(insurance.connect(outsider).closePolicyForBenefit(1)).to.be.reverted;
+    await benefits.connect(beneficiaryOne).requestBenefit(1, 0, ethers.id("death"));
+    await benefits.approveBenefit(1);
+    await benefits.settleBenefit(1);
+    expect((await insurance.getPolicy(1)).isActive).to.equal(false);
+    expect(await economics.terminalBenefitSettled(1)).to.equal(true);
+    expect((await economics.getCoverageAccount(1)).reservedCoverageWei).to.equal(before.reservedCoverageWei);
+    await expect(submit("new")).to.be.reverted;
+    await expect(benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash)).to.be.reverted;
+    await expect(benefits.connect(holder).requestBenefit(1, 2, ethers.ZeroHash)).to.be.reverted;
   });
 
   it("reserves and allocates an approved death benefit by registered shares", async function () {

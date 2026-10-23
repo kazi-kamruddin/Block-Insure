@@ -14,6 +14,7 @@ const { closeActor, createActorContext } = require("../support/walletBridge");
 const { requireDisposableE2EMongoUri } = require("../support/environment");
 
 function backendEnv(name) {
+  if (process.env[name]) return process.env[name];
   const source = fs.readFileSync(path.resolve(__dirname, "../../backEnd/.env"), "utf8");
   const line = source.split(/\r?\n/).find((entry) => entry.startsWith(`${name}=`));
   return line?.slice(name.length + 1).trim() || "";

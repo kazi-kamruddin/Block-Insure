@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const indexedBlockchainEventSchema = new mongoose.Schema(
   {
+    indexerId: { type: String, index: true },
     contractAddress: { type: String, required: true, lowercase: true, index: true },
     contractName: { type: String, required: true, trim: true, index: true },
     blockNumber: { type: Number, required: true, min: 0, index: true },
@@ -16,7 +17,7 @@ const indexedBlockchainEventSchema = new mongoose.Schema(
 );
 
 indexedBlockchainEventSchema.index(
-  { contractAddress: 1, transactionHash: 1, logIndex: 1 },
+  { indexerId: 1, contractAddress: 1, transactionHash: 1, logIndex: 1 },
   { unique: true }
 );
 indexedBlockchainEventSchema.index({ eventName: 1, blockNumber: -1, logIndex: -1 });

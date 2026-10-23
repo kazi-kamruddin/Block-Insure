@@ -12,6 +12,7 @@ const canonicalize = (value) => {
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const loadAndVerifyModelArtifact = (filePath = path.join(__dirname, "..", "backEnd", "model-params.json")) => {
   const artifact = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  if (artifact.inferenceEngineVersion !== "observable-runtime-v1") throw new Error("Unsupported runtime inference engine");
   const { artifactHash, modelIdentityHash, ...payload } = artifact;
   const expectedArtifactHash = sha256(canonicalize(payload));
   const identity = {

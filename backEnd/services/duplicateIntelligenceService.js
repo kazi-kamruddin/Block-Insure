@@ -66,15 +66,16 @@ const analyzeDuplicateCandidate = (candidate, existingClaims) => {
     const amountSimilarity = Math.max(0, 1 - Math.abs(amountLeft - amountRight) / Math.max(amountLeft, amountRight, 1));
     const dateSimilarity = Math.max(0, 1 - daysApart(candidate.incidentDate, claim.incidentDate) / 30);
     const relationship =
-      String(candidate.claimantId || candidate.policyId) === String(claim.claimantId || claim.policyId) ||
-      normalizeText(candidate.providerName || candidate.providerId) === normalizeText(claim.providerName || claim.providerId)
+      Boolean(candidate.claimantId || candidate.policyId) &&
+      String(candidate.claimantId || candidate.policyId) === String(claim.claimantId || claim.policyId)
         ? 1
         : 0;
     const score = 0.5 * textSimilarity + 0.2 * amountSimilarity + 0.15 * dateSimilarity + 0.15 * relationship;
     return { claimId: claim.claimId, score, textSimilarity, amountSimilarity, dateSimilarity, relationship };
-  }).filter((match) => match.score >= 0.62).sort((left, right) => right.score - left.score);
+  }).filter((match) => match.relationship === 1 && match.score >= 0.62).sort((left, right) => right.score - left.score);
 
   return {
+    authority: "ADVISORY_ONLY",
     authoritativeDuplicate: false,
     requiresManualReview: matches.length > 0,
     action: matches.length > 0 ? "ADVISORY_MANUAL_REVIEW" : "NO_DUPLICATE_SIGNAL",

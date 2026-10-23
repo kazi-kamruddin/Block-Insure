@@ -1,41 +1,63 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Segoe UI Variable", "Segoe UI", Inter, Roboto, Helvetica, Arial,
-    sans-serif;
-  --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono",
-    monospace;
-  --color-ink-950: #07101f;
-  --color-ink-900: #0b1629;
-  --color-ink-800: #111f36;
-  --color-aqua-300: #67e8f9;
-  --color-aqua-400: #22d3ee;
-  --color-mint-300: #5eead4;
-  --color-mint-400: #2dd4bf;
+  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* Spruce Noir Dark Tokens */
+  --color-spruce-950: #040805;
+  --color-spruce-900: #0a0f0c;
+  --color-spruce-800: #121914;
+  --color-spruce-700: #19231c;
+
+  /* Norway Sage Tokens */
+  --color-sage-100: #f4f7f4;
+  --color-sage-200: #e6eee6;
+  --color-sage-300: #d1ded1;
+  --color-sage-400: #a3b8a3;
+  --color-sage-600: #2d4233;
+  --color-sage-800: #183d29;
+  --color-sage-900: #0a140d;
+
+  /* Forest & Luminous Accents */
+  --color-forest-primary: #2d6a4f;
+  --color-forest-hover: #3b8563;
+  --color-emerald-luminous: #4ade80;
+  --color-emerald-vibrant: #15803d;
 }
 
 :root {
-  --font-sans: "Segoe UI Variable", "Segoe UI", Inter, Roboto, Helvetica, Arial,
-    sans-serif;
-  --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono",
-    monospace;
+  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-family: var(--font-sans);
-  color: #f8fafc;
-  background: #07101f;
+  color-scheme: light;
+  color: #0a140d;
+  background: #e6eee6;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+.dark {
+  color-scheme: dark;
+  color: #f4f7f5;
+  background: #040805;
+}
+
 html {
   min-width: 320px;
   scroll-behavior: smooth;
-  scrollbar-color: #2a3850 #0b1324;
+  scrollbar-color: rgba(10, 20, 13, 0.25) #e6eee6;
+}
+
+html.dark {
+  scrollbar-color: #19231c #040805;
 }
 
 body {
   min-height: 100vh;
+  margin: 0;
 }
 
 #root {
@@ -47,6 +69,6 @@ body {
 }
 
 ::selection {
-  background: rgba(45, 212, 191, 0.3);
-  color: #ffffff;
+  background: rgba(74, 222, 128, 0.25);
+  color: inherit;
 }

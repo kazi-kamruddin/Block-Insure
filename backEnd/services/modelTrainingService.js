@@ -30,6 +30,7 @@ const trainModelParams = (records, metadata = {}) => {
   });
   const artifact = {
     artifactSchemaVersion: 3,
+    inferenceEngineVersion: "observable-runtime-v1",
     modelVersion: metadata.modelVersion || "bernoulli-fraud-v3",
     trainedAt: metadata.trainedAt || new Date().toISOString(),
     source: metadata.source || "Phase 5 synthetic registry",

@@ -115,15 +115,20 @@ const getNonce = async (req, res, next) => {
 
 const walletLogin = async (req, res, next) => {
   try {
-    const { message, signature } = req.body;
-    if (!message || !signature) {
+    const { message, signature } = req.body || {};
+    if (typeof message !== "string" || !message || typeof signature !== "string" || !signature) {
       throw createError("SIWE message and signature are required", 400);
     }
     if (!process.env.JWT_SECRET) {
       throw createError("JWT_SECRET is not configured", 500);
     }
 
-    const siwe = new SiweMessage(message);
+    let siwe;
+    try {
+      siwe = new SiweMessage(message);
+    } catch {
+      throw createError("Invalid SIWE message", 400);
+    }
     const normalizedWallet = normalizeWalletAddress(siwe.address);
     if (
       req.body.walletAddress &&

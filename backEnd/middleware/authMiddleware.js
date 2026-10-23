@@ -70,9 +70,21 @@ const authMiddleware = async (req, res, next) => {
 
     next();
   } catch (error) {
-    return res.status(401).json({
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired token",
+      });
+    }
+    if (error.statusCode === 403) {
+      return res.status(403).json({
+        success: false,
+        message: "On-chain role is missing or has been revoked",
+      });
+    }
+    return res.status(503).json({
       success: false,
-      message: "Invalid or expired token",
+      message: "Authentication service is temporarily unavailable",
     });
   }
 };

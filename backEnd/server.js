@@ -11,6 +11,7 @@ const {
   stopBlockchainEventListener,
 } = require("./services/notificationService");
 const { writeEvent } = require("../scripts/observability");
+const { startRegistryPublisher, stopRegistryPublisher } = require("./services/registryPublicationService");
 const {
   startBlockchainIndexer,
   stopBlockchainIndexer,
@@ -278,6 +279,7 @@ const startServer = async () => {
       startEvidenceAnchorScheduler();
       await startBlockchainEventListener();
       startBankPaymentScheduler();
+      startRegistryPublisher();
     } else {
       console.warn("[Backend] Blockchain runtime disabled; starting in off-chain preview mode");
     }
@@ -289,6 +291,7 @@ const startServer = async () => {
       stopBlockchainIndexer();
       stopEvidenceAnchorScheduler();
       stopBankPaymentScheduler();
+      stopRegistryPublisher();
       await stopBlockchainEventListener().catch(() => undefined);
     }
     await mongoose.connection.close().catch(() => undefined);
@@ -311,6 +314,7 @@ const shutdownServer = async (signal) => {
       stopBlockchainIndexer();
       stopEvidenceAnchorScheduler();
       stopBankPaymentScheduler();
+      stopRegistryPublisher();
     }
     await mongoose.connection.close();
     console.log("Backend services stopped cleanly");

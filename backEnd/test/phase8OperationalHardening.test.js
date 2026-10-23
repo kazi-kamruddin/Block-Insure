@@ -11,8 +11,19 @@ const { run: buildChartManifest, sha256File } = require("../scripts/generateChar
 const {
   researchManifestReproducibilityBasis,
 } = require("../scripts/generateResearchManifest");
+const { validateNodeVersion } = require("../../scripts/verifyRepository");
 
 const projectRoot = path.resolve(__dirname, "..", "..");
+
+test("repository verification accepts supported Node LTS lines and rejects untested future majors", () => {
+  assert.equal(validateNodeVersion("20.19.0"), true);
+  assert.equal(validateNodeVersion("22.12.0"), true);
+  assert.equal(validateNodeVersion("24.16.0"), true);
+  assert.equal(validateNodeVersion("20.18.1"), false);
+  assert.equal(validateNodeVersion("22.11.0"), false);
+  assert.equal(validateNodeVersion("25.1.0"), false);
+  assert.equal(validateNodeVersion("26.0.0"), false);
+});
 
 test("atomic research writes replace complete files without temporary leftovers", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "block-insure-atomic-"));

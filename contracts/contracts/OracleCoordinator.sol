@@ -17,6 +17,7 @@ interface IOracleConsumer {
 
 interface IHospitalVerificationGate {
     function isClaimVerificationComplete(uint256 claimId, uint64 version) external view returns (bool);
+    function isClaimVerified(uint256 claimId, uint64 version) external view returns (bool);
 }
 
 contract OracleCoordinator {
@@ -412,6 +413,12 @@ contract OracleCoordinator {
         bytes32 resultHash,
         uint8 finalizationCode
     ) internal {
+        // A completed negative hospital assessment permits review, never silent
+        // automatic settlement even if both workers report a positive result.
+        if (verified && hospitalVerificationRegistry != address(0)) {
+            verified = IHospitalVerificationGate(hospitalVerificationRegistry)
+                .isClaimVerified(requestData.claimId, requestData.claimVersion);
+        }
         requestData.isFulfilled = true;
         requestData.verifiedResult = verified;
         requestData.resultHash = resultHash;

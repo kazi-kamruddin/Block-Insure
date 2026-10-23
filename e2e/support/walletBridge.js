@@ -80,7 +80,9 @@ async function createActorContext(browser, actorName, contextOptions = {}) {
   const provider = new JsonRpcProvider(
     environment.rpcUrl,
     environment.chainId,
-    { staticNetwork: true }
+    // Local automining can mine identity registration and claim submission
+    // inside ethers' default 250ms cache window. Never reuse a stale nonce.
+    { staticNetwork: true, cacheTimeout: -1 }
   );
   const wallet = new Wallet(actor.privateKey, provider);
   const context = await browser.newContext({

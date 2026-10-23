@@ -20,7 +20,10 @@ export default function HomePage() {
     <div className="page-home">
       <section className="home-hero">
         <div className="home-hero-copy">
-          <span className="home-eyebrow">Blockchain-backed claim assurance</span>
+          <span className="home-eyebrow">
+            <span className="pulse-dot-inline" aria-hidden="true" />
+            Blockchain-backed claim assurance
+          </span>
           <h1>Insurance decisions that leave an evidence trail.</h1>
           <p>
             Block-Insure combines auditable policy management, multi-oracle
@@ -52,9 +55,15 @@ export default function HomePage() {
           ) : null}
 
           <div className="home-proof-row" aria-label="Core platform properties">
-            <span>Role-isolated workspaces</span>
-            <span>Tamper-evident evidence</span>
-            <span>On-chain settlement</span>
+            <span>
+              <i aria-hidden="true">✓</i> Role-isolated workspaces
+            </span>
+            <span>
+              <i aria-hidden="true">✓</i> Tamper-evident evidence
+            </span>
+            <span>
+              <i aria-hidden="true">✓</i> On-chain settlement
+            </span>
           </div>
         </div>
 
@@ -65,24 +74,31 @@ export default function HomePage() {
             <span className="home-ledger-kicker">Claim assurance pipeline</span>
             <div className="home-ledger-status">
               <strong>Verified lifecycle</strong>
-              <span>On-chain</span>
+              <span>
+                <i className="pulse-dot-inline" aria-hidden="true" />
+                On-chain
+              </span>
             </div>
             <div className="home-ledger-steps">
               <div>
                 <span>01</span>
                 <p>Evidence committed</p>
+                <i className="step-check" aria-hidden="true">✓</i>
               </div>
               <div>
                 <span>02</span>
                 <p>Oracle quorum reached</p>
+                <i className="step-check" aria-hidden="true">✓</i>
               </div>
               <div>
                 <span>03</span>
                 <p>Decision reviewed</p>
+                <i className="step-check" aria-hidden="true">✓</i>
               </div>
               <div>
                 <span>04</span>
                 <p>Settlement recorded</p>
+                <i className="step-check" aria-hidden="true">✓</i>
               </div>
             </div>
           </div>
@@ -103,32 +119,50 @@ export default function HomePage() {
           <article>
             <span>01</span>
             <h3>Policy and claim lifecycle</h3>
-            <p>Purchases, submissions, decisions, appeals, and closure follow controlled states.</p>
+            <p>
+              Purchases, submissions, decisions, appeals, and closure follow
+              controlled states.
+            </p>
           </article>
           <article>
             <span>02</span>
             <h3>Multi-oracle verification</h3>
-            <p>Independent oracle confirmations compare claims with healthcare registry records.</p>
+            <p>
+              Independent oracle confirmations compare claims with healthcare
+              registry records.
+            </p>
           </article>
           <article>
             <span>03</span>
             <h3>Explainable fraud scoring</h3>
-              <p>Bernoulli evidence factors expose fraud probability separately from verification confidence.</p>
+            <p>
+              Bernoulli evidence factors expose fraud probability separately from
+              verification confidence.
+            </p>
           </article>
           <article>
             <span>04</span>
             <h3>Evidence integrity</h3>
-            <p>IPFS references, document hashes, and linked evidence records reveal inconsistencies.</p>
+            <p>
+              IPFS references, document hashes, and linked evidence records reveal
+              inconsistencies.
+            </p>
           </article>
           <article>
             <span>05</span>
             <h3>Independent review</h3>
-            <p>Auditor votes are weighted by reputation without granting administrative authority.</p>
+            <p>
+              Auditor votes are weighted by reputation without granting
+              administrative authority.
+            </p>
           </article>
           <article>
             <span>06</span>
             <h3>Transparent settlement</h3>
-            <p>Deductible, co-insurance, reserve checks, and payouts are calculated on-chain.</p>
+            <p>
+              Deductible, co-insurance, reserve checks, and payouts are
+              calculated on-chain.
+            </p>
           </article>
         </div>
       </section>
@@ -144,28 +178,40 @@ export default function HomePage() {
             <span>01</span>
             <div>
               <h3>Submit</h3>
-              <p>A policyholder purchases coverage and submits a claim with hashed evidence.</p>
+              <p>
+                A policyholder purchases coverage and submits a claim with hashed
+                evidence.
+              </p>
             </div>
           </li>
           <li>
             <span>02</span>
             <div>
               <h3>Verify</h3>
-              <p>Duplicate controls, registry checks, oracle quorum, and fraud scoring assess the claim.</p>
+              <p>
+                Duplicate controls, registry checks, oracle quorum, and fraud
+                scoring assess the claim.
+              </p>
             </div>
           </li>
           <li>
             <span>03</span>
             <div>
               <h3>Review</h3>
-              <p>Claims requiring judgment move to independent auditor review or an appeal process.</p>
+              <p>
+                Claims requiring judgment move to independent auditor review or an
+                appeal process.
+              </p>
             </div>
           </li>
           <li>
             <span>04</span>
             <div>
               <h3>Settle</h3>
-              <p>Approved claims are paid from the contract reserve and permanently recorded.</p>
+              <p>
+                Approved claims are paid from the contract reserve and
+                permanently recorded.
+              </p>
             </div>
           </li>
         </ol>
@@ -186,27 +232,42 @@ export default function HomePage() {
           <article>
             <span>Policyholder</span>
             <h3>Manage coverage and claims</h3>
-            <p>Purchase policies, submit evidence, track decisions, receive notifications, and appeal rejections.</p>
+            <p>
+              Purchase policies, submit evidence, track decisions, receive
+              notifications, and appeal rejections.
+            </p>
           </article>
           <article>
             <span>Administrator</span>
             <h3>Operate the insurance system</h3>
-            <p>Configure packages, review claims, manage oracle workflows, monitor reserves, and settle payouts.</p>
+            <p>
+              Configure packages, review claims, manage oracle workflows,
+              monitor reserves, and settle payouts.
+            </p>
           </article>
           <article>
             <span>Auditor</span>
             <h3>Independently examine disputes</h3>
-            <p>Inspect timelines and evidence, verify document integrity, vote, and build a reputation record.</p>
+            <p>
+              Inspect timelines and evidence, verify document integrity, vote,
+              and build a reputation record.
+            </p>
           </article>
           <article>
             <span>Hospital</span>
             <h3>Own patient and invoice records</h3>
-            <p>Use a separate provider wallet and view only records belonging to the contracted hospital identity.</p>
+            <p>
+              Use a separate provider wallet and view only records belonging to
+              the contracted hospital identity.
+            </p>
           </article>
           <article>
             <span>Bank</span>
             <h3>Authorize standing payment instructions</h3>
-            <p>Operate a separate bank wallet and manage the simulated account ledger, EFT mandates, and scheduled premium transfers.</p>
+            <p>
+              Operate a separate bank wallet and manage the simulated account
+              ledger, EFT mandates, and scheduled premium transfers.
+            </p>
           </article>
         </div>
       </section>

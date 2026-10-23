@@ -109,6 +109,10 @@ Non-breaking `npm audit fix` updates were applied to frontend, backend, contract
 
 ## Evidence and artifacts
 
+HTML reports and screenshots below are local generated artifacts excluded from
+Git. The small dated JSON summaries remain tracked. Reruns describe their current
+source revision and do not recreate the historical campaign's exact evidence.
+
 - Ordered E2E machine result: `verification-results/playwright-e2e-run-results.json`
 - Final offline verification: `verification-results/phase5-verification.json`
 - Mutation details: `contracts/mutation-results.json`

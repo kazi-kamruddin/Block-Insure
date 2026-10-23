@@ -16,6 +16,20 @@ dist/
 build/
 coverage/
 
+# Local exports, scratch work, and generated browser reports
+/tmp/
+/output/
+/playwright-reports/
+/playwright-report-frontend/
+# Keep small dated verification summaries; exclude generated media and traces.
+/verification-results/**/*.png
+/verification-results/**/*.jpg
+/verification-results/**/*.jpeg
+/verification-results/**/*.webp
+/verification-results/**/*.mp4
+/verification-results/**/*.webm
+/verification-results/**/*.zip
+
 # Large local hybrid healthcare source and generated row files
 backEnd/datasets/hybrid-v1/raw/*.csv
 backEnd/datasets/hybrid-v1/processed/*.jsonl
@@ -42,17 +56,25 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Local-only reference material. Keep the current authoritative overview trackable;
-# the older archive remains local-only.
-reference/*
-!reference/
-!reference/block-insure-current-project-overview.md
-!reference/block-insure-deep-technical-reference.md
-!reference/BLOCK_INSURE_PROJECT_RESEARCH_CONTEXT.md
+# Portable context and local research references
+/reference/
+/.project-context/
 
 # Local reference/planning files
 project overview.docx
 task checklist.md
-.project-context/
 paper-evidence/
 contracts/.venv-slither/
+
+# ==========================================
+# AI Agent files and local skill packages
+# ==========================================
+.agents/
+.agent/
+_agents/
+_agent/
+skills/
+AGENTS.md
+AGENT.md
+agent.md
+GEMINI.md

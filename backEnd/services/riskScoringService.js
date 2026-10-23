@@ -33,6 +33,7 @@ const buildRiskAssessment = async ({
   triagePolicy = loadedTriagePolicy,
 }) => {
   const integrity = verifyModelArtifact(modelParams);
+  if (modelParams.inferenceEngineVersion !== "observable-runtime-v1") throw new Error("Unsupported runtime inference engine");
   if (!integrity.valid) {
     throw new Error(`Fraud model artifact integrity failure: ${integrity.errors.join("; ")}`);
   }
@@ -54,7 +55,7 @@ const buildRiskAssessment = async ({
   const fraudProbabilityPercent = Math.round(fraudProbability * 100);
   const fraudLevel = getFraudLevel(fraudProbability);
   const hardBlockingComparison = Number(comparison?.blockingFailureCount || 0) > 0;
-  const fuzzyOnly = Boolean(duplicateIntelligence?.requiresManualReview) && !hardBlockingComparison;
+  const fuzzyOnly = duplicateIntelligence?.authority !== "ADVISORY_ONLY" && Boolean(duplicateIntelligence?.requiresManualReview) && !hardBlockingComparison;
   const routingDecision = routeRiskAssessment({
     fraudProbability,
     features,

@@ -1,6 +1,7 @@
 {
   "artifactSchemaVersion": 3,
-  "modelVersion": "bernoulli-fraud-v3.1.0",
+  "modelVersion": "bernoulli-fraud-v3.1.0-observable.1",
+  "inferenceEngineVersion": "observable-runtime-v1",
   "trainedAt": "2026-08-27T00:00:00.000Z",
   "source": "phase5/normal seed=202605 size=600; canonical duplicate invoice suffixes",
   "gitCommit": "f981db4a2965a0f072e322443b75660c85701ff9",
@@ -311,6 +312,6 @@
       }
     }
   },
-  "artifactHash": "f172016bc1c801b085e20180f7ab204205a1d783b2d8ac3f5d66e40dcb9abe86",
-  "modelIdentityHash": "0xf1ead0b09877c9a7894f109515f0776b3fba8d21e96c8b60963dc2eba8d4ebc1"
+  "artifactHash": "7ca311c1282396831e9a52f205f971de1ff0f3d9a71257339f95518ce394391c",
+  "modelIdentityHash": "0xb4ad3426a7be09effe5dac761c32672165faec7dba1d1f7d42d333b9ffb8e8fa"
 }

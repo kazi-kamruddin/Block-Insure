@@ -96,4 +96,57 @@ test.describe("@frontend-production public quality", () => {
     await expectAccessibleDocument(page);
     expect(failures).toEqual([]);
   });
+
+  test("theme toggle switches between Spruce Noir dark mode and Norway Sage light mode with persistence", async ({ page }) => {
+    const failures = monitorPage(page);
+    await page.goto("/", { waitUntil: "networkidle" });
+
+    // Initial state: dark mode default
+    const htmlTheme = await page.evaluate(() => ({
+      classList: Array.from(document.documentElement.classList),
+      dataTheme: document.documentElement.getAttribute("data-theme"),
+    }));
+    expect(htmlTheme.classList).toContain("dark");
+    expect(htmlTheme.dataTheme).toBe("dark");
+
+    const toggleBtn = page.getByRole("button", { name: /switch to light mode/i });
+    await expect(toggleBtn).toBeVisible();
+
+    // Switch to light mode
+    await toggleBtn.click();
+    const lightTheme = await page.evaluate(() => ({
+      classList: Array.from(document.documentElement.classList),
+      dataTheme: document.documentElement.getAttribute("data-theme"),
+      savedTheme: localStorage.getItem("block-insure-theme"),
+    }));
+    expect(lightTheme.classList).not.toContain("dark");
+    expect(lightTheme.dataTheme).toBe("light");
+    expect(lightTheme.savedTheme).toBe("light");
+
+    // Check that button aria-label changed to "Switch to dark mode"
+    const toggleToDarkBtn = page.getByRole("button", { name: /switch to dark mode/i });
+    await expect(toggleToDarkBtn).toBeVisible();
+
+    // Reload page to verify persistence
+    await page.reload({ waitUntil: "networkidle" });
+    const persistedLightTheme = await page.evaluate(() => ({
+      classList: Array.from(document.documentElement.classList),
+      dataTheme: document.documentElement.getAttribute("data-theme"),
+    }));
+    expect(persistedLightTheme.classList).not.toContain("dark");
+    expect(persistedLightTheme.dataTheme).toBe("light");
+
+    // Switch back to dark mode
+    await page.getByRole("button", { name: /switch to dark mode/i }).click();
+    const backToDark = await page.evaluate(() => ({
+      classList: Array.from(document.documentElement.classList),
+      dataTheme: document.documentElement.getAttribute("data-theme"),
+      savedTheme: localStorage.getItem("block-insure-theme"),
+    }));
+    expect(backToDark.classList).toContain("dark");
+    expect(backToDark.dataTheme).toBe("dark");
+    expect(backToDark.savedTheme).toBe("dark");
+
+    expect(failures).toEqual([]);
+  });
 });

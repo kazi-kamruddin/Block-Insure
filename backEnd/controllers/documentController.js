@@ -1,4 +1,5 @@
 const File = require("../models/File");
+const { finalizeEvidence } = require("../services/evidenceFinalizationService");
 const User = require("../models/User");
 const EvidenceGrant = require("../models/EvidenceGrant");
 const EvidenceAccessLog = require("../models/EvidenceAccessLog");
@@ -262,7 +263,7 @@ const uploadDocument = async (req, res, next) => {
       String(aad.uploader || "").toLowerCase() !== req.user.walletAddress.toLowerCase() ||
       String(aad.evidenceType || "") !== documentType ||
       !String(aad.claimId || "") ||
-      Number(aad.claimVersion) < 1
+      (!Number.isSafeInteger(Number(aad.claimVersion)) || Number(aad.claimVersion) < 1)
     ) {
       return res.status(400).json({ success: false, message: "Evidence associated data does not match this upload" });
     }
@@ -278,6 +279,9 @@ const uploadDocument = async (req, res, next) => {
 
     let attempt = null;
     if (attemptId) {
+      if (String(aad.claimId) !== `attempt:${attemptId}` || Number(aad.claimVersion) !== 1) {
+        return res.status(409).json({ success: false, message: "Envelope must bind the authorized submission attempt" });
+      }
       if (!/^[a-f\d]{24}$/i.test(attemptId)) {
         return res.status(400).json({ success: false, message: "Claim submission attempt id is invalid" });
       }
@@ -558,7 +562,7 @@ const attachClaimIdToDocument = async (req, res, next) => {
       return res.status(403).json({ success: false, message: "Document does not belong to this wallet" });
     }
     const claimId = normalizeClaimId(req.body.claimId);
-    if (!claimId || fileRecord.envelopeClaimId !== claimId) {
+    if (!claimId || ![claimId, `attempt:${String(req.body.attemptId || "").trim()}`].includes(fileRecord.envelopeClaimId)) {
       return res.status(409).json({ success: false, message: "Evidence envelope is bound to another claim" });
     }
     if (fileRecord.claimId && fileRecord.claimId !== claimId) {
@@ -578,25 +582,7 @@ const attachClaimIdToDocument = async (req, res, next) => {
     if (version !== fileRecord.claimVersion || attempt.policyId !== claim.policyId.toString()) {
       return res.status(409).json({ success: false, message: "Evidence claim version or policy mismatch" });
     }
-    const linkedDocument = await assignEvidenceChainLink(fileRecord, claimId);
-    if (
-      linkedDocument.evidenceEventIndex === null ||
-      linkedDocument.evidenceEventIndex === undefined
-    ) {
-      const event = await appendEvidenceEvent({
-        eventType: "EVIDENCE_ADDED",
-        claimId,
-        claimVersion: version,
-        documentId: linkedDocument._id,
-        actorWallet: req.user.walletAddress,
-        ciphertextHash: linkedDocument.sha256Hash,
-        ciphertextReference: linkedDocument.ipfsCID,
-        associatedDataHash: linkedDocument.associatedDataHash,
-        encryptionSchemeVersion: linkedDocument.encryptionSchemeVersion,
-      });
-      linkedDocument.evidenceEventIndex = event.treeIndex;
-      await linkedDocument.save();
-    }
+    const linkedDocument = await finalizeEvidence({ file: fileRecord, claim, version, attempt, actorWallet: req.user.walletAddress });
     await ClaimSubmissionAttempt.updateOne(
       { _id: attempt._id },
       { $set: { claimId, status: "COMPLETED", completedAt: new Date() } }

@@ -409,9 +409,8 @@ const updatePolicyPackage = async (req, res, next) => {
       success: true,
       message: "Policy package updated successfully",
       transactionHash: tx.hash,
-      economicsTransactionHash:
-        economicsPublication?.transaction?.hash || "",
-      economicRuleVersion: economicsPublication?.version?.toString() || "0",
+      economicsTransactionHash: "",
+      economicRuleVersion: "0",
       package: formatPolicyPackage(updatedPackage),
     });
   } catch (error) {

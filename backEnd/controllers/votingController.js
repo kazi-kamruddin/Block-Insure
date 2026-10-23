@@ -54,6 +54,9 @@ const getClaimVoteSummary = async (req, res, next) => {
     res.status(200).json({
       success: true,
       voteSummary: {
+        authority: "ON_CHAIN_UNWEIGHTED_QUORUM",
+        weightedSummaryIsAdvisory: true,
+        reputationMeaning: "Agreement with finalized quorum outcomes, not independently established claim truth; timeouts are not merits observations",
         claimId: String(claimId),
         ...consensus,
         voters: consensus.voters.map((voter) => ({

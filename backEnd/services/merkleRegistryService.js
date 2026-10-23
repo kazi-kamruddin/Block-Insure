@@ -5,6 +5,7 @@ const TREE_VERSION = "blockinsure-registry-merkle-v3";
 const HASH_ALGORITHM = "SHA-256";
 const treeCache = new Map();
 const treeBuildPromises = new Map();
+const archivedTreeCache = new Map();
 
 const normalizeHash = (value) => String(value || "").trim().toLowerCase();
 
@@ -37,6 +38,7 @@ const getCanonicalRecordPayload = (record) => ({
   hospitalName: record.hospitalName,
   licenseStatus: record.licenseStatus,
   patientHash: record.patientHash,
+  ...(record.authorizedClaimants?.length ? { authorizedClaimants: [...record.authorizedClaimants].map((wallet) => wallet.toLowerCase()).sort() } : {}),
   treatmentType: record.treatmentType,
   diagnosisCode: record.diagnosisCode,
   admissionDate: formatDate(record.admissionDate),
@@ -179,7 +181,7 @@ const getRegistryRecordsForMerkle = async (registrySnapshot = "primary") => {
 
   return RegistryModel.find()
     .select(
-      "hospitalId hospitalName licenseStatus patientHash treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel datasetProfile baseDataOrigin claimSetting providerPotentialFraud providerLabelType scenarioInjected scenarioType scenarioVersion sourceClaimAmountUsd sourceProcedureCode amountNormalizationVersion amountNormalizationDivisor previousClaimCount providerVelocityAnomaly claimantVelocityAnomaly nearDuplicateAdvisory isMissingOrNoisy dataQuality recurringLegitimate fraudSignals"
+      "hospitalId hospitalName licenseStatus patientHash authorizedClaimants treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel datasetProfile baseDataOrigin claimSetting providerPotentialFraud providerLabelType scenarioInjected scenarioType scenarioVersion sourceClaimAmountUsd sourceProcedureCode amountNormalizationVersion amountNormalizationDivisor previousClaimCount providerVelocityAnomaly claimantVelocityAnomaly nearDuplicateAdvisory isMissingOrNoisy dataQuality recurringLegitimate fraudSignals"
     )
     .lean();
 };
@@ -227,8 +229,24 @@ const exportMerkleRoot = async () => {
   return merkleRoot.rootHash || `0x${"0".repeat(64)}`;
 };
 
-const buildRegistryMerkleProof = async ({ invoiceHash, registrySnapshot = "primary" }) => {
-  const tree = await getCachedRegistryTree(registrySnapshot);
+const buildRegistryMerkleProof = async ({ invoiceHash, registrySnapshot = "primary", rootHash = "" }) => {
+  let tree;
+  if (rootHash) {
+    tree = archivedTreeCache.get(normalizeHash(rootHash));
+    const chunks = tree ? [] : await require("../models/RegistrySnapshotChunk").find({ rootHash: normalizeHash(rootHash) }).sort({ chunkIndex: 1 }).lean();
+    if (chunks.length) {
+      tree = buildMerkleTree(chunks.flatMap((chunk) => chunk.records));
+      if (normalizeHash(tree.rootHash) !== normalizeHash(rootHash)) throw new Error("Archived registry snapshot is corrupt");
+      archivedTreeCache.set(normalizeHash(rootHash), tree);
+      if (archivedTreeCache.size > 3) archivedTreeCache.delete(archivedTreeCache.keys().next().value);
+    }
+  }
+  tree ||= await getCachedRegistryTree(registrySnapshot);
+  if (rootHash && normalizeHash(tree.rootHash) !== normalizeHash(rootHash)) {
+    const error = new Error("Requested registry snapshot is unavailable");
+    error.statusCode = 409;
+    throw error;
+  }
   const normalizedInvoiceHash = normalizeHash(invoiceHash);
   const leaf = tree.leafByInvoiceHash.get(normalizedInvoiceHash);
 

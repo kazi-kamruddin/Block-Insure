@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { configureOracleFixture } = require("./helpers/oracleCoordinator");
+const { configureOracleFixture, finalizeExactResult } = require("./helpers/oracleCoordinator");
 
 describe("InsuranceManager hospital verification boundary", function () {
   async function fixture() {
@@ -32,7 +32,7 @@ describe("InsuranceManager hospital verification boundary", function () {
       ethers.keccak256(ethers.toUtf8Bytes("DOC-HOSP-001-001")),
       "ipfs://hospital-claim"
     );
-    return { manager, registry, admin, hospital, otherHospital };
+    return { manager, registry, admin, hospital, otherHospital, coordinator, oracle1, oracle2 };
   }
 
   it("registers a distinct hospital role and blocks insurer processing until it attests", async function () {
@@ -59,5 +59,14 @@ describe("InsuranceManager hospital verification boundary", function () {
         ethers.keccak256(ethers.toUtf8Bytes("forged"))
       )
     ).to.be.reverted;
+  });
+
+  it("allows a negative hospital finding into review but never automatic approval", async function () {
+    const { manager, registry, hospital, coordinator, oracle1, oracle2 } = await fixture();
+    await registry.connect(hospital).submitHospitalVerification(1, false, ethers.id("patient mismatch"));
+    await manager.requestOracleVerification(1);
+    const request = await coordinator.getRequestByClaimId(1);
+    await finalizeExactResult(coordinator, request.requestId, [oracle1, oracle2], true, ethers.id("workers positive"));
+    expect((await manager.getClaim(1)).status).to.equal(5); // ORACLE_FAILED -> review, not rejection.
   });
 });

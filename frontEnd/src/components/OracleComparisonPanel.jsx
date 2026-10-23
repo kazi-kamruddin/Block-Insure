@@ -302,6 +302,7 @@ export default function OracleComparisonPanel({ log, logs, quorumSummary }) {
 
   return (
     <div className="oracle-comparison-panel">
+      <p>Risk scores advise routing; they do not decide claims. A negative hospital finding or failed Oracle verification requires review. Four assigned auditors decide by three approvals or two rejections. Settlement remains a separate funded withdrawal.</p>
       <QuorumSummary summary={quorumSummary} logs={oracleLogs} />
       {rounds.length ? (
         <div className="oracle-round-list">
