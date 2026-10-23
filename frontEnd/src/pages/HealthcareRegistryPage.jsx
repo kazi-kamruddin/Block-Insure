@@ -119,6 +119,7 @@ export default function HealthcareRegistryPage() {
   } = useQuery({
     queryKey: ["healthcareRegistryMerkleRoot"],
     queryFn: getHealthcareRegistryMerkleRoot,
+    refetchInterval: 5000,
   });
 
   const {
@@ -129,6 +130,7 @@ export default function HealthcareRegistryPage() {
   } = useQuery({
     queryKey: ["onChainRegistryMerkleRoot"],
     queryFn: getHealthcareOnChainRegistryMerkleRoot,
+    refetchInterval: 5000,
     enabled: role === "ADMIN" || role === "AUDITOR",
   });
 

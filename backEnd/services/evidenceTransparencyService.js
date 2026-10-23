@@ -157,6 +157,12 @@ const loadLeafHashes = async (treeSize) => {
 };
 
 const appendEvidenceEvent = async (event) => {
+  if (event.idempotencyKey) {
+    const existing = await EvidenceEvent.findOne(event.eventType === "EVIDENCE_ADDED"
+      ? { $or: [{ idempotencyKey: event.idempotencyKey }, { eventType: "EVIDENCE_ADDED", documentId: event.documentId, claimId: String(event.claimId), claimVersion: Number(event.claimVersion) }] }
+      : { idempotencyKey: event.idempotencyKey });
+    if (existing) return existing;
+  }
   const eventWithTimestamp = {
     ...event,
     recordedAt: event.recordedAt || new Date().toISOString(),
@@ -167,6 +173,7 @@ const appendEvidenceEvent = async (event) => {
     const latest = await EvidenceEvent.findOne().sort({ treeIndex: -1 }).select("treeIndex").lean();
     try {
       return await EvidenceEvent.create({
+        ...(event.idempotencyKey ? { idempotencyKey: event.idempotencyKey } : {}),
         treeIndex: latest ? latest.treeIndex + 1 : 0,
         eventType: eventWithTimestamp.eventType,
         claimId: String(eventWithTimestamp.claimId || ""),
@@ -177,6 +184,10 @@ const appendEvidenceEvent = async (event) => {
         leafHash,
       });
     } catch (error) {
+      if (error?.code === 11000 && event.idempotencyKey) {
+        const existing = await EvidenceEvent.findOne({ idempotencyKey: event.idempotencyKey });
+        if (existing) return existing;
+      }
       if (error?.code !== 11000 || attempt === 4) throw error;
     }
   }

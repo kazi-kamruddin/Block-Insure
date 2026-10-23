@@ -898,58 +898,15 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     // =============================================================
 
     function _calculateVerificationConfidence(uint256 claimId) internal view returns (uint256) {
-        Claim memory selectedClaim = claims[claimId];
-        Policy memory selectedPolicy = policies[selectedClaim.policyId];
+        // Submission has validated the other predicates and returned early for
+        // duplicates. Covered run-off remains valid even if the policy is inactive.
+        Policy memory selectedPolicy = policies[claims[claimId].policyId];
+        return selectedPolicy.isActive && block.timestamp <= selectedPolicy.endDate ? 90 : 75;
+    }
 
-        uint256 score = 0;
-
-        if (selectedPolicy.isActive && block.timestamp <= selectedPolicy.endDate) {
-            score += 15;
-        }
-
-        if (
-            selectedClaim.incidentDate >= selectedPolicy.startDate &&
-            selectedClaim.incidentDate <= selectedPolicy.endDate
-        ) {
-            score += 15;
-        }
-
-        if (
-            selectedClaim.claimAmount > 0 &&
-            selectedClaim.claimAmount <= selectedPolicy.coverageAmount
-        ) {
-            score += 15;
-        }
-
-        if (
-            selectedClaim.documentHash != bytes32(0) &&
-            bytes(selectedClaim.documentCID).length > 0
-        ) {
-            score += 15;
-        }
-
-        if (!usedDocumentHashes[selectedClaim.documentHash]) {
-            score += 10;
-        }
-
-        // PolicyEconomics has already rejected a reused canonical invoice identity.
-        score += 10;
-
-        bytes32 claimTypeHash = keccak256(bytes(selectedClaim.claimType));
-
-        if (
-            !userDateClaimTypeUsed[
-                selectedClaim.claimantWallet
-            ][
-                selectedClaim.incidentDate
-            ][
-                claimTypeHash
-            ]
-        ) {
-            score += 10;
-        }
-
-        return _capVerificationConfidence(score);
+    function closePolicyForBenefit(uint256 policyId) external {
+        policyEconomics.closeTerminalCoverage(policyId, msg.sender);
+        _setPolicyStatus(policyId, policies[policyId], block.timestamp > policies[policyId].endDate ? PolicyStatus.EXPIRED : PolicyStatus.CANCELLED);
     }
 
     function _addOracleVerificationScore(uint256 claimId) internal {
@@ -1122,6 +1079,17 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         claims[claimId].status = ClaimStatus.APPEALED;
 
         emit ClaimAppealed(claimId, msg.sender, appealReasonHash, block.timestamp);
+    }
+
+    event RejectedClaimAmended(uint256 indexed claimId, uint256 amount, bytes32 invoiceHash);
+
+    function amendRejectedClaim(uint256 claimId, uint256 amount, bytes32 invoiceHash) external {
+        Claim storage selectedClaim = claims[claimId];
+        require(selectedClaim.claimantWallet == msg.sender && selectedClaim.status == ClaimStatus.REJECTED, "Claim cannot be amended");
+        policyEconomics.amendRejectedClaim(claimId, amount, invoiceHash);
+        selectedClaim.claimAmount = amount;
+        selectedClaim.invoiceHash = invoiceHash;
+        emit RejectedClaimAmended(claimId, amount, invoiceHash);
     }
 
     function castVote(uint256 claimId, uint8 vote) external {

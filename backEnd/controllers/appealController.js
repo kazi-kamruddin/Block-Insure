@@ -1,4 +1,5 @@
 const Appeal = require("../models/Appeal");
+const { assertAppealFactsMatch } = require("../services/appealFactService");
 const {
   getClaimAdjudicator,
   getReadOnlyContract,
@@ -109,6 +110,7 @@ const submitAppeal = async (req, res, next) => {
       appealReason,
     });
     const appealReasonHash = hashAppealCommitment(commitmentPayload);
+    assertAppealFactsMatch(claim, commitmentPayload);
     const providedHash = String(req.body.appealReasonHash || "").trim();
     if (providedHash.toLowerCase() !== appealReasonHash.toLowerCase()) {
       throw createError("appealReasonHash does not match the committed appeal payload", 400);

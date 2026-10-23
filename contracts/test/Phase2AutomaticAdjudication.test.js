@@ -89,6 +89,27 @@ describe("Phase 2 - Automatic adjudication", function () {
     return fixture.adjudicator.getReview(claimId, await fixture.manager.claimVersion(claimId));
   }
 
+  it("amends rejected invoice and amount before appeal and reserves only the corrected liability", async function () {
+    const fixture = await deployFixture();
+    const { manager, adjudicator, user, auditors, publicCaller } = fixture;
+    const claimId = await submitClaim(fixture, "amend-original");
+    await openFailedReview(fixture, claimId);
+    await manager.connect(auditors[0]).castVote(claimId, 2);
+    await manager.connect(auditors[1]).castVote(claimId, 2);
+    const amount = ethers.parseEther("0.1");
+    const invoice = hash("amend-corrected");
+    await expect(manager.connect(publicCaller).amendRejectedClaim(claimId, amount, invoice)).to.be.reverted;
+    await manager.connect(user).amendRejectedClaim(claimId, amount, invoice);
+    await manager.connect(user).submitAppeal(claimId, "corrected");
+    expect((await manager.getClaim(claimId)).claimAmount).to.equal(amount);
+    expect((await manager.getClaim(claimId)).invoiceHash).to.equal(invoice);
+    const economics = await ethers.getContractAt("PolicyEconomics", await manager.policyEconomics());
+    const reservation = await economics.getClaimReservation(claimId);
+    expect(reservation.claimAmountWei).to.equal(amount);
+    await decideWithOracles(fixture, claimId, true, "amended");
+    expect(await adjudicator.allocatedSettlementWei(claimId)).to.equal(reservation.liabilityWei);
+  });
+
   it("removes every administrative approval, rejection, settlement, and closure entry point", async function () {
     const fixture = await deployFixture();
     const functionNames = new Set(
@@ -179,10 +200,13 @@ describe("Phase 2 - Automatic adjudication", function () {
     ).to.be.reverted;
     await time.increase(101);
     await fixture.manager.connect(fixture.publicCaller).sendToManualReview(claimId);
+    await fixture.manager.connect(fixture.auditors[0]).castVote(claimId, 1);
     await time.increase(101);
     await fixture.manager.connect(fixture.publicCaller).finalizeExpiredManualReview(claimId);
     expect((await fixture.manager.getClaim(claimId)).status).to.equal(8);
     expect(await fixture.manager.rejectionReason(claimId)).to.equal(5);
+    // Availability failure is not adjudicated ground truth about this vote.
+    expect(await fixture.adjudicator.auditorReputation(fixture.auditors[0].address)).to.equal(0);
   });
 
   it("appeals preserve the rejected decision and require a fresh hospital attestation", async function () {

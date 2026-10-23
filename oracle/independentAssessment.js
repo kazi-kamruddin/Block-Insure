@@ -52,6 +52,7 @@ const compareCommittedRecord = ({ record, claim }) => {
     incidentDate <= new Date(finalDate.getTime() + tolerance);
 
   return {
+    patientMatches: Boolean(claim.claimantWallet && record.authorizedClaimants?.some((wallet) => normalizeText(wallet) === normalizeText(claim.claimantWallet))),
     hospitalId: normalizeText(record.hospitalId) === normalizeText(claim.hospitalId),
     invoiceHash: normalizeHash(record.invoiceHash) === normalizeHash(claim.invoiceHash),
     billAmount:
@@ -64,12 +65,12 @@ const compareCommittedRecord = ({ record, claim }) => {
     recordStatus: record.recordStatus === "VALID",
     invoiceStatus: record.invoiceStatus === "VALID",
     licenseStatus: record.licenseStatus === "ACTIVE",
-    controlledLabel: record.fraudLabel === "LEGITIMATE",
   };
 };
 
 const extractProofBoundFeatures = ({ record, comparison }) => {
-  const signals = record.fraudSignals || {};
+  // Experiment mutation markers are not observable deployment evidence.
+  const signals = {};
   const invalidRecord = record.recordStatus !== "VALID";
   const usedInvoice = record.invoiceStatus === "USED" || record.recordStatus === "USED" || signals.usedInvoice;
   const cancelledRecord = record.invoiceStatus === "CANCELLED" || record.recordStatus === "CANCELLED" || signals.cancelledRecord;
@@ -104,13 +105,13 @@ const independentlyAssessRecord = ({ record, claim, modelArtifact, triagePolicy 
   const comparison = compareCommittedRecord({ record, claim });
   const features = extractProofBoundFeatures({ record, comparison });
   const hardComparisonPassed = [
+    "patientMatches",
     "hospitalId",
     "invoiceHash",
     "billAmount",
     "recordStatus",
     "invoiceStatus",
     "licenseStatus",
-    "controlledLabel",
   ].every((name) => comparison[name]);
   const rawProbability = predictBernoulli(modelArtifact, features);
   const fraudProbability = calibrate(rawProbability, modelArtifact.calibration);

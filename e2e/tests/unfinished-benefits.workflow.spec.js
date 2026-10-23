@@ -12,6 +12,7 @@ const managerAbi = require("../../backEnd/abi/InsuranceManager.json").abi;
 const benefitsAbi = require("../../contracts/artifacts/contracts/PolicyBenefitsManager.sol/PolicyBenefitsManager.json").abi;
 
 function readEnvValue(relativePath, key) {
+  if (process.env[key]) return process.env[key];
   const source = fs.readFileSync(path.join(projectRoot, relativePath), "utf8");
   const line = source.split(/\r?\n/).find((entry) => entry.startsWith(`${key}=`));
   if (!line) throw new Error(`${key} is not configured`);

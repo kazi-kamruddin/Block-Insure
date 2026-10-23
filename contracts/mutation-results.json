@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-12T10:48:37.059Z",
+  "generatedAt": "2026-10-23T15:32:00.640Z",
   "methodology": "isolated source mutation followed by targeted Hardhat regression test",
   "mutants": [
     {
@@ -11,7 +11,7 @@
       "grep": "finalizes three approvals",
       "status": "KILLED",
       "exitCode": 1,
-      "durationMs": 48876,
+      "durationMs": 51236,
       "outputTail": [
         "",
         "",
@@ -19,18 +19,18 @@
         "    1) finalizes three approvals automatically and keeps the four-auditor snapshot immutable",
         "",
         "",
-        "  0 passing (611ms)",
+        "  0 passing (555ms)",
         "  1 failing",
         "",
         "  1) Phase 2 - Automatic adjudication",
         "       finalizes three approvals automatically and keeps the four-auditor snapshot immutable:",
         "     Error: Transaction reverted without a reason string",
-        "    at InsuranceManager.castVote (contracts/InsuranceManager.sol:1127)",
-        "    at EdrProviderWrapper.request (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\hardhat\\src\\internal\\hardhat-network\\provider\\provider.ts:453:41)",
+        "    at InsuranceManager.castVote (contracts/InsuranceManager.sol:1095)",
+        "    at EdrProviderWrapper.request (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\hardhat\\src\\internal\\hardhat-network\\provider\\provider.ts:452:41)",
         "    at HardhatEthersSigner.sendTransaction (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\@nomicfoundation\\hardhat-ethers\\src\\signers.ts:185:18)",
         "    at send (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\ethers\\src.ts\\contract\\contract.ts:313:20)",
         "    at Proxy.castVote (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\ethers\\src.ts\\contract\\contract.ts:352:16)",
-        "    at Context.<anonymous> (test\\Phase2AutomaticAdjudication.test.js:152:7)"
+        "    at Context.<anonymous> (test\\Phase2AutomaticAdjudication.test.js:173:7)"
       ]
     },
     {
@@ -41,14 +41,14 @@
       "grep": "rejects automatically after two",
       "status": "KILLED",
       "exitCode": 1,
-      "durationMs": 53463,
+      "durationMs": 53916,
       "outputTail": [
         "",
         "  Phase 2 - Automatic adjudication",
         "    1) rejects automatically after two rejections, including a two-two split",
         "",
         "",
-        "  0 passing (555ms)",
+        "  0 passing (514ms)",
         "  1 failing",
         "",
         "  1) Phase 2 - Automatic adjudication",
@@ -60,7 +60,7 @@
         "      -6",
         "      +8",
         "      ",
-        "      at Context.<anonymous> (test\\Phase2AutomaticAdjudication.test.js:168:65)"
+        "      at Context.<anonymous> (test\\Phase2AutomaticAdjudication.test.js:189:65)"
       ]
     },
     {
@@ -71,7 +71,7 @@
       "grep": "privileged finalization",
       "status": "KILLED",
       "exitCode": 1,
-      "durationMs": 50598,
+      "durationMs": 60149,
       "outputTail": [
         "Compiled 30 Solidity files successfully (evm target: cancun).",
         "",
@@ -80,7 +80,7 @@
         "    1) keeps privileged finalization entry points inaccessible to arbitrary callers",
         "",
         "",
-        "  0 passing (628ms)",
+        "  0 passing (539ms)",
         "  1 failing",
         "",
         "  1) Phase 6 - protocol state-machine invariants",
@@ -97,7 +97,7 @@
       "grep": "privileged finalization",
       "status": "KILLED",
       "exitCode": 1,
-      "durationMs": 54849,
+      "durationMs": 71046,
       "outputTail": [
         "Compiled 30 Solidity files successfully (evm target: cancun).",
         "",
@@ -106,7 +106,7 @@
         "    1) keeps privileged finalization entry points inaccessible to arbitrary callers",
         "",
         "",
-        "  0 passing (568ms)",
+        "  0 passing (1s)",
         "  1 failing",
         "",
         "  1) Phase 6 - protocol state-machine invariants",
@@ -123,7 +123,7 @@
       "grep": "prevents cumulative reservations",
       "status": "KILLED",
       "exitCode": 1,
-      "durationMs": 62109,
+      "durationMs": 93947,
       "outputTail": [
         "Compiled 30 Solidity files successfully (evm target: cancun).",
         "",
@@ -132,7 +132,7 @@
         "    1) prevents cumulative reservations from exceeding policy coverage",
         "",
         "",
-        "  0 passing (720ms)",
+        "  0 passing (678ms)",
         "  1 failing",
         "",
         "  1) Phase 3 - Policy economics and Solidity rules",
@@ -153,7 +153,7 @@
       "grep": "canonical invoice identity",
       "status": "KILLED",
       "exitCode": 1,
-      "durationMs": 52201,
+      "durationMs": 46528,
       "outputTail": [
         "Compiled 30 Solidity files successfully (evm target: cancun).",
         "",
@@ -162,7 +162,7 @@
         "    1) prevents a canonical invoice identity from entering a second claim",
         "",
         "",
-        "  0 passing (494ms)",
+        "  0 passing (499ms)",
         "  1 failing",
         "",
         "  1) Phase 3 - Policy economics and Solidity rules",
@@ -179,7 +179,7 @@
       "grep": "blocks treasury withdrawals",
       "status": "KILLED",
       "exitCode": 1,
-      "durationMs": 46454,
+      "durationMs": 50007,
       "outputTail": [
         "Compiled 30 Solidity files successfully (evm target: cancun).",
         "",
@@ -188,7 +188,7 @@
         "    1) blocks treasury withdrawals that breach exposure reserves or the capital buffer",
         "",
         "",
-        "  0 passing (710ms)",
+        "  0 passing (526ms)",
         "  1 failing",
         "",
         "  1) Phase 3 - Policy economics and Solidity rules",
@@ -205,7 +205,7 @@
       "grep": "repeated finalization",
       "status": "KILLED",
       "exitCode": 1,
-      "durationMs": 44007,
+      "durationMs": 47899,
       "outputTail": [
         "",
         "",
@@ -213,14 +213,14 @@
         "    1) never permits repeated finalization, voting, appeal, or payout actions",
         "",
         "",
-        "  0 passing (948ms)",
+        "  0 passing (580ms)",
         "  1 failing",
         "",
         "  1) Phase 6 - protocol state-machine invariants",
         "       never permits repeated finalization, voting, appeal, or payout actions:",
         "     Error: Transaction reverted without a reason string",
-        "    at InsuranceManager.withdrawSettlement (contracts/InsuranceManager.sol:1206)",
-        "    at EdrProviderWrapper.request (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\hardhat\\src\\internal\\hardhat-network\\provider\\provider.ts:453:41)",
+        "    at InsuranceManager.withdrawSettlement (contracts/InsuranceManager.sol:1174)",
+        "    at EdrProviderWrapper.request (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\hardhat\\src\\internal\\hardhat-network\\provider\\provider.ts:452:41)",
         "    at HardhatEthersSigner.sendTransaction (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\@nomicfoundation\\hardhat-ethers\\src\\signers.ts:185:18)",
         "    at send (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\ethers\\src.ts\\contract\\contract.ts:313:20)",
         "    at Proxy.withdrawSettlement (E:\\4-1\\4100 thesis\\project\\Block-Insure\\contracts\\node_modules\\ethers\\src.ts\\contract\\contract.ts:352:16)",

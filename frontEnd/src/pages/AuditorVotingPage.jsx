@@ -267,7 +267,8 @@ export default function AuditorVotingPage() {
         </div>
         <aside className="auditor-vote-decision">
       <div className="card">
-        <h3>Weighted Consensus</h3>
+        <h3>Advisory weighted summary</h3>
+        <p>Weights do not decide claims. Exactly four assigned auditors vote: three approvals approve; two rejections reject. Insufficient quorum at expiry rejects.</p>
         {voteLoading ? <p>Loading votes...</p> : null}
 
         {voteSummary ? (

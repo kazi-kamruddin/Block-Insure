@@ -121,4 +121,9 @@ contract HospitalVerificationRegistry is AccessControl {
         Verification memory verification = hospitalVerifications[claimId];
         return verification.completed && verification.claimVersion == version;
     }
+
+    function isClaimVerified(uint256 claimId, uint64 version) external view returns (bool) {
+        Verification memory verification = hospitalVerifications[claimId];
+        return verification.completed && verification.verified && verification.claimVersion == version;
+    }
 }

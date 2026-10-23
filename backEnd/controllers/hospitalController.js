@@ -1,8 +1,10 @@
 const { ethers } = require("ethers");
 const Appeal = require("../models/Appeal");
+const { assertAppealFactsMatch } = require("../services/appealFactService");
 const Hospital = require("../models/Hospital");
 const HospitalClaimVerification = require("../models/HospitalClaimVerification");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
+const { queueRegistryPublication } = require("../services/registryPublicationService");
 const {
   getHospitalVerificationRegistry,
   getReadOnlyContract,
@@ -48,6 +50,8 @@ const formatRecord = (record) => ({
   hospitalId: record.hospitalId,
   hospitalName: record.hospitalName,
   patientHash: record.patientHash,
+  authorizedClaimants: record.authorizedClaimants || [],
+  publicationPending: Boolean(record.publicationPending),
   invoiceNumber: record.invoiceNumber,
   invoiceHash: record.invoiceHash,
   treatmentType: record.treatmentType,
@@ -91,6 +95,7 @@ const getAppealAdjustedClaim = async (claim, claimVersion) => {
   }
 
   const proposedHospitalId = String(appeal.proposedHospitalId || "").trim();
+  assertAppealFactsMatch(claim, appeal);
   if (proposedHospitalId && proposedHospitalId !== claim.hospitalId) {
     throw createError(
       "An appeal cannot change the hospital identity bound to the on-chain claim",
@@ -213,6 +218,10 @@ const createMyHospitalRecord = async (req, res, next) => {
     const hospital = await getHospitalIdentity(req.user);
     const invoiceNumber = String(req.body.invoiceNumber || "").trim();
     const patientReference = String(req.body.patientReference || "").trim();
+    const authorizedClaimants = [...new Set(String(req.body.authorizedClaimants || "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean))];
+    if (!authorizedClaimants.length || authorizedClaimants.length > 10 || authorizedClaimants.some((value) => !ethers.isAddress(value))) {
+      throw createError("Supply 1 to 10 authorized policyholder/dependent wallet addresses");
+    }
     const treatmentType = String(req.body.treatmentType || "").trim().toUpperCase();
     const diagnosisCode = String(req.body.diagnosisCode || "").trim().toUpperCase();
     const billAmount = String(req.body.billAmount || "").trim();
@@ -248,6 +257,8 @@ const createMyHospitalRecord = async (req, res, next) => {
       hospitalTier: hospital.hospitalTier,
       licenseStatus: "ACTIVE",
       patientHash: ethers.keccak256(ethers.toUtf8Bytes(patientReference)),
+      authorizedClaimants,
+      publicationPending: true,
       treatmentType,
       diagnosisCode,
       admissionDate,
@@ -270,9 +281,10 @@ const createMyHospitalRecord = async (req, res, next) => {
       claimSetting: "SYNTHETIC",
     });
 
+    await queueRegistryPublication();
     res.status(201).json({
       success: true,
-      message: "Hospital record created. Publish a new registry commitment before oracle use.",
+      message: "Hospital record created. Registry publication queued automatically.",
       registryCommitmentPending: true,
       record: formatRecord(record),
     });
@@ -290,11 +302,17 @@ const updateMyHospitalRecord = async (req, res, next) => {
     const allowed = [
       "treatmentType", "diagnosisCode", "admissionDate", "dischargeDate",
       "invoiceDate", "billAmount", "invoiceStatus", "recordStatus",
+      "authorizedClaimants",
     ];
     const updates = Object.fromEntries(
       allowed.filter((key) => req.body[key] !== undefined).map((key) => [key, req.body[key]])
     );
     if (Object.keys(updates).length === 0) throw createError("No supported record changes supplied");
+    if (updates.authorizedClaimants !== undefined) {
+      const values = Array.isArray(updates.authorizedClaimants) ? updates.authorizedClaimants : String(updates.authorizedClaimants).split(",");
+      updates.authorizedClaimants = [...new Set(values.map((value) => String(value).trim().toLowerCase()).filter(Boolean))];
+      if (!updates.authorizedClaimants.length || updates.authorizedClaimants.length > 10 || updates.authorizedClaimants.some((wallet) => !ethers.isAddress(wallet))) throw createError("Invalid authorized claimant wallets");
+    }
     if (updates.treatmentType) updates.treatmentType = String(updates.treatmentType).trim().toUpperCase();
     if (updates.diagnosisCode) updates.diagnosisCode = String(updates.diagnosisCode).trim().toUpperCase();
     if (updates.billAmount !== undefined) {
@@ -323,12 +341,13 @@ const updateMyHospitalRecord = async (req, res, next) => {
     }
     const record = await MockHospitalRecord.findOneAndUpdate(
       { _id: req.params.id, hospitalId: hospital.hospitalId },
-      { $set: updates },
+      { $set: { ...updates, publicationPending: true } },
       { returnDocument: "after", runValidators: true }
     );
+    await queueRegistryPublication();
     res.status(200).json({
       success: true,
-      message: "Hospital record updated. Publish a new registry commitment before oracle use.",
+      message: "Hospital record updated. Registry publication queued automatically.",
       registryCommitmentPending: true,
       record: formatRecord(record),
     });

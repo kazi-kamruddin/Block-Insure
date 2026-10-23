@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const evidenceEventSchema = new mongoose.Schema(
   {
     treeIndex: { type: Number, required: true, min: 0, unique: true },
+    idempotencyKey: { type: String, unique: true, sparse: true },
     eventType: { type: String, required: true, trim: true, index: true },
     claimId: { type: String, trim: true, default: "", index: true },
     claimVersion: { type: Number, min: 0, default: 0 },

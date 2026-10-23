@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+/tmp/stabilization-*/
+/playwright-reports/stabilization/
+/playwright-report-frontend/
 .hardhat-appdata/
 .hardhat-localappdata/
 

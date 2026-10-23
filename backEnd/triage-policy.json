@@ -2,8 +2,8 @@
   "artifactSchemaVersion": 1,
   "policyVersion": "capacity-cost-triage-v1.1.0",
   "sourceCommit": "f981db4a2965a0f072e322443b75660c85701ff9",
-  "modelIdentityHash": "0xf1ead0b09877c9a7894f109515f0776b3fba8d21e96c8b60963dc2eba8d4ebc1",
-  "modelArtifactHash": "f172016bc1c801b085e20180f7ab204205a1d783b2d8ac3f5d66e40dcb9abe86",
+  "modelIdentityHash": "0xb4ad3426a7be09effe5dac761c32672165faec7dba1d1f7d42d333b9ffb8e8fa",
+  "modelArtifactHash": "7ca311c1282396831e9a52f205f971de1ff0f3d9a71257339f95518ce394391c",
   "featureSchemaVersion": "fraud-features-v3",
   "datasetManifestHash": "58c749eefb771e568cf043d727d29a33a4f2d0c5fdb1f7875760514e58e8df53",
   "decisionAuthority": {
@@ -49,6 +49,6 @@
     "calibrationPartitionOnly": true,
     "syntheticDataLimitation": true
   },
-  "artifactHash": "2909efceb13e47db01b324ce2816f7e95d5d49b04b91ca89da8d298a522f4eac",
-  "policyIdentityHash": "0xe91d2d192c37b50e062a8f3204686e85cc3107601584563a14e7e89d23dead1c"
+  "artifactHash": "781f6a38454f67d66b0dbada2e5b18767000d8ce78727ff78fe650f4d7d41d14",
+  "policyIdentityHash": "0x5af9683dd0c716d5051624c61dd0e7372d0f2c084ac742fe8767fb7abc6595c8"
 }

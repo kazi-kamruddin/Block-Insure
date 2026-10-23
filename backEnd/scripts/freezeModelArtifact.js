@@ -62,7 +62,7 @@ const run = ({ writeOutput = true } = {}) => {
     records: calibrationRows.length,
   };
   const artifact = trainModelParams(trainingRecords, {
-    modelVersion: "bernoulli-fraud-v3.1.0",
+    modelVersion: "bernoulli-fraud-v3.1.0-observable.1",
     trainedAt: "2026-08-27T00:00:00.000Z",
     source: "phase5/normal seed=202605 size=600; canonical duplicate invoice suffixes",
     gitCommit: resolveSourceCommit(),

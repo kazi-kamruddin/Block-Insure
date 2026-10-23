@@ -301,6 +301,10 @@ const validateAppealCommitment = async (request, claim, response) => {
     ? ethers.keccak256(ethers.toUtf8Bytes(payload.proposedInvoiceNumber))
     : claim.invoiceHash;
   const expectedAmount = payload.proposedClaimAmountEth || ethers.formatEther(claim.claimAmount);
+  if (ethers.parseEther(expectedAmount) !== claim.claimAmount ||
+      normalizeHash(expectedInvoiceHash) !== normalizeHash(claim.invoiceHash) ||
+      (payload.proposedHospitalId && payload.proposedHospitalId !== claim.hospitalId) ||
+      (payload.proposedClaimType && payload.proposedClaimType !== claim.claimType)) return false;
   if (
     String(payload.claimId) !== claim.claimId.toString() ||
     String(query.claimId) !== claim.claimId.toString() ||
@@ -346,6 +350,7 @@ const classifyResponse = (request, claim, response, appealCommitmentValid) => {
   const evaluationClaim = usesAppealCorrection && appealCommitmentValid
     ? {
         hospitalId: response.query.hospitalId,
+        claimantWallet: claim.claimantWallet,
         invoiceHash: response.query.invoiceHash,
         claimAmount: ethers.parseEther(String(response.query.claimAmountEth)),
         claimType: response.query.claimType,
@@ -367,6 +372,7 @@ const classifyResponse = (request, claim, response, appealCommitmentValid) => {
     ? independentlyAssessRecord({
         record: proof.canonicalRecord,
         claim: {
+          claimantWallet: evaluationClaim.claimantWallet,
           hospitalId: evaluationClaim.hospitalId,
           invoiceHash: evaluationClaim.invoiceHash,
           claimAmountEth: ethers.formatEther(evaluationClaim.claimAmount),

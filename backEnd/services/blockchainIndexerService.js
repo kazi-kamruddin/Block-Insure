@@ -10,9 +10,33 @@ const IndexerCheckpoint = require("../models/IndexerCheckpoint");
 const { getContractAddress, getProvider } = require("./contractService");
 
 const INDEXER_ID = "insurance-manager-v1";
-const CONFIRMATIONS = Number(process.env.INDEXER_CONFIRMATIONS || 3);
 const CHUNK_SIZE = Number(process.env.INDEXER_CHUNK_SIZE || 500);
 let indexerTimer = null;
+let indexingPromise = null;
+let indexMigration;
+
+const ensureIndexerIndexes = () => {
+  if (!indexMigration) indexMigration = (async () => {
+    const collection = IndexedBlockchainEvent.collection;
+    await collection.createIndex({ indexerId: 1, contractAddress: 1, transactionHash: 1, logIndex: 1 }, { unique: true });
+    const old = (await collection.indexes()).find((index) => index.unique && JSON.stringify(index.key) === JSON.stringify({ contractAddress: 1, transactionHash: 1, logIndex: 1 }));
+    // Replace only the obsolete uniqueness constraint; preserve all events.
+    if (old) await collection.dropIndex(old.name);
+  })().catch((error) => { indexMigration = null; throw error; });
+  return indexMigration;
+};
+
+const getIndexerContext = async (provider) => {
+  const network = await provider.getNetwork();
+  const deploymentBlock = Number(process.env.CONTRACT_DEPLOYMENT_BLOCK || 0);
+  const block = await provider.getBlock(deploymentBlock);
+  if (!block) throw new Error("Indexer deployment block is unavailable");
+  const confirmations = Number(process.env.INDEXER_CONFIRMATIONS ?? (network.chainId === 31337n ? 0 : 3));
+  if (!Number.isSafeInteger(confirmations) || confirmations < 0 || !Number.isSafeInteger(CHUNK_SIZE) || CHUNK_SIZE < 1 || CHUNK_SIZE > 2000) {
+    throw new Error("Invalid indexer confirmation depth or chunk size");
+  }
+  return { indexerId: `${INDEXER_ID}:${network.chainId}:${getContractAddress().toLowerCase()}:${block.hash}`, confirmations, deploymentBlock };
+};
 
 const eventIdentity = (log) =>
   `${log.address.toLowerCase()}:${log.transactionHash.toLowerCase()}:${log.index}`;
@@ -48,12 +72,16 @@ const getIndexedSources = async (provider) => {
     ["ClaimAdjudicator", adjudicatorAddress, ClaimAdjudicatorArtifact.abi],
     ["PolicyEconomics", economicsAddress, PolicyEconomicsArtifact.abi],
   ];
+  if (process.env.POLICY_BENEFITS_ADDRESS) configured.push(["PolicyBenefitsManager", process.env.POLICY_BENEFITS_ADDRESS, require("../abi/PolicyBenefitsManager.json").abi]);
   if (process.env.EVIDENCE_REGISTRY_ADDRESS) {
     configured.push([
       "EvidenceRegistry",
       process.env.EVIDENCE_REGISTRY_ADDRESS,
       EvidenceRegistryArtifact.abi,
     ]);
+  }
+  for (const [name, key] of [["HospitalVerificationRegistry", "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS"], ["BankIdentityRegistry", "BANK_IDENTITY_REGISTRY_ADDRESS"]]) {
+    if (process.env[key]) configured.push([name, process.env[key], require(`../abi/${name}.json`).abi]);
   }
   return new Map(
     configured.map(([name, address, abi]) => [
@@ -130,24 +158,29 @@ const migrateLegacyIndexedEventArgs = async (indexedSources) => {
   return updates.length;
 };
 
-const rollbackReorgs = async (provider) => {
-  let latest = await IndexedBlock.findOne({ indexerId: INDEXER_ID }).sort({ blockNumber: -1 });
+const rollbackReorgs = async (provider, context = null) => {
+  const { indexerId } = context || await getIndexerContext(provider);
+  const completed = await IndexerCheckpoint.findOne({ indexerId });
+  // Block markers can precede event writes. Never promote an incomplete batch.
+  await IndexedBlock.deleteMany({ indexerId, blockNumber: { $gt: completed?.blockNumber ?? -1 } });
+  await IndexedBlockchainEvent.deleteMany({ indexerId, blockNumber: { $gt: completed?.blockNumber ?? -1 } });
+  let latest = await IndexedBlock.findOne({ indexerId }).sort({ blockNumber: -1 });
   while (latest) {
     const canonical = await provider.getBlock(latest.blockNumber);
     if (canonical?.hash === latest.blockHash) break;
     await Promise.all([
-      IndexedBlockchainEvent.deleteMany({ blockNumber: { $gte: latest.blockNumber } }),
-      IndexedBlock.deleteMany({ indexerId: INDEXER_ID, blockNumber: { $gte: latest.blockNumber } }),
+      IndexedBlockchainEvent.deleteMany({ indexerId, blockNumber: { $gte: latest.blockNumber } }),
+      IndexedBlock.deleteMany({ indexerId, blockNumber: { $gte: latest.blockNumber } }),
     ]);
-    latest = await IndexedBlock.findOne({ indexerId: INDEXER_ID }).sort({ blockNumber: -1 });
+    latest = await IndexedBlock.findOne({ indexerId }).sort({ blockNumber: -1 });
   }
 
   if (!latest) {
-    await IndexerCheckpoint.deleteOne({ indexerId: INDEXER_ID });
+    await IndexerCheckpoint.deleteOne({ indexerId });
     return null;
   }
   return IndexerCheckpoint.findOneAndUpdate(
-    { indexerId: INDEXER_ID },
+    { indexerId },
     {
       contractAddress: getContractAddress().toLowerCase(),
       blockNumber: latest.blockNumber,
@@ -157,17 +190,19 @@ const rollbackReorgs = async (provider) => {
   );
 };
 
-const indexConfirmedEvents = async () => {
+const runIndexingBatch = async () => {
   const provider = getProvider();
+  const context = await getIndexerContext(provider);
+  const { indexerId } = context;
   const contractAddress = getContractAddress().toLowerCase();
   const indexedSources = await getIndexedSources(provider);
   await migrateLegacyIndexedEventArgs(indexedSources);
-  const checkpoint = await rollbackReorgs(provider);
+  const checkpoint = await rollbackReorgs(provider, context);
   const latestBlock = await provider.getBlockNumber();
-  const confirmedThrough = latestBlock - CONFIRMATIONS;
+  const confirmedThrough = latestBlock - context.confirmations;
   let fromBlock = checkpoint
     ? checkpoint.blockNumber + 1
-    : Number(process.env.CONTRACT_DEPLOYMENT_BLOCK || 0);
+    : context.deploymentBlock;
   if (confirmedThrough < fromBlock) return { indexedBlocks: 0, indexedEvents: 0 };
 
   let indexedBlocks = 0;
@@ -191,10 +226,10 @@ const indexConfirmedEvents = async () => {
     await IndexedBlock.bulkWrite(
       blocks.map((block) => ({
         updateOne: {
-          filter: { indexerId: INDEXER_ID, blockNumber: block.number },
+          filter: { indexerId, blockNumber: block.number },
           update: {
             $setOnInsert: {
-              indexerId: INDEXER_ID,
+              indexerId,
               blockNumber: block.number,
               blockHash: block.hash,
               parentHash: block.parentHash,
@@ -216,12 +251,14 @@ const indexConfirmedEvents = async () => {
       }
       await IndexedBlockchainEvent.updateOne(
         {
+          indexerId,
           contractAddress: log.address.toLowerCase(),
           transactionHash: log.transactionHash,
           logIndex: log.index,
         },
         {
           $setOnInsert: {
+            indexerId,
             contractAddress: log.address.toLowerCase(),
             contractName: source.name,
             blockNumber: log.blockNumber,
@@ -243,7 +280,7 @@ const indexConfirmedEvents = async () => {
 
     const finalBlock = blocks[blocks.length - 1];
     await IndexerCheckpoint.findOneAndUpdate(
-      { indexerId: INDEXER_ID },
+      { indexerId },
       {
         contractAddress,
         blockNumber: finalBlock.number,
@@ -254,6 +291,11 @@ const indexConfirmedEvents = async () => {
     indexedBlocks += blocks.length;
   }
   return { indexedBlocks, indexedEvents };
+};
+
+const indexConfirmedEvents = () => {
+  if (!indexingPromise) indexingPromise = runIndexingBatch().finally(() => { indexingPromise = null; });
+  return indexingPromise;
 };
 
 const getIndexedEventsPage = async ({
@@ -267,7 +309,8 @@ const getIndexedEventsPage = async ({
 }) => {
   const normalizedPage = Math.max(Number(page) || 1, 1);
   const normalizedLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
-  const filter = {};
+  const { indexerId } = await getIndexerContext(getProvider());
+  const filter = { indexerId };
   if (eventName) filter.eventName = eventName;
   if (contractName) filter.contractName = contractName;
   if (claimId) filter["args.claimId"] = String(claimId);
@@ -302,6 +345,7 @@ const getIndexedEventsPage = async ({
 
 const startBlockchainIndexer = async () => {
   if (process.env.INDEXER_ENABLED === "false" || indexerTimer) return;
+  await ensureIndexerIndexes();
   await indexConfirmedEvents();
   indexerTimer = setInterval(() => {
     indexConfirmedEvents().catch((error) =>
@@ -318,6 +362,7 @@ const stopBlockchainIndexer = () => {
 
 module.exports = {
   INDEXER_ID,
+  ensureIndexerIndexes,
   eventIdentity,
   findReorgRollbackHeight,
   getIndexedSources,

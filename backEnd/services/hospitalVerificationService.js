@@ -29,6 +29,7 @@ const buildHospitalVerificationAssessment = ({
   }
 
   const checks = {
+    patientMatches: Boolean(record?.authorizedClaimants?.some((wallet) => wallet.toLowerCase() === claim.claimantWallet.toLowerCase())),
     invoiceFound: Boolean(record),
     invoiceHashMatches: Boolean(
       record &&

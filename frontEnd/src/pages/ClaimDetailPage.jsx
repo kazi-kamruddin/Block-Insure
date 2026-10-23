@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ethers } from "ethers";
 import { useState } from "react";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
@@ -225,6 +226,21 @@ export default function ClaimDetailPage() {
 
     try {
       setIsSubmittingAppeal(true);
+
+      if ((proposedHospitalId && proposedHospitalId !== claim.hospitalId) ||
+          (proposedClaimType && proposedClaimType !== claim.claimType)) {
+        throw new Error("Hospital and treatment identity cannot change in an appeal; contact the insurer for a new claim.");
+      }
+      if (proposedInvoiceNumber || proposedClaimAmountEth) {
+        const manager = await getWalletContract();
+        const current = await manager.getClaim(id);
+        const amount = proposedClaimAmountEth ? ethers.parseEther(proposedClaimAmountEth) : current.claimAmount;
+        const invoice = proposedInvoiceNumber ? ethers.id(proposedInvoiceNumber.trim()) : current.invoiceHash;
+        if (amount !== current.claimAmount || invoice !== current.invoiceHash) {
+          const amendment = await manager.amendRejectedClaim(id, amount, invoice);
+          await amendment.wait();
+        }
+      }
 
       let additionalDocumentHash = "";
       let additionalDocumentCID = "";
@@ -509,6 +525,7 @@ export default function ClaimDetailPage() {
 
           {canAppeal ? (
             <form className="appeal-form" onSubmit={handleSubmitAppeal}>
+              <p>Invoice or amount corrections are recorded on-chain before the appeal opens and may require two wallet confirmations. Hospital and treatment identity cannot change in this appeal.</p>
               <label>
                 Appeal category
                 <select

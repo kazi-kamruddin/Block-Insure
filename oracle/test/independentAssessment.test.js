@@ -5,6 +5,7 @@ const triagePolicy = require("../../backEnd/triage-policy.json");
 const { independentlyAssessRecord } = require("../independentAssessment");
 
 const record = {
+  authorizedClaimants: ["0x0000000000000000000000000000000000000001"],
   hospitalId: "PRV-1",
   invoiceHash: "0xabc",
   billAmount: "1.0000",
@@ -27,6 +28,7 @@ const record = {
   fraudSignals: {},
 };
 const claim = {
+  claimantWallet: "0x0000000000000000000000000000000000000001",
   hospitalId: "PRV-1",
   invoiceHash: "0xabc",
   claimAmountEth: "0.8",
@@ -50,4 +52,19 @@ test("oracle rejects proof-bound risk facts without trusting backend verdicts", 
   assert.equal(result.verified, false);
   assert.equal(result.features.used_invoice, true);
   assert.equal(result.verificationCode, "PROOF_BOUND_INTEGRITY_REJECTED");
+});
+
+test("evaluation labels and injected markers do not determine runtime verification", () => {
+  const assess = (input) => independentlyAssessRecord({ record: input, claim, modelArtifact, triagePolicy });
+  const baseline = assess(record);
+  const changed = assess({ ...record, fraudLabel: "INFLATED_AMOUNT", fraudSignals: { inflatedAmount: true, dateMismatch: true, blacklistedHospital: true } });
+  assert.equal(changed.verified, baseline.verified);
+  assert.deepEqual(changed.features, baseline.features);
+  assert.equal(changed.fraudProbability, baseline.fraudProbability);
+});
+
+test("an unrelated claimant cannot verify another patient's invoice", () => {
+  const result = independentlyAssessRecord({ record, claim: { ...claim, claimantWallet: "0x0000000000000000000000000000000000000002" }, modelArtifact, triagePolicy });
+  assert.equal(result.verified, false);
+  assert.equal(result.comparison.patientMatches, false);
 });

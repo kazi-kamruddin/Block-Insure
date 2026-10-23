@@ -374,7 +374,9 @@ contract ClaimAdjudicator is ReentrancyGuard {
     ) private {
         review.finalized = true;
         review.approved = approved;
-        _recordAuditorObservations(claimId, version, review, approved);
+        // Expiry is an availability outcome, not evidence that an approving
+        // auditor was wrong on the merits of the claim.
+        if (reasonCode != REVIEW_TIMED_OUT) _recordAuditorObservations(claimId, version, review, approved);
         IClaimAdjudicationManager(manager).finalizeManualReview(
             claimId,
             version,

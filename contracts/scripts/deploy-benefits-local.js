@@ -34,6 +34,11 @@ async function main() {
   }
 
   const adminWallet = new hre.ethers.Wallet(adminPrivateKey, provider);
+  const manager = await hre.ethers.getContractAt("InsuranceManager", managerAddress, adminWallet);
+  const economics = await hre.ethers.getContractAt("PolicyEconomics", await manager.policyEconomics(), adminWallet);
+  if ((await economics.benefitsManager()) !== hre.ethers.ZeroAddress) {
+    throw new Error("A benefits module is already bound. Replacing it requires an explicit liability migration, not this helper.");
+  }
   const Benefits = await hre.ethers.getContractFactory(
     "PolicyBenefitsManager",
     adminWallet
@@ -41,6 +46,7 @@ async function main() {
   const benefits = await Benefits.deploy(managerAddress);
   await benefits.waitForDeployment();
   const address = await benefits.getAddress();
+  await (await economics.configureBenefitsManager(address)).wait();
   const deploymentReceipt = await benefits.deploymentTransaction().wait();
   const schedule = {
     packageId: 1,

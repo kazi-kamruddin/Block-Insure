@@ -8,6 +8,7 @@ for (const contractName of [
   "OracleCoordinator",
   "ClaimAdjudicator",
   "PolicyEconomics",
+  "PolicyBenefitsManager",
   "EvidenceRegistry",
   "ProtocolDeploymentRegistry",
   "HospitalVerificationRegistry",

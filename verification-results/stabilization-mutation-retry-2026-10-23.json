@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-23T15:13:17.942Z",
+  "methodology": "isolated source mutation followed by targeted Hardhat regression test",
+  "mutants": [
+    {
+      "id": "MUT-QUORUM-REJECTION-HIGHER",
+      "faultFamily": "quorum",
+      "target": "contracts/ClaimAdjudicator.sol",
+      "testFile": "test/Phase2AutomaticAdjudication.test.js",
+      "grep": "rejects automatically after two",
+      "status": "KILLED",
+      "exitCode": 1,
+      "durationMs": 68626,
+      "outputTail": [
+        "",
+        "  Phase 2 - Automatic adjudication",
+        "    1) rejects automatically after two rejections, including a two-two split",
+        "",
+        "",
+        "  0 passing (1s)",
+        "  1 failing",
+        "",
+        "  1) Phase 2 - Automatic adjudication",
+        "       rejects automatically after two rejections, including a two-two split:",
+        "",
+        "      AssertionError: expected 6 to equal 8.",
+        "      + expected - actual",
+        "",
+        "      -6",
+        "      +8",
+        "      ",
+        "      at Context.<anonymous> (test\\Phase2AutomaticAdjudication.test.js:189:65)"
+      ]
+    }
+  ],
+  "summary": {
+    "requested": 1,
+    "valid": 1,
+    "killed": 1,
+    "survived": 0,
+    "invalid": 0,
+    "timedOut": 0,
+    "infrastructureErrors": 0,
+    "mutationScore": 1
+  }
+}

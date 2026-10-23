@@ -40,5 +40,6 @@ module.exports = defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     headless: process.env.E2E_HEADED !== "true",
+    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined },
   },
 });

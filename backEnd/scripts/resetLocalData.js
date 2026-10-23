@@ -32,6 +32,8 @@ const VotingFinalization = require("../models/VotingFinalization");
 const IndexedBlock = require("../models/IndexedBlock");
 const IndexedBlockchainEvent = require("../models/IndexedBlockchainEvent");
 const IndexerCheckpoint = require("../models/IndexerCheckpoint");
+const RegistryPublication = require("../models/RegistryPublication");
+const RegistrySnapshotChunk = require("../models/RegistrySnapshotChunk");
 const {
   buildSyntheticRecords,
 } = require("./seedMockData");
@@ -46,6 +48,8 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 }
 
 const collections = [
+  ["registry publication jobs", RegistryPublication],
+  ["registry snapshot archives", RegistrySnapshotChunk],
   ["admin action logs", AdminActionLog],
   ["appeals", Appeal],
   ["bank directory entries", Bank],
@@ -85,6 +89,7 @@ const getChainReferenceDate = async () => {
 };
 
 const resetLocalOracleCursors = () => {
+  if (process.env.SKIP_LOCAL_ORACLE_CURSOR_RESET === "true") return 0;
   const stateDirectory = path.resolve(__dirname, "..", "..", "oracle", ".oracle-state");
   if (!fs.existsSync(stateDirectory)) return 0;
 

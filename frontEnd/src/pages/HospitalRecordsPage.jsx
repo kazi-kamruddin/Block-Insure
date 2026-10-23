@@ -12,6 +12,7 @@ import "../styles/pages/HospitalDashboardPage.css";
 
 const emptyForm = {
   patientReference: "",
+  authorizedClaimants: "",
   invoiceNumber: "",
   treatmentType: "HOSPITALIZATION",
   diagnosisCode: "",
@@ -27,6 +28,7 @@ export default function HospitalRecordsPage() {
   const recordsQuery = useQuery({
     queryKey: ["hospitalRecords", "maintenance"],
     queryFn: () => getMyHospitalRecords({ limit: 100 }),
+    refetchInterval: (query) => query.state.data?.records?.some((record) => record.publicationPending) ? 3000 : false,
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["hospitalRecords"] });
   const createMutation = useMutation({
@@ -69,6 +71,7 @@ export default function HospitalRecordsPage() {
         <h3>Create hospital record</h3>
         <label>Patient reference<input value={form.patientReference} onChange={(e) => updateField("patientReference", e.target.value)} required /><small>The server stores a one-way hash, not the entered reference.</small></label>
         <label>Invoice number<input value={form.invoiceNumber} onChange={(e) => updateField("invoiceNumber", e.target.value)} required /></label>
+        <label>Authorized claimant wallets<input value={form.authorizedClaimants} onChange={(e) => updateField("authorizedClaimants", e.target.value)} required /><small>Hospital-confirmed policyholder or covered-dependent association; comma-separated addresses.</small></label>
         <label>Treatment type<input value={form.treatmentType} onChange={(e) => updateField("treatmentType", e.target.value)} required /></label>
         <label>Diagnosis code<input value={form.diagnosisCode} onChange={(e) => updateField("diagnosisCode", e.target.value)} required /></label>
         <label>Admission date<input type="date" value={form.admissionDate} onChange={(e) => updateField("admissionDate", e.target.value)} required /></label>
@@ -76,7 +79,7 @@ export default function HospitalRecordsPage() {
         <label>Invoice date<input type="date" value={form.invoiceDate} onChange={(e) => updateField("invoiceDate", e.target.value)} required /></label>
         <label>Bill amount (ETH)<input type="number" min="0.001" step="0.001" value={form.billAmount} onChange={(e) => updateField("billAmount", e.target.value)} required /></label>
         <button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? "Creating..." : "Create hospital record"}</button>
-        <p className="muted-text">Record changes require the insurer to publish a refreshed registry commitment before oracle verification.</p>
+        <p className="muted-text">Record changes queue automatic publication. Oracle verification uses a confirmed immutable snapshot.</p>
       </form>
 
       <section className="card hospital-records-card">
@@ -87,8 +90,8 @@ export default function HospitalRecordsPage() {
             <thead><tr><th>Invoice</th><th>Patient hash</th><th>Care</th><th>Bill</th><th>Record</th><th>Invoice status</th></tr></thead>
             <tbody>{records.map((record) => (
               <tr key={record.id}>
-                <td><strong>{record.invoiceNumber}</strong><small>{record.invoiceHash}</small></td>
-                <td className="hospital-record-hash">{record.patientHash}</td>
+                <td><strong>{record.invoiceNumber}</strong><small>{record.invoiceHash}</small>{record.publicationPending ? <small>Publication pending</small> : <small>Ready for the latest registry publication</small>}</td>
+                <td className="hospital-record-hash">{record.patientHash}<input aria-label={`Authorized claimants for ${record.invoiceNumber}`} defaultValue={(record.authorizedClaimants || []).join(",")} onBlur={(e) => { if (e.target.value !== (record.authorizedClaimants || []).join(",")) statusMutation.mutate({ id: record.id, updates: { authorizedClaimants: e.target.value } }); }} /></td>
                 <td>{record.treatmentType}<small>{formatDateOnly(record.admissionDate)} to {formatDateOnly(record.dischargeDate)}</small></td>
                 <td>{record.billAmount} ETH</td>
                 <td><select aria-label={`Record status for ${record.invoiceNumber}`} value={record.recordStatus} onChange={(e) => statusMutation.mutate({ id: record.id, updates: { recordStatus: e.target.value } })}><option>VALID</option><option>INVALID</option><option>USED</option><option>CANCELLED</option></select></td>

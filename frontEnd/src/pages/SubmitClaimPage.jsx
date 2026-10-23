@@ -357,9 +357,8 @@ export default function SubmitClaimPage() {
       const attemptId = authorization?.attemptId || authorization?.data?.attemptId || "";
       activeAttemptId = attemptId;
       const contract = await getWalletContract();
-      const predictedClaimId = (await contract.claimCounter()).toString();
       const encryptedEvidence = await encryptEvidenceFile(file, {
-        claimId: predictedClaimId,
+        claimId: `attempt:${attemptId}`,
         claimVersion: 1,
         uploader: activeWallet,
         evidenceType: "HOSPITAL_BILL",

@@ -315,6 +315,7 @@ const buildVerificationComparison = ({
   claimAmountWei,
   claimType,
   incidentDate,
+  claimantWallet,
 }) => {
   const normalizedHospitalId = normalizeText(hospitalId);
   const normalizedInvoiceHash = normalizeHash(invoiceHash);
@@ -383,6 +384,12 @@ const buildVerificationComparison = ({
     : null;
 
   const fieldChecks = {
+    patientMatches: buildCheck({
+      label: "Hospital-confirmed patient association",
+      expected: "Claimant or covered dependent associated with invoice",
+      actual: claimantWallet ? "Claimant checked" : "Claim context required",
+      matched: Boolean(claimantWallet && record.authorizedClaimants?.some((wallet) => wallet.toLowerCase() === claimantWallet.toLowerCase())),
+    }),
     hospitalId: buildCheck({
       label: "Hospital ID",
       expected: hospitalId,
@@ -455,12 +462,6 @@ const buildVerificationComparison = ({
       expected: "ACTIVE",
       actual: record.licenseStatus,
       matched: record.licenseStatus === "ACTIVE",
-    }),
-    fraudLabel: buildCheck({
-      label: "Fraud label",
-      expected: "LEGITIMATE",
-      actual: record.fraudLabel,
-      matched: record.fraudLabel === "LEGITIMATE",
     }),
   };
 
@@ -642,6 +643,7 @@ const verifyHospitalRecord = async (req, res, next) => {
     } = req.query;
     const claimId = String(req.query.claimId || "").trim();
     const requestedClaimVersion = Number(claimVersion || 1);
+    const authoritativeClaim = claimId ? await getReadOnlyContract().getClaim(claimId) : null;
     let verificationSource = "ORIGINAL_CLAIM";
     let appealCommitment = null;
 
@@ -662,6 +664,7 @@ const verifyHospitalRecord = async (req, res, next) => {
       }
 
       const commitmentPayload = buildAppealCommitmentPayload(activeAppeal);
+      require("../services/appealFactService").assertAppealFactsMatch(authoritativeClaim, commitmentPayload);
       const commitmentHash = hashAppealCommitment(commitmentPayload);
       if (commitmentHash.toLowerCase() !== activeAppeal.appealReasonHash.toLowerCase()) {
         return res.status(409).json({
@@ -711,13 +714,15 @@ const verifyHospitalRecord = async (req, res, next) => {
     const registrySnapshot = normalizeRegistrySnapshot(requestedRegistrySnapshot);
     const RegistryModel = getRegistryModel(registrySnapshot);
 
-    const record = await RegistryModel.findOne({
+    let record = await RegistryModel.findOne({
       invoiceHash: normalizedInvoiceHash,
     });
     const merkleProof = await buildRegistryMerkleProof({
       invoiceHash: normalizedInvoiceHash,
       registrySnapshot,
+      rootHash: req.query.registryRoot,
     });
+    if (req.query.registryRoot) record = merkleProof.canonicalRecord || null;
     const candidateDate = record?.admissionDate ? new Date(record.admissionDate) : null;
     const dateRange = candidateDate
       ? {
@@ -749,6 +754,7 @@ const verifyHospitalRecord = async (req, res, next) => {
 
     const comparison = buildVerificationComparison({
       record,
+      claimantWallet: authoritativeClaim?.claimantWallet,
       hospitalId,
       invoiceHash: normalizedInvoiceHash,
       claimAmountEth,

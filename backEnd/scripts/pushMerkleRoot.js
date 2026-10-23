@@ -2,9 +2,7 @@ require("dotenv").config();
 
 const dns = require("dns");
 const mongoose = require("mongoose");
-const { ethers } = require("ethers");
-const { buildRegistryMerkleRoot } = require("../services/merkleRegistryService");
-const { getAdminContract, getOracleCoordinator } = require("../services/contractService");
+const { queueRegistryPublication, publishPendingRegistry } = require("../services/registryPublicationService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -20,30 +18,10 @@ const pushMerkleRoot = async () => {
 
     await mongoose.connect(process.env.MONGODB_URI);
 
-    const merkleRoot = await buildRegistryMerkleRoot();
-    const root = merkleRoot.rootHash || ethers.ZeroHash;
-    const contract = getAdminContract();
-    const coordinator = await getOracleCoordinator(contract);
-    const treeVersionHash = ethers.keccak256(
-      ethers.toUtf8Bytes(merkleRoot.treeVersion)
-    );
-
-    console.log("Pushing registry Merkle root on-chain...");
-    console.log("Root:", root);
-
-    const tx = await coordinator.publishRegistrySnapshot(
-      root,
-      merkleRoot.leafCount,
-      treeVersionHash
-    );
-
-    console.log("Transaction sent:", tx.hash);
-
-    const receipt = await tx.wait();
-
-    console.log("Registry Merkle root updated successfully");
-    console.log("Transaction hash:", tx.hash);
-    console.log("Block number:", receipt.blockNumber);
+    await queueRegistryPublication();
+    const result = await publishPendingRegistry();
+    if (result?.status !== "PUBLISHED") throw new Error("Registry publication is still pending");
+    console.log("Both worker snapshots synchronized and archived; root published:", result.rootHash);
   } catch (error) {
     console.error("Push Merkle root failed:", error.message);
     process.exitCode = 1;

@@ -20,6 +20,7 @@ const hospital = {
   walletAddress: "0x0000000000000000000000000000000000000010",
 };
 const record = {
+  authorizedClaimants: [claim.claimantWallet],
   _id: { toString: () => "record-1" },
   hospitalId: "HOSP-001",
   invoiceNumber: "INV-001",
@@ -54,4 +55,10 @@ test("reports missing and mismatched hospital evidence without fabricating a mat
   assert.equal(missing.verified, false);
   assert.equal(mismatched.outcome, "MISMATCHED");
   assert.equal(mismatched.checks.amountMatches, false);
+});
+
+test("invoice possession alone does not establish patient ownership", () => {
+  const result = buildHospitalVerificationAssessment({ claim, claimVersion: 1, hospital, record: { ...record, authorizedClaimants: [] } });
+  assert.equal(result.verified, false);
+  assert.equal(result.checks.patientMatches, false);
 });

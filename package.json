@@ -36,6 +36,9 @@
     "capture:e2e-state": "node scripts/captureE2EState.js",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
+    "test:stabilization:stack": "node scripts/stabilizationStack.js",
+    "test:stabilization": "node scripts/runStabilizationE2E.js",
+    "test:stabilization:storage": "node --test backEnd/test/stabilizationStorage.integration.js",
     "dev:all": "node scripts/devAll.js",
     "dev:bootstrap": "node scripts/devAll.js --bootstrap",
     "dev:hybrid": "node scripts/devAll.js --bootstrap --hybrid",
@@ -62,6 +65,7 @@
     "verify:sync": "node scripts/verifySynchronization.js"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.0",
+    "mongodb-memory-server": "^11.3.0"
   }
 }
