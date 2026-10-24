@@ -11,6 +11,7 @@ services:
         - backEnd/**
         - oracle/observableFeatures.js
         - oracle/independentAssessment.js
+        - oracle/xgboostAssessment.js
         - scripts/observability.js
         - render.yaml
     envVars:

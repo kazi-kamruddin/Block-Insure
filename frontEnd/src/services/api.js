@@ -68,6 +68,10 @@ export async function getCurrentUser() {
   return response.data;
 }
 
+export async function getClaimAdvisory(claimId) {
+  return (await api.get(`/api/claims/${claimId}/advisory`)).data;
+}
+
 export async function saveProfile(profile) {
   return (await api.post("/api/users/register", profile)).data;
 }

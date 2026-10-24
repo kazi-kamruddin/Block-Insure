@@ -14,6 +14,7 @@ const EmailChallenge = require("../models/EmailChallenge");
 const OtpDeliverySlot = require("../models/OtpDeliverySlot");
 const BankTransaction = require("../models/BankTransaction");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
+const ClaimAdvisoryAssessment = require("../models/ClaimAdvisoryAssessment");
 const EftMandate = require("../models/EftMandate");
 const EvidenceAccessLog = require("../models/EvidenceAccessLog");
 const EvidenceEvent = require("../models/EvidenceEvent");
@@ -63,6 +64,7 @@ const collections = [
   ["OTP delivery limits", OtpDeliverySlot],
   ["bank transactions", BankTransaction],
   ["claim submission attempts", ClaimSubmissionAttempt],
+  ["claim advisory assessments", ClaimAdvisoryAssessment],
   ["documents", File],
   ["EFT mandates", EftMandate],
   ["hospital directory entries", Hospital],

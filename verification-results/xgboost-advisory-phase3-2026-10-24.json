@@ -1,0 +1,165 @@
+{
+  "reviewedAt": "2026-10-24T08:51:28.481Z",
+  "reviewDate": "2026-10-24",
+  "baselineCommit": "856fd7f3c4ec941d69e4ba92086fd65c772724eb",
+  "scope": "Default Admin XGBoost advisory, protocol shadow; source-grounded controlled-action policy study and staged local regressions",
+  "decisions": {
+    "primaryAdminAdvisory": "XGBoost",
+    "protocolVerification": "Existing frozen Bernoulli NB unchanged",
+    "uncertainty": "Displayed, not independent mandatory review gates",
+    "primaryValidationBudget": 0.3,
+    "sensitivityBudgets": [
+      0.2,
+      0.3,
+      0.5
+    ],
+    "runtimeSeed": 503,
+    "selection": "Original plan first seed, not best test seed",
+    "superiorityClaim": false
+  },
+  "tests": {
+    "backend": {
+      "passed": 194,
+      "newAdvisoryCasesIncluded": 18
+    },
+    "analytics": "PASS",
+    "oracle": {
+      "passed": 19
+    },
+    "python": {
+      "passed": 23
+    },
+    "mongoAdvisory": {
+      "passed": 2
+    },
+    "authenticatedBrowser": {
+      "distinctPassed": 2,
+      "finalFocusedRepeatPassed": 1,
+      "scope": "Real automatic/manual settlement paths plus Admin advisory; final repeat covers missing-snapshot UI recovery and keyboard/mobile"
+    },
+    "productionBrowser": {
+      "passed": 7,
+      "assertionsUnchanged": true
+    },
+    "frontendLint": "PASS",
+    "frontendBuild": "PASS",
+    "repository": {
+      "groupsPassed": 7
+    },
+    "synchronization": "PASS; existing 256-byte manager size headroom warning",
+    "advisoryPackaging": "PASS",
+    "historicalV2Verification": "PASS"
+  },
+  "research": {
+    "studyDirectory": "docs/engineered/advanced-phase3-20261024T082620Z",
+    "summarySha256": "81c6f10e87dec4a90db853074f820363a48154f1bf0c380c8d55febbb5052efc",
+    "cohorts": {
+      "test": {
+        "recall": 0.5648102245744103,
+        "reviewRate": 0.1678888888888889,
+        "f1": 0.46125559078713235,
+        "cost": 0.6346388888888889
+      },
+      "test_prevalence": {
+        "recall": 0.5725464952215439,
+        "reviewRate": 0.3463333333333334,
+        "f1": 0.6771231469523634,
+        "cost": 2.291027777777778
+      },
+      "test_severity": {
+        "recall": 0.5678907189592525,
+        "reviewRate": 0.17722222222222225,
+        "f1": 0.4484177339642465,
+        "cost": 0.642638888888889
+      },
+      "test_family": {
+        "recall": 0.06560031305794017,
+        "reviewRate": 0.11222222222222222,
+        "f1": 0.06786387932830217,
+        "cost": 1.177388888888889
+      }
+    },
+    "seeds": [
+      503,
+      719,
+      947
+    ],
+    "cohortPredictions": 36000,
+    "shapNativeParitySamples": 240,
+    "routingDifferences": 0,
+    "maxProbabilityError": 2.220446049250313e-16,
+    "maxShapContributionError": 2.7034719884966307e-7,
+    "caveats": [
+      "Reused constructed cohorts, not natural-fraud validation",
+      "Held-out-family recall 6.56%; no generalized detection claim",
+      "30% validation ceiling is not a runtime quota",
+      "No retraining or performance-based seed selection"
+    ]
+  },
+  "timing": {
+    "storedAssessmentSample": 2,
+    "minFeatureReadyInferenceMs": 0.5737,
+    "maxFeatureReadyInferenceMs": 5.7308,
+    "scope": "Includes exact explanation; excludes history/root/DB/RPC; not a throughput study"
+  },
+  "failuresResolved": [
+    "Initial threshold parity pilot had 2 floating-boundary route differences; explicit integer-billionth decision contract fixes all 36000 final comparisons",
+    "Initial browser run caught loading-state claimVersion dereference; guarded panel until claim loaded",
+    "Next browser run caught private manager request mapping; uses public coordinator request lookup, ABI unit guard added",
+    "Restricted production-browser attempt denied Google Fonts; permitted rerun passes original timing/console checks"
+  ],
+  "environment": {
+    "newContainerCreated": false,
+    "reusedContainer": "block-insure-part1-mongo",
+    "mongoCpuLimit": 0.75,
+    "mongoMemoryMiB": 768,
+    "databaseScope": "Disposable loopback test databases only",
+    "containerRestoredToStopped": true,
+    "ownedTestProcessesStopped": true,
+    "testPortsReleased": true,
+    "savedEnvironmentRewrite": false,
+    "atlasAccess": false,
+    "hostedDeployment": false,
+    "gitCommitMade": false
+  },
+  "notExecuted": [
+    "No new full Solidity test campaign or Slither run; no Solidity/ABI changes",
+    "No hosted authenticated or transaction tests",
+    "No real Brevo mail",
+    "No Oracle-model/protocol activation"
+  ],
+  "sourceSha256": {
+    ".gitignore": "f99ecabf137e5c818e439e8c093c529f4105a1fc6f1ee73ed3fc72bb4e01f7c6",
+    "README.md": "72662d01d375450938efead6ac13c3d492fce12cb8250877c8a69d6f80b66e12",
+    "render.yaml": "3a368bdbacd0d23a407c62cc7aafd59b81cbe94954907c300d19ea356f8383bc",
+    "backEnd/controllers/advisoryController.js": "37235c9bcd04c1f01dde85eb667843d3625702accb8305d191a3b063b499a082",
+    "backEnd/controllers/claimController.js": "f74627351fb2a5572d630048fb2e6251a25cc1ca86ad8f73f2e515146ddf4b5e",
+    "backEnd/routes/claimRoutes.js": "967b956b1e781f2b35ae5cb158d1392eb5f471785e90d5b57a65187487082b6d",
+    "backEnd/services/advisoryContextService.js": "9bf331a2ec777a98e9ffdc528cbc1752f45a3c5c95e6b6e62ce5331daa3e3244",
+    "backEnd/services/xgboostAdvisoryService.js": "ba93d3fdab4fe48d9981865c83b167e76ab39e69b24af3ee3cd723e876186975",
+    "backEnd/models/ClaimAdvisoryAssessment.js": "8eb99198b78da5684b17c146bd0710cf8419901883363d2821e60abe82db40cb",
+    "backEnd/artifacts/xgboost-advisory-v1.json": "e83eab8c8df7c9996471c754d352d9201ffd30246184c72cd1943c612d2ab380",
+    "backEnd/artifacts/xgboost-advisory-manifest.json": "7ffc0bbb670e47dafaf423b2f6264a51947316f5db0e925ab8a47e6fca9ec6be",
+    "oracle/xgboostAssessment.js": "6f1e260f1930582fe4200f3e78cb5f4998e3283b04ccd04b054e0584c062cae5",
+    "backEnd/research/phase3-plan.json": "0d1c2033f2104a391f8fdd68f75f010e91d7b814cf7fcb84e15d4637f2a1556c",
+    "backEnd/research/runPhase3.py": "2ecae0714b62f7bfe7669165e0fde359ddab8aa9e0d6638fb08be168bcec23cb",
+    "backEnd/scripts/runAdvisoryStudy.js": "96b49f8dea15f174e7bd1b16195d7acec2232a347e94fa9ec23f3db3b5b8cf34",
+    "backEnd/scripts/scoreAdvisoryBatch.js": "dcc179fd05e2669d28d6f72d12809e290a6fa484de2b26179af34eff40abd92b",
+    "scripts/packageXgboostAdvisory.js": "a1b542185794a4106b50312059c2a225e5bf998475a6852b3b06b0faee3b76bb",
+    "backEnd/scripts/resetLocalData.js": "478e7843e94cb6bebb6f190cbdce545e08bf56b084d93ce0fe1ce9745c79a33f",
+    "backEnd/scripts/generateResearchManifest.js": "f434f56aed7c36a5066a3bf26c6dd729878e8e8e041f0072616b526eeb46e858",
+    "backEnd/evaluation-results/research-manifest-v4.json": "b0f6cc1f92997c987399b4c49386fb9ae84c9597d8a2afa9da150c64dcc0aa1c",
+    "backEnd/test/xgboostAdvisory.test.js": "953b1f954bcc00b87eb93144809d72966a944278d5d3433161055e3df787615d",
+    "backEnd/test/xgboostAdvisory.integration.js": "9e66fa98bc7b7d30276535093a9e1f06a71abeae94d976127fcc6036eb55950d",
+    "frontEnd/src/components/XgboostAdvisoryPanel.jsx": "64be174a199af81f2c51876a1037ecbe737c2ae524ea198390e1e1a486391e36",
+    "frontEnd/src/pages/AdminClaimDetailPage.jsx": "c79d4771878721a51a739ba932ae76838883d907f382405722d53b7f9fc187b7",
+    "frontEnd/src/services/api.js": "d79000b288818dd67a75adffb1b52821a77f0fc51873723b50ece288b49e7bc0",
+    "e2e/tests/user-policy-claim.workflow.spec.js": "a4e9b58fec3bc63fc72903f0eef03e7cb251096ef4f5dd3cea6d8b4b24c703b4",
+    "docs/xgboost-advisory-phase3.md": "0192ae00ed30947c8030cc53f2343775951b02540668c562fffc1e96ce0f2513"
+  },
+  "protocolArtifactsUnchanged": {
+    "modelSha256": "207621336349dc7de7df91f265b02139269fdf9b8589a4df1c32061c749b164f",
+    "policySha256": "0cb01b4fd4d8a7acf352795a3ac35a3a462a862c42e5c1747ed6c7c78a8e542b"
+  },
+  "note": "Tests were staged with focused final repeats; earlier suites do not become fresh verification of unrelated layers"
+}

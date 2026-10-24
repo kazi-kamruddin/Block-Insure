@@ -294,7 +294,9 @@ const getClaimById = async (req, res, next) => {
       });
     }
 
-    const documents = await contract.getClaimDocuments(req.params.claimId);
+    const [documents, claimVersion] = await Promise.all([
+      contract.getClaimDocuments(req.params.claimId), contract.claimVersion(req.params.claimId),
+    ]);
     const [evidenceChain, hospitalVerification] = await Promise.all([
       getEvidenceChainForClaim(req.params.claimId),
       HospitalClaimVerification.findOne({ claimId: String(req.params.claimId) })
@@ -304,9 +306,9 @@ const getClaimById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      claim: await formatEnrichedClaim(contract, claim, {
+      claim: { ...await formatEnrichedClaim(contract, claim, {
         includeLifecycle: true,
-      }),
+      }), claimVersion: String(claimVersion) },
       documents: documents.map(formatClaimDocument),
       evidenceChain,
       hospitalVerification: formatHospitalVerification(hospitalVerification),

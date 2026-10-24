@@ -29,7 +29,7 @@ test('advanced graph context is independent of prior-record insertion order', ()
   for (const r of observations) a.add(r); for (const r of observations.toReversed()) b.add(r);
   a.seal(); b.seal(); assert.deepEqual(a.query(row('2020-01-15', { patientHash: 'p1', hospitalId: 'h1' })), b.query(row('2020-01-15', { patientHash: 'p1', hospitalId: 'h1' })));
 });
-test('new offline context is not imported by runtime services', () => {
+test('offline research remains outside the authoritative NB/Oracle verification path', () => {
   const fs = require('node:fs'), path = require('node:path');
   for (const name of ['services/riskScoringService.js', '../oracle/independentAssessment.js', '../oracle/index.js']) {
     const source = fs.readFileSync(path.resolve(__dirname, '..', name), 'utf8');

@@ -136,12 +136,60 @@ test.describe("@workflow policyholder transaction journey", () => {
       await verifyClaimAsHospital(browser, claimId, "VERIFIED");
 
       const adminSession = await createActorContext(browser, "admin");
+      adminSession.page.on("pageerror", (error) => browserFailures.push(`admin: ${error.message}`));
+      adminSession.page.on("console", (message) => {
+        const expectedEmptyAppeal = /\/api\/appeals\/claim\/\d+$/.test(message.location().url || "") && /status of 404/.test(message.text());
+        if (message.type() === "error" && !expectedEmptyAppeal) browserFailures.push(`admin: ${message.text()}`);
+      });
       try {
         await loginActor(adminSession.page, adminSession.actor);
         await adminSession.page.goto(`/admin/claims/${claimId}`);
         await expect(
           adminSession.page.getByRole("heading", { name: "Admin Claim Detail" })
         ).toBeVisible();
+
+        const advisoryPanel = adminSession.page.getByRole("region", { name: "XGBoost advisory assessment" });
+        await expect(advisoryPanel.getByRole("heading", { name: "XGBoost · Primary advisory" })).toBeVisible();
+        await expect(advisoryPanel.getByRole("heading", { name: "Bernoulli NB · Protocol comparison" })).toBeVisible();
+        await expect(advisoryPanel.getByText(/warnings do not independently trigger review/)).toBeVisible();
+        await advisoryPanel.getByText("Why this score? Exact SHAP explanation", { exact: true }).click();
+        await expect(advisoryPanel.getByText(/Contributions add to the raw model margin/)).toBeVisible();
+        await advisoryPanel.getByText("Assessment provenance and limitations", { exact: true }).click();
+        await expect(advisoryPanel.getByText(/engineered billing-action labels/)).toBeVisible();
+        const advisoryRead = () => adminSession.page.evaluate(async (id) => {
+          const token = localStorage.getItem("blockinsure_jwt");
+          const response = await fetch(`http://localhost:5000/api/claims/${id}/advisory`, { headers: { Authorization: `Bearer ${token}` } });
+          return { status: response.status, body: await response.json() };
+        }, claimId);
+        const firstAdvisory = await advisoryRead();
+        expect(firstAdvisory.status).toBe(200);
+        expect(firstAdvisory.body.advisory.status).toBe("AVAILABLE");
+        expect(firstAdvisory.body.advisory.primaryModel).toBe("XGBoost");
+        expect(firstAdvisory.body.advisory.assessment.transactionCreated).toBe(false);
+        expect(firstAdvisory.body.advisory.assessment.explanation.additivityError).toBeLessThan(0.0001);
+        const advisoryUrl = `**/api/claims/${claimId}/advisory`;
+        await adminSession.page.route(advisoryUrl, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+          success: true, advisory: { status: "UNAVAILABLE", primaryModel: "XGBoost", reason: "SNAPSHOT_UNAVAILABLE", protocolEffect: "NONE" },
+        }) }));
+        await advisoryPanel.getByRole("button", { name: "Refresh advisory" }).click();
+        await expect(advisoryPanel.getByRole("status")).toContainText("snapshot unavailable");
+        await expect(advisoryPanel.getByRole("heading", { name: "XGBoost · Primary advisory" })).toHaveCount(0);
+        await adminSession.page.unroute(advisoryUrl);
+        const refreshed = adminSession.page.waitForResponse((response) => response.url().endsWith(`/api/claims/${claimId}/advisory`));
+        await advisoryPanel.getByRole("button", { name: "Refresh advisory" }).click();
+        expect((await (await refreshed).json()).advisory.assessmentId).toBe(firstAdvisory.body.advisory.assessmentId);
+        await expect(advisoryPanel.getByRole("heading", { name: "XGBoost · Primary advisory" })).toBeVisible();
+        const viewport = adminSession.page.viewportSize();
+        await adminSession.page.setViewportSize({ width: 320, height: 800 });
+        await expect(advisoryPanel).toBeVisible();
+        expect(await adminSession.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+        await advisoryPanel.getByRole("button", { name: "Refresh advisory" }).focus();
+        await expect(advisoryPanel.getByRole("button", { name: "Refresh advisory" })).toBeFocused();
+        await adminSession.page.screenshot({ path: "test-results/xgboost-advisory-mobile.png", fullPage: true });
+        await adminSession.page.setViewportSize(viewport);
+        const userToken = await session.page.evaluate(() => localStorage.getItem("blockinsure_jwt"));
+        const denied = await session.context.request.get(`http://localhost:5000/api/claims/${claimId}/advisory`, { headers: { Authorization: `Bearer ${userToken}` } });
+        expect(denied.status()).toBe(403);
 
         const currentStatus = adminSession.page.locator(
           ".admin-claim-sidebar p strong"

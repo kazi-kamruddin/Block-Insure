@@ -1,0 +1,15 @@
+{
+  "version": "xgboost-advisory-v1",
+  "recordedOn": "2026-10-24",
+  "authority": "ADMIN_ADVISORY_ONLY",
+  "primaryBudget": 0.3,
+  "decisionScoreScale": 1000000000,
+  "decisionContract": "Round calibrated probabilities to integer billionths (floor(p*scale+0.5)) for policy selection/comparison only; retain full precision scores and unrounded trees.",
+  "sensitivityBudgets": [0.2, 0.3, 0.5],
+  "selection": "Minimize the previously declared 10/1/0.25 experimental cost on the policy partition, subject to whole-score ties and the union of mandatory rules within budget. No test selection.",
+  "uncertainty": "OOD and conformal are displayed, not independent mandatory review gates. OOD remains a predictor input. All original full-policy artifacts remain unchanged.",
+  "runtimeSeed": 503,
+  "runtimeSelection": "First seed in the existing engineering plan, fixed before this policy evaluation; not the best test seed.",
+  "scope": "Default Admin advisory display; shadow with respect to the existing Oracle verification and financial protocol. No automatic on-chain promotion.",
+  "limitations": ["Constructed action labels, not natural-fraud probabilities", "30% is a validation comparison target, not a runtime capacity guarantee", "New policy is exploratory after prior results", "Registry history is not evidence of actually rendered services"]
+}

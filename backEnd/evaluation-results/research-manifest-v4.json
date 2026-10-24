@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-10-24T07:54:30.160Z",
+  "generatedAt": "2026-10-24T08:43:24.278Z",
   "source": {
-    "gitCommit": "26c5b1075d3034ca4e0efa2afe60222ea5be8061",
+    "gitCommit": "856fd7f3c4ec941d69e4ba92086fd65c772724eb",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -25,7 +25,7 @@
     "backend": {
       "name": "backend",
       "version": "1.0.0",
-      "packageJsonSha256": "6e5ca81ec7c3cfe80cd786a648f85cc63be1545fcf815d0b1281e65b415dc722",
+      "packageJsonSha256": "a598501368a75da148c02808c9fae114dd23978a8c1c84236230bfda21bfaa27",
       "packageLockSha256": "becedec0038de08aae5588246b8aa2ddc6508ce773b16f95014e4ae769dc8736"
     },
     "contracts": {
@@ -78,7 +78,7 @@
     "backEnd/scripts/generateEvaluationCharts.js": "fa922dd9aedd297b0be9ac1afd6642741d129bd729a7005952ebda97a630040c",
     "backEnd/scripts/generatePhase34Charts.js": "b4dfff7f0e2dcf4024e717f1d0cfb9224da217c191a9a33f1a2df8151808a372",
     "backEnd/scripts/generateChartManifest.js": "e963bdf148a7a1005609d28af1d188d18bf008c4c0adeb1350545356309a02fa",
-    "backEnd/scripts/generateResearchManifest.js": "2a67d854edac62a45c37bcfbce943145d51aa4e3a61af7bfb643a6de0dae5a96",
+    "backEnd/scripts/generateResearchManifest.js": "f434f56aed7c36a5066a3bf26c6dd729878e8e8e041f0072616b526eeb46e858",
     "backEnd/scripts/buildHybridDataset.js": "b4eaa6a6e8bc327ad1248a556f5a48c3ee1c5dd33f75f271062cf1878c78a58c",
     "backEnd/scripts/validateHybridDataset.js": "36a24961539d61967e11f721d11fe1a8496e3c557a9097bd0b142b14078231eb",
     "backEnd/scripts/evaluateHybridDataset.js": "e709a66a2ee64d7c8163d825ebaa8fdef58996d3661b20f371adb70224888e2c",
@@ -100,6 +100,16 @@
     "backEnd/research/runV2.py": "5401605b341ae0395684e450be38a5557f4fd746b51bb3329daaf8693662ebc7",
     "backEnd/research/robust_components.py": "07d9adb31fab48f1b25a1e7836f4934a465142ce69969ce43dce952e2f930ab3",
     "backEnd/research/auditV2.py": "195cd718777db2a9ba2d3e74d64957a6172cff2c7adcd947433a57dd3a67e232",
+    "backEnd/research/phase3-plan.json": "0d1c2033f2104a391f8fdd68f75f010e91d7b814cf7fcb84e15d4637f2a1556c",
+    "backEnd/research/runPhase3.py": "2ecae0714b62f7bfe7669165e0fde359ddab8aa9e0d6638fb08be168bcec23cb",
+    "backEnd/scripts/runAdvisoryStudy.js": "96b49f8dea15f174e7bd1b16195d7acec2232a347e94fa9ec23f3db3b5b8cf34",
+    "backEnd/scripts/scoreAdvisoryBatch.js": "dcc179fd05e2669d28d6f72d12809e290a6fa484de2b26179af34eff40abd92b",
+    "backEnd/services/xgboostAdvisoryService.js": "ba93d3fdab4fe48d9981865c83b167e76ab39e69b24af3ee3cd723e876186975",
+    "backEnd/services/advisoryContextService.js": "9bf331a2ec777a98e9ffdc528cbc1752f45a3c5c95e6b6e62ce5331daa3e3244",
+    "backEnd/controllers/advisoryController.js": "37235c9bcd04c1f01dde85eb667843d3625702accb8305d191a3b063b499a082",
+    "backEnd/artifacts/xgboost-advisory-v1.json": "e83eab8c8df7c9996471c754d352d9201ffd30246184c72cd1943c612d2ab380",
+    "backEnd/artifacts/xgboost-advisory-manifest.json": "7ffc0bbb670e47dafaf423b2f6264a51947316f5db0e925ab8a47e6fca9ec6be",
+    "oracle/xgboostAssessment.js": "6f1e260f1930582fe4200f3e78cb5f4998e3283b04ccd04b054e0584c062cae5",
     "backEnd/scripts/benchmarkHybridRuntime.js": "2fc9d34e128c960cdbb1a551dd063c57b4cc44a12e237bfcc59883338ee8374f",
     "oracle/independentAssessment.js": "9fb46d1b564543107f07d6aae888cad1be5b240654484796a9d72721390c4645",
     "oracle/observableFeatures.js": "8a8066f60312aa4c3f67952392e153e2127282d9617749f1146956a829b242ab",
@@ -175,6 +185,13 @@
       "artifactHash": "90f441840155ba32c17d14690dc0f530d3bc2f2bce469adc6ffb2a231710f9eb",
       "modelIdentityHash": "0x291d87466f849c14d63b382e58436fc235b31ad0ecd777a4ee82b376d70492af",
       "fileSha256": "207621336349dc7de7df91f265b02139269fdf9b8589a4df1c32061c749b164f"
+    },
+    "adminAdvisory": {
+      "path": "backEnd/artifacts/xgboost-advisory-v1.json",
+      "fileSha256": "e83eab8c8df7c9996471c754d352d9201ffd30246184c72cd1943c612d2ab380",
+      "authority": "ADMIN_ADVISORY_ONLY",
+      "protocolModelUnchanged": true,
+      "interpretation": "XGBoost is the primary Admin advisory display; existing NB remains in the Oracle protocol. This inventory does not establish predictive superiority or natural-fraud accuracy."
     },
     "triagePolicy": {
       "path": "backEnd/triage-policy.json",
@@ -395,5 +412,5 @@
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "f9938e1c337ce7f99e4fc1ebe1f58325c11582c4967280f7c641b9bf0fe72fa4"
+  "reproducibilityHash": "8aa7afcff66c013645d94478f878ef99109b7785f97f8df878c5f8344f9f130b"
 }

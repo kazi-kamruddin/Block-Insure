@@ -46,6 +46,11 @@ test-results/
 # Hardhat / Solidity
 /contracts/.mutation-workspace/
 artifacts/
+# Small portable model artifacts are required by the deployed advisory reader.
+!/backEnd/artifacts/
+/backEnd/artifacts/*
+!/backEnd/artifacts/xgboost-advisory-v1.json
+!/backEnd/artifacts/xgboost-advisory-manifest.json
 cache/
 typechain/
 typechain-types/

@@ -1,0 +1,3899 @@
+{
+  "schemaVersion": "xgboost-admin-bundle-v1",
+  "pipeline": {
+    "schemaVersion": "advanced-candidate-v2",
+    "authority": "OFFLINE_ONLY",
+    "features": [
+      "bill_range_anomaly",
+      "bill_to_expected_max",
+      "cancelled_record",
+      "care_days",
+      "claim_exceeds_registry_bill",
+      "claimant_velocity_anomaly",
+      "clean_registry_match",
+      "date_mismatch",
+      "graph_birank_patient",
+      "graph_birank_provider",
+      "graph_edge_repeat_share",
+      "graph_patient_degree",
+      "graph_provider_degree",
+      "graph_provider_hhi",
+      "history_available",
+      "history_patient14",
+      "history_provider30",
+      "history_provider_mean_bill",
+      "history_similar",
+      "hospital_id_mismatch",
+      "invalid_record_status",
+      "invoice_hash_mismatch",
+      "invoice_lag_days",
+      "license_blacklisted",
+      "license_suspended",
+      "log_bill",
+      "log_prior_claims",
+      "missing_or_noisy_record",
+      "near_duplicate_advisory",
+      "provider_velocity_anomaly",
+      "registry_record_missing",
+      "repeat_claim_pattern",
+      "temporal_hawkes_available",
+      "temporal_hawkes_excitation",
+      "temporal_hawkes_intensity",
+      "temporal_history_available",
+      "temporal_provider7",
+      "treatment_type_mismatch",
+      "used_invoice",
+      "ood_distance"
+    ],
+    "probabilityContract": "float64_sigmoid_of_float32_margin",
+    "hawkes": {
+      "alpha": 0.6953310322838381,
+      "baselineScale": 0.3267368877726194,
+      "beta": 0.03333333333333333,
+      "validationLoss": 0.4336432738881836,
+      "selection": "self-excitation candidate",
+      "mode": "provider_normalized_daily",
+      "available": true,
+      "mu": 0.2840582191780822,
+      "providers": 200,
+      "days": 365,
+      "trainingCutoffDay": 292,
+      "branchingParameterAtBound": false,
+      "candidates": [
+        {
+          "alpha": 0.0,
+          "baselineScale": 0.9847427262879842,
+          "beta": 0.14285714285714285,
+          "validationLoss": 0.44068866539452095,
+          "selection": "Poisson reference"
+        },
+        {
+          "alpha": 0.16284405947084815,
+          "baselineScale": 0.8239812935021167,
+          "beta": 0.3333333333333333,
+          "validationLoss": 0.4396050370954411,
+          "selection": "self-excitation candidate"
+        },
+        {
+          "alpha": 0.3065452303835543,
+          "baselineScale": 0.6814574076699076,
+          "beta": 0.14285714285714285,
+          "validationLoss": 0.43803217678042405,
+          "selection": "self-excitation candidate"
+        },
+        {
+          "alpha": 0.6953310322838381,
+          "baselineScale": 0.3267368877726194,
+          "beta": 0.03333333333333333,
+          "validationLoss": 0.4336432738881836,
+          "selection": "self-excitation candidate"
+        }
+      ],
+      "method": "Prior-90-day provider baseline + shared self-excitation; candidate selected on chronological last 20% of training histories; no test outcomes",
+      "limitation": "Date-binned approximation, observed-window censoring and provider changes remain; alpha=0 is a valid evidence-selected outcome"
+    },
+    "ood": {
+      "features": [
+        "log_bill",
+        "bill_to_expected_max",
+        "care_days",
+        "invoice_lag_days",
+        "history_provider30",
+        "graph_provider_hhi",
+        "temporal_hawkes_excitation"
+      ],
+      "parameters": {
+        "mean": [
+          0.08013186390335614,
+          0.21827576130686793,
+          1.789,
+          0.0,
+          3.4827636044422787,
+          0.05933114228056123,
+          0.8223693357606728
+        ],
+        "scale": [
+          0.20960306820106092,
+          0.4142991715868345,
+          5.04041787288845,
+          1.0,
+          1.251953106113508,
+          0.12529226337129823,
+          0.19469232313784332
+        ],
+        "groups": {
+          "pooled": {
+            "mean": [
+              -2.6053233644537006e-17,
+              -1.1842378929335003e-18,
+              4.0264088359739013e-17,
+              0.0,
+              -1.5158245029548803e-16,
+              -1.6579330501069006e-17,
+              2.5668356329333617e-16
+            ],
+            "precision": [
+              [
+                1.1920494461090625,
+                -0.35374536092573233,
+                -0.22217276154095214,
+                0.0,
+                0.1279622400588067,
+                0.011425245863610638,
+                0.02703059990665925
+              ],
+              [
+                -0.3537453609257324,
+                1.15522118946232,
+                -0.1662748556915872,
+                0.0,
+                -0.03906091125473028,
+                -0.0018303306885640456,
+                0.006013866792000433
+              ],
+              [
+                -0.2221727615409522,
+                -0.16627485569158718,
+                1.0926656986008156,
+                0.0,
+                -0.00569017839224498,
+                -0.023941702387336578,
+                -0.0038126280058803073
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1000.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.1279622400588067,
+                -0.03906091125473029,
+                -0.005690178392244983,
+                0.0,
+                1.399018368791579,
+                0.5233114579613236,
+                -0.39745406507938535
+              ],
+              [
+                0.01142524586361063,
+                -0.0018303306885640548,
+                -0.023941702387336578,
+                0.0,
+                0.5233114579613237,
+                1.2590283467752121,
+                0.10707026624617039
+              ],
+              [
+                0.027030599906659257,
+                0.006013866792000434,
+                -0.0038126280058803064,
+                0.0,
+                -0.39745406507938535,
+                0.10707026624617044,
+                1.1779432000344512
+              ]
+            ],
+            "count": 3000
+          },
+          "treatment:DIAGNOSTIC": {
+            "mean": [
+              -0.2451439760413328,
+              -0.031065109462240614,
+              -0.07255095227944833,
+              0.0,
+              0.0487625134610831,
+              -0.020929987624410274,
+              0.024329833632895398
+            ],
+            "precision": [
+              [
+                39.09483910669332,
+                -7.887074708883589,
+                -0.5456460969038158,
+                0.0,
+                -0.02824015217941009,
+                0.013163021944744186,
+                0.03082743077943515
+              ],
+              [
+                -7.887074708883589,
+                2.6090531051297243,
+                -0.11742850583847962,
+                -0.0,
+                -0.004971920748556358,
+                -0.0008888610313298487,
+                0.006544021142168581
+              ],
+              [
+                -0.5456460969038153,
+                -0.1174285058384798,
+                1.1927443882458837,
+                0.0,
+                -0.009362606382419078,
+                -0.033400315551883976,
+                -0.007336923702130733
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1000.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                -0.028240152179410075,
+                -0.004971920748556361,
+                -0.009362606382419076,
+                0.0,
+                1.3945593769134774,
+                0.5542153684765692,
+                -0.377377459661277
+              ],
+              [
+                0.013163021944744184,
+                -0.0008888610313298478,
+                -0.033400315551883976,
+                0.0,
+                0.5542153684765692,
+                1.349250002175768,
+                0.127627004822154
+              ],
+              [
+                0.030827430779435148,
+                0.006544021142168581,
+                -0.007336923702130732,
+                0.0,
+                -0.377377459661277,
+                0.12762700482215397,
+                1.2284573708199895
+              ]
+            ],
+            "count": 2771
+          },
+          "treatment:HOSPITALIZATION": {
+            "mean": [
+              2.966349159871344,
+              0.37590139004309475,
+              0.8778982042198972,
+              0.0,
+              -0.5900477065531111,
+              0.25326198998795124,
+              -0.29440161133953074
+            ],
+            "precision": [
+              [
+                0.904725810551478,
+                -1.5587486919561666,
+                -0.037850493958857416,
+                0.0,
+                0.03856605880368825,
+                0.0032810159062595873,
+                0.03390826239632111
+              ],
+              [
+                -1.5587486919561668,
+                4.644758707796083,
+                -0.21898026532812875,
+                0.0,
+                -0.0048482722738716535,
+                -0.0025210507010971625,
+                -0.05238628403019066
+              ],
+              [
+                -0.03785049395885742,
+                -0.21898026532812873,
+                0.6660526118764712,
+                0.0,
+                -0.08971677210799116,
+                0.004943299694063923,
+                0.02859210693571494
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1000.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.03856605880368824,
+                -0.004848272273871639,
+                -0.08971677210799114,
+                0.0,
+                2.0012968062790075,
+                0.4052637970599291,
+                -0.7157585210719032
+              ],
+              [
+                0.0032810159062595825,
+                -0.0025210507010971547,
+                0.004943299694063922,
+                0.0,
+                0.4052637970599291,
+                0.716696656803199,
+                -0.02062597991735624
+              ],
+              [
+                0.033908262396321096,
+                -0.052386284030190654,
+                0.02859210693571493,
+                0.0,
+                -0.7157585210719032,
+                -0.02062597991735624,
+                0.910881494196256
+              ]
+            ],
+            "count": 229
+          },
+          "diagnosis:4011": {
+            "mean": [
+              -0.33891860145916736,
+              -0.3791142527942936,
+              -0.22042495807364423,
+              0.0,
+              -0.0008603577108957405,
+              -0.015348087049675002,
+              -0.03785241204708153
+            ],
+            "precision": [
+              [
+                553.1350364692757,
+                -122.26544653504887,
+                0.867818676095732,
+                0.0,
+                0.13254493322481262,
+                -0.6508510323024999,
+                -0.4641678348954979
+              ],
+              [
+                -122.26544653504884,
+                66.28119196019755,
+                0.6720949955278975,
+                -0.0,
+                0.13622575460215808,
+                -0.5432115907634011,
+                -0.36544061386133303
+              ],
+              [
+                0.8678186760957323,
+                0.6720949955278976,
+                1.95699658399423,
+                0.0,
+                0.21819621489870533,
+                0.07547992824940049,
+                -0.06889144358977643
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1000.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.13254493322481223,
+                0.13622575460215827,
+                0.2181962148987054,
+                0.0,
+                1.390869959036577,
+                0.45730112182838073,
+                -0.33540764119321576
+              ],
+              [
+                -0.6508510323025003,
+                -0.5432115907634008,
+                0.07547992824940049,
+                0.0,
+                0.4573011218283808,
+                1.0776028127612245,
+                0.20827166361506483
+              ],
+              [
+                -0.4641678348954977,
+                -0.3654406138613331,
+                -0.06889144358977642,
+                0.0,
+                -0.3354076411932157,
+                0.20827166361506483,
+                1.1823421533518543
+              ]
+            ],
+            "count": 59
+          },
+          "diagnosis:4019": {
+            "mean": [
+              -0.2556345449475385,
+              -0.32439117214814356,
+              -0.3520966575529725,
+              0.0,
+              0.013166561503586211,
+              0.03789269603925678,
+              -0.05565572926100602
+            ],
+            "precision": [
+              [
+                4.108719429974448,
+                -1.6355802690122414,
+                -23.28906439852059,
+                0.0,
+                0.038187705409449636,
+                -0.5264722579332284,
+                0.3263816490891653
+              ],
+              [
+                -1.635580269012241,
+                4.414088675685256,
+                2.3187679654644944,
+                0.0,
+                -0.22349803860365283,
+                0.11579767876193249,
+                0.061551143183202046
+              ],
+              [
+                -23.289064398520587,
+                2.318767965464488,
+                827.057486777843,
+                0.0,
+                0.24900522794358346,
+                -1.6680471274165927,
+                0.9536320460737592
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1000.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.038187705409447915,
+                -0.22349803860365267,
+                0.24900522794364122,
+                0.0,
+                1.3323772756665808,
+                0.6865571374330538,
+                -0.3474606390746424
+              ],
+              [
+                -0.5264722579332303,
+                0.11579767876193268,
+                -1.6680471274165227,
+                -0.0,
+                0.6865571374330539,
+                1.73718564587801,
+                0.11832729293406144
+              ],
+              [
+                0.32638164908916467,
+                0.06155114318320209,
+                0.9536320460737825,
+                0.0,
+                -0.3474606390746424,
+                0.1183272929340613,
+                1.0344171417703714
+              ]
+            ],
+            "count": 70
+          },
+          "diagnosis:78650": {
+            "mean": [
+              1.077071834146693,
+              0.632096888749096,
+              0.07286102249088819,
+              0.0,
+              0.01869345915255926,
+              -0.11188509868723995,
+              0.30586195900618907
+            ],
+            "precision": [
+              [
+                0.43492267347450564,
+                -0.20783194254489706,
+                -0.8769558413749307,
+                0.0,
+                0.04585529026164016,
+                -0.06658888732130872,
+                -0.10228047643910151
+              ],
+              [
+                -0.2078319425448971,
+                0.544766580499021,
+                0.2507695108783853,
+                0.0,
+                -0.16183876049493637,
+                0.00881400413987515,
+                0.07093137570754227
+              ],
+              [
+                -0.8769558413749305,
+                0.2507695108783852,
+                4.375007609041605,
+                0.0,
+                0.6391917695021689,
+                1.0576043713781167,
+                0.384182273945079
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1000.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.045855290261640175,
+                -0.1618387604949364,
+                0.6391917695021689,
+                0.0,
+                1.8370973064148928,
+                1.7511583300627864,
+                -0.2660792060345046
+              ],
+              [
+                -0.06658888732130873,
+                0.008814004139875141,
+                1.057604371378117,
+                0.0,
+                1.7511583300627864,
+                5.687774394264175,
+                0.1238294507601547
+              ],
+              [
+                -0.10228047643910151,
+                0.07093137570754225,
+                0.3841822739450789,
+                0.0,
+                -0.2660792060345046,
+                0.12382945076015461,
+                0.9692557786144687
+              ]
+            ],
+            "count": 32
+          },
+          "diagnosis:UNSPECIFIED": {
+            "mean": [
+              -0.3231151501326192,
+              -0.32146712098787006,
+              -0.3549308896833187,
+              0.0,
+              0.0022484328935965334,
+              0.07236687934164168,
+              -0.13854326079356066
+            ],
+            "precision": [
+              [
+                182.17262141782194,
+                -39.5350386684416,
+                2.2180124855477877e-27,
+                0.0,
+                -0.6083095531056795,
+                0.17040135106657342,
+                0.5604588188804428
+              ],
+              [
+                -39.53503866844161,
+                14.841308399764808,
+                -4.206937423389374e-28,
+                -0.0,
+                -0.27063144411824014,
+                0.038091011218348785,
+                0.20092510061074648
+              ],
+              [
+                2.218012485547788e-27,
+                -4.206937423389375e-28,
+                1000.0,
+                0.0,
+                -1.9225912315220908e-29,
+                -5.3873291200356026e-30,
+                7.974264949972657e-30
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1000.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                -0.6083095531056799,
+                -0.2706314441182401,
+                -1.9225912315220916e-29,
+                0.0,
+                1.3664518488228554,
+                0.38784056004565365,
+                -0.4148425365067207
+              ],
+              [
+                0.17040135106657317,
+                0.03809101121834884,
+                -5.387329120035605e-30,
+                0.0,
+                0.3878405600456536,
+                0.811994757898501,
+                0.23216656676304326
+              ],
+              [
+                0.560458818880443,
+                0.20092510061074642,
+                7.974264949972659e-30,
+                0.0,
+                -0.4148425365067207,
+                0.23216656676304326,
+                1.2720504677420994
+              ]
+            ],
+            "count": 47
+          }
+        },
+        "minimumGroup": 30,
+        "shrinkage": 0.2,
+        "ridge": 0.001
+      },
+      "threshold": 8.798807344668298
+    },
+    "calibration": {
+      "slope": 1.3430829030374603,
+      "intercept": 0.6389795597280095,
+      "method": "monotone_platt"
+    },
+    "conformal": {
+      "alpha": 0.1,
+      "quantile": {
+        "method": "label_conditional",
+        "alpha": 0.1,
+        "counts": {
+          "0": 660,
+          "1": 90
+        },
+        "unsupportedClasses": [],
+        "0": 0.08472351913849119,
+        "1": 0.9465526938094421
+      }
+    },
+    "policy": {
+      "threshold": 1.000000000001,
+      "requestedBudget": 0.3,
+      "effectiveBudget": 0.6306666666666667,
+      "unavoidableRate": 0.6306666666666667,
+      "validation": {
+        "tp": 85,
+        "fp": 388,
+        "fn": 9,
+        "tn": 268,
+        "precision": 0.17970401691331925,
+        "recall": 0.9042553191489362,
+        "f1": 0.2998236331569665,
+        "reviewRate": 0.6306666666666667,
+        "unmutatedRouteRate": 0.5914634146341463,
+        "cost": 0.795
+      }
+    },
+    "modelSha256": "6de8bc646a6964b8a599fb3a5d45e0daef97f0eb27123f88dfbf61e4203a7017",
+    "referenceSha256": "a7b59053cee3b0b4926da6e06984e1cd3e45a0d077263c499d0a8db97ddb8665",
+    "contextContract": "context.js; group-local prior 90-day history, same-day excluded; no runtime commitment yet"
+  },
+  "trees": {
+    "schema": "advanced-trees-v1",
+    "baseMargin": 0,
+    "features": [
+      "bill_range_anomaly",
+      "bill_to_expected_max",
+      "cancelled_record",
+      "care_days",
+      "claim_exceeds_registry_bill",
+      "claimant_velocity_anomaly",
+      "clean_registry_match",
+      "date_mismatch",
+      "graph_birank_patient",
+      "graph_birank_provider",
+      "graph_edge_repeat_share",
+      "graph_patient_degree",
+      "graph_provider_degree",
+      "graph_provider_hhi",
+      "history_available",
+      "history_patient14",
+      "history_provider30",
+      "history_provider_mean_bill",
+      "history_similar",
+      "hospital_id_mismatch",
+      "invalid_record_status",
+      "invoice_hash_mismatch",
+      "invoice_lag_days",
+      "license_blacklisted",
+      "license_suspended",
+      "log_bill",
+      "log_prior_claims",
+      "missing_or_noisy_record",
+      "near_duplicate_advisory",
+      "provider_velocity_anomaly",
+      "registry_record_missing",
+      "repeat_claim_pattern",
+      "temporal_hawkes_available",
+      "temporal_hawkes_excitation",
+      "temporal_hawkes_intensity",
+      "temporal_history_available",
+      "temporal_provider7",
+      "treatment_type_mismatch",
+      "used_invoice",
+      "ood_distance"
+    ],
+    "trees": [
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 283.085938,
+        "cover": 750,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 274.358948,
+            "cover": 99,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.152849153,
+                "cover": 42.75
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.110557936,
+                "cover": 56.25
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": -0.141133234,
+            "cover": 651
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 241.390747,
+        "cover": 746.348694,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 234.967834,
+            "cover": 98.5797424,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.141979545,
+                "cover": 42.5012817
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.102327012,
+                "cover": 56.0784645
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": -0.130541727,
+            "cover": 647.768921
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 207.970215,
+        "cover": 736.585815,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 202.93576,
+            "cover": 97.451767,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.13320452,
+                "cover": 41.8342934
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.095207572,
+                "cover": 55.6174698
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": -0.121811576,
+            "cover": 639.134033
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 180.637939,
+        "cover": 722.223572,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 176.463791,
+            "cover": 95.7861938,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.12597549,
+                "cover": 40.850193
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0889498144,
+                "cover": 54.9360046
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": -0.114454679,
+            "cover": 626.437378
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 157.921326,
+        "cover": 704.472168,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 154.300125,
+            "cover": 93.7206345,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.119919457,
+                "cover": 39.6305161
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0833732784,
+                "cover": 54.0901184
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.805105567,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 0.207397461,
+            "cover": 610.751526,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.100839771,
+                "cover": 276.996002
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.113555789,
+                "cover": 333.755554
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 138.840149,
+        "cover": 684.358948,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 135.544434,
+            "cover": 91.3663483,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.114773557,
+                "cover": 38.2410774
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0783446804,
+                "cover": 53.1252708
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.838987648,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 0.394897461,
+            "cover": 592.992554,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0974399224,
+                "cover": 371.571228
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.110412203,
+                "cover": 221.421371
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 122.590271,
+        "cover": 662.610413,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 119.531746,
+            "cover": 88.8131638,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.110347003,
+                "cover": 36.7349129
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0737638026,
+                "cover": 52.0782547
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.838987648,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 0.528869629,
+            "cover": 573.797241,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0926217139,
+                "cover": 360.202423
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.105505973,
+                "cover": 213.594818
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 108.624451,
+        "cover": 639.8396,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 105.759285,
+            "cover": 86.1333847,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.106497712,
+                "cover": 35.1546516
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.069554165,
+                "cover": 50.9787369
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.805105567,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 0.747131348,
+            "cover": 553.706177,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0861849189,
+                "cover": 252.738388
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0988406464,
+                "cover": 300.967804
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 96.526123,
+        "cover": 616.536987,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 93.8392715,
+            "cover": 83.3848572,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.103117608,
+                "cover": 33.5343742
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0656566471,
+                "cover": 49.8504829
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.838987648,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 0.915222168,
+            "cover": 533.152161,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0842010379,
+                "cover": 336.086151
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.097388491,
+                "cover": 197.065979
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 85.9802856,
+        "cover": 593.096436,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 83.4676056,
+            "cover": 80.6136093,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.100122891,
+                "cover": 31.9011574
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0620251484,
+                "cover": 48.7124481
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.805105567,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 1.08673096,
+            "cover": 512.482849,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0784286335,
+                "cover": 235.480072
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0914079323,
+                "cover": 277.002777
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 76.7325439,
+        "cover": 569.816284,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 74.4021072,
+            "cover": 77.8558731,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0974475145,
+                "cover": 30.2763195
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0586234555,
+                "cover": 47.5795555
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.0929952934,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 1.33587646,
+            "cover": 491.960449,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0852192566,
+                "cover": 402.81665
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0679954737,
+                "cover": 89.1437912
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 68.5736694,
+        "cover": 546.956909,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 66.4473343,
+            "cover": 75.1398926,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0950386971,
+                "cover": 28.6764469
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0554228872,
+                "cover": 46.4634438
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.838987648,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 1.68536377,
+            "cover": 471.817047,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0735513791,
+                "cover": 299.235992
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0880650133,
+                "cover": 172.58107
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 61.3686523,
+        "cover": 524.65979,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 59.4436378,
+            "cover": 72.4873123,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0928535834,
+                "cover": 27.1142387
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0524006076,
+                "cover": 45.3730774
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.838987648,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 1.80987549,
+            "cover": 452.172485,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0704879537,
+                "cover": 287.823944
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.085288316,
+                "cover": 164.348541
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 54.9725037,
+        "cover": 503.072662,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 53.2593842,
+            "cover": 69.9143982,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0908571333,
+                "cover": 25.5992279
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0495384336,
+                "cover": 44.3151703
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.841151059,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 1.93215942,
+            "cover": 433.158264,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0676511526,
+                "cover": 280.005707
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.082838349,
+                "cover": 153.152573
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 49.2771301,
+        "cover": 482.292633,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 47.7847939,
+            "cover": 67.4329834,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0890202373,
+                "cover": 24.1383457
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0468217172,
+                "cover": 43.2946396
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.0929952934,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 2.14651489,
+            "cover": 414.85965,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0739137605,
+                "cover": 338.967346
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.054590676,
+                "cover": 75.8923111
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 44.1808319,
+        "cover": 462.401428,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 42.927681,
+            "cover": 65.0513229,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.087318629,
+                "cover": 22.7364082
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0442386866,
+                "cover": 42.3149185
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.805105567,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 2.41540527,
+            "cover": 397.350098,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0593482293,
+                "cover": 186.173981
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0750586763,
+                "cover": 211.176117
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 39.6309052,
+        "cover": 443.405182,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 38.6099663,
+            "cover": 62.7747879,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.085731782,
+                "cover": 21.396534
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0417797267,
+                "cover": 41.3782539
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.841151059,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 2.56555176,
+            "cover": 380.630371,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0592529029,
+                "cover": 248.109924
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0761436373,
+                "cover": 132.520447
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 35.5550995,
+        "cover": 425.348724,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 34.7651405,
+            "cover": 60.6063766,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0842422843,
+                "cover": 20.1204567
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0394370481,
+                "cover": 40.48592
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.838987648,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 2.63885498,
+            "cover": 364.742371,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0566329174,
+                "cover": 236.190689
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0737800077,
+                "cover": 128.551666
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 32.8967743,
+        "cover": 408.2323,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 30.937973,
+            "cover": 401.204071,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0581216626,
+                "cover": 392.668976
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0828647986,
+                "cover": 8.53509235
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.101610929,
+            "cover": 7.02822113
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 30.2437439,
+        "cover": 392.686249,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 28.4265575,
+            "cover": 56.6803398,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0820306465,
+                "cover": 18.1786041
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0342058614,
+                "cover": 38.5017357
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.0929952934,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 3.06781006,
+            "cover": 336.00589,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0623074993,
+                "cover": 273.676636
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0398039222,
+                "cover": 62.329258
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 27.979538,
+        "cover": 377.4021,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 25.3546295,
+            "cover": 371.11908,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0534764007,
+                "cover": 363.54361
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0804275945,
+                "cover": 7.57547092
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.100166403,
+            "cover": 6.28303623
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 25.7475739,
+        "cover": 363.600342,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 23.3760338,
+            "cover": 53.1388893,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0800718293,
+                "cover": 16.4217987
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0294315759,
+                "cover": 36.7170906
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.841151059,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 3.62054443,
+            "cover": 310.461456,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0466689393,
+                "cover": 204.799347
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0668908283,
+                "cover": 105.662117
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 23.9222336,
+        "cover": 350.044586,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 20.84198,
+            "cover": 344.419128,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0490588099,
+                "cover": 337.69928
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0781720653,
+                "cover": 6.71987677
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.0988385454,
+            "cover": 5.62543583
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 21.9369202,
+        "cover": 337.882294,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 19.3371201,
+            "cover": 49.9753647,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0782990307,
+                "cover": 14.8438644
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0250910856,
+                "cover": 35.1315002
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.838987648,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 3.86514282,
+            "cover": 287.906921,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0420041308,
+                "cover": 189.042709
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0631927028,
+                "cover": 98.8642044
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 20.5490341,
+        "cover": 325.937103,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 17.1826172,
+            "cover": 320.885437,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0448413268,
+                "cover": 314.923004
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0760401338,
+                "cover": 5.96243334
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.0975197405,
+            "cover": 5.0516715
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 18.6851501,
+        "cover": 315.281189,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 16.0969067,
+            "cover": 47.1708412,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0766610727,
+                "cover": 13.4339199
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0211708285,
+                "cover": 33.7369232
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.805105567,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 4.07852173,
+            "cover": 268.110352,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0343656726,
+                "cover": 129.957642
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0554533675,
+                "cover": 138.15271
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 17.7261772,
+        "cover": 304.800812,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 14.208931,
+            "cover": 300.245026,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0408175997,
+                "cover": 294.949371
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0739886016,
+                "cover": 5.29564667
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.0961262137,
+            "cover": 4.55578041
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 16.1312561,
+        "cover": 295.507233,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 12.8679008,
+            "cover": 291.170807,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0387695432,
+                "cover": 286.164917
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0726979598,
+                "cover": 5.00589371
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.0940598398,
+            "cover": 4.336411
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 15.1988144,
+        "cover": 286.865417,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 12.4667368,
+            "cover": 43.5822754,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0748001337,
+                "cover": 11.7856274
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0156012783,
+                "cover": 31.796648
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.0929952934,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 4.5151825,
+            "cover": 243.283142,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0450406782,
+                "cover": 197.254456
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0162694007,
+                "cover": 46.0286827
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 13.9751701,
+        "cover": 278.300293,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 10.6847038,
+            "cover": 274.353271,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0350471362,
+                "cover": 269.894897
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0706829801,
+                "cover": 4.45838213
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.092384778,
+            "cover": 3.94701147
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 12.9182396,
+        "cover": 270.802399,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 10.5844831,
+            "cover": 41.5634727,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0733794942,
+                "cover": 10.7332153
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0127175217,
+                "cover": 30.8302555
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.841151059,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 4.95894241,
+            "cover": 229.238907,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0272680279,
+                "cover": 154.227875
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0530621931,
+                "cover": 75.0110321
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 12.1506863,
+        "cover": 263.358154,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 8.90797043,
+            "cover": 259.742859,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0315575264,
+                "cover": 255.762115
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0686885938,
+                "cover": 3.9807384
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.0905449912,
+            "cover": 3.61529064
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 11.0709476,
+        "cover": 256.867401,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 8.09850883,
+            "cover": 253.395477,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0297929328,
+                "cover": 249.61734
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0674085766,
+                "cover": 3.77814031
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.0882275626,
+            "cover": 3.47191358
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 10.5086269,
+        "cover": 250.852219,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 8.48044491,
+            "cover": 39.0008545,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0717877969,
+                "cover": 9.53705597
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.00865421724,
+                "cover": 29.4637985
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.841151059,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 5.06103516,
+            "cover": 211.851364,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0219945703,
+                "cover": 143.686523
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0489065573,
+                "cover": 68.1648407
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "used_invoice",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 9.65921402,
+        "cover": 244.812363,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "date_mismatch",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 6.78811646,
+            "cover": 241.598984,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0266530029,
+                "cover": 238.210083
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0654053688,
+                "cover": 3.38890028
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": 0.0861227214,
+            "cover": 3.21338058
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 8.91027832,
+        "cover": 239.618454,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 7.35176563,
+            "cover": 37.56707,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0704488009,
+                "cover": 8.74930191
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.00668909401,
+                "cover": 28.81777
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.0929952934,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 4.97478867,
+            "cover": 202.051376,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0339585878,
+                "cover": 162.963379
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.00210446166,
+                "cover": 39.0880013
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.838987648,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 8.27421093,
+        "cover": 234.360291,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "clean_registry_match",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 6.98665524,
+            "cover": 160.384247,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0264480244,
+                "cover": 26.7566204
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0170517005,
+                "cover": 133.627625
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_provider7",
+            "split_condition": 2.56494927,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 8.6553421,
+            "cover": 73.9760361,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": 0.00980280712,
+                "cover": 15.7863007
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0556384176,
+                "cover": 58.1897316
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.838987648,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 7.48105907,
+        "cover": 230.209106,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "clean_registry_match",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 5.99833393,
+            "cover": 158.72049,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0243090391,
+                "cover": 26.9497318
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0159352049,
+                "cover": 131.770752
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_provider7",
+            "split_condition": 2.56494927,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 7.93340302,
+            "cover": 71.4886246,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": 0.00904290378,
+                "cover": 15.9066858
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0537615828,
+                "cover": 55.5819359
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.838987648,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 6.74842453,
+        "cover": 226.361252,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "clean_registry_match",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 5.14803743,
+            "cover": 157.185333,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0223517381,
+                "cover": 27.1320972
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0148786772,
+                "cover": 130.053238
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_provider7",
+            "split_condition": 2.56494927,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 7.25771523,
+            "cover": 69.1759109,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": 0.00834589917,
+                "cover": 16.0185089
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0518858656,
+                "cover": 53.1574059
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.838987648,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 6.07357407,
+        "cover": 222.796265,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "clean_registry_match",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 4.4167943,
+            "cover": 155.768906,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0205599405,
+                "cover": 27.3038006
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0138805099,
+                "cover": 128.465103
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_provider7",
+            "split_condition": 2.56494927,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 6.62622929,
+            "cover": 67.0273514,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": 0.00770599954,
+                "cover": 16.1223621
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0500131398,
+                "cover": 50.904995
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.838987648,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 5.45375824,
+        "cover": 219.494797,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "clean_registry_match",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 3.78817225,
+            "cover": 154.462051,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0189187992,
+                "cover": 27.4650421
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.0129389521,
+                "cover": 126.997002
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_provider7",
+            "split_condition": 2.56494927,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 6.0370903,
+            "cover": 65.032753,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": 0.00711803604,
+                "cover": 16.2188129
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0481458604,
+                "cover": 48.8139381
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.805105567,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 4.94316626,
+        "cover": 216.438614,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.802290738,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 7.70594978,
+            "cover": 112.922943,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.00735615101,
+                "cover": 109.331474
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0889045671,
+                "cover": 3.59146237
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "graph_provider_hhi",
+            "split_condition": 0.0151605234,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 4.9113493,
+            "cover": 103.515671,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.00968657713,
+                "cover": 54.049408
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0446813703,
+                "cover": 49.466259
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 4.58615541,
+        "cover": 213.912323,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 6.53561783,
+            "cover": 36.5068932,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0683096573,
+                "cover": 7.8032546
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.00695618056,
+                "cover": 28.7036381
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.0929952934,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 4.88953018,
+            "cover": 177.405426,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0253113844,
+                "cover": 142.171616
+              },
+              {
+                "nodeid": 6,
+                "leaf": 0.00756791281,
+                "cover": 35.2338028
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.838987648,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 4.42159414,
+        "cover": 210.513229,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.0302172154,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 3.61031318,
+            "cover": 150.014572,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.017900724,
+                "cover": 71.0497284
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.00665539596,
+                "cover": 78.9648361
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_provider7",
+            "split_condition": 2.56494927,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 5.90475941,
+            "cover": 60.498661,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": 0.0110584376,
+                "cover": 15.5087118
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0446523987,
+                "cover": 44.9899483
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.738390028,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 4.09870958,
+        "cover": 208.410965,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "graph_birank_patient",
+            "split_condition": 0.197795093,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 3.18068004,
+            "cover": 51.5522575,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0232602749,
+                "cover": 30.9027214
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.015800653,
+                "cover": 20.649538
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider30",
+            "split_condition": 3.93182564,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 5.87289524,
+            "cover": 156.858719,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0332867242,
+                "cover": 78.5438919
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.00245217979,
+                "cover": 78.3148193
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.99474597,
+        "cover": 206.487534,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 5.85676384,
+            "cover": 35.5934105,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0674342886,
+                "cover": 7.45157337
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.00504580652,
+                "cover": 28.1418362
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.0929952934,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 4.15599918,
+            "cover": 170.894119,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0222616028,
+                "cover": 135.919449
+              },
+              {
+                "nodeid": 6,
+                "leaf": 0.00822738931,
+                "cover": 34.9746666
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "history_patient14",
+        "split_condition": 1.79175949,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.87168694,
+        "cover": 203.629684,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "history_patient14",
+            "split_condition": 0.693147182,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 6.39404106,
+            "cover": 194.846695,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0178730432,
+                "cover": 128.111679
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0123321097,
+                "cover": 66.7350159
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "graph_birank_provider",
+            "split_condition": 0.348028451,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 0.0664048195,
+            "cover": 8.78298569,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0215416625,
+                "cover": 3.06898189
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0654425099,
+                "cover": 5.71400356
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.805105567,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.86586905,
+        "cover": 202.16304,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.802290738,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 6.83294296,
+            "cover": 107.695595,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.003688192,
+                "cover": 104.053017
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.086659953,
+                "cover": 3.64258051
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider30",
+            "split_condition": 3.66356158,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 4.60591173,
+            "cover": 94.4674454,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.042198386,
+                "cover": 37.4263573
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.00636552507,
+                "cover": 57.0410881
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "history_patient14",
+        "split_condition": 1.79175949,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.67874384,
+        "cover": 200.548492,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "history_patient14",
+            "split_condition": 0.693147182,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 5.55123901,
+            "cover": 192.18486,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0160732139,
+                "cover": 125.376274
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0121575063,
+                "cover": 66.8085938
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "graph_birank_provider",
+            "split_condition": 0.348028451,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 0.0697803497,
+            "cover": 8.36363411,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0206232239,
+                "cover": 3.00680327
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.063884899,
+                "cover": 5.3568306
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.60988259,
+        "cover": 199.30545,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 5.18693542,
+            "cover": 34.6074371,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0667565688,
+                "cover": 7.1712718
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.00256615994,
+                "cover": 27.4361649
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.143300578,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 3.73646879,
+            "cover": 164.698013,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0177864954,
+                "cover": 143.569138
+              },
+              {
+                "nodeid": 6,
+                "leaf": 0.0170754064,
+                "cover": 21.1288643
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.738390028,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.48561478,
+        "cover": 196.966797,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "graph_birank_patient",
+            "split_condition": 0.197795093,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 2.95478749,
+            "cover": 49.6987534,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0255386829,
+                "cover": 30.032299
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.012923073,
+                "cover": 19.6664562
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.0181240849,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 5.23877096,
+            "cover": 147.268036,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.050420709,
+                "cover": 19.4335957
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.00749262515,
+                "cover": 127.83445
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "history_patient14",
+        "split_condition": 1.79175949,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.4736414,
+        "cover": 195.791718,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "history_patient14",
+            "split_condition": 0.693147182,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 5.03175259,
+            "cover": 187.908585,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.0141781447,
+                "cover": 121.833969
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0129155619,
+                "cover": 66.0746155
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "ood_distance",
+            "split_condition": 1.14136791,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 0.0666308403,
+            "cover": 7.88314247,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0200612489,
+                "cover": 3.03161502
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.062253613,
+                "cover": 4.85152721
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "history_patient14",
+        "split_condition": 1.79175949,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.24250269,
+        "cover": 194.827942,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "history_patient14",
+            "split_condition": 0.693147182,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 4.29535818,
+            "cover": 187.240158,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.013209979,
+                "cover": 120.505959
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.011793402,
+                "cover": 66.7341995
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "ood_distance",
+            "split_condition": 1.15661597,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 0.0446386337,
+            "cover": 7.58777237,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0198848415,
+                "cover": 3.02498865
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0608242266,
+                "cover": 4.56278372
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "temporal_hawkes_excitation",
+        "split_condition": 0.805105567,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.251688,
+        "cover": 193.932983,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.802290738,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 5.99222183,
+            "cover": 104.621826,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.00114812725,
+                "cover": 100.869263
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0827774704,
+                "cover": 3.75255919
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider30",
+            "split_condition": 3.66356158,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 4.26440811,
+            "cover": 89.3111572,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0383983068,
+                "cover": 34.5897522
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.00299718464,
+                "cover": 54.7214088
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "clean_registry_match",
+        "split_condition": 1,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.22405934,
+        "cover": 192.861679,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "bill_range_anomaly",
+            "split_condition": 1,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 4.6030407,
+            "cover": 33.7002182,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0660223663,
+                "cover": 6.88544321
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.000387782551,
+                "cover": 26.8147736
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "temporal_hawkes_excitation",
+            "split_condition": 0.623592794,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 3.41406322,
+            "cover": 159.161453,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": 0.0213639177,
+                "cover": 17.3243752
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.0146273701,
+                "cover": 141.837082
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "graph_birank_provider",
+        "split_condition": 0.261421084,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.08986449,
+        "cover": 190.995728,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "graph_edge_repeat_share",
+            "split_condition": 0.000834724517,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 3.88873291,
+            "cover": 12.6331186,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": 0.0562633611,
+                "cover": 8.70568752
+              },
+              {
+                "nodeid": 4,
+                "leaf": -0.027067801,
+                "cover": 3.92743087
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "depth": 1,
+            "split": "history_provider_mean_bill",
+            "split_condition": 0.021088263,
+            "yes": 5,
+            "no": 6,
+            "missing": 6,
+            "gain": 3.0102253,
+            "cover": 178.36261,
+            "children": [
+              {
+                "nodeid": 5,
+                "leaf": -0.0260722339,
+                "cover": 42.7562103
+              },
+              {
+                "nodeid": 6,
+                "leaf": -0.00210811733,
+                "cover": 135.6064
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeid": 0,
+        "depth": 0,
+        "split": "history_patient14",
+        "split_condition": 1.79175949,
+        "yes": 1,
+        "no": 2,
+        "missing": 2,
+        "gain": 3.03977537,
+        "cover": 190.225723,
+        "children": [
+          {
+            "nodeid": 1,
+            "depth": 1,
+            "split": "history_patient14",
+            "split_condition": 0.693147182,
+            "yes": 3,
+            "no": 4,
+            "missing": 4,
+            "gain": 3.87358809,
+            "cover": 183.098618,
+            "children": [
+              {
+                "nodeid": 3,
+                "leaf": -0.01126015,
+                "cover": 117.145195
+              },
+              {
+                "nodeid": 4,
+                "leaf": 0.0126815224,
+                "cover": 65.9534302
+              }
+            ]
+          },
+          {
+            "nodeid": 2,
+            "leaf": -0.049942255,
+            "cover": 7.12709236
+          }
+        ]
+      }
+    ]
+  },
+  "policy": {
+    "version": "xgboost-advisory-v1",
+    "authority": "ADMIN_ADVISORY_ONLY",
+    "threshold": 0.086932212,
+    "comparisonBudget": 0.3,
+    "uncertaintyTriggersReview": false,
+    "scoreScale": 1000000000,
+    "thresholdUnits": 86932212,
+    "validation": {
+      "threshold": 0.086932212,
+      "requestedBudget": 0.3,
+      "effectiveBudget": 0.3,
+      "unavoidableRate": 0.14933333333333335,
+      "validation": {
+        "tp": 57,
+        "fp": 61,
+        "fn": 37,
+        "tn": 595,
+        "precision": 0.4830508474576271,
+        "recall": 0.6063829787234043,
+        "f1": 0.5377358490566038,
+        "reviewRate": 0.15733333333333333,
+        "unmutatedRouteRate": 0.09298780487804878,
+        "cost": 0.614
+      }
+    },
+    "selection": "Minimize the previously declared 10/1/0.25 experimental cost on the policy partition, subject to whole-score ties and the union of mandatory rules within budget. No test selection."
+  },
+  "provenance": {
+    "sourceStudy": "docs/engineered/advanced-engineering-v2-reviewed-2026-10-24/study-20261024T075106Z",
+    "seed": 503,
+    "selection": "First seed in the existing engineering plan, fixed before this policy evaluation; not the best test seed.",
+    "sourcePipelineSha256": "afe958dc589650559d56c959748ce1888727bc4b6d3ad7ccf10a83b156f5b701",
+    "sourceModelSha256": "6de8bc646a6964b8a599fb3a5d45e0daef97f0eb27123f88dfbf61e4203a7017",
+    "sourceReferenceSha256": "a7b59053cee3b0b4926da6e06984e1cd3e45a0d077263c499d0a8db97ddb8665",
+    "planSha256": "0d1c2033f2104a391f8fdd68f75f010e91d7b814cf7fcb84e15d4637f2a1556c",
+    "labelMeaning": "Simulator billing actions, not adjudicated fraud",
+    "decision": "ADVISORY_DISPLAY; no Oracle protocol promotion or superiority claim"
+  },
+  "sourceSha256": {
+    "oracle/xgboostAssessment.js": "6f1e260f1930582fe4200f3e78cb5f4998e3283b04ccd04b054e0584c062cae5",
+    "oracle/observableFeatures.js": "8a8066f60312aa4c3f67952392e153e2127282d9617749f1146956a829b242ab",
+    "backEnd/research/context.js": "95842cfa612bf6c3220ee63d12b3b9cd3fb368f8591e9c60f256bcbaf1654a33",
+    "backEnd/services/continuousFeatureService.js": "9d81cc13ed8c9980c784e9250822d3c16215cc9d42f135f7de77d36f6ba6247a",
+    "backEnd/research/phase3-plan.json": "0d1c2033f2104a391f8fdd68f75f010e91d7b814cf7fcb84e15d4637f2a1556c"
+  }
+}

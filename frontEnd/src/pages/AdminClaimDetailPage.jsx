@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import XgboostAdvisoryPanel from "../components/XgboostAdvisoryPanel";
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import EvidenceChainPanel from "../components/EvidenceChainPanel";
 import EvidenceField from "../components/EvidenceField";
@@ -440,6 +441,8 @@ export default function AdminClaimDetailPage() {
           <EvidenceChainPanel evidenceChain={evidenceChain} />
         </div>
       ) : null}
+
+      {claim ? <XgboostAdvisoryPanel claimId={id} claimVersion={claim.claimVersion} status={statusName} /> : null}
 
       <div className="card hospital-verification-card">
         <h3>Independent Hospital Verification</h3>

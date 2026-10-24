@@ -25,6 +25,13 @@ modules.
 
 ## Local Services
 
+The [XGBoost runtime advisory integration](docs/xgboost-advisory-phase3.md)
+makes XGBoost the primary assessment in Admin claim details, alongside the NB
+protocol comparison. Graph/temporal context, calibration, OOD, conformal sets
+and exact SHAP explanations run on committed registry snapshots. The balanced
+advisory does not independently route claims or change the Oracle protocol;
+the 30% validation comparison budget is not a live queue guarantee.
+
 The [source-grounded engineering follow-up](docs/advanced-engineering-v2.md)
 adds benign counterexamples, explicit simulated billing actions, availability-safe
 history and frozen shift tests. Class-conditional calibration helps pure prevalence
@@ -32,8 +39,9 @@ shift but creates substantial review workload; promotion remains HOLD.
 
 The [advanced ML Phase 1/2 notes](docs/advanced-ml-phase12.md) describe the new
 offline graph/temporal, GBDT, calibration, TreeSHAP, OOD and conformal candidate.
-It is evaluated separately; the running application still uses its frozen NB
-artifact. The study records a HOLD decision, not an automatic model upgrade.
+That historical study records a HOLD decision. The running Oracle protocol
+retains its frozen NB artifact; the newer Admin advisory uses a separately
+versioned, balanced XGBoost policy, without claiming an overall performance win.
 
 The [24 October prototype-polish notes](docs/prototype-polish.md) cover the
 three-seed observable study, the HOLD promotion decision, evidence recovery,
