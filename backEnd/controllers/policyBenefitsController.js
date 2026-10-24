@@ -225,15 +225,9 @@ const getPackageBenefitTerms = async (req, res, next) => {
 
 const listBenefitRequests = async (req, res, next) => {
   try {
-    const contract = getReadOnlyBenefitsContract();
-    const counter = Number(await contract.requestCounter());
-    const start = Math.max(1, counter - 100);
-    const requests = await Promise.all(
-      Array.from({ length: counter - start }, (_, index) => counter - index - 1).map(
-        async (requestId) =>
-          formatBenefitRequest(await contract.getBenefitRequest(requestId))
-      )
-    );
+    getBenefitsAddress();
+    const rows = await require("../services/chainReadProjectionService").readEntities("benefit");
+    const requests = rows.slice(-100).reverse().map(formatBenefitRequest);
     res.status(200).json({ success: true, count: requests.length, requests });
   } catch (error) {
     next(error);

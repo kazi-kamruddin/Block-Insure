@@ -7,9 +7,10 @@ const bankOtpChallengeSchema = new mongoose.Schema(
     accountReference: { type: String, required: true, uppercase: true, trim: true },
     policyId: { type: String, required: true, trim: true },
     otpHash: { type: String, required: true, select: false },
+    deliveryMode: { type: String, enum: ["simulation", "brevo"], default: "simulation" },
     expiresAt: { type: Date, required: true, index: true },
     attempts: { type: Number, min: 0, default: 0 },
-    status: { type: String, enum: ["PENDING", "USED", "EXPIRED", "LOCKED"], default: "PENDING" },
+    status: { type: String, enum: ["PENDING", "USED", "EXPIRED", "LOCKED", "FAILED"], default: "PENDING" },
   },
   { timestamps: true }
 );

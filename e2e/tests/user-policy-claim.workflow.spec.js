@@ -112,6 +112,25 @@ test.describe("@workflow policyholder transaction journey", () => {
       await session.page.keyboard.press("Escape");
       await expect(preview).not.toBeVisible();
       await expect(previewButton).toBeFocused();
+      // Delete only this actor's disposable browser identity, never shared keys.
+      // Recovery must restore the exact existing public identity and PDF access.
+      await session.page.evaluate(() => new Promise((resolve, reject) => {
+        const open = indexedDB.open("block-insure-private-keys", 1);
+        open.onsuccess = () => {
+          const db = open.result, tx = db.transaction("evidence-identities", "readwrite");
+          tx.objectStore("evidence-identities").clear();
+          tx.oncomplete = () => { db.close(); resolve(); }; tx.onabort = () => reject(tx.error);
+        }; open.onerror = () => reject(open.error);
+      }));
+      await session.page.goto("/user/profile");
+      await session.page.getByRole("button", { name: "Check evidence recovery" }).click();
+      await expect(session.page.getByText(/No identity in this browser.*Encrypted backup available/)).toBeVisible();
+      await session.page.getByRole("button", { name: "Restore evidence access" }).click();
+      await expect(session.page.getByText(/Browser identity present.*Encrypted backup available/)).toBeVisible();
+      await session.page.goto(`/user/claims/${claimId}`);
+      await session.page.getByRole("button", { name: "Preview decrypted", exact: true }).first().click();
+      await expect(session.page.getByRole("dialog", { name: "Decrypted evidence preview" }).getByText("Page 1 of 1", { exact: true })).toBeVisible();
+      await session.page.keyboard.press("Escape");
       await session.page.setViewportSize(desktopViewport);
 
       await verifyClaimAsHospital(browser, claimId, "VERIFIED");

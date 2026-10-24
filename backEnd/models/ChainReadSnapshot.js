@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const schema = new mongoose.Schema({
   indexerId: { type: String, required: true },
-  kind: { type: String, enum: ["claim", "policy"], required: true },
+  kind: { type: String, enum: ["claim", "policy", "benefit"], required: true },
   entityId: { type: String, required: true },
   blockNumber: { type: Number, required: true },
   blockHash: { type: String, required: true },

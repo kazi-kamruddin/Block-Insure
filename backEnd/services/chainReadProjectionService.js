@@ -3,9 +3,10 @@ const Checkpoint = require("../models/IndexerCheckpoint");
 const Event = require("../models/IndexedBlockchainEvent");
 const { getIndexerContext, indexConfirmedEvents } = require("./blockchainIndexerService");
 const { getReadOnlyContract } = require("./contractService");
+const { getReadOnlyBenefitsContract } = require("./policyBenefitsService");
 let pending;
 
-const numeric = new Set(["claimId", "policyId", "packageId", "claimAmount", "incidentDate", "status", "verificationConfidence", "submittedAt", "coverageAmount", "premiumAmount", "premiumInterval", "premiumPaid", "totalPremiumPaid", "startDate", "endDate", "lastPaidTimestamp", "installmentsPaid", "nextPremiumDueDate", "gracePeriodEnd"]);
+const numeric = new Set(["requestId", "benefitType", "amount", "termsVersion", "requestedAt", "resolvedAt", "allocatedAt", "claimId", "policyId", "packageId", "claimAmount", "incidentDate", "status", "verificationConfidence", "submittedAt", "coverageAmount", "premiumAmount", "premiumInterval", "premiumPaid", "totalPremiumPaid", "startDate", "endDate", "lastPaidTimestamp", "installmentsPaid", "nextPremiumDueDate", "gracePeriodEnd"]);
 const hydrate = (data) => Object.fromEntries(Object.entries(data).map(([key, value]) => [key, numeric.has(key) && typeof value === "string" && /^\d+$/.test(value) ? BigInt(value) : value]));
 const encode = (value) => JSON.parse(JSON.stringify(value.toObject(), (_key, item) => typeof item === "bigint" ? item.toString() : item));
 
@@ -16,7 +17,7 @@ async function refresh() {
   await indexConfirmedEvents();
   const raw = await Checkpoint.findOne({ indexerId: context.indexerId }).lean();
   if (!raw) throw Object.assign(new Error("Read projection is catching up"), { statusCode: 503 });
-  const scope = `read:${context.indexerId}`;
+  const scope = `read:v2:${context.indexerId}`;
   let cursor = await Checkpoint.findOne({ indexerId: scope }).lean();
   // Keep earlier entity versions so an interrupted refresh or reorg can rewind.
   if (cursor && (await provider.getBlock(cursor.blockNumber))?.hash !== cursor.blockHash) {
@@ -26,14 +27,16 @@ async function refresh() {
   }
   if (cursor && cursor.blockNumber === raw.blockNumber) return { scope, cursor };
   const filter = { indexerId: context.indexerId, blockNumber: { $gt: cursor?.blockNumber ?? -1, $lte: raw.blockNumber } };
-  const [claims, policies] = await Promise.all([
+  const [claims, policies, benefits] = await Promise.all([
     Event.distinct("args.claimId", { ...filter, "args.claimId": { $exists: true } }),
     Event.distinct("args.policyId", { ...filter, "args.policyId": { $exists: true } }),
+    Event.distinct("args.requestId", { ...filter, contractName: "PolicyBenefitsManager", "args.requestId": { $exists: true } }),
   ]);
-  for (const [kind, ids, getter] of [["claim", claims, "getClaim"], ["policy", policies, "getPolicy"]]) {
+  for (const [kind, ids, getter] of [["claim", claims, "getClaim"], ["policy", policies, "getPolicy"], ["benefit", benefits, "getBenefitRequest"]]) {
     for (let start = 0; start < ids.length; start += 4) {
       await Promise.all(ids.slice(start, start + 4).filter((id) => /^[1-9]\d*$/.test(String(id))).map(async (id) => {
-        const data = encode(await manager[getter](id, { blockTag: raw.blockNumber }));
+        const reader = kind === "benefit" ? getReadOnlyBenefitsContract() : manager;
+        const data = encode(await reader[getter](id, { blockTag: raw.blockNumber }));
         if (kind === "claim") {
           const economics = await require("./contractService").getPolicyEconomics(manager);
           data._settlement = encode(await manager.calculateSettlement(id, { blockTag: raw.blockNumber }));
@@ -67,6 +70,6 @@ async function readEntities(kind) {
       entity.isActive = entity.status === 1n;
     }
     return entity;
-  }).sort((a, b) => Number((a.claimId || a.policyId) - (b.claimId || b.policyId)));
+  }).sort((a, b) => Number((a.requestId || a.claimId || a.policyId) - (b.requestId || b.claimId || b.policyId)));
 }
 module.exports = { readEntities, hydrate };

@@ -25,6 +25,11 @@ modules.
 
 ## Local Services
 
+The [24 October prototype-polish notes](docs/prototype-polish.md) cover the
+three-seed observable study, the HOLD promotion decision, evidence recovery,
+prepared Brevo email OTP delivery, confirmed benefit/payment projections and
+verification limits. Email sending is not activated by these code changes.
+
 Use **Node 24 LTS** for full-repository development. The frontend's patched PDF
 renderer requires Node 22.13+ (22.x) or 24.x to build; the existing Render backend
 and Oracle Node 20 configuration is unchanged. For Vercel, select Node 24.x when

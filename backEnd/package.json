@@ -33,6 +33,7 @@
     "evaluate:phase5": "node scripts/evaluatePhase5.js",
     "evaluate:hybrid": "node scripts/evaluateHybridDataset.js",
     "evaluate:observable": "node --max-old-space-size=768 scripts/evaluateObservablePipeline.js",
+    "evaluate:prototype": "node --expose-gc --max-old-space-size=768 scripts/runPrototypeStudy.js",
     "benchmark:hybrid": "node scripts/benchmarkHybridRuntime.js",
     "evaluate:reserve": "node scripts/evaluateReserveAdequacy.js",
     "evaluate:evidence": "node scripts/evaluateEvidenceLifecycle.js",
@@ -69,7 +70,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.2",
     "morgan": "^1.10.1",
-    "multer": "^2.1.1",
+    "multer": "^2.5.0",
     "siwe": "^3.0.0"
   },
   "devDependencies": {

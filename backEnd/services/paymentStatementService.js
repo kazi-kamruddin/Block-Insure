@@ -1,7 +1,6 @@
 const { ethers } = require("ethers");
 const {
   getPolicyIdsByWallet,
-  queryEventsInChunks,
 } = require("./contractQueryService");
 const BankTransaction = require("../models/BankTransaction");
 const EftMandate = require("../models/EftMandate");
@@ -146,10 +145,7 @@ const buildPaymentStatement = async ({
   );
   const eventGroups = await Promise.all(
     policies.map(async (policy) => {
-      const events = await queryEventsInChunks(
-        contract,
-        contract.filters.PremiumPaid(policy.policyId)
-      );
+      const events = await require("./indexedPremiumService").readPremiumEvents(contract, policy.policyId);
       return events.map((event) => formatPremiumEvent(event, policy));
     })
   );

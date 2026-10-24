@@ -72,8 +72,10 @@ function openIdentityDatabase() {
 async function readIdentity(walletAddress) {
   const database = await openIdentityDatabase();
   return new Promise((resolve, reject) => {
-    const request = database
-      .transaction(STORE_NAME, "readonly")
+    const transaction = database.transaction(STORE_NAME, "readonly");
+    transaction.oncomplete = () => database.close();
+    transaction.onabort = () => { database.close(); reject(transaction.error); };
+    const request = transaction
       .objectStore(STORE_NAME)
       .get(walletAddress.toLowerCase());
     request.onsuccess = () => resolve(request.result || null);
@@ -84,11 +86,12 @@ async function readIdentity(walletAddress) {
 async function writeIdentity(identity) {
   const database = await openIdentityDatabase();
   return new Promise((resolve, reject) => {
-    const request = database
-      .transaction(STORE_NAME, "readwrite")
+    const transaction = database.transaction(STORE_NAME, "readwrite");
+    transaction.oncomplete = () => { database.close(); resolve(identity); };
+    transaction.onabort = () => { database.close(); reject(transaction.error || new Error("Evidence identity was not saved")); };
+    const request = transaction
       .objectStore(STORE_NAME)
       .put(identity);
-    request.onsuccess = () => resolve(identity);
     request.onerror = () => reject(request.error);
   });
 }
@@ -130,6 +133,7 @@ async function createEncryptedIdentityBackup(identity, signer) {
 }
 
 async function recoverIdentityBackup(walletAddress, encryptedBackup, signer) {
+  if ((await signer.getAddress()).toLowerCase() !== walletAddress.toLowerCase()) throw new Error("Reconnect the wallet that owns this evidence identity");
   const envelope = JSON.parse(encryptedBackup);
   if (envelope.version !== 1) throw new Error("Unsupported evidence identity backup");
   const recoveryKey = await deriveRecoveryKey(walletAddress, signer);
@@ -147,12 +151,13 @@ async function recoverIdentityBackup(walletAddress, encryptedBackup, signer) {
   };
 }
 
-export async function ensureEvidenceIdentity(walletAddress) {
+export async function ensureEvidenceIdentity(walletAddress, { recoveryOnly = false } = {}) {
   if (!walletAddress) throw new Error("Wallet is required for evidence encryption");
   const normalizedWallet = walletAddress.toLowerCase();
   let identity = await readIdentity(normalizedWallet);
   const remote = await getEvidenceEncryptionKey();
   const remoteKey = remote?.key || remote?.data?.key || {};
+  if (recoveryOnly && !remoteKey.registered) throw new Error("The registered identity is no longer available. Recovery will not create or rotate keys.");
   const registry = await getEvidenceRegistryWalletContract();
   const signer = registry.runner;
 
@@ -166,6 +171,7 @@ export async function ensureEvidenceIdentity(walletAddress) {
         remoteKey.encryptedPrivateKeyBackup,
         signer
       );
+      assertIdentityMatches(identity, remoteKey);
       identity.version = Number(remoteKey.version);
       await writeIdentity(identity);
       return identity;
@@ -234,6 +240,28 @@ export async function ensureEvidenceIdentity(walletAddress) {
     await writeIdentity(identity);
   }
   return identity;
+}
+
+function assertIdentityMatches(identity, remoteKey) {
+  if (serializeCryptoObject(deserializeCryptoObject(identity.keyPair).publicKey) !== remoteKey.publicKey ||
+      serializeCryptoObject(deserializeCryptoObject(identity.signingKeyPair).publicKey) !== remoteKey.signingPublicKey) {
+    throw new Error("Recovered backup does not match the registered encryption identity. No browser keys were replaced.");
+  }
+}
+
+export async function getEvidenceRecoveryStatus(walletAddress) {
+  const remote = await getEvidenceEncryptionKey();
+  const key = remote?.key || remote?.data?.key || {};
+  const local = await readIdentity(walletAddress.toLowerCase());
+  if (local && key.registered) assertIdentityMatches(local, key);
+  return { local: Boolean(local), registered: Boolean(key.registered), recoverable: Boolean(key.registered && key.encryptedPrivateKeyBackup) };
+}
+
+export async function restoreEvidenceAccess(walletAddress) {
+  const status = await getEvidenceRecoveryStatus(walletAddress);
+  if (!status.registered || !status.recoverable) throw new Error("No registered encrypted backup is available. This action will not create or rotate keys.");
+  await ensureEvidenceIdentity(walletAddress, { recoveryOnly: true });
+  return { restored: true };
 }
 
 async function calculateSHA256Hex(bytes) {
@@ -340,7 +368,7 @@ export async function downloadDecryptedEvidence(
   if (!documentId) throw new Error("Document identity is required for protected evidence");
   const walletAddress = localStorage.getItem("blockinsure_wallet");
   const identity = await readIdentity(walletAddress || "");
-  if (!identity) throw new Error("This browser does not hold the assigned encryption key");
+  if (!identity) throw new Error("This browser does not hold the assigned encryption key. Open My profile → Evidence access recovery and restore access with the original wallet.");
   const responseEnvelope = await getEvidenceDecryptionKey(documentId);
   const envelope = responseEnvelope?.decryption || responseEnvelope?.data?.decryption;
   const privateKey = deserializeCryptoObject(identity.keyPair).privateKey;

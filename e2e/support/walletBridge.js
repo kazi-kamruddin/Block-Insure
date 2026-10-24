@@ -154,8 +154,10 @@ async function createActorContext(browser, actorName, contextOptions = {}) {
 }
 
 async function closeActor(actorSession) {
-  await actorSession.context.close();
-  actorSession.provider.destroy();
+  // Stop receipt/block polling before context shutdown waits for browser bindings
+  // and video finalization. A failed close must not leave an RPC provider alive.
+  try { actorSession.provider.destroy(); }
+  finally { await actorSession.context.close(); }
 }
 
 module.exports = { closeActor, createActorContext };

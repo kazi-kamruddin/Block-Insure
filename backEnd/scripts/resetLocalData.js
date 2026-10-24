@@ -10,6 +10,8 @@ const Appeal = require("../models/Appeal");
 const Bank = require("../models/Bank");
 const BankAccount = require("../models/BankAccount");
 const BankOtpChallenge = require("../models/BankOtpChallenge");
+const EmailChallenge = require("../models/EmailChallenge");
+const OtpDeliverySlot = require("../models/OtpDeliverySlot");
 const BankTransaction = require("../models/BankTransaction");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 const EftMandate = require("../models/EftMandate");
@@ -57,6 +59,8 @@ const collections = [
   ["bank directory entries", Bank],
   ["bank accounts", BankAccount],
   ["bank OTP challenges", BankOtpChallenge],
+  ["email verification challenges", EmailChallenge],
+  ["OTP delivery limits", OtpDeliverySlot],
   ["bank transactions", BankTransaction],
   ["claim submission attempts", ClaimSubmissionAttempt],
   ["documents", File],

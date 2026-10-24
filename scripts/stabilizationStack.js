@@ -22,6 +22,7 @@ const environment = {
   DEPLOY_WRITE_ENV: "false", DEPLOYMENT_OUTPUT_DIR: output,
   SKIP_LOCAL_ORACLE_CURSOR_RESET: "true",
   CLAIM_SUBMISSION_RATE_LIMIT: "100",
+  OTP_DELIVERY_MODE: "simulation",
   APPDATA: path.join(root, ".hardhat-appdata"), LOCALAPPDATA: path.join(root, ".hardhat-localappdata"),
 };
 const database = new URL(environment.MONGODB_URI);

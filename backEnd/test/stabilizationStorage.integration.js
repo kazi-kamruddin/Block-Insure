@@ -163,12 +163,14 @@ test("read projections replay interrupted snapshots and reuse unchanged entities
     getClaim: async () => { reads++; return result({ claimId: 1n, policyId: 1n, claimAmount: 20n, status: BigInt(blockNumber) }); },
     calculateSettlement: async () => result({ claimAmount: 20n, insurerPays: 15n }),
   };
+  const benefits = { getBenefitRequest: async () => result({ requestId: 1n, policyId: 1n, packageId: 1n, benefitType: 0n, status: 2n, amount: 10n }) };
   const snapshots = Object.create(Snapshot);
   snapshots.updateOne = async (...args) => { if (fail) throw new Error("interrupted projection"); return Snapshot.updateOne(...args); };
   const service = load("services/chainReadProjectionService.js", {
     "./blockchainIndexerService": { getIndexerContext: async () => ({ indexerId: scope }), indexConfirmedEvents: async () => {} },
     "./contractService": { getReadOnlyContract: () => manager, getPolicyEconomics: async () => ({ getPolicyTerms: async () => result({ insurerShareBps: 7500n }) }) },
     "../models/ChainReadSnapshot": snapshots,
+    "./policyBenefitsService": { getReadOnlyBenefitsContract: () => benefits },
   });
   const checkpoint = () => Checkpoint.findOneAndUpdate({ indexerId: scope }, { contractAddress: manager.target, blockNumber, blockHash: `${branch}-${blockNumber}` }, { upsert: true });
   const event = () => IndexedEvent.create({ indexerId: scope, contractAddress: manager.target, contractName: "InsuranceManager", blockNumber, blockHash: `${branch}-${blockNumber}`, transactionHash: `project-tx-${branch}-${blockNumber}`, logIndex: 0, eventName: "ClaimSubmitted", args: { claimId: "1" } });
@@ -177,7 +179,7 @@ test("read projections replay interrupted snapshots and reuse unchanged entities
   await service.readEntities("claim"); assert.equal(reads, 1);
   blockNumber = 2; await checkpoint(); await event(); fail = true;
   await assert.rejects(service.readEntities("claim"), /interrupted projection/);
-  assert.equal((await Checkpoint.findOne({ indexerId: `read:${scope}` })).blockNumber, 1);
+  assert.equal((await Checkpoint.findOne({ indexerId: `read:v2:${scope}` })).blockNumber, 1);
   fail = false;
   assert.equal((await service.readEntities("claim"))[0].status, 2n);
   // Model the raw indexer's completed canonical replay before derived reads.
@@ -185,6 +187,117 @@ test("read projections replay interrupted snapshots and reuse unchanged entities
   await IndexedEvent.deleteMany({ indexerId: scope });
   await checkpoint(); await event();
   assert.equal((await service.readEntities("claim"))[0].status, 1n);
-  assert.equal(await Snapshot.countDocuments({ indexerId: `read:${scope}`, blockHash: /^canonical-/ }), 0);
-  assert.equal((await Checkpoint.findOne({ indexerId: `read:${scope}` })).blockHash, "replacement-1");
+  assert.equal(await Snapshot.countDocuments({ indexerId: `read:v2:${scope}`, blockHash: /^canonical-/ }), 0);
+  assert.equal((await Checkpoint.findOne({ indexerId: `read:v2:${scope}` })).blockHash, "replacement-1");
+  blockNumber = 2; await checkpoint();
+  await IndexedEvent.create({ indexerId: scope, contractAddress: manager.target, contractName: "PolicyBenefitsManager", blockNumber, blockHash: `${branch}-${blockNumber}`, transactionHash: "benefit-created", logIndex: 0, eventName: "BenefitApproved", args: { requestId: "1" } });
+  const benefit = (await service.readEntities("benefit"))[0];
+  assert.equal(benefit.requestId, 1n); assert.equal(benefit.amount, 10n);
+});
+
+test("email verification uses durable limits, one-use challenges and a current profile binding", async () => {
+  const User = require("../models/User"), Challenge = require("../models/EmailChallenge"), Slot = require("../models/OtpDeliverySlot");
+  await Promise.all([User.init(), Challenge.init(), Slot.init()]);
+  const walletAddress = `0x${"b".repeat(40)}`;
+  await User.create({ walletAddress, email: "prototype@example.test" });
+  let otp, fail = false, mode = "brevo";
+  const service = load("services/emailVerificationService.js", { "./otpDeliveryService": {
+    deliveryMode: () => mode,
+    deliverOtp: async (input) => { otp = input.otp; if (fail) throw new Error("Delivery failed"); return { deliveryMode: mode }; },
+  } }, { BANK_OTP_SECRET: "isolated-test-only-secret" });
+  const request = await service.requestVerification(walletAddress);
+  await assert.rejects(service.requestVerification(walletAddress), (error) => error.statusCode === 429);
+  const confirmations = await Promise.allSettled([service.confirmVerification(walletAddress, request.challengeId, otp), service.confirmVerification(walletAddress, request.challengeId, otp)]);
+  assert.equal(confirmations.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal(confirmations.find((result) => result.status === "fulfilled").value.verified, true);
+  assert.equal((await User.findOne({ walletAddress }).select("+verifiedEmail")).verifiedEmail, "prototype@example.test");
+  await assert.rejects(service.confirmVerification(walletAddress, request.challengeId, otp), /expired, used/);
+  await Slot.deleteMany({});
+  const changed = await service.requestVerification(walletAddress);
+  let saved;
+  const response = { status: () => response, json: (body) => { saved = body; } };
+  await require("../controllers/userController").registerUser({ user: { walletAddress }, body: { email: "changed@example.test", name: "Synthetic profile", phone: "" } }, response, (error) => { throw error; });
+  assert.deepEqual(Object.keys(saved.user).sort(), ["email", "name", "phone", "role", "walletAddress"]);
+  const edited = await User.findOne({ walletAddress }).select("+verifiedEmail");
+  assert.equal(Boolean(edited.verifiedEmail), false); assert.equal(Boolean(edited.emailVerifiedAt), false);
+  await assert.rejects(service.confirmVerification(walletAddress, changed.challengeId, otp), /profile email changed/);
+  await Slot.deleteMany({}); mode = "simulation";
+  const simulated = await service.requestVerification(walletAddress);
+  mode = "brevo";
+  assert.equal((await service.confirmVerification(walletAddress, simulated.challengeId, otp)).verified, false);
+  await Slot.deleteMany({}); fail = true;
+  await assert.rejects(service.requestVerification(walletAddress), /Delivery failed/);
+  assert.equal(await Challenge.countDocuments({ walletAddress, status: "PENDING" }), 0);
+  await Slot.deleteMany({}); fail = false;
+  const locked = await service.requestVerification(walletAddress);
+  const wrong = otp === "000000" ? "000001" : "000000";
+  for (let attempt = 0; attempt < 3; attempt++) await assert.rejects(service.confirmVerification(walletAddress, locked.challengeId, wrong), /Incorrect code/);
+  await assert.rejects(service.confirmVerification(walletAddress, locked.challengeId, otp), /expired, used/);
+  assert.equal((await Challenge.findOne({ challengeId: locked.challengeId })).status, "LOCKED");
+  await Slot.deleteMany({});
+  await Slot.create({ _id: `wallet:${walletAddress}`, count: 10, nextAllowedAt: new Date(Date.now() - 1000), windowStart: new Date() });
+  await assert.rejects(service.reserveDelivery(walletAddress, "changed@example.test"), (error) => error.statusCode === 429);
+  await Slot.updateOne({ _id: `wallet:${walletAddress}` }, { windowStart: new Date(Date.now() - 86401000) });
+  await service.reserveDelivery(walletAddress, "changed@example.test");
+  assert.equal((await Slot.findById(`wallet:${walletAddress}`)).count, 1);
+  await Slot.updateOne({ _id: "application:otp-email" }, { count: 100 });
+  await assert.rejects(service.reserveDelivery("different-test-wallet", "different@example.test"), (error) => error.statusCode === 429);
+});
+
+test("premium projections exclude other deployments, removed logs and unconfirmed blocks", async () => {
+  const indexerId = "premium-integration", address = `0x${"8".repeat(40)}`;
+  const provider = { getBlock: async () => ({ hash: "premium-confirmed" }) };
+  const service = load("services/indexedPremiumService.js", { "./blockchainIndexerService": { getIndexerContext: async () => ({ indexerId }), indexConfirmedEvents: async () => {} } });
+  await Checkpoint.create({ indexerId, contractAddress: address, blockNumber: 3, blockHash: "premium-confirmed" });
+  const base = { indexerId, contractAddress: address, contractName: "InsuranceManager", blockNumber: 3, blockHash: "premium-confirmed", eventName: "PremiumPaid", args: { policyId: "1", amount: "10" } };
+  await IndexedEvent.create([
+    { ...base, transactionHash: "premium-ok", logIndex: 0 },
+    { ...base, transactionHash: "premium-other", logIndex: 0, indexerId: "other-premium-deployment" },
+    { ...base, transactionHash: "premium-later", logIndex: 0, blockNumber: 4 },
+    { ...base, transactionHash: "premium-removed", logIndex: 0, removed: true },
+  ]);
+  const rows = await service.readPremiumEvents({ target: address, runner: { provider } }, "1");
+  assert.equal(rows.length, 1); assert.equal(rows[0].transactionHash, "premium-ok"); assert.equal(rows[0].index, 0);
+  provider.getBlock = async () => ({ hash: "reorganized" });
+  await assert.rejects(service.readPremiumEvents({ target: address, runner: { provider } }, "1"), /catching up/);
+});
+
+test("manual OTP email delivery requires a verified profile and fails without a pending code", async () => {
+  const User = require("../models/User"), Account = require("../models/BankAccount"), Challenge = require("../models/BankOtpChallenge");
+  await Promise.all([User.init(), Account.init(), Challenge.init()]);
+  const walletAddress = `0x${"c".repeat(40)}`, accountReference = "EMAIL-TEST";
+  await User.create({ walletAddress, email: "bank-otp@example.test" });
+  await Account.create({ walletAddress, ownerWalletAddress: walletAddress, bankId: "DEMO", accountReference, accountHolderName: "Synthetic test holder", lastFour: "0000", balanceMinor: 1000000 });
+  let fail = false;
+  const service = load("services/bankPaymentService.js", {
+    "./contractService": { getReadOnlyContract: () => ({ getPolicy: async () => ({ holderWallet: walletAddress, premiumAmount: 10000000000000000n, nextPremiumDueDate: 1n }), getEffectivePolicyStatus: async () => 1 }) },
+    "./emailVerificationService": { reserveDelivery: async () => {} },
+    "./otpDeliveryService": { deliveryMode: () => "brevo", deliverOtp: async ({ email }) => {
+      assert.equal(email, "bank-otp@example.test"); if (fail) throw new Error("Delivery rejected"); return { deliveryMode: "brevo", maskedRecipient: "b***@example.test" };
+    } },
+  }, { BANK_OTP_SECRET: "isolated-bank-test-only" });
+  const input = { walletAddress, accountReference, policyId: "1" };
+  await assert.rejects(service.requestManualPaymentOtp(input), /Verify your saved profile email/);
+  await User.updateOne({ walletAddress }, { verifiedEmail: "bank-otp@example.test" });
+  const issued = await service.requestManualPaymentOtp(input);
+  assert.equal(issued.demoOtp, undefined); assert.equal(issued.deliveryMode, "brevo");
+  fail = true;
+  await assert.rejects(service.requestManualPaymentOtp(input), /Delivery rejected/);
+  assert.equal(await Challenge.countDocuments({ ownerWalletAddress: walletAddress, status: "PENDING" }), 0);
+  assert.equal(await Challenge.countDocuments({ ownerWalletAddress: walletAddress, status: "FAILED" }), 1);
+});
+
+test("a stale OTP expiry check cannot overwrite a concurrently consumed challenge", async () => {
+  const Challenge = require("../models/BankOtpChallenge");
+  const walletAddress = `0x${"d".repeat(40)}`;
+  const stale = await Challenge.create({ challengeId: "expiry-race", ownerWalletAddress: walletAddress, accountReference: "RACE", policyId: "1", otpHash: "unused", expiresAt: new Date(Date.now() - 1000) });
+  const service = load("services/bankPaymentService.js", {
+    "../models/BankOtpChallenge": {
+      findOne: () => ({ select: async () => { await Challenge.updateOne({ _id: stale._id }, { status: "USED" }); return stale; } }),
+      updateOne: (...args) => Challenge.updateOne(...args),
+    },
+    "./otpDeliveryService": { deliveryMode: () => "simulation" },
+  });
+  await assert.rejects(service.confirmManualPaymentOtp({ walletAddress, challengeId: "expiry-race", otp: "123456" }), (error) => error.statusCode === 410);
+  assert.equal((await Challenge.findById(stale._id)).status, "USED");
 });

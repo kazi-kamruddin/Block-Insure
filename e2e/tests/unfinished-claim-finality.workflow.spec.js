@@ -220,7 +220,7 @@ test.describe("@unfinished manual-review finality", () => {
       const postFinal = await createActorContext(browser, "auditor3");
       try {
         await loginActor(postFinal.page, postFinal.actor);
-        await postFinal.page.goto(`/auditor/vote/${claimId}`);
+        await postFinal.page.goto(`/auditor/vote/${claimId}`, { waitUntil: "domcontentloaded" });
         await expect(postFinal.page.locator(".status-badge").filter({ hasText: "REJECTED" })).toBeVisible();
         await expect(
           postFinal.page.getByRole("button", { name: "Invalid Claim", exact: true })

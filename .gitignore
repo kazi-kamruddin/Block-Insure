@@ -41,6 +41,7 @@ playwright-report/
 test-results/
 
 # Hardhat / Solidity
+/contracts/.mutation-workspace/
 artifacts/
 cache/
 typechain/

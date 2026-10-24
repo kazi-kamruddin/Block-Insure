@@ -20,7 +20,17 @@ test("@workflow profile remains optional, validates fields and works at 320px", 
     await expect(user.page.getByRole("status").filter({ hasText: "Profile saved" })).toBeVisible();
     await user.page.reload();
     await expect(user.page.getByLabel("Display name")).toHaveValue("Demo Policyholder");
+    await user.page.getByRole("button", { name: "Request email verification code" }).click();
+    await expect(user.page.getByText(/Simulated code:/)).toBeVisible();
+    await user.page.getByRole("button", { name: "Confirm email code" }).click();
+    await expect(user.page.getByText("Simulation completed. Mailbox ownership was not verified.")).toBeVisible();
+    await user.page.getByRole("button", { name: "Check evidence recovery" }).click();
+    await expect(user.page.getByText(/No identity in this browser/)).toBeVisible();
+    await expect(user.page.getByRole("button", { name: "Restore evidence access" })).toBeDisabled();
     expect(await user.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     expect(errors).toEqual([]);
+    await user.page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }));
+    await user.page.waitForFunction(() => window.scrollY === 0);
+    await user.page.screenshot({ path: "output/playwright/prototype-profile-320.png", fullPage: true, animations: "disabled" });
   } finally { await closeActor(user); }
 });

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-10-23T19:46:28.137Z",
+  "generatedAt": "2026-10-24T04:40:46.919Z",
   "source": {
-    "gitCommit": "7f14bf7050039450f9e9e89c09fd1a5244fcb7af",
+    "gitCommit": "340c41f63d9eb2500ba1998acd54abfd400087b9",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -25,8 +25,8 @@
     "backend": {
       "name": "backend",
       "version": "1.0.0",
-      "packageJsonSha256": "eb72768b3037b8e3ea4043bf650386fb7c04b461ddcc650df3467d7a063dfac2",
-      "packageLockSha256": "9a51c01ac960f8079cefa704df23106ecef830442fe160bf5bd199db0796e8a2"
+      "packageJsonSha256": "84722e396c416641fd17d7ad181ed7cbd01fe47015a4c29b948ed5ec6d998cbb",
+      "packageLockSha256": "becedec0038de08aae5588246b8aa2ddc6508ce773b16f95014e4ae769dc8736"
     },
     "contracts": {
       "name": "contracts",
@@ -44,7 +44,7 @@
       "name": "oracle",
       "version": "1.0.0",
       "packageJsonSha256": "850233b550b9a213c00e9ebd15eaf1983f6c6b1bdfd3fc40066188066a165358",
-      "packageLockSha256": "cc3ed4fcb36ed515c3df8466dc5bfea38641252a3f05e1ca0dc9e90846cf3356"
+      "packageLockSha256": "8f8f74d24e1a22d85d7ca3dd8dedcfda9bfe7b8e0cb93dcd86a7ecc66b976300"
     }
   },
   "implementation": {
@@ -61,8 +61,14 @@
     "backEnd/services/modelTrainingService.js": "b1f537cc37d6b82df6c34c12b3eda5332697ff46ff9bc2d6f9090f54d2c03a1a",
     "backEnd/services/modelArtifactService.js": "9ebcedd5b7d793b601ab83dc1796be7812fa7e7e172284665450002fbcba13b8",
     "backEnd/services/continuousFeatureService.js": "9d81cc13ed8c9980c784e9250822d3c16215cc9d42f135f7de77d36f6ba6247a",
+    "backEnd/services/operatingPointService.js": "1e107b19753470448c188672c35feb77555fc688fb450d90a73fb7c49a362e62",
+    "backEnd/services/historicalContextService.js": "f15dbe083f6f20f6e6a2a8d88b9341cd4f3f282fb83cc7007f5c9e37d0b2f387",
+    "backEnd/services/clusterUncertaintyService.js": "0d901215aa5ba49a82dad9d8ff1758d9322903fd6c09b2dc6dce0ff7d5c0417f",
+    "backEnd/services/indexedPremiumService.js": "a27deaa2212d5815b71b97b7b07c3f06e2cb4c2abb3d48e9ac4eef70c7a2b777",
+    "backEnd/services/otpDeliveryService.js": "6b2d7b3f4d7452c81b54d144cdde50d163113892bec61cc4e3dfc5d6b3ab593b",
+    "backEnd/services/emailVerificationService.js": "acafe3567b01db8ea9e725f56d15f59886ae2d509ce2e3f8b2841b33e085f8aa",
     "backEnd/services/logisticRegressionService.js": "dd3144d2a39dfebfad1a0631d64e6adf69cc1e631cea64ad2de32d434754fdaf",
-    "backEnd/services/chainReadProjectionService.js": "cdd9e932be8e726db06d39358fbf26d5013ce5de9322d7697fc2a97e63c52ddc",
+    "backEnd/services/chainReadProjectionService.js": "685c758fef9f37969caa11f4bab9e56c35a187829b8462c6fbd29ca115aeb523",
     "backEnd/scripts/evaluatePhase5.js": "c6656cb70e72ffb7aed9d9f928ee37ec32864038370ef57511b8eff6da560860",
     "backEnd/scripts/evaluateReserveAdequacy.js": "779efd5db5cf04b627a144c9b21cabd554b4d70999ca48cc0a8500f9e84d22c4",
     "backEnd/scripts/evaluateEvidenceLifecycle.js": "b89af0a18e020e28f77298186111a767dfb1099122a6069b8dc3108721a4a7c0",
@@ -72,11 +78,12 @@
     "backEnd/scripts/generateEvaluationCharts.js": "fa922dd9aedd297b0be9ac1afd6642741d129bd729a7005952ebda97a630040c",
     "backEnd/scripts/generatePhase34Charts.js": "b4dfff7f0e2dcf4024e717f1d0cfb9224da217c191a9a33f1a2df8151808a372",
     "backEnd/scripts/generateChartManifest.js": "e963bdf148a7a1005609d28af1d188d18bf008c4c0adeb1350545356309a02fa",
-    "backEnd/scripts/generateResearchManifest.js": "436abfbe45a21078760913693b4e1e1740c3154a48cff45b921008b63a56ae01",
+    "backEnd/scripts/generateResearchManifest.js": "4280afe4953c7f49552cf674da3bc85c4dd9457d61d237f3fbf57f157baa9a17",
     "backEnd/scripts/buildHybridDataset.js": "b4eaa6a6e8bc327ad1248a556f5a48c3ee1c5dd33f75f271062cf1878c78a58c",
     "backEnd/scripts/validateHybridDataset.js": "36a24961539d61967e11f721d11fe1a8496e3c557a9097bd0b142b14078231eb",
     "backEnd/scripts/evaluateHybridDataset.js": "e709a66a2ee64d7c8163d825ebaa8fdef58996d3661b20f371adb70224888e2c",
-    "backEnd/scripts/evaluateObservablePipeline.js": "37bedfa18395559ee8ee684e576db6fa7282dfbfc7bc4796cd7a5e26b94d084b",
+    "backEnd/scripts/evaluateObservablePipeline.js": "fc2b6793be0a318d8e62a91366f8e48743fdaef3a40bb38f156d23dd71ec577b",
+    "backEnd/scripts/runPrototypeStudy.js": "d76eeff574ac47879c25e7effa2d3e8d5693f0e124fa5bc3ecc4810107d2a708",
     "backEnd/scripts/benchmarkHybridRuntime.js": "2fc9d34e128c960cdbb1a551dd063c57b4cc44a12e237bfcc59883338ee8374f",
     "oracle/independentAssessment.js": "9fb46d1b564543107f07d6aae888cad1be5b240654484796a9d72721390c4645",
     "oracle/observableFeatures.js": "8a8066f60312aa4c3f67952392e153e2127282d9617749f1146956a829b242ab",
@@ -370,5 +377,5 @@
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "65aa78edc2a492f2cdd57a6b13520d434e3e83574363da9f72841f1c4157aec6"
+  "reproducibilityHash": "bd16dfb6b4f3343579c33d88c3abe4d4a462eab66f74b1bd483eba505ec22493"
 }

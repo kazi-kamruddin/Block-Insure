@@ -11,6 +11,7 @@ const {
     ...require("../services/contractQueryService"),
     getPolicyIdsByWallet: async () => [1n],
   },
+  "./indexedPremiumService": { readPremiumEvents: (contract, policyId) => contract.queryFilter(contract.filters.PremiumPaid(policyId)) },
 });
 
 const walletAddress = "0x0000000000000000000000000000000000000001";

@@ -8,6 +8,9 @@ const BankTransaction = require("../models/BankTransaction");
 const EftMandate = require("../models/EftMandate");
 const { getBankIdentityRegistry, getProvider, getReadOnlyContract } = require("./contractService");
 const { notifyWallet } = require("./notificationService");
+const { deliveryMode, deliverOtp } = require("./otpDeliveryService");
+const { reserveDelivery } = require("./emailVerificationService");
+const User = require("../models/User");
 
 const BDT_MINOR_PER_ETH = 10_000_000;
 const QUARTER_MS = 90 * 24 * 60 * 60 * 1000;
@@ -393,6 +396,14 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
 
 const requestManualPaymentOtp = async ({ walletAddress, accountReference, policyId }) => {
   await Promise.all([loadOwnedAccount(walletAddress, accountReference), loadOwnedPolicy(walletAddress, policyId)]);
+  const mode = deliveryMode();
+  let email = "";
+  if (mode === "brevo") {
+    const user = await User.findOne({ walletAddress: normalizeWallet(walletAddress) }).select("email +verifiedEmail");
+    if (!user?.email || user.email !== user.verifiedEmail) throw createError("Verify your saved profile email before requesting a payment code.", 422);
+    email = user.email;
+    await reserveDelivery(walletAddress, email);
+  }
   const challengeId = createId("OTP");
   const otp = String(crypto.randomInt(100000, 1000000));
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -405,32 +416,31 @@ const requestManualPaymentOtp = async ({ walletAddress, accountReference, policy
     },
     { $set: { status: "EXPIRED" } }
   );
-  await BankOtpChallenge.create({
+  const challenge = await BankOtpChallenge.create({
     challengeId, ownerWalletAddress: normalizeWallet(walletAddress),
-    accountReference, policyId: String(policyId), otpHash: hashOtp(challengeId, otp), expiresAt,
+    accountReference, policyId: String(policyId), otpHash: hashOtp(challengeId, otp), expiresAt, deliveryMode: mode,
   });
-  return {
-    challengeId,
-    expiresAt,
-    deliveryMessage: "A six-digit OTP was issued for this manual bank payment.",
-    ...(process.env.NODE_ENV !== "production" ? { demoOtp: otp } : {}),
-  };
+  try { return { challengeId, expiresAt, ...(await deliverOtp({ email, otp, purpose: "payment" })) }; }
+  catch (error) {
+    await BankOtpChallenge.updateOne({ _id: challenge._id, status: "PENDING" }, { $set: { status: "FAILED" } });
+    throw error;
+  }
 };
 
 const confirmManualPaymentOtp = async ({ walletAddress, challengeId, otp }) => {
+  if (typeof challengeId !== "string" || challengeId.length > 80 || typeof otp !== "string" || !/^\d{6}$/.test(otp)) throw createError("Supply a payment challenge and six-digit code.", 422);
   const challenge = await BankOtpChallenge.findOne({
     challengeId, ownerWalletAddress: normalizeWallet(walletAddress), status: "PENDING",
   }).select("+otpHash");
   if (!challenge) throw createError("Pending OTP challenge was not found", 404);
+  if (challenge.deliveryMode !== deliveryMode()) throw createError("OTP delivery mode changed. Request a new payment code.", 409);
   if (challenge.expiresAt <= new Date()) {
-    challenge.status = "EXPIRED";
-    await challenge.save();
+    await BankOtpChallenge.updateOne({ _id: challenge._id, status: "PENDING", expiresAt: { $lte: new Date() } }, { $set: { status: "EXPIRED" } });
     throw createError("OTP has expired", 410);
   }
   if (!otpMatches(challenge, otp)) {
-    challenge.attempts += 1;
-    if (challenge.attempts >= 3) challenge.status = "LOCKED";
-    await challenge.save();
+    await BankOtpChallenge.findOneAndUpdate({ _id: challenge._id, status: "PENDING", attempts: challenge.attempts },
+      { $inc: { attempts: 1 }, $set: { status: challenge.attempts >= 2 ? "LOCKED" : "PENDING" } });
     // A payment OTP is transaction validation, not wallet authentication.
     // Returning 401 would make the client discard an otherwise valid SIWE session.
     throw createError("Incorrect OTP", 422);
@@ -440,7 +450,7 @@ const confirmManualPaymentOtp = async ({ walletAddress, challengeId, otp }) => {
     loadOwnedPolicy(walletAddress, challenge.policyId),
   ]);
   const consumed = await BankOtpChallenge.findOneAndUpdate(
-    { _id: challenge._id, status: "PENDING", expiresAt: { $gt: new Date() } },
+    { _id: challenge._id, status: "PENDING", attempts: challenge.attempts, expiresAt: { $gt: new Date() } },
     { $set: { status: "USED" } },
     { returnDocument: "after" }
   );

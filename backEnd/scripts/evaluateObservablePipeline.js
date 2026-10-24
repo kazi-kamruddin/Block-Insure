@@ -16,6 +16,8 @@ const { trainLogisticRegression, predictLogisticRegression } = require("../servi
 const { CONTINUOUS_FEATURES, continuousFeatures, fitStandardizer, standardize } = require("../services/continuousFeatureService");
 const { compareCommittedRecord } = require("../../oracle/independentAssessment");
 const { atomicWriteFileSync } = require("../services/researchArtifactService");
+const { selectOperatingPoint } = require("../services/operatingPointService");
+const { createHistoryIndex, historyFeatures, HISTORY_FEATURES } = require("../services/historicalContextService");
 const root = path.resolve(__dirname, "../..");
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const forEach = async (file, visit, expectedHash) => {
@@ -36,9 +38,10 @@ const metrics = (predictions) => {
   return { records: predictions.length, confusion, ...calculateClassificationMetrics(confusion), curves: calculateCurves(predictions) };
 };
 
-async function run({ outputRoot, datasetRoot, sampleSize = 4000 } = {}) {
+async function run({ outputRoot, datasetRoot, sampleSize = 4000, sampleSeed, includeHistory = false } = {}) {
   const sourceFiles = ["oracle/observableFeatures.js", "oracle/independentAssessment.js", "backEnd/services/featureEngineeringService.js", "backEnd/services/modelTrainingService.js", "backEnd/services/modelArtifactService.js", "backEnd/services/continuousFeatureService.js", "backEnd/services/logisticRegressionService.js", "backEnd/services/hybridDatasetAdapterService.js", "backEnd/scripts/buildHybridDataset.js", "backEnd/scripts/evaluateObservablePipeline.js"];
   const sourceSha256 = Object.fromEntries(sourceFiles.map((file) => [file, sha256(fs.readFileSync(path.join(root, file)))]));
+  for (const file of ["backEnd/services/operatingPointService.js", "backEnd/services/historicalContextService.js", "backEnd/services/clusterUncertaintyService.js", "backEnd/scripts/runPrototypeStudy.js"]) sourceSha256[file] = sha256(fs.readFileSync(path.join(root, file)));
   const directory = outputRoot || path.join(root, "docs/engineered", `observable-${new Date().toISOString().replace(/[:.]/g, "-")}`);
   if (fs.existsSync(path.join(directory, "evaluation.json"))) throw new Error("Evaluation already exists; choose a new output directory");
   const dataDirectory = datasetRoot ? path.resolve(datasetRoot) : directory;
@@ -46,7 +49,7 @@ async function run({ outputRoot, datasetRoot, sampleSize = 4000 } = {}) {
   const manifest = datasetRoot ? JSON.parse(fs.readFileSync(path.join(dataDirectory, "manifest.json"), "utf8"))
     : await buildHybridDataset({ outputRoot: directory, observableScenarios: true });
   if (manifest.datasetVersion !== "blockinsure-hybrid-observable-v1") throw new Error("The observable experiment requires its versioned dataset, not historical rows");
-  const seed = manifest.seed;
+  const seed = sampleSeed ?? manifest.seed;
   const allTrainPatients = new Set(), allCalibrationPatients = new Set();
   const train = createDeterministicSampler(sampleSize, { seed, namespace: "observable-train" });
   const calibration = createDeterministicSampler(sampleSize, { seed, namespace: "observable-calibration" });
@@ -65,6 +68,15 @@ async function run({ outputRoot, datasetRoot, sampleSize = 4000 } = {}) {
     eligibility.test++; test.consider(record.sourceClaimId, record);
   }, manifest.outputSha256.testAttacks);
   const training = train.values(), calibrationPool = calibration.values(), testing = test.values();
+  const histories = new Map();
+  if (includeHistory) {
+    for (const [partition, candidates] of [["train", training], ["calibration", calibrationPool], ["testUntouched", testing]]) {
+      const index = createHistoryIndex();
+      await forEach(path.join(dataDirectory, manifest.outputFiles[partition]), (record) => index.add(record), manifest.outputSha256[partition]);
+      index.seal();
+      for (const candidate of candidates) histories.set(candidate, historyFeatures(index.query(candidate)));
+    }
+  }
   // Fit probability calibration and choose operating points on distinct providers.
   const fitCalibration = calibrationPool.filter((record) => sha256(provider(record)).charCodeAt(0) % 2 === 0);
   const fittedPatients = new Set(fitCalibration.map(patient));
@@ -88,8 +100,8 @@ async function run({ outputRoot, datasetRoot, sampleSize = 4000 } = {}) {
       [...policy.routing.hardBlockingFeatures, ...policy.routing.manualReviewFeatures].some((name) => features[name]);
   };
   const binaryTrain = rows(training);
-  const extendedNames = [...FEATURE_NAMES, ...CONTINUOUS_FEATURES];
-  const extended = (record) => ({ ...extractObservableRecordFeatures(record), ...continuousFeatures(record) });
+  const extendedNames = [...FEATURE_NAMES, ...CONTINUOUS_FEATURES, ...(includeHistory ? HISTORY_FEATURES : [])];
+  const extended = (record) => ({ ...extractObservableRecordFeatures(record), ...continuousFeatures(record), ...(histories.get(record) || {}) });
   const numericRows = training.map((record) => ({ actualFraud: label(record), features: extended(record) }));
   const normalization = fitStandardizer(numericRows, extendedNames);
   const logistic = trainLogisticRegression({ rows: numericRows.map((row) => ({ ...row, features: standardize(row.features, normalization) })),
@@ -103,15 +115,38 @@ async function run({ outputRoot, datasetRoot, sampleSize = 4000 } = {}) {
   const numericProbability = (record) => predictLogisticRegression(logistic, standardize(extended(record), normalization)).fraudProbability;
   const binaryProbability = (record) => predictLogisticRegression(binaryLogistic, extractObservableRecordFeatures(record)).fraudProbability;
   const numericThreshold = chooseThreshold(numericProbability), binaryThreshold = chooseThreshold(binaryProbability);
+  const selectedPoints = {};
+  const optimized = {};
+  for (const [name, predict] of [["binary", binaryProbability], ["continuous", numericProbability]]) {
+    const validation = selectThreshold.map((record) => ({ score: predict(record), rule: rule(record), actualFraud: label(record) }));
+    for (const objective of ["cost", "f1"]) for (const budget of [0.2, 0.4, 0.6]) {
+      const key = `${name}_${objective}_budget_${budget}`;
+      selectedPoints[key] = selectOperatingPoint(validation, { objective, budget });
+      optimized[key] = (record) => rule(record) || predict(record) >= selectedPoints[key].threshold;
+    }
+  }
   const methods = {
     rules_only: rule,
     observable_nb_only: (record) => probability(record) >= policy.routing.manualReviewThreshold,
     observable_nb_plus_rules: (record) => rule(record) || probability(record) >= policy.routing.manualReviewThreshold,
     binary_logistic_plus_rules: (record) => rule(record) || binaryProbability(record) >= binaryThreshold,
     continuous_logistic_plus_rules: (record) => rule(record) || numericProbability(record) >= numericThreshold,
+    ...optimized,
   };
   const scores = Object.fromEntries(Object.entries(methods).map(([name, decision]) => [name,
     metrics(testing.map((record) => ({ actualFraud: label(record), fraudProbability: Number(decision(record)) })))]));
+  const clusters = new Map();
+  for (const record of testing) {
+    const group = clusters.get(provider(record)) || Object.fromEntries(Object.keys(methods).map((name) => [name, [0, 0, 0]]));
+    for (const [name, decision] of Object.entries(methods)) {
+      const predicted = decision(record), actual = label(record);
+      group[name][0] += Number(predicted && actual);
+      group[name][1] += Number(predicted && !actual);
+      group[name][2] += Number(!predicted && actual);
+    }
+    clusters.set(provider(record), group);
+  }
+  const uncertainty = require("../services/clusterUncertaintyService").pairedClusterIntervals([...clusters.values()], { seed });
   // PR/ROC areas on binary decisions are not probability-ranking evidence.
   for (const value of Object.values(scores)) delete value.curves;
   const probabilities = metrics(testing.map((record) => ({ actualFraud: label(record), fraudProbability: probability(record) })));
@@ -141,7 +176,9 @@ async function run({ outputRoot, datasetRoot, sampleSize = 4000 } = {}) {
       selection: "Deterministic hash sample after excluding every earlier-partition patient; provider partitions inherited from the source builder; prior histories strictly earlier; no temporal-generalization claim",
       caveat: "Purging shared patients changes the target population. Untouched means unmutated, not verified legitimate. No runtime wallet authorization is inferred." },
     modelIdentityHash: model.modelIdentityHash, policyIdentityHash: policy.policyIdentityHash,
-    methods: scores, probabilityMetrics: probabilities, scenarios,
+    methods: scores, probabilityMetrics: probabilities, scenarios, selectedOperatingPoints: selectedPoints, uncertainty,
+    historicalContext: { enabled: includeHistory, authority: "OFFLINE_ADVISORY_ONLY", features: includeHistory ? HISTORY_FEATURES : [],
+      source: "Strictly earlier records in the same original partition; same-day and future records excluded; no label or injected marker inputs" },
     logisticThresholds: { binary: binaryThreshold, continuous: numericThreshold },
     limitations: ["Single deterministic sample/seed, no population significance claim", "Controlled labels are generated scenarios, not independently adjudicated fraud", "No observable signal is invented for concealed compromise or advisory-only duplicates", "Advanced GBDT/OOD/graph/SHAP/conformal methods are not deployed or claimed by this baseline ladder", "The active runtime model/policy and historical evidence are unchanged"] };
   write(directory, "model-params.staged.json", model); write(directory, "triage-policy.staged.json", policy);
@@ -151,4 +188,4 @@ async function run({ outputRoot, datasetRoot, sampleSize = 4000 } = {}) {
   return { directory, report };
 }
 if (require.main === module) run().catch((error) => { console.error(error.message); process.exitCode = 1; });
-module.exports = { run };
+module.exports = { run, forEach };
