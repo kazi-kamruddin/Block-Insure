@@ -1,4 +1,6 @@
 const FEATURE_SCHEMA_VERSION = "fraud-features-v3";
+const { extractObservedFeatures } = require("../../oracle/observableFeatures");
+const { compareCommittedRecord } = require("../../oracle/independentAssessment");
 
 const FEATURE_NAMES = [
   "clean_registry_match",
@@ -26,9 +28,8 @@ const numberOrNull = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const failed = (comparison, field) =>
-  comparison?.fieldChecks?.[field]?.matched === false;
-
+// Historical extractor retained ONLY for reproducing pre-October experiments.
+// New training and evaluation must use extractObservableRecordFeatures below.
 const extractRecordFeatures = (record) => {
   const amount = numberOrNull(record?.billAmount);
   const minimum = numberOrNull(record?.expectedBillMin);
@@ -93,35 +94,28 @@ const extractRecordFeatures = (record) => {
   };
 };
 
-const extractRuntimeFeatures = ({ record, comparison, duplicateIntelligence }) => {
+const extractRuntimeFeatures = ({ record, comparison }) => {
   // Runtime history must come from the pre-mutation source, never experiment flags.
-  const history = record?.observableHistory || {};
-  const features = extractRecordFeatures(record ? { ...record, fraudSignals: {}, hospitalIdMismatch: false, invoiceHashMismatch: false, treatmentTypeMismatch: false,
-    previousClaimCount: history.previousClaimCount || 0,
-    providerVelocityAnomaly: history.providerVelocityAnomaly === true,
-    claimantVelocityAnomaly: history.claimantVelocityAnomaly === true,
-    nearDuplicateAdvisory: false, isMissingOrNoisy: false, dataQuality: "COMPLETE",
-  } : record);
-  features.registry_record_missing = !record;
-  features.hospital_id_mismatch = failed(comparison, "hospitalId");
-  features.invoice_hash_mismatch = failed(comparison, "invoiceHash");
-  features.claim_exceeds_registry_bill =
-    failed(comparison, "billAmount") || features.claim_exceeds_registry_bill;
-  features.treatment_type_mismatch = failed(comparison, "treatmentType");
-  features.date_mismatch =
-    failed(comparison, "dateConsistency") || features.date_mismatch;
-  features.near_duplicate_advisory = Boolean(
-    (duplicateIntelligence?.authority !== "ADVISORY_ONLY" && duplicateIntelligence?.requiresManualReview) || features.near_duplicate_advisory
-  );
-  features.clean_registry_match = Boolean(record) && !Object.entries(features).some(
-    ([name, active]) => name !== "clean_registry_match" && active
-  );
-  return features;
+  const normalized = Object.fromEntries(Object.entries(comparison?.fieldChecks || {}).map(([name, check]) => [name, check.matched]));
+  return extractObservedFeatures({ record, comparison: normalized });
 };
+
+// Offline claim context is a declared reconstruction, not an observed blockchain
+// claim. Pass the original claim explicitly for paired mutation experiments.
+const claimForRecord = (record) => ({
+  hospitalId: record?.hospitalId, invoiceHash: record?.invoiceHash,
+  claimAmountEth: record?.billAmount, claimType: record?.treatmentType,
+  incidentDate: Date.parse(record?.admissionDate) / 1000,
+  claimantWallet: record?.authorizedClaimants?.[0],
+});
+const extractObservableRecordFeatures = (record, claim = record?.observedClaim || claimForRecord(record)) =>
+  extractObservedFeatures({ record, comparison: record ? compareCommittedRecord({ record, claim }) : {} });
 
 module.exports = {
   FEATURE_NAMES,
   FEATURE_SCHEMA_VERSION,
   extractRecordFeatures,
   extractRuntimeFeatures,
+  extractObservableRecordFeatures,
+  claimForRecord,
 };

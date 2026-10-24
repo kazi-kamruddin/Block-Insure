@@ -16,6 +16,7 @@ const {
   getProviderSplit,
   getSourceClaimAmount,
   injectScenario,
+  injectObservableScenario,
   parseCsvLine,
   toRow,
 } = require("../services/hybridDatasetAdapterService");
@@ -110,8 +111,8 @@ const closeStream = async (stream) => {
   await once(stream, "finish");
 };
 
-const createOutput = (fileName) => {
-  const filePath = path.join(PROCESSED_DIR, fileName);
+const createOutput = (fileName, directory = PROCESSED_DIR) => {
+  const filePath = path.join(directory, fileName);
   const temporaryPath = `${filePath}.tmp`;
   fs.rmSync(temporaryPath, { force: true });
   return {
@@ -124,9 +125,15 @@ const createOutput = (fileName) => {
 const publishOutput = ({ filePath, temporaryPath }) =>
   fs.renameSync(temporaryPath, filePath);
 
-const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
-  fs.mkdirSync(PROCESSED_DIR, { recursive: true });
-  fs.mkdirSync(RUNTIME_DIR, { recursive: true });
+const buildHybridDataset = async ({ seed = DEFAULT_SEED, outputRoot, observableScenarios = false } = {}) => {
+  const datasetDir = outputRoot ? path.resolve(outputRoot) : DATASET_DIR;
+  const processedDir = path.join(datasetDir, "processed");
+  const runtimeDir = path.join(datasetDir, "runtime");
+  if (outputRoot && fs.existsSync(path.join(datasetDir, "manifest.json"))) throw new Error("Versioned dataset already exists; choose a new output directory");
+  fs.mkdirSync(processedDir, { recursive: true });
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  const scenarioInjector = observableScenarios ? injectObservableScenario : injectScenario;
+  const output = (name) => createOutput(name, processedDir);
 
   const requiredFiles = [LABEL_FILE, BENEFICIARY_FILE, ...CLAIM_FILES.map(({ file }) => file)];
   requiredFiles.forEach((file) => {
@@ -216,12 +223,12 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
   );
 
   const outputs = {
-    train: createOutput("train.jsonl"),
-    calibration: createOutput("calibration.jsonl"),
-    testUntouched: createOutput("test-untouched.jsonl"),
-    testAttacks: createOutput("test-attacks.jsonl"),
+    train: output("train.jsonl"),
+    calibration: output("calibration.jsonl"),
+    testUntouched: output("test-untouched.jsonl"),
+    testAttacks: output("test-attacks.jsonl"),
   };
-  const runtimePath = path.join(RUNTIME_DIR, "hybrid-primary.jsonl");
+  const runtimePath = path.join(runtimeDir, "hybrid-primary.jsonl");
   const runtimeTemporaryPath = `${runtimePath}.tmp`;
   fs.rmSync(runtimeTemporaryPath, { force: true });
   const runtimeSampler = createDeterministicSampler(RUNTIME_HYBRID_RECORDS, {
@@ -269,12 +276,16 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
         providerVelocityAnomaly: providerWindowCount >= Math.max(providerVelocityThreshold, 1),
         claimantVelocityAnomaly: beneficiaryWindowCount >= Math.max(claimantVelocityThreshold, 1),
       });
+      if (observableScenarios) {
+        baseRecord.datasetProfile = "blockinsure-hybrid-observable-v1";
+        baseRecord.scenarioVersion = "blockinsure-observable-scenarios-v2";
+      }
       if (providerPotentialFraud) manifestCounts.providerPotentialFraudClaims += 1;
 
       if (split === "test") {
         await writeLine(outputs.testUntouched.stream, baseRecord);
         manifestCounts.testUntouched += 1;
-        const attacked = injectScenario(baseRecord, { seed: seed + 2, rate: 0.5 });
+        const attacked = scenarioInjector(baseRecord, { seed: seed + 2, rate: 0.5 });
         await writeLine(outputs.testAttacks.stream, attacked);
         manifestCounts.testAttacks += 1;
         if (attacked.scenarioInjected) {
@@ -284,7 +295,7 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
         return;
       }
 
-      const adapted = injectScenario(baseRecord, {
+      const adapted = scenarioInjector(baseRecord, {
         seed: split === "train" ? seed : seed + 1,
         rate: 0.12,
       });
@@ -311,17 +322,17 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
   fs.renameSync(runtimeTemporaryPath, runtimePath);
 
   const outputFiles = {
-    train: path.relative(DATASET_DIR, outputs.train.filePath).replaceAll("\\", "/"),
-    calibration: path.relative(DATASET_DIR, outputs.calibration.filePath).replaceAll("\\", "/"),
-    testUntouched: path.relative(DATASET_DIR, outputs.testUntouched.filePath).replaceAll("\\", "/"),
-    testAttacks: path.relative(DATASET_DIR, outputs.testAttacks.filePath).replaceAll("\\", "/"),
-    runtimeHybrid: path.relative(DATASET_DIR, runtimePath).replaceAll("\\", "/"),
+    train: path.relative(datasetDir, outputs.train.filePath).replaceAll("\\", "/"),
+    calibration: path.relative(datasetDir, outputs.calibration.filePath).replaceAll("\\", "/"),
+    testUntouched: path.relative(datasetDir, outputs.testUntouched.filePath).replaceAll("\\", "/"),
+    testAttacks: path.relative(datasetDir, outputs.testAttacks.filePath).replaceAll("\\", "/"),
+    runtimeHybrid: path.relative(datasetDir, runtimePath).replaceAll("\\", "/"),
   };
   const hashes = Object.fromEntries(
     await Promise.all(
       Object.entries(outputFiles).map(async ([name, relativePath]) => [
         name,
-        await sha256File(path.join(DATASET_DIR, relativePath)),
+        await sha256File(path.join(datasetDir, relativePath)),
       ])
     )
   );
@@ -338,7 +349,7 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
   );
   const manifest = {
     manifestSchemaVersion: 3,
-    datasetVersion: HYBRID_DATASET_VERSION,
+    datasetVersion: observableScenarios ? "blockinsure-hybrid-observable-v1" : HYBRID_DATASET_VERSION,
     generatedAt: new Date().toISOString(),
     seed,
     source: {
@@ -359,7 +370,7 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     },
     splitPolicy: "Provider-disjoint stable hash split: 64% train, 16% calibration, 20% test",
     injectionPolicy: {
-      version: SCENARIO_VERSION,
+      version: observableScenarios ? "blockinsure-observable-scenarios-v2" : SCENARIO_VERSION,
       trainRate: 0.12,
       calibrationRate: 0.12,
       testUntouchedRate: 0,
@@ -395,7 +406,7 @@ const buildHybridDataset = async ({ seed = DEFAULT_SEED } = {}) => {
     outputFiles,
     outputSha256: hashes,
   };
-  const manifestPath = path.join(DATASET_DIR, "manifest.json");
+  const manifestPath = path.join(datasetDir, "manifest.json");
   const manifestTemporaryPath = `${manifestPath}.tmp`;
   fs.writeFileSync(manifestTemporaryPath, `${JSON.stringify(manifest, null, 2)}\n`);
   fs.renameSync(manifestTemporaryPath, manifestPath);

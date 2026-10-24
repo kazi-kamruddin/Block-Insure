@@ -9,6 +9,8 @@ services:
     buildFilter:
       paths:
         - backEnd/**
+        - oracle/observableFeatures.js
+        - oracle/independentAssessment.js
         - scripts/observability.js
         - render.yaml
     envVars:

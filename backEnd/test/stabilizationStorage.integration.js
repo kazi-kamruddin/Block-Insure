@@ -53,16 +53,25 @@ test("publication mirrors both collections and preserves pinned historical proof
   assert.equal(await Primary.countDocuments({ publicationPending: true }), 0);
   await Primary.updateOne({ invoiceNumber: "one" }, { $set: { billAmount: "0.2", publicationPending: true } });
   await Primary.create(record("two"));
+  // A stale derived-only invoice must not wedge publication indefinitely.
+  await Secondary.create(record("orphaned-secondary"));
   // No job is queued: emulate a crash between the source write and job creation.
   const second = await publisher.publishPendingRegistry();
   assert.notEqual(second.rootHash, first.rootHash);
   assert.equal(merkle.buildMerkleTree(await Primary.find().lean()).rootHash, merkle.buildMerkleTree(await Secondary.find().lean()).rootHash);
+  assert.equal(await Secondary.countDocuments({ invoiceNumber: "orphaned-secondary" }), 0);
   const oldProof = await merkle.buildRegistryMerkleProof({ invoiceHash: ethers.id("one"), rootHash: first.rootHash });
   const newProof = await merkle.buildRegistryMerkleProof({ invoiceHash: ethers.id("one"), rootHash: second.rootHash, registrySnapshot: "oracle2" });
   assert.equal(oldProof.canonicalRecord.billAmount, "0.1");
   assert.equal(newProof.canonicalRecord.billAmount, "0.2");
   assert.equal(merkle.verifyMerkleProof(oldProof), true);
   assert.equal(merkle.verifyMerkleProof(newProof), true);
+  // Recovery after an out-of-band invoice rename must retain the archived root.
+  await Primary.updateOne({ invoiceNumber: "two" }, { $set: { invoiceNumber: "renamed-two", invoiceHash: ethers.id("renamed-two"), publicationPending: true } });
+  const third = await publisher.publishPendingRegistry();
+  assert.equal(third.status, "PUBLISHED");
+  assert.equal(await Secondary.countDocuments({ invoiceHash: ethers.id("two") }), 0);
+  assert.equal(merkle.verifyMerkleProof(await merkle.buildRegistryMerkleProof({ invoiceHash: ethers.id("two"), rootHash: second.rootHash })), true);
 });
 
 test("publication resumes an already mined transaction without sending it twice", async () => {
@@ -73,7 +82,7 @@ test("publication resumes an already mined transaction without sending it twice"
     getOracleCoordinator: async () => ({ publishRegistrySnapshot: async () => { calls++; return { hash: `0x${"a".repeat(64)}`, wait: async () => { throw new Error("lost receipt response"); } }; } }),
   } };
   const publisher = load("services/registryPublicationService.js", dependencies);
-  await Primary.updateOne({ invoiceNumber: "two" }, { $set: { publicationPending: true } });
+  await Primary.updateOne({ invoiceNumber: "renamed-two" }, { $set: { publicationPending: true } });
   await publisher.queueRegistryPublication();
   await assert.rejects(publisher.publishPendingRegistry(), /lost receipt/);
   confirmed = true;

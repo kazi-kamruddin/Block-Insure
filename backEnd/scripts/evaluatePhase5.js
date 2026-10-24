@@ -14,7 +14,7 @@ const { verifyModelArtifact } = require("../services/modelArtifactService");
 const modelArtifact = require("../model-params.json");
 const triagePolicyArtifact = require("../triage-policy.json");
 const { predictBernoulliNaiveBayes } = require("../services/bernoulliNaiveBayesService");
-const { extractRecordFeatures } = require("../services/featureEngineeringService");
+const { extractObservableRecordFeatures: extractRecordFeatures } = require("../services/featureEngineeringService");
 const { calibrateProbability } = require("../services/calibrationService");
 const { performance } = require("node:perf_hooks");
 const {

@@ -4,7 +4,7 @@ const { generateSyntheticDataset } = require("../services/syntheticRegistryServi
 const { trainModelParams } = require("../services/modelTrainingService");
 const { verifyModelArtifact } = require("../services/modelArtifactService");
 const { predictBernoulliNaiveBayes } = require("../services/bernoulliNaiveBayesService");
-const { extractRecordFeatures } = require("../services/featureEngineeringService");
+const { extractObservableRecordFeatures: extractRecordFeatures } = require("../services/featureEngineeringService");
 const { fitPlattScaling } = require("../services/calibrationService");
 const { calculateTrainingDataHash } = require("../services/modelArtifactService");
 const { atomicWriteFileSync } = require("../services/researchArtifactService");
@@ -47,7 +47,7 @@ const run = ({ writeOutput = true } = {}) => {
   const calibrationRecords = ordered.slice(split);
   const uncalibratedModel = trainModelParams(trainingRecords, {
     modelVersion: "bernoulli-fraud-v3.1.0-calibration-fit",
-    trainedAt: "2026-08-27T00:00:00.000Z",
+    trainedAt: new Date().toISOString(),
   });
   const calibrationRows = calibrationRecords.map((record) => ({
     actualFraud: record.actualFraud,
@@ -62,8 +62,8 @@ const run = ({ writeOutput = true } = {}) => {
     records: calibrationRows.length,
   };
   const artifact = trainModelParams(trainingRecords, {
-    modelVersion: "bernoulli-fraud-v3.1.0-observable.2",
-    trainedAt: "2026-08-27T00:00:00.000Z",
+    modelVersion: "bernoulli-fraud-v3.2.0-observable-aligned",
+    trainedAt: new Date().toISOString(),
     source: "phase5/normal seed=202605 size=600; canonical duplicate invoice suffixes",
     gitCommit: resolveSourceCommit(),
     threshold: 0.5,

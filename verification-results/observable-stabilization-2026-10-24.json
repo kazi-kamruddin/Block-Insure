@@ -1,0 +1,149 @@
+{
+  "reviewDate": "2026-10-24",
+  "reviewTimezone": "Asia/Dhaka",
+  "baseCommit": "7f14bf7050039450f9e9e89c09fd1a5244fcb7af",
+  "sourceScope": "Uncommitted six-step follow-up worktree; not a deployed release",
+  "verificationScope": "Checks were staged sequentially with focused reruns after fixes, not one monolithic run at a single source hash. The final patched PDF journey and production loading checks were rerun; production browser checks cover public pages, while authenticated PDF/settlement checks use the isolated Vite development stack. Older 42-case and manuscript results are not presented as verification of this follow-up.",
+  "verificationCompletedAtUtc": "2026-10-24T02:53:56Z",
+  "existingUserChanges": "Pre-existing README context-link edit preserved",
+  "commitMade": false,
+  "hostedServicesChanged": false,
+  "checks": {
+    "backend": {
+      "command": "npm --prefix backEnd run test",
+      "result": "passed",
+      "unitTests": 154,
+      "failed": 0,
+      "section3Analytics": "passed",
+      "includes": ["observable extractor parity", "label-marker metamorphic checks", "invoice privacy/input validation", "continuous numerical encoding", "missing-bound abstention", "existing authentication/evidence/projection checks"]
+    },
+    "oracle": {
+      "command": "npm --prefix oracle test",
+      "result": "passed",
+      "tests": 19,
+      "failed": 0
+    },
+    "contracts": {
+      "command": "npm --prefix contracts run test",
+      "result": "passed",
+      "tests": 139,
+      "failed": 0,
+      "statefulCasesIncludedInTotal": 4,
+      "competingBenefitRegressionsAdded": 3,
+      "focusedBenefitsSuite": "17 passed; repeated within full suite, not additional unique tests"
+    },
+    "mongoRecovery": {
+      "command": "npm run test:stabilization:storage",
+      "result": "passed",
+      "tests": 6,
+      "failed": 0,
+      "scope": "Actual disposable local MongoDB, chain publication dependency doubled; includes stale-secondary/rename cleanup and retained historical proofs"
+    },
+    "frontendLint": {
+      "command": "npm --prefix frontEnd run lint",
+      "result": "passed"
+    },
+    "frontendProduction": {
+      "command": "npm run test:e2e:frontend-production",
+      "result": "passed",
+      "tests": 7,
+      "failed": 0,
+      "build": "passed",
+      "widths": [320, 360, 768, 1366, 1920],
+      "includes": ["no initial PDF renderer or worker requests", "browser error monitoring", "keyboard/refresh/404 behavior", "theme persistence"]
+    },
+    "authenticatedLocalBrowsers": {
+      "result": "11 distinct selected cases passed; final focused warning rerun passed",
+      "workers": 1,
+      "specifications": [
+        { "file": "e2e/tests/user-policy-claim.workflow.spec.js", "passed": 2, "notes": "Final patched PDF.js version assertion, actual pixels/text, 320px dialog, Escape/focus restoration, dual-Oracle and delegated-auditor settlement" },
+        { "file": "e2e/tests/showcase-coverage.spec.js", "passed": 4, "notes": "Selected role/showcase regression; not a complete hosted campaign" },
+        { "file": "e2e/tests/hospital-records.maintenance.spec.js", "passed": 2 },
+        { "file": "e2e/tests/unfinished-benefits.workflow.spec.js", "passed": 3 }
+      ],
+      "focusedMissingInvoiceWarningRerun": "1 passed, repeat of the manual-settlement case with new readiness-warning assertions; not an additional distinct journey",
+      "expectedResponse": "Existing appeal-read API returns HTTP 404 for no appeal. Only that exact path/status console absence is excluded; other console/page failures remain failures.",
+      "infrastructure": {
+        "databaseContainer": "block-insure-part1-mongo",
+        "database": "Disposable loopback block_insure_e2e; never Atlas",
+        "containerCpuLimit": 0.75,
+        "containerMemoryMiB": 768,
+        "services": ["isolated Hardhat", "backend", "Vite", "two Oracle workers", "local Pinata simulator", "local RPC proxy"],
+        "normalEnvFilesRewritten": false,
+        "normalDeploymentManifestRewritten": false,
+        "stackCleanup": "Harness terminates owned application processes after each run"
+      }
+    },
+    "synchronization": {
+      "command": "npm run verify:sync",
+      "result": "passed",
+      "warning": "InsuranceManager has 256 bytes of EIP-170 headroom and 128 bytes of configured maintenance headroom",
+      "insuranceManagerBytes": 24320,
+      "maintenanceBudgetBytes": 24448,
+      "eip170LimitBytes": 24576,
+      "policyBenefitsManagerBytes": 10918,
+      "abiSignaturesAndEventLayouts": "unchanged"
+    },
+    "repository": {
+      "command": "npm run verify:repository",
+      "result": "passed",
+      "groups": 7,
+      "node": "24.16.0",
+      "inventoryRefresh": "research:manifest only; no historical numerical study rerun or date relabeling"
+    },
+    "frontendProductionDependencyAudit": {
+      "command": "npm --prefix frontEnd audit --omit=dev --json",
+      "result": "passed",
+      "knownVulnerabilities": 0,
+      "pdfjsVersion": "6.4.299",
+      "scope": "Installed production frontend dependency tree, not a whole-system security certification"
+    },
+    "mutationCompatibility": {
+      "result": "8 exact manifest search strings still occur uniquely",
+      "campaignRerun": false
+    },
+    "historicalPreservation": {
+      "result": "Active model, policy, historical hybrid dataset manifest, phase5 evaluation and hybrid evaluation match HEAD byte-for-byte using Git object hashes",
+      "manuscriptEdited": false,
+      "activeMongoDatasetReseededFromNewResearch": false
+    },
+    "finalSanity": "Passed: diff whitespace, JSON parsing, current experiment source fingerprints, preserved historical Git object hashes, exact context counts, local documentation links and git check-ignore for all five context files"
+  },
+  "research": {
+    "result": "completed, staged only",
+    "evaluatedAtUtc": "2026-10-23T19:35:54.606Z",
+    "datasetDirectory": "docs/engineered/observable-2026-10-23T19-34-11-717Z",
+    "evaluationDirectory": "docs/engineered/observable-2026-10-23T19-35-43-482Z",
+    "commandForFreshRun": "npm --prefix backEnd run evaluate:observable",
+    "sourceClaimsRebuilt": 558211,
+    "seed": 20260828,
+    "sampledPartitions": { "training": 4000, "probabilityCalibration": 1667, "policySelection": 2277, "test": 4000 },
+    "testControlledAttacks": 2047,
+    "crossPartitionPatientOverlap": 0,
+    "crossPartitionProviderOverlap": 0,
+    "modelIdentityHash": "0xd1bdfd7381c81c6350fdf7e6723d35a190cd76ad2671744348eedb8844ade153",
+    "policyIdentityHash": "0xded28f982f21346cf3db27be6339f2c55a108f5390f2674d9f2a7a6e0951d364",
+    "methods": {
+      "rules_only": { "recall": 0.7533, "falseRoutingRateOnUnmutated": 0.0604, "f1": 0.8319 },
+      "observable_nb_only": { "recall": 0.6321, "falseRoutingRateOnUnmutated": 0.0604, "f1": 0.7482 },
+      "observable_nb_plus_rules": { "recall": 0.7533, "falseRoutingRateOnUnmutated": 0.0604, "f1": 0.8319 },
+      "binary_logistic_plus_rules": { "recall": 0.7533, "falseRoutingRateOnUnmutated": 0.0604, "f1": 0.8319 },
+      "continuous_logistic_plus_rules": { "recall": 0.7699, "falseRoutingRateOnUnmutated": 0.1126, "f1": 0.8202 }
+    },
+    "interpretation": "Controlled additional-scrutiny routing, not real-world fraud accuracy; unmutated rows are not independently adjudicated legitimate claims",
+    "negativeControls": { "providerCompromiseUnchangedVectors": 253, "advisoryDuplicateUnchangedVectors": 281 },
+    "promotion": "Not performed: continuous baseline increases recall by routing more unmutated examples and has lower F1; NB adds no detections to rules on this sample",
+    "limits": ["single deterministic sample/seed", "no population significance or confidence claim", "no temporal-generalization claim", "no new GBDT/OOD/graph/exact-SHAP/conformal implementation", "no replacement answer-key features"]
+  },
+  "developmentFailuresResolved": [
+    "Uploaded document panel omitted the protected document ID/hash",
+    "Disabled preview trigger prevented native focus restoration",
+    "Dialog nested inside inline paragraph produced React HTML warnings; moved into portal",
+    "Strict console monitor initially counted the existing expected no-appeal 404",
+    "First production check detected Vite preload helper inside PDF chunk; separated helper and reran all seven checks",
+    "Initial PDF dependency and redirect dependency had advisories; patched and obtained a zero-known-vulnerability production frontend audit",
+    "Research inventory was stale after source changes; inventory-only refresh restored repository verification"
+  ],
+  "notRun": ["complete previous 42-case local campaign", "full mutation campaign", "Slither", "full production Docker image build", "hosted E2E", "public-network deployment", "paper compilation or rendering", "normal retained-user-deployment daily-startup rehearsal"],
+  "cleanup": "Only task-generated superseded pilot outputs removed; regenerable. Original source data, historical numeric artifacts, user changes and the retained final dataset/report were preserved. Owned application processes stopped and their test ports have no listeners. The existing local MongoDB test container was restored to its original stopped state without deleting it or its data."
+}

@@ -357,6 +357,26 @@ const injectScenario = (record, { seed = DEFAULT_SEED, rate = 0.12 } = {}) => {
   return injected;
 };
 
+// Versioned experiment input: the candidate claim exists BEFORE registry
+// mutation. In particular the amount must not silently follow an inflated bill.
+const injectObservableScenario = (record, options = {}) => {
+  const observedClaim = {
+    hospitalId: record.hospitalId, invoiceHash: record.invoiceHash,
+    claimAmountEth: record.billAmount, claimType: record.treatmentType,
+    incidentDate: Date.parse(record.admissionDate) / 1000,
+  };
+  const injected = injectScenario(record, options);
+  if (injected.scenarioType === "DATE_MISMATCH") {
+    // Exercise a real claim/registry mismatch rather than an ignored label flag.
+    observedClaim.incidentDate = Date.parse(record.invoiceDate || record.dischargeDate) / 1000 + 45 * 86400;
+    injected.invoiceDate = record.invoiceDate;
+  }
+  return { ...injected, observedClaim, scenarioVersion: "blockinsure-observable-scenarios-v2",
+    scenarioObservability: ["PROVIDER_COMPROMISE", "NEAR_DUPLICATE"].includes(injected.scenarioType)
+      ? "No changed proof-bound input; retained as an unobservable/advisory-only negative control"
+      : "Measured from candidate claim and registry fields, never scenario metadata" };
+};
+
 module.exports = {
   AMOUNT_NORMALIZATION_DIVISOR,
   AMOUNT_NORMALIZATION_VERSION,
@@ -371,6 +391,7 @@ module.exports = {
   getSourceClaimAmount,
   hashInvoiceNumber,
   injectScenario,
+  injectObservableScenario,
   parseCsvLine,
   sha256Hash,
   stableUnit,

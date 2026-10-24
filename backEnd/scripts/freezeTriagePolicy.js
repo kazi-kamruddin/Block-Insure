@@ -3,7 +3,7 @@ const path = require("node:path");
 const { generateSyntheticDataset } = require("../services/syntheticRegistryService");
 const { predictBernoulliNaiveBayes } = require("../services/bernoulliNaiveBayesService");
 const { calibrateProbability } = require("../services/calibrationService");
-const { extractRecordFeatures } = require("../services/featureEngineeringService");
+const { extractObservableRecordFeatures: extractRecordFeatures } = require("../services/featureEngineeringService");
 const {
   buildTriagePolicyPayload,
   freezeTriagePolicy,

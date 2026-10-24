@@ -32,6 +32,7 @@
     "generate:datasets": "node scripts/generateSyntheticDatasets.js",
     "evaluate:phase5": "node scripts/evaluatePhase5.js",
     "evaluate:hybrid": "node scripts/evaluateHybridDataset.js",
+    "evaluate:observable": "node --max-old-space-size=768 scripts/evaluateObservablePipeline.js",
     "benchmark:hybrid": "node scripts/benchmarkHybridRuntime.js",
     "evaluate:reserve": "node scripts/evaluateReserveAdequacy.js",
     "evaluate:evidence": "node scripts/evaluateEvidenceLifecycle.js",

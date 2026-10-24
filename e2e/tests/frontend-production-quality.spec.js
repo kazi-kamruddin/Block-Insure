@@ -48,6 +48,8 @@ test.describe("@frontend-production public quality", () => {
     test(`${viewport.name} landing page is responsive and free of browser failures`, async ({ browser }, testInfo) => {
       const page = await browser.newPage({ viewport });
       const failures = monitorPage(page);
+      const pdfRequests = [];
+      page.on("request", (request) => { if (/pdf-preview|pdf\.worker/.test(request.url())) pdfRequests.push(request.url()); });
       const startedAt = Date.now();
       await page.goto("/", { waitUntil: "networkidle" });
       const durationMs = Date.now() - startedAt;
@@ -64,6 +66,7 @@ test.describe("@frontend-production public quality", () => {
       )).toBe("clip");
       expect(durationMs).toBeLessThan(5_000);
       expect(failures).toEqual([]);
+      expect(pdfRequests, "PDF rendering must stay out of the initial homepage load").toEqual([]);
 
       await testInfo.attach(`${viewport.name}-metrics.json`, {
         body: Buffer.from(JSON.stringify({ viewport, durationMs }, null, 2)),

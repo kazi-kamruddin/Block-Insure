@@ -347,6 +347,21 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
         benefitRequest.status = BenefitStatus.ALLOCATED;
         benefitRequest.allocatedAt = block.timestamp;
 
+        // At most three requests exist for a policy's current benefit types.
+        // Historical rejected requests remain inspectable. Release losing
+        // approvals atomically; otherwise their reserves would be stranded.
+        for (uint256 i = 0; i <= uint256(BenefitType.MATURITY); i++) {
+            uint256 competingId = requestByPolicyAndType[benefitRequest.policyId][BenefitType(i)];
+            if (competingId == 0 || competingId == requestId) continue;
+            BenefitRequest storage competing = benefitRequests[competingId];
+            if (competing.status != BenefitStatus.REQUESTED && competing.status != BenefitStatus.APPROVED) continue;
+            if (competing.status == BenefitStatus.APPROVED) totalReservedLiabilityWei -= competing.amount;
+            competing.status = BenefitStatus.REJECTED;
+            competing.resolvedAt = block.timestamp;
+            competing.decisionReasonHash = keccak256("SUPERSEDED_BY_TERMINAL_BENEFIT");
+            emit BenefitRejected(competingId, competing.decisionReasonHash);
+        }
+
         if (benefitRequest.benefitType == BenefitType.DEATH) {
             Beneficiary[] memory beneficiaries = beneficiariesByPolicy[benefitRequest.policyId];
             uint256 distributed = 0;

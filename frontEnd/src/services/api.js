@@ -474,6 +474,11 @@ export async function authorizeClaimSubmission(policyId, facts = {}) {
   return response.data;
 }
 
+export async function previewInvoiceEligibility(hospitalId, invoiceHash) {
+  const response = await api.post("/api/claims/invoice-eligibility", { hospitalId, invoiceHash });
+  return response.data;
+}
+
 export async function resetMyClaimSubmissionLimit() {
   const response = await api.delete("/api/claims/submission-limit/me");
   return response.data;

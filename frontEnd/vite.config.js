@@ -15,6 +15,18 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             {
+              // Keep Vite's shared dynamic-import helper out of the PDF chunk;
+              // otherwise every lazy route would pull the renderer in eagerly.
+              name: "preload-runtime",
+              test: /vite[\\/]preload-helper/,
+              priority: 5,
+            },
+            {
+              name: "pdf-preview",
+              test: /node_modules[\\/]pdfjs-dist/,
+              priority: 4,
+            },
+            {
               name: "wallet",
               test: /node_modules[\\/]ethers/,
               priority: 3,

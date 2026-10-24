@@ -1,11 +1,13 @@
 const { test, expect } = require("@playwright/test");
 const fs = require("node:fs");
 const mongoose = require("../../backEnd/node_modules/mongoose");
+const pdfjsVersion = require("../../frontEnd/node_modules/pdfjs-dist/package.json").version;
 const {
   localDateTimeValue,
   loginActor,
   resetLocalClaimSubmissionLimit,
   uniqueEvidenceFile,
+  syntheticPdfEvidenceFile,
 } = require("../support/actions");
 const { closeActor, createActorContext } = require("../support/walletBridge");
 const { requireDisposableE2EMongoUri } = require("../support/environment");
@@ -31,6 +33,14 @@ test.describe("@workflow policyholder transaction journey", () => {
 
   test("Policy purchase, encrypted claim, oracle adjudication, and payout settlement", async ({ browser }) => {
     const session = await createActorContext(browser, "user");
+    const browserFailures = [];
+    session.page.on("pageerror", (error) => browserFailures.push(error.message));
+    session.page.on("console", (message) => {
+      // The existing appeal-read API deliberately returns 404 for a claim with
+      // no appeal. Assert/filter that one expected absence, never other failures.
+      const expectedEmptyAppeal = /\/api\/appeals\/claim\/\d+$/.test(message.location().url || "") && /status of 404/.test(message.text());
+      if (message.type() === "error" && !expectedEmptyAppeal) browserFailures.push(message.text());
+    });
     try {
       await loginActor(session.page, session.actor);
       await resetLocalClaimSubmissionLimit(session.page);
@@ -64,7 +74,9 @@ test.describe("@workflow policyholder transaction journey", () => {
       const incidentInput = session.page.getByLabel("Incident date/time");
       await incidentInput.evaluate((input) => input.setAttribute("step", "1"));
       await incidentInput.fill(localDateTimeValue(new Date(Number(latestBlock.timestamp) * 1000)));
-      await session.page.getByLabel("Claim document").setInputFiles(uniqueEvidenceFile());
+      await session.page.getByRole("button", { name: "Check invoice readiness" }).click();
+      await expect(session.page.getByRole("region", { name: "Invoice readiness" })).toContainText("Invoice binding found");
+      await session.page.getByLabel("Claim document").setInputFiles(syntheticPdfEvidenceFile());
 
       await session.page.getByRole("button", { name: "Submit Claim" }).click();
       const successMessage = session.page.locator(".success-text");
@@ -79,6 +91,28 @@ test.describe("@workflow policyholder transaction journey", () => {
         .locator("..");
       await expect(uploadedDocument).toBeVisible();
       await expect(uploadedDocument).toContainText("AES-256-GCM");
+      const previewButton = uploadedDocument.getByRole("button", { name: "Preview decrypted" });
+      await previewButton.click();
+      const preview = session.page.getByRole("dialog", { name: "Decrypted evidence preview" });
+      await expect(preview.getByText("Page 1 of 1", { exact: true })).toBeVisible();
+      await expect(preview.getByRole("region", { name: "Evidence PDF" })).toHaveAttribute("data-pdfjs-version", pdfjsVersion);
+      const pdfCanvas = preview.getByRole("img", { name: "Decrypted PDF page 1" });
+      expect(await pdfCanvas.evaluate((canvas) => {
+        const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+        for (let index = 0; index < pixels.length; index += 4) if (pixels[index + 3] && pixels[index] < 200) return true;
+        return false;
+      })).toBe(true);
+      const desktopViewport = session.page.viewportSize();
+      await session.page.setViewportSize({ width: 320, height: 800 });
+      const bounds = await preview.boundingBox();
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+      await preview.getByText("Accessible PDF text", { exact: true }).click();
+      await expect(preview).toContainText("DEMO medical evidence");
+      await session.page.keyboard.press("Escape");
+      await expect(preview).not.toBeVisible();
+      await expect(previewButton).toBeFocused();
+      await session.page.setViewportSize(desktopViewport);
 
       await verifyClaimAsHospital(browser, claimId, "VERIFIED");
 
@@ -127,6 +161,7 @@ test.describe("@workflow policyholder transaction journey", () => {
       await expect(withdrawButton).toBeVisible();
       await withdrawButton.click();
       await expect(session.page.getByText("SETTLED", { exact: true })).toBeVisible();
+      expect(browserFailures).toEqual([]);
     } finally {
       await closeActor(session);
     }
@@ -162,6 +197,8 @@ test.describe("@workflow policyholder transaction journey", () => {
       await session.page
         .getByLabel("Invoice number")
         .fill(`E2E-MANUAL-${Date.now()}`);
+      await session.page.getByRole("button", { name: "Check invoice readiness" }).click();
+      await expect(session.page.getByRole("region", { name: "Invoice readiness" })).toContainText("No invoice bound to this wallet was found");
       const evidenceFile = uniqueEvidenceFile();
       await session.page.getByLabel("Claim document").setInputFiles(evidenceFile);
       await session.page.getByRole("button", { name: "Submit Claim" }).click();

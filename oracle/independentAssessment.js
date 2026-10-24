@@ -1,4 +1,5 @@
 const normalizeHash = (value) => String(value || "").trim().toLowerCase();
+const { extractObservedFeatures } = require("./observableFeatures");
 const normalizeText = (value) => String(value || "").trim().toLowerCase();
 const numberOrNull = (value) => {
   const parsed = Number(value);
@@ -69,36 +70,7 @@ const compareCommittedRecord = ({ record, claim }) => {
 };
 
 const extractProofBoundFeatures = ({ record, comparison }) => {
-  // Experiment mutation markers are not observable deployment evidence.
-  const signals = {};
-  const invalidRecord = record.recordStatus !== "VALID";
-  const usedInvoice = record.invoiceStatus === "USED" || record.recordStatus === "USED" || signals.usedInvoice;
-  const cancelledRecord = record.invoiceStatus === "CANCELLED" || record.recordStatus === "CANCELLED" || signals.cancelledRecord;
-  const billRangeAnomaly = !comparison.billRange;
-  const features = {
-    clean_registry_match: false,
-    registry_record_missing: false,
-    hospital_id_mismatch: !comparison.hospitalId,
-    invoice_hash_mismatch: !comparison.invoiceHash,
-    claim_exceeds_registry_bill: !comparison.billAmount || Boolean(signals.inflatedAmount) || billRangeAnomaly,
-    bill_range_anomaly: billRangeAnomaly,
-    treatment_type_mismatch: !comparison.treatmentType,
-    date_mismatch: !comparison.dateConsistency || Boolean(signals.dateMismatch),
-    invalid_record_status: invalidRecord,
-    used_invoice: Boolean(usedInvoice),
-    cancelled_record: Boolean(cancelledRecord),
-    license_suspended: record.licenseStatus === "SUSPENDED",
-    license_blacklisted: record.licenseStatus === "BLACKLISTED" || Boolean(signals.blacklistedHospital),
-    repeat_claim_pattern: Number(record.observableHistory?.previousClaimCount || 0) >= 2,
-    provider_velocity_anomaly: record.observableHistory?.providerVelocityAnomaly === true,
-    claimant_velocity_anomaly: record.observableHistory?.claimantVelocityAnomaly === true,
-    near_duplicate_advisory: false,
-    missing_or_noisy_record: false,
-  };
-  features.clean_registry_match = !Object.entries(features).some(
-    ([name, active]) => name !== "clean_registry_match" && active
-  );
-  return features;
+  return extractObservedFeatures({ record, comparison });
 };
 
 const independentlyAssessRecord = ({ record, claim, modelArtifact, triagePolicy }) => {

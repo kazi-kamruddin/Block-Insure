@@ -1,6 +1,7 @@
 const express = require("express");
 const {
   authorizeClaimSubmission,
+  previewInvoiceEligibility,
   abandonClaimSubmission,
   getReadableClaims,
   getMyClaims,
@@ -17,6 +18,7 @@ const {
 } = require("../middleware/claimSubmissionRateLimit");
 
 const router = express.Router();
+router.post("/invoice-eligibility", authMiddleware, previewInvoiceEligibility);
 
 router.post(
   "/submission-check",

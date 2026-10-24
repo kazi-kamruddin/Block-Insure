@@ -8,6 +8,7 @@ const { getEvidenceChainForClaim } = require("../services/evidenceChainService")
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 const File = require("../models/File");
 const Hospital = require("../models/Hospital");
+const MockHospitalRecord = require("../models/MockHospitalRecord");
 const HospitalClaimVerification = require("../models/HospitalClaimVerification");
 const { formatHospitalVerification } = require("../services/hospitalVerificationService");
 const { unpinFromPinata } = require("../services/ipfsService");
@@ -779,7 +780,29 @@ const abandonClaimSubmission = async (req, res, next) => {
   }
 };
 
+// Advisory only: an absent record and another patient's record are deliberately
+// indistinguishable. Submission remains possible for missing-invoice review.
+const previewInvoiceEligibility = async (req, res, next) => {
+  try {
+    const { hospitalId, invoiceHash } = req.body || {};
+    if (typeof hospitalId !== "string" || !/^[A-Z0-9-]{1,64}$/i.test(hospitalId) ||
+        typeof invoiceHash !== "string" || !/^0x[0-9a-f]{64}$/i.test(invoiceHash)) {
+      throw createError("A valid hospital ID and invoice hash are required");
+    }
+    const record = await MockHospitalRecord.findOne({ hospitalId, invoiceHash: invoiceHash.toLowerCase(),
+      authorizedClaimants: req.user.walletAddress.toLowerCase() }).select("publicationPending recordStatus invoiceStatus licenseStatus").lean();
+    res.set("Cache-Control", "no-store");
+    res.json({ success: true, boundToCurrentWallet: Boolean(record),
+      publicationPending: Boolean(record?.publicationPending),
+      registryUsable: Boolean(record && record.recordStatus === "VALID" && record.invoiceStatus === "VALID" && record.licenseStatus === "ACTIVE"),
+      message: !record ? "No invoice bound to this wallet was found. Historical dataset rows are not automatically demo-ready. Ask the hospital to bind and publish your record; missing invoices can still enter manual review."
+        : record.publicationPending ? "This invoice is bound to your wallet but registry publication is pending."
+          : "Invoice binding found. Dates, policy terms, amount and independent verification still apply." });
+  } catch (error) { next(error); }
+};
+
 module.exports = {
+  previewInvoiceEligibility,
   authorizeClaimSubmission,
   abandonClaimSubmission,
   getReadableClaims,

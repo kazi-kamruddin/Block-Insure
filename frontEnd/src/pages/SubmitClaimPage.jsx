@@ -9,6 +9,7 @@ import {
   getMyPolicies,
   getNetworkHospitals,
   previewPurchasedPolicyEligibility,
+  previewInvoiceEligibility,
   reconcileClaimSubmission,
   recordClaimSubmissionTransaction,
   resetMyClaimSubmissionLimit,
@@ -200,6 +201,13 @@ export default function SubmitClaimPage() {
   const selectedPolicy = activePolicies.find(
     (policy) => String(policy.policyId) === String(policyId)
   );
+
+  const invoiceEligibility = useQuery({
+    queryKey: ["invoiceEligibility", walletAddress, hospitalId, invoiceNumber.trim()],
+    queryFn: () => previewInvoiceEligibility(hospitalId, hashInvoiceNumber(invoiceNumber.trim())),
+    enabled: false,
+    retry: false,
+  });
 
   const { data: eligibilityData, error: eligibilityError } = useQuery({
     queryKey: [
@@ -545,7 +553,7 @@ export default function SubmitClaimPage() {
           <h3>Uploaded Document</h3>
           <EvidenceField label="SHA-256" value={uploadInfo.sha256Hash} />
           <p>
-            <strong>IPFS CID:</strong> <IpfsLink cid={uploadInfo.ipfsCID} />
+            <strong>IPFS CID:</strong> <IpfsLink cid={uploadInfo.ipfsCID} documentId={uploadInfo.documentId} recoverable sha256Hash={uploadInfo.sha256Hash} />
           </p>
           <p>
             <strong>Encryption:</strong> {uploadInfo.encryption.status}
@@ -714,6 +722,14 @@ export default function SubmitClaimPage() {
             required
           />
         </label>
+
+        <section aria-label="Invoice readiness" className="rounded-lg border border-[var(--border)] p-3">
+          <p>Dataset examples are not automatically authorized patient invoices. Check wallet binding before uploading evidence.</p>
+          <button type="button" disabled={!isConnected || !hospitalId || !invoiceNumber.trim() || invoiceEligibility.isFetching}
+            onClick={() => invoiceEligibility.refetch()}>Check invoice readiness</button>
+          {invoiceEligibility.data && <p role="status">{invoiceEligibility.data.message}{invoiceEligibility.data.boundToCurrentWallet && !invoiceEligibility.data.registryUsable ? " The record is not currently valid for automatic verification." : ""}</p>}
+          {invoiceEligibility.error && <p role="alert">Invoice readiness could not be checked. No submission was created.</p>}
+        </section>
 
         <label className="checkbox-label">
           <input

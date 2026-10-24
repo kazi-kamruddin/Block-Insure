@@ -188,6 +188,42 @@ describe("PolicyBenefitsManager - Phase 2 benefits", function () {
     );
   });
 
+  for (const winner of [1, 2]) {
+    it(`atomically releases a competing approval when request ${winner} settles`, async function () {
+      const { benefits, holder, beneficiaryOne, insurance, coverage, premium } = await deployFixture();
+      await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
+      await benefits.connect(beneficiaryOne).requestBenefit(1, 0, ethers.id("death-before-cancellation"));
+      await insurance.connect(holder).cancelPolicy(1);
+      await benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash);
+      await benefits.approveBenefit(1);
+      await benefits.approveBenefit(2);
+      expect(await benefits.totalReservedLiabilityWei()).to.equal(coverage + premium / 2n);
+      const loser = winner === 1 ? 2 : 1;
+      await expect(benefits.settleBenefit(winner)).to.emit(benefits, "BenefitRejected")
+        .withArgs(loser, ethers.id("SUPERSEDED_BY_TERMINAL_BENEFIT"));
+      expect((await benefits.getBenefitRequest(loser)).status).to.equal(3);
+      expect(await benefits.totalReservedLiabilityWei()).to.equal(winner === 1 ? coverage : premium / 2n);
+      await expect(benefits.settleBenefit(loser)).to.be.reverted;
+      await expect(benefits.approveBenefit(loser)).to.be.reverted;
+      await expect(benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash)).to.be.reverted;
+      const recipient = winner === 1 ? beneficiaryOne : holder;
+      await benefits.connect(recipient).withdrawBenefit();
+      expect(await benefits.totalReservedLiabilityWei()).to.equal(0);
+    });
+  }
+
+  it("supersedes a requested competitor without releasing an unreserved amount", async function () {
+    const { benefits, holder, beneficiaryOne, insurance, premium } = await deployFixture();
+    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
+    await benefits.connect(beneficiaryOne).requestBenefit(1, 0, ethers.id("death"));
+    await insurance.connect(holder).cancelPolicy(1);
+    await benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash);
+    await benefits.approveBenefit(2);
+    await benefits.settleBenefit(2);
+    expect((await benefits.getBenefitRequest(1)).status).to.equal(3);
+    expect(await benefits.totalReservedLiabilityWei()).to.equal(premium / 2n);
+  });
+
   it("requires cancellation and minimum installments before surrender", async function () {
     const { benefits, holder, insurance, premium } = await deployFixture();
     await expect(

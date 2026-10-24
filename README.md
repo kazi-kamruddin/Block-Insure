@@ -25,6 +25,11 @@ modules.
 
 ## Local Services
 
+Use **Node 24 LTS** for full-repository development. The frontend's patched PDF
+renderer requires Node 22.13+ (22.x) or 24.x to build; the existing Render backend
+and Oracle Node 20 configuration is unchanged. For Vercel, select Node 24.x when
+redeploying the frontend.
+
 ### Clean local simulation
 
 Use this workflow for a fresh simulation. It deliberately removes only
@@ -315,6 +320,7 @@ cannot replace a valid JSON file with a partially written one.
 
 ## Documentation
 
+- [Six-step demo and observable-pipeline follow-up](docs/observable-pipeline-stabilization.md)
 - [Deployment guide](docs/deployment-guide.md)
 - [Current protocol security and operational verification](docs/phase-5-operational-hardening.md)
 - [Supervisor showcase guide](docs/supervisor-showcase-guide.md)
@@ -322,5 +328,5 @@ cannot replace a valid JSON file with a partially written one.
 - [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
 - [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
 - Six-page thesis paper: local `output/pdf/block-insure-six-page-paper.pdf` (ignored)
-- [Current portable project context](reference/context%20Block_Insure%2013oct.md) (local, ignored by Git)
+- [Current portable project context](reference/context%20Block_Insure%2024oct.md) (local, ignored by Git)
 - Historical deep technical reference: local `reference/block-insure-deep-technical-reference.md` (ignored)
