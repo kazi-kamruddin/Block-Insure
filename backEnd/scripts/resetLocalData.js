@@ -15,6 +15,7 @@ const OtpDeliverySlot = require("../models/OtpDeliverySlot");
 const BankTransaction = require("../models/BankTransaction");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 const ClaimAdvisoryAssessment = require("../models/ClaimAdvisoryAssessment");
+const OracleShadowAssessment = require("../models/OracleShadowAssessment");
 const EftMandate = require("../models/EftMandate");
 const EvidenceAccessLog = require("../models/EvidenceAccessLog");
 const EvidenceEvent = require("../models/EvidenceEvent");
@@ -65,6 +66,7 @@ const collections = [
   ["bank transactions", BankTransaction],
   ["claim submission attempts", ClaimSubmissionAttempt],
   ["claim advisory assessments", ClaimAdvisoryAssessment],
+  ["oracle shadow assessments", OracleShadowAssessment],
   ["documents", File],
   ["EFT mandates", EftMandate],
   ["hospital directory entries", Hospital],

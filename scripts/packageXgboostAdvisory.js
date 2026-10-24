@@ -4,6 +4,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const root = path.resolve(__dirname, "..");
 const names = ["backEnd/artifacts/xgboost-advisory-v1.json", "oracle/xgboostAssessment.js", "oracle/observableFeatures.js",
+  "oracle/advisoryBundle.js", "oracle/shadowAssessment.js", "oracle/merkleProof.js",
   "oracle/independentAssessment.js", "backEnd/research/context.js", "backEnd/research/phase3-plan.json",
   "backEnd/services/continuousFeatureService.js", "backEnd/services/advisoryContextService.js",
   "backEnd/model-params.json", "backEnd/triage-policy.json"];

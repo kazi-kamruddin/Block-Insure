@@ -217,6 +217,13 @@ test.describe("@workflow policyholder transaction journey", () => {
             }
           )
           .toBe("PAYOUT_READY");
+        await expect.poll(async () => (await advisoryRead()).body.advisory?.workerShadow?.status,
+          { timeout: 90000, intervals: [5000], message: "Both worker shadow computations must independently agree on the committed context" }).toBe("MATCHED");
+        const finalAdvisory = (await advisoryRead()).body.advisory;
+        expect(finalAdvisory.workerShadow.reports).toBe(2);
+        expect(finalAdvisory.workerShadow.authority).toBe("SHADOW_ONLY");
+        expect(finalAdvisory.performance.totalAssessmentMs).toBeGreaterThanOrEqual(finalAdvisory.performance.inferenceMs);
+        expect(finalAdvisory.performance.rssBytes).toBeGreaterThan(0);
       } finally {
         await closeActor(adminSession);
       }

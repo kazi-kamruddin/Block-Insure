@@ -1,0 +1,303 @@
+{
+  "schema": "block-insure-shadow-release-assurance-v1",
+  "reviewDate": "2026-10-24",
+  "reviewTimezone": "Asia/Dhaka",
+  "recordedAt": "2026-10-24T09:53:32.667159+00:00",
+  "baselineCommit": "9a98b55c4f7cfd1bb7abab3116e0c89312f9503c",
+  "scope": "Dual-worker XGBoost shadow execution, failure isolation, daily lifecycle, staged regression, release/deployment preparation",
+  "sourceStatus": "Uncommitted worktree; staged checks, not one uninterrupted final-hash campaign",
+  "authority": {
+    "adminAdvisory": "XGBoost, unchanged balanced policy and weights",
+    "protocolVerification": "Frozen Bernoulli NB unchanged",
+    "shadowEffect": "No approval, rejection, voting, reservation or payout authority",
+    "solidityOrAbiChanges": false,
+    "newClassificationStudy": false,
+    "naturalFraudAccuracyClaim": false
+  },
+  "tests": {
+    "backend": {
+      "passed": 203,
+      "analytics": "PASS",
+      "command": "npm --prefix backEnd test"
+    },
+    "oracle": {
+      "passed": 25,
+      "command": "npm --prefix oracle test"
+    },
+    "python": {
+      "passed": 23,
+      "command": "backEnd/research/.venv/Scripts/python.exe -m unittest discover -s backEnd/research -p 'test_*.py' -v",
+      "training": false
+    },
+    "contracts": {
+      "passed": 139,
+      "statefulIncludedNotAdditional": true,
+      "command": "npm --prefix contracts test"
+    },
+    "mongo": {
+      "passed": 13,
+      "command": "node --test --test-concurrency=1 backEnd/test/xgboostAdvisory.integration.js backEnd/test/stabilizationStorage.integration.js",
+      "scope": "Existing loopback container; own disposable integration databases dropped"
+    },
+    "browserCampaign": {
+      "distinctPassed": 43,
+      "stageCounts": [
+        17,
+        4,
+        1,
+        2,
+        4,
+        1,
+        2,
+        2,
+        3,
+        3,
+        1,
+        1,
+        1,
+        1
+      ],
+      "command": "E2E_MONGODB_URI=<prepared-loopback-test-db> E2E_RPC_PROXY=true npm run test:stabilization",
+      "workers": 1,
+      "scope": "Public/authentication/roles/routes, security/resilience, profile/mobile, automatic/manual claims, four showcase cases, concurrent encrypted claims, bank EFT/OTP, hospital records, benefits, defensive boundaries, simultaneous rejection, review expiry, corrected encrypted appeal, RPC recovery"
+    },
+    "productionUi": {
+      "passed": 7,
+      "command": "npm run test:e2e:frontend-production",
+      "lint": "PASS",
+      "build": "PASS",
+      "minimumViewportPx": 320,
+      "existingAssertionsPreserved": true
+    },
+    "dailyLifecycle": {
+      "command": "npm run test:stabilization -- --daily-launcher",
+      "results": {
+        "daily-resume": {
+          "mode": "resume",
+          "passed": true,
+          "actualCommand": "npm run dev (twice)",
+          "chainCommand": "npm run dev:chain",
+          "sentinelPreserved": true,
+          "countersPreserved": true,
+          "externalChainPreserved": true,
+          "allFourServiceReadinessChecked": true,
+          "savedFilesUnchanged": true
+        },
+        "daily-missing-chain": {
+          "mode": "missing-chain",
+          "passed": true,
+          "exitCode": 1,
+          "recoveryInstructions": true,
+          "sentinelPreserved": true,
+          "noApplicationServicesStarted": true,
+          "savedFilesUnchanged": true
+        }
+      }
+    },
+    "static": {
+      "syntaxChecked": [
+        "backEnd/controllers/advisoryController.js",
+        "backEnd/routes/oracleRoutes.js",
+        "backEnd/scripts/generateResearchManifest.js",
+        "backEnd/scripts/resetLocalData.js",
+        "backEnd/services/xgboostAdvisoryService.js",
+        "backEnd/test/xgboostAdvisory.integration.js",
+        "e2e/tests/unfinished-claim-finality.workflow.spec.js",
+        "e2e/tests/user-policy-claim.workflow.spec.js",
+        "oracle/index.js",
+        "scripts/devAll.js",
+        "scripts/localDeploymentConfig.js",
+        "scripts/packageXgboostAdvisory.js",
+        "scripts/stabilizationStack.js",
+        "backEnd/controllers/oracleShadowController.js",
+        "backEnd/models/OracleShadowAssessment.js",
+        "backEnd/services/oracleShadowService.js",
+        "backEnd/test/dailyManifest.test.js",
+        "backEnd/test/helpers/shadowFixture.js",
+        "backEnd/test/oracleShadow.test.js",
+        "backEnd/test/shadowPackaging.test.js",
+        "e2e/tests/shadow-concurrency.workflow.spec.js",
+        "oracle/advisoryBundle.js",
+        "oracle/shadowAssessment.js",
+        "oracle/test/shadowAssessment.test.js",
+        "scripts/prepareReleaseCandidate.js",
+        "scripts/verifyDailyLifecycle.js"
+      ],
+      "passed": true,
+      "slither": {
+        "available": false,
+        "error": "ENOENT"
+      }
+    },
+    "repository": {
+      "groupsPassed": 7,
+      "abiConfigurationSynchronization": "PASS; manager 24320/24576 bytes, 256 bytes headroom",
+      "packaging": "PASS",
+      "releaseTemplate": "PASS"
+    }
+  },
+  "operationalObservation": {
+    "source": "tmp/stabilization-JxlIOB/shadow-restart.json",
+    "sha256": "a745f93c132e440ec500abc799e7d69e09a84448d7e496a10af1a41e007ce447",
+    "result": {
+      "passed": true,
+      "before": 2,
+      "after": 2,
+      "independentOracleProcessRestarted": true,
+      "idempotentBackfill": true,
+      "metricScope": "Process memory; context HTTP plus local verification/scoring, excluding report HTTP",
+      "metrics": [
+        {
+          "totalMs": 1660.392200000002,
+          "scoringMs": 219.87180000000808,
+          "rssBytes": 101441536,
+          "heapUsedBytes": 27356520
+        },
+        {
+          "totalMs": 2483.8564999999944,
+          "scoringMs": 240.02469999999448,
+          "rssBytes": 99655680,
+          "heapUsedBytes": 27429328
+        }
+      ]
+    },
+    "limitations": "Two process-level samples; context HTTP plus local verification/inference, excluding report HTTP/persistence; not throughput, peak memory, CPU or broad reliability measurement"
+  },
+  "productionDependencyAudits": {
+    "backend": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "logSha256": "8bde09868533cf5ca22f35ac72d4ee29be2fed2a9b54f20a53e9451eb5e5524f"
+    },
+    "frontend": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "logSha256": "a6844cb0eedf917814e1460e0e3441fafc9e986b74fdd85479864429281f9dcc"
+    },
+    "oracle": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "logSha256": "ca22f7cd1ccbd1c32770fdea18c2a6577044ba6561e45fe82390354ea3068abf"
+    }
+  },
+  "correctedDuringVerification": [
+    {
+      "finding": "Oracle initialization could race API listen and spend entire launcher deadline awaiting first retry",
+      "fix": "Wait for API readiness before launching workers",
+      "finalDailyLifecycle": "PASS",
+      "initialFailureLogSha256": "de37f36a90ec626e8a5a9f449a6d4656debc012148ec3d645c27ccdc561a07ff"
+    }
+  ],
+  "unavailableOrNotExecuted": {
+    "slither": "Unavailable, ENOENT; no install or fresh result",
+    "dockerImages": "Source-only closure verified, images not built",
+    "hosted": "No health/transaction tests or activation in this pass",
+    "mail": "No real email delivery",
+    "classification": "No retraining, new study or promotion of XGBoost into NB verification"
+  },
+  "environment": {
+    "newContainerCreated": false,
+    "newPythonEnvironmentCreated": false,
+    "atlasTouched": false,
+    "existingTestContainerRestored": "block-insure-part1-mongo: stopped (original state)",
+    "ownedServicePortsClosed": [
+      5000,
+      5101,
+      5102,
+      5173,
+      5055,
+      8545,
+      4173
+    ],
+    "normalSavedEnvironmentAndManifestFilesUnchanged": true,
+    "gitCommitMade": false
+  },
+  "sourceHashes": {
+    "backEnd/artifacts/xgboost-advisory-manifest.json": "a242b909a022c4b2249e841d72deb563dd60d9f3e864adf2fd56671f2faa15a2",
+    "backEnd/controllers/advisoryController.js": "d04b169fd3bfd6d95e6672726cecff9d817b8d6564297286c19cc9311f42e9fa",
+    "backEnd/controllers/oracleShadowController.js": "8ed7909cd6efdd27d574b9f4872226fc69e8886c03fa50d9e135c95c959eb3c4",
+    "backEnd/evaluation-results/research-manifest-v4.json": "cf927fa819d4a1ee7fd9caa42422530fdf1ac68aa1c7513a95cea93c16990064",
+    "backEnd/models/OracleShadowAssessment.js": "e52148106c63d6fea550ca33073d9701955113a8e6ba38e1e94ae69e0dae66dd",
+    "backEnd/routes/oracleRoutes.js": "ea93f8297d784022e725966d0d5d36bc4e7707b793dcf31279b0139a7f72e8bf",
+    "backEnd/scripts/generateResearchManifest.js": "2a4b675a694764e58d0c2534af090708dbc95b13bb17840a95fdba8a84890dd9",
+    "backEnd/scripts/resetLocalData.js": "37aee95ea8a89cb21aa0889d53897e8b39c4939b33855f12f3a56d92c345b789",
+    "backEnd/services/oracleShadowService.js": "48b7c31a51180242ac3eec0d071f6ce3eac79c3fe2057b0f6466a0ed69754b5a",
+    "backEnd/services/xgboostAdvisoryService.js": "4b94faf6adcfbc9dface23bded9aa2d14773362f3315c7394e6809fad46a11cf",
+    "backEnd/test/dailyManifest.test.js": "b323909ac318b3660a353c7e0dcece87a623671a0108d3c3797488096516c274",
+    "backEnd/test/helpers/shadowFixture.js": "8149a7d6b6a533f75acbd8567e63083411bb02a0aa37ae79948508d697197b16",
+    "backEnd/test/oracleShadow.test.js": "95dba27738539b3e8e7f0b2c39b87d973fe184496cf204e49fddd45cc19244ce",
+    "backEnd/test/shadowPackaging.test.js": "a88bc7f51ef183c3cd449e0bf43adb20c36c1cfef625ef40536482faf96c574e",
+    "backEnd/test/xgboostAdvisory.integration.js": "978a00aa6824281c0dbd88b4d02bf1f8da216398b88b5923f44063d9d9c7ad3c",
+    "deploy/backend.Dockerfile": "32e8ef1f7f3c21e5f007a227cc41bf79a99a41d9499a0266d103ebf3f757dfae",
+    "deploy/frontend.Dockerfile": "db35629bd114480652eefaee47a4dd3b6d95452780714b53d4effc5089d2e292",
+    "deploy/oracle.Dockerfile": "a8d8e01ac16da27c4201685f42e82129171b28a7894be01ce3e4a9bbf255a3ba",
+    "deploy/production.env.example": "bc5336547b31d700d0dce21802ddc91bf514c17f3841145d08b838b96f15b3d3",
+    "e2e/tests/shadow-concurrency.workflow.spec.js": "29fd5ad4ccf38d8ef8c3f45b9126c7c894942a47ef977d5c99b77ef34684b290",
+    "e2e/tests/unfinished-claim-finality.workflow.spec.js": "d17070a6fa5e34a64872d5105cedd0072610a2a9b1ce9db1ee185a1dc7888234",
+    "e2e/tests/user-policy-claim.workflow.spec.js": "02153548e29f5897c0f4e5fe57faf6730b235a0aae8008c93ef25a3bce773687",
+    "frontEnd/src/components/XgboostAdvisoryPanel.jsx": "1217b10ef15d5ba091a95a3a1e18d21c73bdb27d7937b0e29803de2a60e7ce10",
+    "oracle/advisoryBundle.js": "76cf174df79ac9a2f16db5a185341154f46c5a1b3ccaf1dcd2e8a103b33360a7",
+    "oracle/index.js": "c06fab6dd909511aba460ff3a2b0af37ab787478250aceedd536805d73c4a2b2",
+    "oracle/shadowAssessment.js": "395bf0e8795537549ca8513b3fdb794502bb02ef4df545f27ea745551695838b",
+    "oracle/test/shadowAssessment.test.js": "b4b98095e65e8bc504aece34f24b90d213f5c9e6c837343896aeafb4a9b14871",
+    "render.yaml": "885a93f01efb6dd164a32e069b4e08ad7378d5dc656fc2ffce7626c17d09217f",
+    "scripts/devAll.js": "89a75af247c49ee4f9c0762724cf81462625895ed4cdef769d55ba7bfff89332",
+    "scripts/localDeploymentConfig.js": "d22f56ed87440bb9f2746b4dcd635b832bd20b848d61b28d2fe23d55dc23162c",
+    "scripts/packageXgboostAdvisory.js": "64301d0b3d7bc8b1aceaf5927d1e84f4176579ef13c3ef84815645d22a9d09ce",
+    "scripts/prepareReleaseCandidate.js": "7da02a386c45384652ac06528807bf7d2fcdb87231233ac97e170971ac9fd061",
+    "scripts/stabilizationStack.js": "378361f6251dc88ab78531db771dd0cb5da4a6f13b056c7b7c7c381ad341f285",
+    "scripts/verifyDailyLifecycle.js": "c507ed6b96464d6d434da74b9fd96fe306c9e1c803e6484b152e75fd4a5c123a"
+  },
+  "localLogSha256": {
+    "tmp/shadow-backend-final.log": "4b663efc2b8d1eb9a13f0aca05e624032833953ebd4b19e0776df94c947ae45a",
+    "tmp/shadow-oracle-final.log": "8e5cc0ef2f0cfaedd9fb44960c267c103a2406ab11dfe6c8b63b9aed4804e0d3",
+    "tmp/shadow-python-final.log": "6df9f5d02fd07c43538871ebe9f7cd49be5cc808f66b2f584420c8f118bebce1",
+    "tmp/shadow-contracts-final.log": "c34131edd7b2d71e597e10d0c5722b3404eff7a817983344d27ac9d6a78adc45",
+    "tmp/shadow-storage-final.log": "918582f46d905f55a27dc11818f6e89710946ca8c5a69c68c166c2b0b6d7bc20",
+    "tmp/shadow-full-campaign.log": "26e15abc1a273a5a33ede909d02b51cec4836863b3141ab64b0d234b0d2ed1cc",
+    "tmp/shadow-production-ui.log": "1634c257d2189ff28b65e76dab35c78534af4a537e5a1100975535ba44d74d8b",
+    "tmp/shadow-frontend-lint.log": "3d443bbbee9dfcfb783a87932b687645ebe6f2086ac14ad25f7bdf336d466b8c",
+    "tmp/shadow-repository-checks.log": "b8c2b231566f900b4968d43aaf44ad5163884d8bd2ab251166b322935caf869c",
+    "tmp/shadow-daily-lifecycle.log": "e9a3d2f3b6a12d39885d86635a5b0a0a7c6d893a5c17b5b568e69b7bab0b6099",
+    "tmp/shadow-daily-lifecycle-initial-failure.log": "de37f36a90ec626e8a5a9f449a6d4656debc012148ec3d645c27ccdc561a07ff",
+    "tmp/shadow-static-final.json": "12702905171427b7ec01ec8bfbb691b0e871277b8b222657e4afa3fb8cd621b8",
+    "tmp/stabilization-diFDMt/daily-resume.json": "e7bbad43bd5e673ab628e02ed1f9b26047783642de43aef31fb5491e18db403f",
+    "tmp/stabilization-diFDMt/daily-missing-chain.json": "bd064792fa5c195346178ed53638e2580c5feea7011c34c889f82567d8b8099b"
+  },
+  "modelBundleSha256": "e83eab8c8df7c9996471c754d352d9201ffd30246184c72cd1943c612d2ab380",
+  "advisorySourceManifestSha256": "a242b909a022c4b2249e841d72deb563dd60d9f3e864adf2fd56671f2faa15a2",
+  "researchManifestSha256": "cf927fa819d4a1ee7fd9caa42422530fdf1ac68aa1c7513a95cea93c16990064",
+  "privacy": "No secrets, private keys, tokens, raw history or private provider errors retained in this public summary. Referenced local logs are ignored development evidence.",
+  "limitations": [
+    "Worker agreement is shared-root/shared-code execution consistency, not independent medical truth.",
+    "Backfill is bounded to latest 64 finalized requests; eight pending attempts per pass.",
+    "Full canonical snapshots capped at 10000 rows; no scalable multiproof claim.",
+    "Reports use application append-style persistence, not blockchain immutability or standalone signed-envelope proofs.",
+    "Historical benchmark labels and engineered actions retain original methodological limits."
+  ],
+  "contextValidation": {
+    "contextMarkdownFiles": 8,
+    "referenceContextMarkdownFiles": 1,
+    "ignoredFiles": 9,
+    "resolvedLocalLinks": 71,
+    "checkedAt": "2026-10-24T09:54:38.404130+00:00"
+  }
+}

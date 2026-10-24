@@ -260,15 +260,23 @@ async function main() {
     ...(backendRpcUrl ? { RPC_URL: backendRpcUrl } : {}),
   });
   startService("Frontend", "frontEnd", ["run", "dev"]);
-  startService("Oracle 1", "oracle", ["run", "dev"]);
-  startService("Oracle 2", "oracle", ["run", "dev:oracle2"]);
   const backendPort = readEnvValue("backEnd/.env", "PORT") || "5000";
+  // Backend-backed cursors are loaded during Oracle initialization. Starting
+  // workers before the API listens can consume their entire readiness window
+  // waiting for the first retry, even though the API becomes healthy promptly.
+  await waitForHttp(`http://127.0.0.1:${backendPort}/health/ready`, '"status":"ready"');
+  startService("Oracle 1", "oracle", ["run", "dev"], { ...process.env,
+    PORT: process.env.ORACLE_ONE_HEALTH_PORT || "5101", ORACLE_INSTANCE_ID: "1", ORACLE_REGISTRY_SNAPSHOT: "primary" });
+  startService("Oracle 2", "oracle", ["run", "dev:oracle2"], { ...process.env,
+    PORT: process.env.ORACLE_TWO_HEALTH_PORT || "5102", ORACLE_INSTANCE_ID: "2", ORACLE_REGISTRY_SNAPSHOT: "oracle2" });
   await Promise.all([
     waitForHttp(
       `http://127.0.0.1:${backendPort}/health/ready`,
       '"status":"ready"'
     ),
     waitForHttp("http://localhost:5173", "Block-Insure"),
+    waitForHttp(`http://127.0.0.1:${process.env.ORACLE_ONE_HEALTH_PORT || "5101"}/health/ready`, '"workerEnabled":true'),
+    waitForHttp(`http://127.0.0.1:${process.env.ORACLE_TWO_HEALTH_PORT || "5102"}/health/ready`, '"workerEnabled":true'),
   ]);
   console.log("[Launcher] Chain/deployment verified and application services are ready. Press Ctrl+C to stop them together.");
 }

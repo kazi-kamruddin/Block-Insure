@@ -56,6 +56,8 @@ export default function XgboostAdvisoryPanel({ claimId, claimVersion, status }) 
               <li>Provider history: {result.context.providerHistoryAvailable ? "Available" : "Unavailable in the prior window"}.</li>
               <li>Comparison budget: {percent(assessment.policy.comparisonBudget)}; this is a validation target, not a live queue limit.</li>
             </ul>
+            <p>Worker shadow agreement: <strong>{label(result.workerShadow?.status || "UNAVAILABLE")}</strong> ({result.workerShadow?.reports || 0} reports).</p>
+            <p className="muted-text">Shadow agreement never changes Oracle verification or payout. Matching workers share the registry and model; this is execution agreement, not medical truth.</p>
           </div>
           <details>
             <summary className="min-h-11 cursor-pointer py-3">Why this score? Exact SHAP explanation</summary>

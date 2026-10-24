@@ -8,8 +8,13 @@ const keys = {
   ProtocolDeploymentRegistry: "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS",
 };
 function readLocalDeployment(root) {
-  const filename = path.join(root, "contracts/deployments/localhost-31337.json");
-  if (!fs.existsSync(filename)) return {};
+  const filename = process.env.LOCAL_DEPLOYMENT_MANIFEST
+    ? path.resolve(process.env.LOCAL_DEPLOYMENT_MANIFEST)
+    : path.join(root, "contracts/deployments/localhost-31337.json");
+  if (!fs.existsSync(filename)) {
+    if (process.env.LOCAL_DEPLOYMENT_MANIFEST) throw new Error("Explicit local deployment manifest is unavailable");
+    return {};
+  }
   const deployment = JSON.parse(fs.readFileSync(filename, "utf8"));
   if (String(deployment.chainId) !== "31337") throw new Error("Local deployment manifest has an unexpected chain ID");
   for (const key of ["deploymentBlock", "benefitsDeploymentBlock"]) {

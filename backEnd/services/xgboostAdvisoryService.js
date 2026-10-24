@@ -1,29 +1,11 @@
-const fs = require("node:fs");
-const path = require("node:path");
 const crypto = require("node:crypto");
 const { ethers } = require("ethers");
-const { compile } = require("../../oracle/xgboostAssessment");
+const { loadAdvisoryBundle } = require("../../oracle/advisoryBundle");
 const { prepareAdvisoryObservation, MAX_RECORDS } = require("./advisoryContextService");
 const { independentlyAssessRecord } = require("../../oracle/independentAssessment");
 const baselineModel = require("../model-params.json");
 const baselinePolicy = require("../triage-policy.json");
-const root = path.resolve(__dirname, "../..");
 const hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
-let loaded;
-
-function loadAdvisoryBundle() {
-  if (loaded) return loaded;
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, "backEnd/artifacts/xgboost-advisory-manifest.json"), "utf8"));
-  // Filenames are fixed by the tracked manifest, never request/environment input.
-  for (const [name, expected] of Object.entries(manifest.files)) {
-    const resolved = path.resolve(root, name);
-    if (!resolved.startsWith(root + path.sep) || hash(fs.readFileSync(resolved)) !== expected) throw new Error("Advisory artifact/source identity mismatch");
-  }
-  const bytes = fs.readFileSync(path.join(root, "backEnd/artifacts/xgboost-advisory-v1.json"));
-  const bundle = JSON.parse(bytes);
-  loaded = { bundle, engine: compile(bundle), bundleHash: hash(bytes), manifestHash: hash(JSON.stringify(manifest)) };
-  return loaded;
-}
 
 async function readCommittedRecords(rootHash) {
   const Chunk = require("../models/RegistrySnapshotChunk");
@@ -66,6 +48,7 @@ function createAdvisoryService({ load = loadAdvisoryBundle, readRecords = readCo
     if (inFlight >= 2) throw Object.assign(new Error("Advisory busy"), { code: "ADVISORY_BUSY" });
     inFlight++;
     const task = (async () => {
+      const assessmentStart = performance.now();
       const records = await readRecords(registryRoot);
       const runtimeClaim = { ...facts, claimAmountEth: ethers.formatEther(claim.claimAmount) };
       const prepared = prepareAdvisoryObservation({ records, claim: runtimeClaim, snapshotTimestamp });
@@ -84,7 +67,9 @@ function createAdvisoryService({ load = loadAdvisoryBundle, readRecords = readCo
         comparison: { model: "Bernoulli NB", modelIdentityHash: baselineModel.modelIdentityHash, policyIdentityHash: baselinePolicy.policyIdentityHash,
           riskScore: nb.fraudProbability, recommendation: nb.verified ? "NO_ADDITIONAL_MODEL_REVIEW" : "REVIEW_RECOMMENDED",
           verified: nb.verified, meaning: "Each model uses its own frozen feature contract on the same snapshot; recorded Oracle outcomes remain authoritative" },
-        performance: { inferenceMs, includes: "Feature-ready scoring, OOD, calibration, conformal and exact explanation; excludes database/RPC" },
+        performance: { inferenceMs, totalAssessmentMs: performance.now() - assessmentStart,
+          rssBytes: process.memoryUsage().rss, heapUsedBytes: process.memoryUsage().heapUsed,
+          includes: "Total covers archive/root/context and scoring; excludes controller RPC and durable assessment write. Inference is feature-ready scoring/explanation. Memory is process-wide." },
         provenance: bundle.provenance,
         protocolEffect: "NONE: advisory display does not approve, reject, route, vote, reserve or pay a claim",
       };

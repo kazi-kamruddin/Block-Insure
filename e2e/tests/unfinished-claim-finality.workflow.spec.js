@@ -360,6 +360,11 @@ test.describe("@unfinished manual-review finality", () => {
         }).toArray();
         expect(oracleLogs).toHaveLength(2);
         expect(oracleLogs.every((log) => log.verified === true)).toBe(true);
+        await expect.poll(() => mongo.db.collection("oracleshadowassessments").countDocuments({ claimId: String(claimId), claimVersion: "2" }),
+          { timeout: 60000, intervals: [3000], message: "Corrected appeal must receive new version-bound shadow reports from both workers" }).toBe(2);
+        const shadows = await mongo.db.collection("oracleshadowassessments").find({ claimId: String(claimId), claimVersion: "2" }).toArray();
+        expect(new Set(shadows.map((report) => report.oracleWallet)).size).toBe(2);
+        expect(new Set(shadows.map((report) => `${report.contextId}:${report.resultHash}:${report.contextHash}`)).size).toBe(1);
         expect(
           oracleLogs.every(
             (log) =>

@@ -2,6 +2,7 @@ const test = require("node:test"), assert = require("node:assert/strict");
 const mongoose = require("mongoose"), { ethers } = require("ethers");
 const Chunk = require("../models/RegistrySnapshotChunk");
 const Model = require("../models/ClaimAdvisoryAssessment");
+const Shadow = require("../models/OracleShadowAssessment");
 const { buildMerkleTree } = require("../services/merkleRegistryService");
 const { createAdvisoryService, readCommittedRecords } = require("../services/xgboostAdvisoryService");
 let name;
@@ -9,7 +10,7 @@ test.before(async () => {
   const uri = new URL(process.env.E2E_MONGODB_URI);
   if (!["127.0.0.1", "localhost", "[::1]"].includes(uri.hostname)) throw new Error("Prepared loopback MongoDB required");
   name = `xgboost_advisory_${Date.now()}_test`; uri.pathname = `/${name}`;
-  await mongoose.connect(uri.toString()); await Promise.all([Chunk.init(), Model.init()]);
+  await mongoose.connect(uri.toString()); await Promise.all([Chunk.init(), Model.init(), Shadow.init()]);
 });
 test.after(async () => {
   if (mongoose.connection.name === name && /^xgboost_advisory_\d+_test$/.test(name)) await mongoose.connection.dropDatabase();
@@ -46,4 +47,24 @@ test("missing roots and interrupted archive chunks never fall back to current re
   const gapRoot = ethers.id("gap");
   await Chunk.create({ rootHash: gapRoot, chunkIndex: 1, records: [record] });
   await assert.rejects(readCommittedRecords(gapRoot), /incomplete/);
+});
+
+test("shadow agreement requires distinct wallets and isolates request block/deployment identity", async () => {
+  const { getAgreement } = require("../services/oracleShadowService");
+  const coordinatorAddress = `0x${"3".repeat(40)}`;
+  const scope = { requestId: "70", claimVersion: "1", registryRoot: root, bundleHash: "bundle", manifestHash: "manifest",
+    coordinatorAddress, chainId: "31337", requestBlockHash: ethers.id("request-block") };
+  const row = { contextId: "context", requestId: "70", claimId: "1", claimVersion: "1", coordinatorAddress,
+    oracleWallet: `0x${"4".repeat(40)}`, oracleInstanceId: "1", binding: { ...scope }, result: {}, resultHash: "result",
+    contextHash: "features", explanationHash: "explanation", metrics: {} };
+  await Shadow.create({ ...row, _id: "shadow-one" });
+  assert.equal((await getAgreement(scope)).status, "WAITING_FOR_WORKERS");
+  await Shadow.create({ ...row, _id: "shadow-duplicate-wallet", oracleInstanceId: "2" });
+  assert.equal((await getAgreement(scope)).status, "WAITING_FOR_WORKERS");
+  await Shadow.deleteOne({ _id: "shadow-duplicate-wallet" });
+  await Shadow.create({ ...row, _id: "shadow-two", oracleWallet: `0x${"5".repeat(40)}`, oracleInstanceId: "2" });
+  assert.equal((await getAgreement(scope)).status, "MATCHED");
+  assert.equal((await getAgreement({ ...scope, requestBlockHash: ethers.id("different-deployment-block") })).reports, 0);
+  await Shadow.updateOne({ _id: "shadow-two" }, { $set: { resultHash: "inconsistent" } });
+  assert.equal((await getAgreement(scope)).status, "CONFLICT");
 });

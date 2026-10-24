@@ -22,4 +22,13 @@ backEnd/datasets/hybrid-v1/processed
 backEnd/datasets/hybrid-v1/runtime
 paper-evidence
 .project-context
+reference
+.agents
+AGENTS.md
+backEnd/research/.venv
+**/__pycache__
+docs/engineered
+tmp
+output
+playwright-reports
 *.log

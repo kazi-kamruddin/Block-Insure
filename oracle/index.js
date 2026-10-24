@@ -133,6 +133,57 @@ const processingRequests = new Set();
 let pollTimer = null;
 let startRetryTimer = null;
 let healthServer = null;
+let shadowTimer = null;
+const shadowEnabled = ORACLE_WORKER_ENABLED && process.env.ORACLE_SHADOW_ENABLED !== "false";
+const shadowState = { enabled: shadowEnabled, successfulReports: 0, lastSuccessAt: null, lastFailure: null };
+const { assessShadowPacket, signedMessage, hash: shadowHash, facts: shadowFacts, createShadowRunner } = require("./shadowAssessment");
+let shadowPolling = false;
+const runShadow = createShadowRunner({
+  onFailure: (code) => { shadowState.lastFailure = code; },
+  run: async (request) => {
+    const totalStart = performance.now();
+    const [claim, snapshot, network, requestBlock] = await Promise.all([manager.getClaim(request.claimId), coordinator.getRegistrySnapshot(request.registryVersion),
+      provider.getNetwork(), provider.getBlock(Number(request.requestBlock))]);
+    if (String(await manager.claimVersion(request.claimId)) !== String(request.claimVersion)) return;
+    const authoritative = { request, claim: shadowFacts({ ...claim.toObject(), claimAmountEth: ethers.formatEther(claim.claimAmount) }),
+      chainId: String(network.chainId), managerAddress: CONTRACT_ADDRESS, coordinatorAddress, snapshotTimestamp: String(snapshot.publishedAt), requestBlockHash: requestBlock.hash };
+    const authorize = async (action, digest = "") => {
+      const timestamp = Date.now();
+      return { requestId: String(request.requestId), oracleWallet: oracleWallet.address, oracleInstanceId: ORACLE_INSTANCE_ID, timestamp,
+        signature: await oracleWallet.signMessage(signedMessage({ action, requestId: request.requestId, wallet: oracleWallet.address,
+          timestamp, digest, chainId: network.chainId, coordinatorAddress })) };
+    };
+    const options = { headers: { "x-oracle-api-key": ORACLE_API_KEY }, timeout: 8000, maxContentLength: 16 * 1024 * 1024 };
+    const response = await backendHttp.post(`${BACKEND_API_URL}/api/oracle/shadow/context`, await authorize("CONTEXT"), options);
+    const scoringStart = performance.now();
+    const assessed = assessShadowPacket(response.data.data, authoritative);
+    const report = Object.fromEntries(["contextId", "result", "resultHash", "contextHash", "explanationHash"].map((key) => [key, assessed[key]]));
+    const memory = process.memoryUsage();
+    const metrics = { totalMs: performance.now() - totalStart, scoringMs: performance.now() - scoringStart, rssBytes: memory.rss, heapUsedBytes: memory.heapUsed };
+    const saved = await backendHttp.post(`${BACKEND_API_URL}/api/oracle/shadow/report`, {
+      ...await authorize("REPORT", shadowHash({ report, metrics })), report, metrics,
+    }, options);
+    if (!saved.data?.data?.accepted || saved.data.data.resultHash !== report.resultHash) throw new Error("Shadow report not accepted");
+    shadowState.successfulReports++; shadowState.lastSuccessAt = new Date().toISOString(); shadowState.lastFailure = null;
+  },
+});
+const pollShadows = async () => {
+  if (!shadowEnabled || !coordinator || shadowPolling) return;
+  shadowPolling = true;
+  try {
+    const next = Number(await coordinator.requestCounter()), requests = [];
+    // Bounded post-finality backfill; no unbounded block-zero scans. The most
+    // recent 64 requests are replayed idempotently after process restart.
+    for (let id = Math.max(1, next - 64); id < next; id++) {
+      const request = await coordinator.getRequest(id);
+      if (request.isFulfilled && await coordinator.eligibleForRequest(id, oracleWallet.address)) {
+        requests.push({ ...request.toObject(), shadowBlockHash: (await provider.getBlock(Number(request.requestBlock))).hash });
+      }
+    }
+    await runShadow(requests);
+  } catch { shadowState.lastFailure = "SHADOW_UNAVAILABLE"; }
+  finally { shadowPolling = false; }
+};
 const serviceState = {
   initialized: false,
   startedAt: new Date().toISOString(),
@@ -637,6 +688,10 @@ const startOracle = async () => {
   await pollOracleRequests();
   serviceState.initialized = true;
   pollTimer = setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);
+  if (shadowEnabled) {
+    void pollShadows();
+    shadowTimer = setInterval(pollShadows, 10000);
+  }
 };
 
 const workerReady = () => isWorkerReady({
@@ -653,6 +708,7 @@ const sanitizedHealth = () => ({
   oracleWallet: oracleWallet?.address || "",
   registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
   cursorMode: ORACLE_CURSOR_MODE,
+  shadow: shadowState,
   nextScanBlock: nextOracleScanBlock,
   startedAt: serviceState.startedAt,
   lastPollAt: serviceState.lastPollAt,
@@ -715,6 +771,7 @@ const startWithRetry = async () => {
 };
 
 const shutdown = () => {
+  if (shadowTimer) clearInterval(shadowTimer);
   if (pollTimer) clearInterval(pollTimer);
   if (startRetryTimer) clearTimeout(startRetryTimer);
   healthServer?.close(() => process.exit(0));

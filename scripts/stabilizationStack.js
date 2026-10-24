@@ -6,6 +6,8 @@ const { spawn, spawnSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const root = path.resolve(__dirname, "..");
 const children = [];
+const dailyLauncher = process.argv.includes("--daily-launcher");
+const shadowRestart = process.argv.includes("--shadow-restart");
 fs.mkdirSync(path.join(root, "tmp"), { recursive: true });
 const output = fs.mkdtempSync(path.join(root, "tmp", "stabilization-"));
 const environment = {
@@ -74,7 +76,8 @@ async function main() {
       ["e2e/tests/public-smoke.spec.js", "e2e/tests/authentication-security.spec.js", "e2e/tests/role-workspaces.spec.js", "e2e/tests/route-inventory.spec.js"],
       ["e2e/tests/resilience-security.spec.js"],
       ["e2e/tests/part1-profile.workflow.spec.js"],
-      ["e2e/tests/user-policy-claim.workflow.spec.js", "--with-showcase"],
+      ["e2e/tests/user-policy-claim.workflow.spec.js", "--with-showcase", "--shadow-restart"],
+      ["e2e/tests/shadow-concurrency.workflow.spec.js"],
       ["e2e/tests/bank-eft.workflow.spec.js"],
       ["e2e/tests/hospital-records.maintenance.spec.js"],
       ["e2e/tests/unfinished-benefits.workflow.spec.js"],
@@ -90,7 +93,9 @@ async function main() {
   }
   // Refuse to attach to someone else's blockchain.
   try { const response = await fetch(environment.RPC_URL, { signal: AbortSignal.timeout(1000) }); if (response) throw new Error("RPC port is occupied"); } catch (error) { if (error.message === "RPC port is occupied") throw error; }
-  start("Hardhat", path.join(root, "contracts/node_modules/hardhat/internal/cli/cli.js"), ["node", "--hostname", "127.0.0.1"], path.join(root, "contracts"));
+  const chainChild = dailyLauncher
+    ? start("Hardhat daily chain", process.env.npm_execpath, ["run", "dev:chain"])
+    : start("Hardhat", path.join(root, "contracts/node_modules/hardhat/internal/cli/cli.js"), ["node", "--hostname", "127.0.0.1"], path.join(root, "contracts"));
   await waitFor(async () => (await fetch(environment.RPC_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }) })).ok, "Hardhat");
   await backend("resetLocalData.js", ["--yes", "--hybrid"]);
   await hardhat("scripts/fund-demo-accounts-local.js");
@@ -108,20 +113,54 @@ async function main() {
   await backend("fundContractLocal.js", ["5"]);
   await backend("pushMerkleRoot.js");
   start("Pinata simulator", path.join(root, "scripts/localPinataMock.js"));
+  if (dailyLauncher) {
+    environment.LOCAL_DEPLOYMENT_MANIFEST = path.join(output, "localhost-31337.json");
+    environment.DAILY_REPORT_DIR = output;
+    await run("Daily resume", path.join(root, "scripts/verifyDailyLifecycle.js"), ["resume"]);
+    if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(chainChild.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    else chainChild.kill("SIGTERM");
+    await run("Daily missing chain", path.join(root, "scripts/verifyDailyLifecycle.js"), ["missing-chain"]);
+    console.log(`[Stabilization] Daily lifecycle evidence: ${path.relative(root, output)}`);
+    return;
+  }
   if (environment.E2E_BACKEND_RPC_URL) {
     start("RPC recovery proxy", path.join(root, "scripts/localRpcProxy.js"));
     await waitFor(async () => (await fetch(`${environment.E2E_BACKEND_RPC_URL}/__control/status`)).ok, "RPC proxy");
   }
   start("Backend", path.join(root, "backEnd/server.js"), [], path.join(root, "backEnd"), environment.E2E_BACKEND_RPC_URL ? { RPC_URL: environment.E2E_BACKEND_RPC_URL } : {});
   start("Frontend", path.join(root, "frontEnd/node_modules/vite/bin/vite.js"), ["--host", "localhost", "--port", "5173", "--strictPort"], path.join(root, "frontEnd"));
-  for (const instance of [1, 2]) start(`Oracle ${instance}`, path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), { PORT: String(5100 + instance), ORACLE_INSTANCE_ID: String(instance), ORACLE_REGISTRY_SNAPSHOT: instance === 1 ? "primary" : "oracle2", ORACLE_START_BLOCK: String(deployment.deploymentBlock) });
+  const oracleChildren = [];
+  for (const instance of [1, 2]) oracleChildren.push(start(`Oracle ${instance}`, path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), { PORT: String(5100 + instance), ORACLE_INSTANCE_ID: String(instance), ORACLE_REGISTRY_SNAPSHOT: instance === 1 ? "primary" : "oracle2", ORACLE_START_BLOCK: String(deployment.deploymentBlock) }));
   await waitFor(async () => (await (await fetch("http://localhost:5000/health/ready")).json()).status === "ready", "Backend");
   await waitFor(async () => (await fetch("http://localhost:5173")).ok, "Frontend");
   for (const instance of [1, 2]) await waitFor(async () => (await fetch(`http://localhost:${5100 + instance}/health/ready`)).ok, `Oracle ${instance}`);
   const showcase = process.argv.includes("--with-showcase");
-  const specs = process.argv.slice(2).filter((arg) => arg !== "--with-showcase");
+  const specs = process.argv.slice(2).filter((arg) => !["--with-showcase", "--shadow-restart"].includes(arg));
   await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/unfinished-benefits.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, { E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: "playwright-reports/stabilization" });
   if (showcase) await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", "e2e/tests/showcase-coverage.spec.js", "--workers=1"], root, { E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: "playwright-reports/stabilization" });
+  if (shadowRestart) {
+    const mongoose = require("../backEnd/node_modules/mongoose");
+    await mongoose.connect(environment.MONGODB_URI);
+    try {
+      const Model = require("../backEnd/models/OracleShadowAssessment");
+      const before = await Model.countDocuments();
+      if (before < 2) throw new Error("No completed dual-worker shadow reports before restart");
+      if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(oracleChildren[0].pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+      else oracleChildren[0].kill("SIGTERM");
+      start("Oracle 1 restart recovery", path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), { PORT: "5101", ORACLE_INSTANCE_ID: "1", ORACLE_REGISTRY_SNAPSHOT: "primary", ORACLE_START_BLOCK: String(deployment.deploymentBlock) });
+      await waitFor(async () => {
+        const health = await (await fetch("http://127.0.0.1:5101/health/ready")).json();
+        return health.status === "ready" && health.shadow.successfulReports >= 1;
+      }, "Oracle shadow restart/backfill");
+      const after = await Model.countDocuments();
+      if (after !== before) throw new Error("Restart created duplicate shadow assessment records");
+      const rows = await Model.find().select("metrics").lean();
+      fs.writeFileSync(path.join(output, "shadow-restart.json"), JSON.stringify({ passed: true, before, after,
+        independentOracleProcessRestarted: true, idempotentBackfill: true, metricScope: "Process memory; context HTTP plus local verification/scoring, excluding report HTTP",
+        metrics: rows.map((r) => r.metrics) }, null, 2));
+      console.log(`[Stabilization] Shadow restart and operational evidence: ${path.relative(root, output)}`);
+    } finally { await mongoose.disconnect(); }
+  }
 }
 process.once("SIGINT", () => cleanup().then(() => process.exit(130)));
 process.once("SIGTERM", () => cleanup().then(() => process.exit(143)));

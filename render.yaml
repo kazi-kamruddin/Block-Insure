@@ -12,6 +12,9 @@ services:
         - oracle/observableFeatures.js
         - oracle/independentAssessment.js
         - oracle/xgboostAssessment.js
+        - oracle/advisoryBundle.js
+        - oracle/shadowAssessment.js
+        - oracle/merkleProof.js
         - scripts/observability.js
         - render.yaml
     envVars:
@@ -65,6 +68,11 @@ services:
         - oracle/**
         - backEnd/model-params.json
         - backEnd/triage-policy.json
+        - backEnd/artifacts/**
+        - backEnd/services/advisoryContextService.js
+        - backEnd/services/continuousFeatureService.js
+        - backEnd/research/context.js
+        - backEnd/research/phase3-plan.json
         - scripts/observability.js
         - render.yaml
     envVars:
@@ -100,6 +108,11 @@ services:
         - oracle/**
         - backEnd/model-params.json
         - backEnd/triage-policy.json
+        - backEnd/artifacts/**
+        - backEnd/services/advisoryContextService.js
+        - backEnd/services/continuousFeatureService.js
+        - backEnd/research/context.js
+        - backEnd/research/phase3-plan.json
         - scripts/observability.js
         - render.yaml
     envVars:

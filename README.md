@@ -25,6 +25,13 @@ modules.
 
 ## Local Services
 
+The [dual-worker shadow and release-assurance report](docs/shadow-release-assurance.md)
+describes independent worker context/root verification, signed reports, restart
+recovery, operational measurements and the actual daily-launcher checks. See
+the [deployment handoff](docs/shadow-deployment-handoff.md) before publishing a
+coordinated API/worker/frontend revision. Shadow agreement has no financial
+decision authority.
+
 The [XGBoost runtime advisory integration](docs/xgboost-advisory-phase3.md)
 makes XGBoost the primary assessment in Admin claim details, alongside the NB
 protocol comparison. Graph/temporal context, calibration, OOD, conformal sets
