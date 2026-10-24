@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-10-24T04:40:46.919Z",
+  "generatedAt": "2026-10-24T07:54:30.160Z",
   "source": {
-    "gitCommit": "340c41f63d9eb2500ba1998acd54abfd400087b9",
+    "gitCommit": "26c5b1075d3034ca4e0efa2afe60222ea5be8061",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -25,7 +25,7 @@
     "backend": {
       "name": "backend",
       "version": "1.0.0",
-      "packageJsonSha256": "84722e396c416641fd17d7ad181ed7cbd01fe47015a4c29b948ed5ec6d998cbb",
+      "packageJsonSha256": "6e5ca81ec7c3cfe80cd786a648f85cc63be1545fcf815d0b1281e65b415dc722",
       "packageLockSha256": "becedec0038de08aae5588246b8aa2ddc6508ce773b16f95014e4ae769dc8736"
     },
     "contracts": {
@@ -78,12 +78,28 @@
     "backEnd/scripts/generateEvaluationCharts.js": "fa922dd9aedd297b0be9ac1afd6642741d129bd729a7005952ebda97a630040c",
     "backEnd/scripts/generatePhase34Charts.js": "b4dfff7f0e2dcf4024e717f1d0cfb9224da217c191a9a33f1a2df8151808a372",
     "backEnd/scripts/generateChartManifest.js": "e963bdf148a7a1005609d28af1d188d18bf008c4c0adeb1350545356309a02fa",
-    "backEnd/scripts/generateResearchManifest.js": "4280afe4953c7f49552cf674da3bc85c4dd9457d61d237f3fbf57f157baa9a17",
+    "backEnd/scripts/generateResearchManifest.js": "2a67d854edac62a45c37bcfbce943145d51aa4e3a61af7bfb643a6de0dae5a96",
     "backEnd/scripts/buildHybridDataset.js": "b4eaa6a6e8bc327ad1248a556f5a48c3ee1c5dd33f75f271062cf1878c78a58c",
     "backEnd/scripts/validateHybridDataset.js": "36a24961539d61967e11f721d11fe1a8496e3c557a9097bd0b142b14078231eb",
     "backEnd/scripts/evaluateHybridDataset.js": "e709a66a2ee64d7c8163d825ebaa8fdef58996d3661b20f371adb70224888e2c",
     "backEnd/scripts/evaluateObservablePipeline.js": "fc2b6793be0a318d8e62a91366f8e48743fdaef3a40bb38f156d23dd71ec577b",
     "backEnd/scripts/runPrototypeStudy.js": "d76eeff574ac47879c25e7effa2d3e8d5693f0e124fa5bc3ecc4810107d2a708",
+    "backEnd/scripts/runAdvancedStudy.js": "82e5a36d2c7a7f3db74ddc5f1ce131cdd58558692fb984cc730c4d1602d3a8ab",
+    "backEnd/research/advanced-plan.json": "b0d39e96c5e4b63588bfece38ae5cbd1ee2286e9cec40d152a5dcc2ef7b39a1b",
+    "backEnd/research/requirements.txt": "184c48d4f292742c141e02a858e6c820229fa9aa6bb8b63c4a58ba76dacc8bbf",
+    "backEnd/research/context.js": "95842cfa612bf6c3220ee63d12b3b9cd3fb368f8591e9c60f256bcbaf1654a33",
+    "backEnd/research/export.js": "324fd2cbaf7db83d2fb4be47653c0bab742a226e613753ebac0ebb1e2fca680b",
+    "backEnd/research/components.py": "b51f3038b5b0795c7771f492054510e4757d37ed22bbf98ceed419f3bbde478b",
+    "backEnd/research/run.py": "1c19e9c9a9635a9a5ac9f0ab424ea04e8c2fcace66e141c663a94d7bec3ca270",
+    "backEnd/research/infer.py": "bf58aaf5fa8ba34609e65ee5db09b61068ecb303fd06cefd7ae78657b0760669",
+    "backEnd/research/predict.js": "bbdba209eafd396466673372796877d86a960737570d784d278b582fab49785f",
+    "backEnd/scripts/runEngineeredStudy.js": "31027f29c5d876d4d997bc90f9e0d3184c11180b5dedcf6b21345b6ff8793fb7",
+    "backEnd/research/engineering-plan-v2.json": "780a6f766ba0e3707c80d65cb4fea18ab0ddafed86d387920f4dec6fa2cdab7d",
+    "backEnd/research/scenariosV2.js": "a615c34d92ceab17db135f9041a6e6d015d2fa5fa14535b1ccf814f45c0ab7d0",
+    "backEnd/research/exportV2.js": "91d1e6d6cd08731d4a6ba2b148181d78cae2f68f84f28dbefed5cb635fbf1ad7",
+    "backEnd/research/runV2.py": "5401605b341ae0395684e450be38a5557f4fd746b51bb3329daaf8693662ebc7",
+    "backEnd/research/robust_components.py": "07d9adb31fab48f1b25a1e7836f4934a465142ce69969ce43dce952e2f930ab3",
+    "backEnd/research/auditV2.py": "195cd718777db2a9ba2d3e74d64957a6172cff2c7adcd947433a57dd3a67e232",
     "backEnd/scripts/benchmarkHybridRuntime.js": "2fc9d34e128c960cdbb1a551dd063c57b4cc44a12e237bfcc59883338ee8374f",
     "oracle/independentAssessment.js": "9fb46d1b564543107f07d6aae888cad1be5b240654484796a9d72721390c4645",
     "oracle/observableFeatures.js": "8a8066f60312aa4c3f67952392e153e2127282d9617749f1146956a829b242ab",
@@ -374,8 +390,10 @@
     "evidenceLifecycle": "npm --prefix backEnd run evaluate:evidence",
     "hybridEvaluation": "npm --prefix backEnd run evaluate:hybrid",
     "stagedObservableEvaluation": "npm --prefix backEnd run evaluate:observable",
+    "stagedAdvancedEvaluation": "npm --prefix backEnd run evaluate:advanced",
+    "engineeredActionEvaluation": "npm --prefix backEnd run evaluate:engineered",
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "bd16dfb6b4f3343579c33d88c3abe4d4a462eab66f74b1bd483eba505ec22493"
+  "reproducibilityHash": "f9938e1c337ce7f99e4fc1ebe1f58325c11582c4967280f7c641b9bf0fe72fa4"
 }

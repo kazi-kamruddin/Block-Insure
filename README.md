@@ -25,6 +25,16 @@ modules.
 
 ## Local Services
 
+The [source-grounded engineering follow-up](docs/advanced-engineering-v2.md)
+adds benign counterexamples, explicit simulated billing actions, availability-safe
+history and frozen shift tests. Class-conditional calibration helps pure prevalence
+shift but creates substantial review workload; promotion remains HOLD.
+
+The [advanced ML Phase 1/2 notes](docs/advanced-ml-phase12.md) describe the new
+offline graph/temporal, GBDT, calibration, TreeSHAP, OOD and conformal candidate.
+It is evaluated separately; the running application still uses its frozen NB
+artifact. The study records a HOLD decision, not an automatic model upgrade.
+
 The [24 October prototype-polish notes](docs/prototype-polish.md) cover the
 three-seed observable study, the HOLD promotion decision, evidence recovery,
 prepared Brevo email OTP delivery, confirmed benefit/payment projections and
@@ -334,4 +344,5 @@ cannot replace a valid JSON file with a partially written one.
 - [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
 - Six-page thesis paper: local `output/pdf/block-insure-six-page-paper.pdf` (ignored)
 - [Current portable project context](reference/context%20Block_Insure%2024oct.md) (local, ignored by Git)
+- [Local context reading guide](.project-context/00_PROJECT_BRIEF.md) — eight complementary overview/specialist files, ignored by Git.
 - Historical deep technical reference: local `reference/block-insure-deep-technical-reference.md` (ignored)

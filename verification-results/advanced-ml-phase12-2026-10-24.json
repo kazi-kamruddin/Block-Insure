@@ -1,0 +1,415 @@
+{
+  "reviewedAt": "2026-10-24T07:34:35.984Z",
+  "reviewDateDhaka": "24 October 2026",
+  "baseCommit": "26c5b1075d3034ca4e0efa2afe60222ea5be8061",
+  "studyDirectory": "docs/engineered/advanced-2026-10-24T07-28-37-781Z/study-20261024T073342Z",
+  "scope": "Offline Phase 1/2 candidate construction and exploratory testing; not runtime, public-network, browser, mailbox or natural-fraud verification",
+  "sourceSha256": {
+    "backEnd/model-params.json": "207621336349dc7de7df91f265b02139269fdf9b8589a4df1c32061c749b164f",
+    "backEnd/triage-policy.json": "0cb01b4fd4d8a7acf352795a3ac35a3a462a862c42e5c1747ed6c7c78a8e542b",
+    "oracle/observableFeatures.js": "8a8066f60312aa4c3f67952392e153e2127282d9617749f1146956a829b242ab",
+    "backEnd/services/featureEngineeringService.js": "c4d11607276130ce33b5e8928771f4f5b77b1cf7aa6bf93130f147d70e290c2e",
+    "backEnd/services/continuousFeatureService.js": "9d81cc13ed8c9980c784e9250822d3c16215cc9d42f135f7de77d36f6ba6247a",
+    "backEnd/services/hybridDatasetAdapterService.js": "9bb59818a78cb4326ec9912c43fbd9374ae87fb94edae9ae652cf73058e0105d",
+    "backEnd/scripts/buildHybridDataset.js": "b4eaa6a6e8bc327ad1248a556f5a48c3ee1c5dd33f75f271062cf1878c78a58c",
+    "backEnd/research/context.js": "2a63c4c1df197b1a738108d5b1a9c0eb7594af366efa4885017ac3aa7c5e97c4",
+    "backEnd/research/export.js": "324fd2cbaf7db83d2fb4be47653c0bab742a226e613753ebac0ebb1e2fca680b",
+    "backEnd/research/advanced-plan.json": "b0d39e96c5e4b63588bfece38ae5cbd1ee2286e9cec40d152a5dcc2ef7b39a1b",
+    "backEnd/research/components.py": "8364f65d59e9ebcaa1423e028a3a97ee275fb9f3f2feb974591178f22d671cce",
+    "backEnd/research/infer.py": "8d6c24512a33939ee36740f6506be43d9825687f7d22be09afc5b697e3a1cb88",
+    "backEnd/research/predict.js": "bbdba209eafd396466673372796877d86a960737570d784d278b582fab49785f",
+    "backEnd/research/requirements.txt": "184c48d4f292742c141e02a858e6c820229fa9aa6bb8b63c4a58ba76dacc8bbf",
+    "backEnd/research/run.py": "74f177a5ff9528a60d3395311cb62f4fafee1945bb047ddbda9585e3c38366c7",
+    "backEnd/research/test_components.py": "7e3793e6a82c50a2560ce1aae85da207531b26d13dd627e2945b023614b2bbcf",
+    "backEnd/research/test_inference.py": "ba1f312569ef014dee73e815f3b6c50f8cb8ee192176242fecccee076671155f",
+    "backEnd/scripts/runAdvancedStudy.js": "82e5a36d2c7a7f3db74ddc5f1ce131cdd58558692fb984cc730c4d1602d3a8ab",
+    "scripts/verifyAdvancedStudy.js": "7e7db638085535a6fed863abb274fba62c8afb5f0e64bb69ea2e784501c780cf"
+  },
+  "inputManifestSha256": "f98e1e085abe632fa895e981328f20121ccf2b8f913376bf37e6a247bb793223",
+  "summarySha256": "fcc13929f6278633153d2a6911cb66bbc47cf430948158b4fe344cde35c245c7",
+  "plan": {
+    "schemaVersion": "advanced-study-v1",
+    "recordedOn": "2026-10-24",
+    "scope": "Offline exploratory controlled-attack triage; never natural fraud probability or runtime promotion",
+    "priorExposure": "Existing source/scenario partition and prior test samples have been inspected. New sampling seeds do not create a confirmatory untouched study.",
+    "seeds": [
+      71,
+      113,
+      197
+    ],
+    "sampleSize": 3000,
+    "threads": 1,
+    "maxTrees": 80,
+    "depthCandidates": [
+      2,
+      3
+    ],
+    "conformalAlpha": 0.1,
+    "requestedReviewBudget": 0.6,
+    "bootstrapReplicates": 500,
+    "costWeights": {
+      "missedAttack": 10,
+      "unmutatedRoute": 1,
+      "review": 0.25
+    },
+    "split": "Inherited provider partitions, cross-partition patients purged before sampling; calibration providers divided into tuning, probability, conformal, policy groups with further patient purging",
+    "primaryQuestion": "Does the complete candidate reduce controlled-attack routing cost at a validation-selected review budget versus rules and retrained observable NB?",
+    "rivalExplanation": "Rules encode the detectable injected conditions; context adds no observable signal for concealed compromise, and complexity only adds false routes.",
+    "promotion": {
+      "automaticPromotion": false,
+      "decision": "HOLD unless independent evidence and runtime input commitments are available",
+      "necessaryChecks": [
+        "No label/future/group leakage",
+        "Mandatory rules never bypassed",
+        "No higher mean controlled cost or lower mean recall than rules and NB",
+        "Paired provider bootstrap cost difference upper bound below zero",
+        "Conformal marginal coverage measured with assumptions disclosed",
+        "OOD/abstention workload reported",
+        "Reference/export routing parity",
+        "Phase 3 authenticated history commitments and regressions not yet implemented"
+      ]
+    },
+    "componentPolicy": {
+      "graph": "Prior patient-provider graph only; no fabricated bank links or label-seeded suspicion propagation",
+      "temporal": "Date-resolution exponential Hawkes candidate fitted on training histories; exclude same-day events; no intraday claim",
+      "ood": "Regularized treatment-group covariance; diagnosis conditional only for groups with enough training support; explicit pooled fallback",
+      "explanations": "Native exact tree-path-dependent SHAP on raw margin, not calibrated-probability attribution",
+      "quantization": "Separate rounded export evaluated against reference; never silently substitute if routing differs"
+    }
+  },
+  "environment": {
+    "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26300-SP0",
+    "numpy": "2.2.6",
+    "scipy": "1.15.3",
+    "xgboost": "3.0.5",
+    "threads": 1
+  },
+  "testRows": {
+    "evaluations": 9000,
+    "uniqueSourceClaims": 7703,
+    "overlappingSamplingSeeds": true
+  },
+  "meanRouting": {
+    "rules_only": {
+      "cost": 1.2919166666666666,
+      "recall": 0.7685296189250668,
+      "f1": 0.8402045205814023,
+      "reviewRate": 0.41477777777777775
+    },
+    "gbdt_base": {
+      "cost": 1.2919166666666666,
+      "recall": 0.7685296189250668,
+      "f1": 0.8402045205814023,
+      "reviewRate": 0.41477777777777775
+    },
+    "gbdt_full": {
+      "cost": 1.2620555555555555,
+      "recall": 0.7818976672621499,
+      "f1": 0.8234568353859166,
+      "reviewRate": 0.44955555555555554
+    },
+    "without_history": {
+      "cost": 1.269638888888889,
+      "recall": 0.7781260738865962,
+      "f1": 0.8287721156171933,
+      "reviewRate": 0.439
+    },
+    "without_graph": {
+      "cost": 1.2683888888888888,
+      "recall": 0.7814420698557418,
+      "f1": 0.8202985417148798,
+      "reviewRate": 0.4526666666666667
+    },
+    "without_temporal": {
+      "cost": 1.268861111111111,
+      "recall": 0.7785726359865447,
+      "f1": 0.828089930461617,
+      "reviewRate": 0.4403333333333333
+    },
+    "without_ood": {
+      "cost": 1.274,
+      "recall": 0.7774256969683186,
+      "f1": 0.8275552144655421,
+      "reviewRate": 0.43955555555555553
+    },
+    "without_calibration": {
+      "cost": 1.2717222222222222,
+      "recall": 0.7769621540597044,
+      "f1": 0.8303446976869132,
+      "reviewRate": 0.43577777777777776
+    },
+    "without_conformal": {
+      "cost": 1.2771944444444445,
+      "recall": 0.7740497795337841,
+      "f1": 0.8348119274799829,
+      "reviewRate": 0.42744444444444446
+    },
+    "frozen_runtime_nb": {
+      "cost": 1.2920555555555555,
+      "recall": 0.7685296189250668,
+      "f1": 0.8401036621237369,
+      "reviewRate": 0.4148888888888889
+    },
+    "observable_nb": {
+      "cost": 1.2919166666666666,
+      "recall": 0.7685296189250668,
+      "f1": 0.8402045205814023,
+      "reviewRate": 0.41477777777777775
+    },
+    "binary_lr": {
+      "cost": 1.2919166666666666,
+      "recall": 0.7685296189250668,
+      "f1": 0.8402045205814023,
+      "reviewRate": 0.41477777777777775
+    },
+    "continuous_lr": {
+      "cost": 1.2919166666666666,
+      "recall": 0.7685296189250668,
+      "f1": 0.8402045205814023,
+      "reviewRate": 0.41477777777777775
+    }
+  },
+  "evaluations": [
+    {
+      "seed": 71,
+      "pipelineSha256": "b75b140c63d1624eeeecc20cafab49512f07c5ce05d20d27eb5c7fb8f74330c7",
+      "modelSha256": "78c15c91dc6d5d807d9fc3b2250e0f218c78ca28d385188b55184fb7e4c82779",
+      "metrics": {
+        "tp": 1189,
+        "fp": 136,
+        "fn": 326,
+        "tn": 1349,
+        "precision": 0.8973584905660378,
+        "recall": 0.7848184818481848,
+        "f1": 0.8373239436619718,
+        "reviewRate": 0.44166666666666665,
+        "unmutatedRouteRate": 0.09158249158249158,
+        "cost": 1.2424166666666667
+      },
+      "parity": {
+        "rows": 3000,
+        "referenceMaxProbabilityError": 8.090529202142704e-8,
+        "referenceRoutingDifferences": 0,
+        "rounded6MaxProbabilityError": 0.6524273907360233,
+        "rounded6RoutingDifferences": 0,
+        "shapRawMarginMaxAdditivityError": 0.000002384185791015625,
+        "quantizedPromotion": "REJECTED; native model retained; six-decimal probability or routing differences violate fidelity",
+        "packagedPreprocessingRowsExactlyMatched": 3000
+      },
+      "conformal": {
+        "coverage": 0.7276666666666667,
+        "classCoverage": {
+          "0": 0.9649831649831649,
+          "1": 0.49504950495049505
+        },
+        "meanSetSize": 0.91,
+        "ambiguousOrEmptyRate": 0.09,
+        "singletonCount": 2730,
+        "singletonError": 0.20036630036630038,
+        "note": "Marginal empirical coverage only; 12% calibration vs 50% test injection prevalence breaks exchangeability"
+      },
+      "pairedUncertainty": {
+        "rules_only": {
+          "costDifference": -0.03533333333333322,
+          "percentile95": [
+            -0.06519432158689767,
+            -0.009996320508743037
+          ],
+          "clusters": 545,
+          "repetitions": 500,
+          "scope": "exploratory paired provider bootstrap; no multiplicity-adjusted superiority claim"
+        },
+        "observable_nb": {
+          "costDifference": -0.03533333333333322,
+          "percentile95": [
+            -0.06519432158689767,
+            -0.009996320508743037
+          ],
+          "clusters": 545,
+          "repetitions": 500,
+          "scope": "exploratory paired provider bootstrap; no multiplicity-adjusted superiority claim"
+        },
+        "frozen_runtime_nb": {
+          "costDifference": -0.03574999999999995,
+          "percentile95": [
+            -0.0654139036874894,
+            -0.010426672936503243
+          ],
+          "clusters": 545,
+          "repetitions": 500,
+          "scope": "exploratory paired provider bootstrap; no multiplicity-adjusted superiority claim"
+        }
+      }
+    },
+    {
+      "seed": 113,
+      "pipelineSha256": "a191d651e680d30219202c6f37521d96bdc481ab3147f8140b7490cce1d20425",
+      "modelSha256": "608816505634624345435232d65d0204a10087b4f81b8f8a3d16e2d02afefd8b",
+      "metrics": {
+        "tp": 1153,
+        "fp": 186,
+        "fn": 353,
+        "tn": 1308,
+        "precision": 0.8610903659447349,
+        "recall": 0.7656042496679947,
+        "f1": 0.8105448154657293,
+        "reviewRate": 0.44633333333333336,
+        "unmutatedRouteRate": 0.12449799196787148,
+        "cost": 1.35025
+      },
+      "parity": {
+        "rows": 3000,
+        "referenceMaxProbabilityError": 8.266759909947297e-8,
+        "referenceRoutingDifferences": 0,
+        "rounded6MaxProbabilityError": 0.5264288984642994,
+        "rounded6RoutingDifferences": 1,
+        "shapRawMarginMaxAdditivityError": 0.0000021457672119140625,
+        "quantizedPromotion": "REJECTED; native model retained; six-decimal probability or routing differences violate fidelity",
+        "packagedPreprocessingRowsExactlyMatched": 3000
+      },
+      "conformal": {
+        "coverage": 0.7513333333333333,
+        "classCoverage": {
+          "0": 0.9176706827309237,
+          "1": 0.5863213811420983
+        },
+        "meanSetSize": 0.9296666666666666,
+        "ambiguousOrEmptyRate": 0.07033333333333333,
+        "singletonCount": 2789,
+        "singletonError": 0.1918250268913589,
+        "note": "Marginal empirical coverage only; 12% calibration vs 50% test injection prevalence breaks exchangeability"
+      },
+      "pairedUncertainty": {
+        "rules_only": {
+          "costDifference": -0.016583333333333394,
+          "percentile95": [
+            -0.041591980159966506,
+            0.007061690851071046
+          ],
+          "clusters": 548,
+          "repetitions": 500,
+          "scope": "exploratory paired provider bootstrap; no multiplicity-adjusted superiority claim"
+        },
+        "observable_nb": {
+          "costDifference": -0.016583333333333394,
+          "percentile95": [
+            -0.041591980159966506,
+            0.007061690851071046
+          ],
+          "clusters": 548,
+          "repetitions": 500,
+          "scope": "exploratory paired provider bootstrap; no multiplicity-adjusted superiority claim"
+        },
+        "frozen_runtime_nb": {
+          "costDifference": -0.016583333333333394,
+          "percentile95": [
+            -0.041591980159966506,
+            0.007061690851071046
+          ],
+          "clusters": 548,
+          "repetitions": 500,
+          "scope": "exploratory paired provider bootstrap; no multiplicity-adjusted superiority claim"
+        }
+      }
+    },
+    {
+      "seed": 197,
+      "pipelineSha256": "a20b8c52a268be84e2dcef695d6539e9dae5930f436a9e442bb6edf668ba0c2a",
+      "modelSha256": "2af1d671664b330bf3a331722568ef6454880edb221b13dd8fd1f2f34335c097",
+      "metrics": {
+        "tp": 1177,
+        "fp": 205,
+        "fn": 303,
+        "tn": 1315,
+        "precision": 0.8516642547033285,
+        "recall": 0.7952702702702703,
+        "f1": 0.822501747030049,
+        "reviewRate": 0.46066666666666667,
+        "unmutatedRouteRate": 0.13486842105263158,
+        "cost": 1.1935
+      },
+      "parity": {
+        "rows": 3000,
+        "referenceMaxProbabilityError": 8.031302112243566e-8,
+        "referenceRoutingDifferences": 0,
+        "rounded6MaxProbabilityError": 0.040170044627413026,
+        "rounded6RoutingDifferences": 15,
+        "shapRawMarginMaxAdditivityError": 0.000002384185791015625,
+        "quantizedPromotion": "REJECTED; native model retained; six-decimal probability or routing differences violate fidelity",
+        "packagedPreprocessingRowsExactlyMatched": 3000
+      },
+      "conformal": {
+        "coverage": 0.7343333333333333,
+        "classCoverage": {
+          "0": 0.9039473684210526,
+          "1": 0.5601351351351351
+        },
+        "meanSetSize": 0.9006666666666666,
+        "ambiguousOrEmptyRate": 0.09933333333333333,
+        "singletonCount": 2702,
+        "singletonError": 0.18467801628423391,
+        "note": "Marginal empirical coverage only; 12% calibration vs 50% test injection prevalence breaks exchangeability"
+      },
+      "pairedUncertainty": {
+        "rules_only": {
+          "costDifference": -0.03766666666666674,
+          "percentile95": [
+            -0.07756362827563888,
+            -0.00570983163001576
+          ],
+          "clusters": 556,
+          "repetitions": 500,
+          "scope": "exploratory paired provider bootstrap; no multiplicity-adjusted superiority claim"
+        },
+        "observable_nb": {
+          "costDifference": -0.03766666666666674,
+          "percentile95": [
+            -0.07756362827563888,
+            -0.00570983163001576
+          ],
+          "clusters": 556,
+          "repetitions": 500,
+          "scope": "exploratory paired provider bootstrap; no multiplicity-adjusted superiority claim"
+        },
+        "frozen_runtime_nb": {
+          "costDifference": -0.03766666666666674,
+          "percentile95": [
+            -0.07756362827563888,
+            -0.00570983163001576
+          ],
+          "clusters": 556,
+          "repetitions": 500,
+          "scope": "exploratory paired provider bootstrap; no multiplicity-adjusted superiority claim"
+        }
+      }
+    }
+  ],
+  "promotion": "HOLD",
+  "promotionChecks": {
+    "lowerMeanCostThanRules": true,
+    "allSeedCostIntervalsExcludeZeroVsRulesAndNB": false,
+    "allSeedEmpiricalConformalCoverageAtNominal": false,
+    "allSeedReferenceRoutingParity": true,
+    "independentConfirmatoryEvidence": false,
+    "runtimeContextCommitments": false,
+    "note": "Diagnostic gates, not post-hoc new success criteria; raw confidence intervals are exploratory and not multiplicity adjusted."
+  },
+  "limitations": [
+    "Controlled modifications, not natural fraud ground truth",
+    "Shared source/scenario construction, not independent dataset replication",
+    "No real bank graph",
+    "Date-resolution approximate Hawkes; left truncation and 90-day inference window; shared provider rates can confound excitation",
+    "Sparse diagnosis groups use treatment/pooled OOD fallback",
+    "Conformal coverage not guaranteed across injection-prevalence or provider shift",
+    "Graph rankings are structural, not proof of collusion",
+    "Component ablations refit OOD with removed component excluded; all other gates retained",
+    "Phase 1/2 only; no runtime promotion, contract change or hosted deployment",
+    "Native exact path-dependent SHAP is explanatory, not causal or calibrated-percentage attribution"
+  ],
+  "baselineUnchanged": {
+    "model": true,
+    "policy": true
+  },
+  "pilotEvidence": "Two earlier exploratory study directories retained under advanced-2026-10-24-phase12; ablation OOD refit and context order checks corrected before the final end-to-end command. Pilots are not independent replications."
+}

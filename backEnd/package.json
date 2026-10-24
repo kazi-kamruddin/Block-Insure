@@ -34,6 +34,8 @@
     "evaluate:hybrid": "node scripts/evaluateHybridDataset.js",
     "evaluate:observable": "node --max-old-space-size=768 scripts/evaluateObservablePipeline.js",
     "evaluate:prototype": "node --expose-gc --max-old-space-size=768 scripts/runPrototypeStudy.js",
+    "evaluate:advanced": "node --max-old-space-size=768 scripts/runAdvancedStudy.js",
+    "evaluate:engineered": "node --max-old-space-size=768 scripts/runEngineeredStudy.js",
     "benchmark:hybrid": "node scripts/benchmarkHybridRuntime.js",
     "evaluate:reserve": "node scripts/evaluateReserveAdequacy.js",
     "evaluate:evidence": "node scripts/evaluateEvidenceLifecycle.js",

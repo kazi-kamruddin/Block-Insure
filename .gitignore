@@ -22,6 +22,9 @@ coverage/
 /docs/synthea_sample_data_csv_latest.zip
 /docs/synthea_sample_data_csv_latest/
 /docs/engineered/observable-*/
+/docs/engineered/advanced-*/
+/backEnd/research/.venv/
+__pycache__/
 /playwright-reports/
 /playwright-report-frontend/
 # Keep small dated verification summaries; exclude generated media and traces.
