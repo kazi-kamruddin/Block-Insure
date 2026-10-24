@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-10-24T09:54:18.787Z",
+  "generatedAt": "2026-10-24T10:04:10.509Z",
   "source": {
-    "gitCommit": "9a98b55c4f7cfd1bb7abab3116e0c89312f9503c",
+    "gitCommit": "8a7b19aa0a13aaf2de7c5ea7efd32f22db4c2fa8",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -19,7 +19,7 @@
     "root": {
       "name": "block-insure-local-workflow",
       "version": "1.0.0",
-      "packageJsonSha256": "cc4fa185437fb8ba105eb00ad3259ff3debb2091a05b0300f0e53753f8516356",
+      "packageJsonSha256": "bd8bfc99459b4416319ba64546c6697b12eaf324974e070f3e443e51e692acad",
       "packageLockSha256": "cb7cc340dc707bc9b936dbdf38e1d988d435bd5aebeb23763feea56c56b8f740"
     },
     "backend": {
@@ -418,5 +418,5 @@
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "4882afbd51e30c957fbe8e0ea3e7995aa84c2e26b7bafbffd5cd0c49f1090d55"
+  "reproducibilityHash": "8fd44b0b3d80a7a642886a7ed5886882853d41fd5aad5f0d9aabf25027c8c610"
 }

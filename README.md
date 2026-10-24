@@ -25,6 +25,10 @@ modules.
 
 ## Local Services
 
+For the next hands-on steps, start with the [manual setup and Brevo walkthrough](docs/manual-next-steps.md).
+`npm run preflight:manual` checks configuration offline without displaying secrets;
+add `-- --local` for bounded local readiness probes. It starts or resets no services.
+
 The [dual-worker shadow and release-assurance report](docs/shadow-release-assurance.md)
 describes independent worker context/root verification, signed reports, restart
 recovery, operational measurements and the actual daily-launcher checks. See
