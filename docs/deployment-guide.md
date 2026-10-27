@@ -1,5 +1,10 @@
 # Deployment Guide
 
+For the current coordinated model rollout, explicit migration/rollback, hosted
+preview settings and separate Sepolia/Base Sepolia measurement preparation, use
+[XGBoost protocol migration](xgboost-protocol-migration.md). The optional
+self-hosted topology below is an alternative to the existing Vercel/Render setup.
+
 ## Deployment boundary
 
 Block-Insure is a research prototype. Deploy it with synthetic or consented test

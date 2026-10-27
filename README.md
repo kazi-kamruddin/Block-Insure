@@ -25,23 +25,34 @@ modules.
 
 ## Local Services
 
+The [27 October XGBoost protocol migration](docs/xgboost-protocol-migration.md)
+makes the complete XGBoost pipeline the risk-routing default for fresh deployments.
+Both workers compute request-bound scores before commit/reveal, preserving proof
+checks, exact agreement, Auditor authority and pull-payment settlement. Existing
+deployments keep their current default until the explicit migration is applied;
+historical NB requests retain their frozen evaluator. Check packaging with
+`npm run protocol:check`. The guide includes dry-run/rollback, monitoring,
+Brevo completion, separate Sepolia/Base Sepolia configuration and actual receipt
+measurement. Hosted processing remains disabled until deliberately configured.
+
 For the next hands-on steps, start with the [manual setup and Brevo walkthrough](docs/manual-next-steps.md).
 `npm run preflight:manual` checks configuration offline without displaying secrets;
 add `-- --local` for bounded local readiness probes. It starts or resets no services.
 
-The [dual-worker shadow and release-assurance report](docs/shadow-release-assurance.md)
+The historical [dual-worker shadow and release-assurance report](docs/shadow-release-assurance.md)
 describes independent worker context/root verification, signed reports, restart
 recovery, operational measurements and the actual daily-launcher checks. See
 the [deployment handoff](docs/shadow-deployment-handoff.md) before publishing a
 coordinated API/worker/frontend revision. Shadow agreement has no financial
 decision authority.
 
-The [XGBoost runtime advisory integration](docs/xgboost-advisory-phase3.md)
+The historical [XGBoost runtime advisory integration](docs/xgboost-advisory-phase3.md)
 makes XGBoost the primary assessment in Admin claim details, alongside the NB
 protocol comparison. Graph/temporal context, calibration, OOD, conformal sets
 and exact SHAP explanations run on committed registry snapshots. The balanced
 advisory does not independently route claims or change the Oracle protocol;
-the 30% validation comparison budget is not a live queue guarantee.
+the 30% validation comparison budget is not a live queue guarantee. These paragraphs
+describe the 24 October stage; the migration guide above owns the current model arrangement.
 
 The [source-grounded engineering follow-up](docs/advanced-engineering-v2.md)
 adds benign counterexamples, explicit simulated billing actions, availability-safe
@@ -51,7 +62,7 @@ shift but creates substantial review workload; promotion remains HOLD.
 The [advanced ML Phase 1/2 notes](docs/advanced-ml-phase12.md) describe the new
 offline graph/temporal, GBDT, calibration, TreeSHAP, OOD and conformal candidate.
 That historical study records a HOLD decision. The running Oracle protocol
-retains its frozen NB artifact; the newer Admin advisory uses a separately
+at that stage retained its frozen NB artifact; the newer Admin advisory uses a separately
 versioned, balanced XGBoost policy, without claiming an overall performance win.
 
 The [24 October prototype-polish notes](docs/prototype-polish.md) cover the
@@ -362,6 +373,6 @@ cannot replace a valid JSON file with a partially written one.
 - [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
 - [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
 - Six-page thesis paper: local `output/pdf/block-insure-six-page-paper.pdf` (ignored)
-- [Current portable project context](reference/context%20Block_Insure%2024oct.md) (local, ignored by Git)
+- [Current portable project context](reference/context%20Block_Insure%2027oct.md) (local, ignored by Git)
 - [Local context reading guide](.project-context/00_PROJECT_BRIEF.md) — eight complementary overview/specialist files, ignored by Git.
 - Historical deep technical reference: local `reference/block-insure-deep-technical-reference.md` (ignored)

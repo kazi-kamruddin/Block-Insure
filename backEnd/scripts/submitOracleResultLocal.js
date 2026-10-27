@@ -14,6 +14,7 @@ const submitOracleResultLocal = async () => {
     const requestId = BigInt(process.argv[2] || "1");
     const verified = (process.argv[3] || "true") === "true";
     const provider = new ethers.JsonRpcProvider(requireEnv("RPC_URL"));
+    if ((await provider.getNetwork()).chainId !== 31337n) throw new Error("Manual synthetic verdict helper is local-only");
     const manager = new ethers.Contract(
       requireEnv("VITE_CONTRACT_ADDRESS"),
       InsuranceManagerArtifact.abi,
@@ -29,6 +30,9 @@ const submitOracleResultLocal = async () => {
       OracleCoordinatorArtifact.abi,
       provider
     ).getRequest(requestId);
+    if (require("../../oracle/runtimeProtocol").resolveRequestModel(request.modelVersion).kind !== "legacy-nb") {
+      throw new Error("XGBoost requests require the independently evaluated workers; this synthetic helper cannot supply their verdict");
+    }
     const resultHash = ethers.keccak256(
       ethers.AbiCoder.defaultAbiCoder().encode(
         ["string", "uint256", "uint256", "bool"],

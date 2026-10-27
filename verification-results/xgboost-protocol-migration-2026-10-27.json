@@ -1,0 +1,523 @@
+{
+  "schema": "block-insure-xgboost-protocol-migration-v1",
+  "reviewDate": "2026-10-27",
+  "timezone": "Asia/Dhaka",
+  "generatedAt": "2026-10-26T18:16:32.394Z",
+  "baseCommit": "b661eadfab5eba5363e5f054538889978f37c7ed",
+  "sourceBoundary": "Uncommitted worktree over baseline; no Git staging, commit, push or hosted activation. Staged/focused tests, not one uninterrupted final-hash campaign.",
+  "model": {
+    "identity": "0xf86d83cbf87ac192b77aaf5bf830d99f7f4b01daf04c9f905502d3161b3fda8a",
+    "legacyIdentity": "0x291d87466f849c14d63b382e58436fc235b31ad0ecd777a4ee82b376d70492af",
+    "bundleHash": "e83eab8c8df7c9996471c754d352d9201ffd30246184c72cd1943c612d2ab380",
+    "manifestHash": "b25735bde8b34b0a9f67b89b6bbeb93ccc3920fe34b0f75666dfd14aa7888d26",
+    "thresholdUnits": 86932212,
+    "scoreScale": 1000000000,
+    "weightsChanged": false,
+    "newClassificationStudy": false,
+    "lastClassificationStudyDate": "2026-10-24",
+    "decision": "Full XGBoost risk-routing default on fresh deployment; historical NB request dispatch retained. OOD/conformal warnings alone do not force review; existing integrity, quorum, reserve and withdrawal authority preserved."
+  },
+  "completedChecks": {
+    "backend": {
+      "passed": 212,
+      "analyticsAlsoPassed": true
+    },
+    "oracle": {
+      "passed": 30
+    },
+    "contracts": {
+      "passed": 143,
+      "solidityOrAbiChanged": false,
+      "includesStatefulInvariants": true
+    },
+    "actualMongo": {
+      "passed": 14,
+      "includesConcurrentDurableDecisionsAndReload": true
+    },
+    "migrationCLI": {
+      "passed": true,
+      "modelIdentity": "0xf86d83cbf87ac192b77aaf5bf830d99f7f4b01daf04c9f905502d3161b3fda8a",
+      "dryRunSentNothing": true,
+      "authorizedRollback": true,
+      "authorizedPromotion": true,
+      "staleExpectationRejected": true,
+      "unauthorizedSignerRejected": true,
+      "rejectedCallsSentNothing": true,
+      "defaultUnchangedAfterRejectedCalls": true,
+      "savedEnvironmentsAndManifestUnchanged": true,
+      "readOnlyReceiptMeasurement": {
+        "schema": "block-insure-network-measurement-v1",
+        "measuredAt": "2026-10-26T18:10:03.069Z",
+        "chainId": "31337",
+        "manifestSha256": "4f649da51ce2c56e04d192dd7a87d48bd2ffc5061e75feaff758bcc515a091f0",
+        "deploymentModelIdentity": "0xf86d83cbf87ac192b77aaf5bf830d99f7f4b01daf04c9f905502d3161b3fda8a",
+        "rows": [
+          {
+            "operation": "InsuranceManager local deployment",
+            "transactionHash": "0xd95385d8f02275f6cf4c2efc9bb95a8701b93ecca4197fec9c333afe4a9296bd",
+            "successful": true,
+            "blockNumber": 1,
+            "contractAddress": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+            "gasUsed": "9703943",
+            "effectiveGasPriceWei": "1875000000",
+            "executionFeeWei": "18194893125000000",
+            "l1DataFeeWei": null,
+            "executionPlusKnownDataFeeWei": null,
+            "blockTimestamp": "2026-10-26T18:10:02.000Z",
+            "observedSubmissionToBlockMs": null,
+            "timingMeaning": "Optional user-recorded submission to block timestamp; not finality, server latency or RPC receipt retrieval time"
+          }
+        ],
+        "limitations": "Testnet observations, not mainnet price estimates. Missing L1 data fee is unknown, never zero. executionPlusKnownDataFee is not universally all-in (operator/other chain fees may apply). Rows are not an additive lifecycle; no finality assertion."
+      },
+      "scope": "Explicit isolated chain 31337; no MongoDB, public deployment, hosted activation or Git writes"
+    },
+    "python": {
+      "passed": 23,
+      "scope": "Existing mathematical/component regression; not retraining or classification reevaluation"
+    },
+    "frontend": {
+      "lint": true,
+      "build": true,
+      "productionBrowserCases": 7,
+      "mobileMinimumWidth": 320
+    },
+    "repository": {
+      "groups": 7
+    },
+    "synchronization": true,
+    "packageChecks": {
+      "advisory": true,
+      "protocol": true,
+      "sourceOnlyApiEthersResolution": true,
+      "dockerSourceClosure": true,
+      "imagesBuilt": false
+    },
+    "releaseTemplate": true,
+    "dependencyAudits": {
+      "backEnd": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "frontEnd": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "oracle": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    },
+    "stagedAuthenticatedBrowser": {
+      "distinctCases": 43,
+      "composition": {
+        "publicAuthRolesRoutes": 17,
+        "httpSecurity": 4,
+        "profile": 1,
+        "claimWorkflows": 2,
+        "showcase": 4,
+        "concurrentClaims": 1,
+        "bank": 2,
+        "hospital": 2,
+        "benefits": 3,
+        "boundaries": 3,
+        "finalityAndAppeals": 3,
+        "rpcRecovery": 1
+      },
+      "finalIdentityRerunCases": 7,
+      "finalIdentityRerunScope": "Claim auto/manual settlement + four showcase cases + concurrent submissions. Other staged cases passed earlier in this work session before final shared-dependency resolution and malformed-output guard fixes; not relabelled as final-identity full coverage."
+    },
+    "protocolRestart": {
+      "passed": true,
+      "requestId": "1",
+      "restartedAfterCommitBeforeReveal": true,
+      "sameMinedCommitment": true,
+      "restartedWorkerRevealed": true,
+      "boundary": "Existing local disposable deployment only; no Docker/system restart"
+    },
+    "shadowRestart": {
+      "passed": true,
+      "before": 2,
+      "after": 2,
+      "independentOracleProcessRestarted": true,
+      "idempotentBackfill": true,
+      "metricScope": "Process memory; context HTTP plus local verification/scoring, excluding report HTTP",
+      "metrics": [
+        {
+          "totalMs": 922.5809000000008,
+          "scoringMs": 102.22320000000764,
+          "rssBytes": 104513536,
+          "heapUsedBytes": 26264576
+        },
+        {
+          "totalMs": 1395.6142,
+          "scoringMs": 99.81520000000091,
+          "rssBytes": 110018560,
+          "heapUsedBytes": 25998408
+        }
+      ]
+    },
+    "dailyResume": {
+      "mode": "resume",
+      "passed": true,
+      "actualCommand": "npm run dev (twice)",
+      "chainCommand": "npm run dev:chain",
+      "sentinelPreserved": true,
+      "countersPreserved": true,
+      "externalChainPreserved": true,
+      "allFourServiceReadinessChecked": true,
+      "savedFilesUnchanged": true
+    },
+    "dailyMissingChain": {
+      "mode": "missing-chain",
+      "passed": true,
+      "exitCode": 1,
+      "recoveryInstructions": true,
+      "sentinelPreserved": true,
+      "noApplicationServicesStarted": true,
+      "savedFilesUnchanged": true
+    },
+    "operational": {
+      "observedAt": "2026-10-26T17:58:53.906Z",
+      "sampleCount": 4,
+      "modelIdentities": [
+        "0xf86d83cbf87ac192b77aaf5bf830d99f7f4b01daf04c9f905502d3161b3fda8a"
+      ],
+      "observations": [
+        {
+          "successfulAttemptHandlingMs": 7249,
+          "verified": true,
+          "score": 0.067415682
+        },
+        {
+          "successfulAttemptHandlingMs": 18558,
+          "verified": true,
+          "score": 0.067415682
+        },
+        {
+          "successfulAttemptHandlingMs": 11760,
+          "verified": false,
+          "score": null
+        },
+        {
+          "successfulAttemptHandlingMs": 15899,
+          "verified": false,
+          "score": null
+        }
+      ],
+      "decisionReceipts": 4,
+      "scope": "Local tests with an artificial 10s Oracle-2 delay and Oracle-1 restart; successful-attempt timer excludes its abandoned pre-crash attempt. Not normal-network latency, peak memory, throughput or fraud accuracy."
+    },
+    "finalSanity": {
+      "passed": true,
+      "contextFiles": 10,
+      "referenceFiles": 1,
+      "allIgnored": true,
+      "localLinksChecked": 123,
+      "startupFingerprints": 16,
+      "syntaxFiles": 37,
+      "evidenceSourceHashesMatch": true,
+      "gitIndexUnchanged": true
+    },
+    "executionLedger": [
+      {
+        "name": "backend",
+        "startedAt": "2026-10-26T17:58:57.173Z",
+        "endedAt": "2026-10-26T17:59:15.751Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "oracle",
+        "startedAt": "2026-10-26T17:59:15.753Z",
+        "endedAt": "2026-10-26T17:59:18.457Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "contracts",
+        "startedAt": "2026-10-26T17:59:18.457Z",
+        "endedAt": "2026-10-26T17:59:29.587Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "mongo",
+        "startedAt": "2026-10-26T17:59:29.587Z",
+        "endedAt": "2026-10-26T17:59:33.943Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "python",
+        "startedAt": "2026-10-26T17:59:33.944Z",
+        "endedAt": "2026-10-26T17:59:40.601Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "lint",
+        "startedAt": "2026-10-26T17:59:40.602Z",
+        "endedAt": "2026-10-26T17:59:58.664Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "production-ui",
+        "startedAt": "2026-10-26T17:59:58.665Z",
+        "endedAt": "2026-10-26T18:00:24.505Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "advisory-package",
+        "startedAt": "2026-10-26T18:00:24.505Z",
+        "endedAt": "2026-10-26T18:00:24.575Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "protocol-package",
+        "startedAt": "2026-10-26T18:00:24.575Z",
+        "endedAt": "2026-10-26T18:00:24.653Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "synchronization",
+        "startedAt": "2026-10-26T18:00:24.654Z",
+        "endedAt": "2026-10-26T18:00:24.751Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "research-manifest",
+        "startedAt": "2026-10-26T18:00:24.752Z",
+        "endedAt": "2026-10-26T18:00:25.341Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "repository",
+        "startedAt": "2026-10-26T18:00:25.342Z",
+        "endedAt": "2026-10-26T18:00:26.216Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "release-template",
+        "startedAt": "2026-10-26T18:00:26.217Z",
+        "endedAt": "2026-10-26T18:00:26.432Z",
+        "exitCode": 0,
+        "spawnError": false
+      },
+      {
+        "name": "audit-backEnd",
+        "startedAt": "2026-10-26T18:00:26.432Z",
+        "endedAt": "2026-10-26T18:00:35.131Z",
+        "exitCode": 0,
+        "spawnError": false,
+        "vulnerabilities": {
+          "info": 0,
+          "low": 0,
+          "moderate": 0,
+          "high": 0,
+          "critical": 0,
+          "total": 0
+        }
+      },
+      {
+        "name": "audit-frontEnd",
+        "startedAt": "2026-10-26T18:00:35.132Z",
+        "endedAt": "2026-10-26T18:00:36.129Z",
+        "exitCode": 0,
+        "spawnError": false,
+        "vulnerabilities": {
+          "info": 0,
+          "low": 0,
+          "moderate": 0,
+          "high": 0,
+          "critical": 0,
+          "total": 0
+        }
+      },
+      {
+        "name": "audit-oracle",
+        "startedAt": "2026-10-26T18:00:36.130Z",
+        "endedAt": "2026-10-26T18:00:37.226Z",
+        "exitCode": 0,
+        "spawnError": false,
+        "vulnerabilities": {
+          "info": 0,
+          "low": 0,
+          "moderate": 0,
+          "high": 0,
+          "critical": 0,
+          "total": 0
+        }
+      }
+    ]
+  },
+  "problemsAndCorrections": [
+    "Initial Docker/backend unavailability and native Windows Node failures interrupted early attempts. User reopened Desktop; only the existing container was started. No Docker/WSL/system settings changed.",
+    "Windows reboot interrupted active attempts; they are not counted as successful checks. Subsequent tests ran serially with optional per-process RAYON_NUM_THREADS=2 and UV_THREADPOOL_SIZE=2.",
+    "Browser monitoring assertion found valid mined results rejected because worker proof diagnostics extended the stored routing receipt. Compare canonical routing fields, validate the result hash, and store the pinned receipt; regression and real-browser reruns passed.",
+    "API-only source packaging reproduced missing ethers resolution in shared protocol hashing. Resolve from the installed API or Oracle subsystem; focused package test and final browser checks passed.",
+    "Malformed/nonfinite/out-of-range inference output lacked an explicit wrapper guard. Added fail-closed validation with regression coverage; final protocol package and live worker reruns passed.",
+    "Final diff check found mixed CRLF additions in two un-hashed backend files; normalized line endings and reran synchronization/repository checks."
+  ],
+  "scopeByPoint": [
+    {
+      "point": 1,
+      "title": "XGBoost operational arrangement",
+      "status": "implemented and locally tested",
+      "result": "Full pipeline drives new XGBoost-bound Oracle routing; NB historical compatibility and comparisons retained."
+    },
+    {
+      "point": 2,
+      "title": "Decision/escalation policy",
+      "status": "implemented and locally tested",
+      "result": "Frozen >= threshold plus mandatory integrity rules; uncertainty-only warnings do not force review. No model fraud verdict or altered Auditor authority."
+    },
+    {
+      "point": 3,
+      "title": "Coordinated migration",
+      "status": "implemented and locally tested",
+      "result": "Version-bound context/artifact/commit-reveal, first-decision storage, old-request tests, CLI promotion/rollback and authorization tests. Hosted default not changed."
+    },
+    {
+      "point": 4,
+      "title": "Model update governance",
+      "status": "implemented for named versions; documented future update procedure",
+      "result": "Package identity, explicit repackage/evaluate/rollout and default rollback. Future artifacts require archived evaluator/dispatch support; no automatic retraining."
+    },
+    {
+      "point": 5,
+      "title": "Operational monitoring",
+      "status": "implemented and locally tested",
+      "result": "Admin-only bounded deployment-scoped receipt-validated score/history/uncertainty/failure summaries; no inferred accuracy."
+    },
+    {
+      "point": 6,
+      "title": "Migration regressions",
+      "status": "completed for recorded scopes",
+      "result": "Unit, contract, Mongo, actual CLI, browser, restart, concurrency and daily lifecycle checks; scope boundaries recorded."
+    },
+    {
+      "point": 7,
+      "title": "Email/profile/OTP",
+      "status": "local code/provider-mock recheck complete; real mailbox pending user",
+      "result": "Plus alias preservation, verified profile recipient, fixed Brevo endpoint, no exposed real code or simulation fallback. User supplies approved sender/API key and observes delivery."
+    },
+    {
+      "point": 8,
+      "title": "Separate testnet configuration",
+      "status": "implemented and locally validated; public execution pending user",
+      "result": "Sepolia and Base Sepolia network/templates, explicit chain/signing guards, preserved localhost; no public transactions."
+    },
+    {
+      "point": 9,
+      "title": "Measurement tooling",
+      "status": "implemented; actual local-receipt CLI test passed",
+      "result": "Canonical receipt JSON/CSV, integer wei, optional fee uncertainty and timing limits; nonce unchanged. Public observations not invented."
+    },
+    {
+      "point": 10,
+      "title": "Hosted rollout preparation",
+      "status": "prepared; external rollout pending user",
+      "result": "API/worker packaging/build filters, service setting ownership, preview flags, migration/rollback and checks documented. Docker images/hosted transactions not tested."
+    },
+    {
+      "point": 11,
+      "title": "Available local verification",
+      "status": "completed with stated unavailable layers",
+      "result": "Counts and final checks above. Slither unavailable; no new tool environment installed. Public/hosted and real mail remain untested."
+    },
+    {
+      "point": 12,
+      "title": "Documentation/context/manual handoff",
+      "status": "updated and sanity-checked",
+      "result": "Current migration guide, README, historical-boundary notes, ten context files, one dated standalone reference, startup fingerprints and release source/evidence snapshot."
+    }
+  ],
+  "limitations": [
+    "No new natural-fraud accuracy or predictive-superiority evidence. Existing constructed-study weaknesses remain: held-out-family recall 6.56% and shifted review up to 34.63%.",
+    "Matching workers share the model, code and registry publisher; exact agreement is not independent clinical truth.",
+    "First-decision recovery depends on backend/Mongo availability and pinned archive proof availability. Total outage may delay/reach timeout; no alternative result is manufactured.",
+    "Dispatcher supports the named NB and XGBoost-v1 artifacts, not arbitrary later model versions. Archive/register old evaluators before a future update.",
+    "Slither was not installed/available; no fresh Slither analysis. Docker source inclusion was checked, but images were not built.",
+    "No actual Brevo mail, public-chain deployment/fee observation, hosted migration, hosted transaction regression or hosted revision inspection.",
+    "InsuranceManager remains 24,320 deployed bytes: 256 bytes below EIP-170. No new Solidity bytecode was added.",
+    "Operational timing samples include artificial Oracle-2 delay/restart; not normal latency, throughput or peak-memory claims."
+  ],
+  "changedSourceSha256": {
+    "backEnd/artifacts/xgboost-advisory-manifest.json": "d0ddf20bba29053ec770217108b21ee79d5d663769ceb465a41b2a3ae249e3f6",
+    "backEnd/artifacts/xgboost-protocol-v1.json": "bcee86a70bf5985cf8bb8d30d90884ea42ac34501239dd3543e2f111bda85576",
+    "backEnd/controllers/advisoryController.js": "593f779914cd0c01120ce0abe5cfacfdf89178f3446a31b211dc162f5d61d335",
+    "backEnd/controllers/mockHospitalController.js": "aa83c8d35a46daff82279981264d45d38461b79b2ea91ea98cdd8d344719ee14",
+    "backEnd/controllers/oracleController.js": "38e4b7ef532e85203bbc82c4f44d2630502d5de8a5817b34ec23b78a50b08ad8",
+    "backEnd/controllers/oracleDecisionController.js": "c87b44a65a6f436a10047431f0ba078d147eaae5503f5e4b4c0fa7fae831c331",
+    "backEnd/controllers/protocolMonitoringController.js": "3e27f3ec520236f0a892e85cde68216061c0fc6d202bb8f06b74f7cc603a4ef1",
+    "backEnd/models/OracleLog.js": "e5d4c491b82d6c69acd50f59779af7a4f4de590cdefb4958c6a82532051c9411",
+    "backEnd/models/OracleProtocolDecision.js": "ff36714259180b7b8b6a084542491657399d07e24b6cfa85a924ec0515c1d74f",
+    "backEnd/routes/oracleRoutes.js": "7e1a5079377671f55594e7f52d0ce9467131e923838b23b64ced336d335dd815",
+    "backEnd/scripts/generateResearchManifest.js": "4302772ec90d3eac022b8bdcd4585e5d7067ac393d2c997ee351b9bf9ea20e60",
+    "backEnd/scripts/resetLocalData.js": "3752197605ccdebad2ed46fca83109b2cd6d85f5160f4fd3ee4ba567f9e86d53",
+    "backEnd/scripts/submitOracleResultLocal.js": "bd05c46d14d74c3d8528f4db61daf69b135cb52115602cdc9d9ac3bfacbec2ec",
+    "backEnd/services/oracleDecisionService.js": "42d59002bd681fd608a389f891c8b2a9a1c429b98a3fac389f14493ffd8a03a6",
+    "backEnd/services/protocolMonitoringService.js": "5f981a7a398065074880dce319ae355f31656f7bbcc75a65a737b2bf7a7987d9",
+    "backEnd/test/otpDelivery.test.js": "d904eb502760a46fb4e31927a776f6dd9880a1f530dce67d6a89e5e44b3b2e42",
+    "backEnd/test/protocolMigration.test.js": "901e6f5a19052fc4fd5743b178a04988cece77ac77d9898e9722d99b6b29633a",
+    "backEnd/test/protocolMigrationCLI.integration.js": "e82eba2ce44c6cc3ea3a3e8d0ddc7ca2965e6af80dec76b243d3b95b36886ce8",
+    "backEnd/test/shadowPackaging.test.js": "be058e8052974e3b25a648ed38e90bbdaf0718f576c0370be4ca48a53f8f1989",
+    "backEnd/test/xgboostAdvisory.integration.js": "1c9b4050a354602de93ff78066a03721f583e9c228a53ac33551cd748e4a169e",
+    "contracts/hardhat.config.js": "f38453d52d55ac76b081709930a587e1e15212014d43197d4e0a46e2c15ba042",
+    "contracts/package.json": "5ddafac6faae11134bcb21e8770d8c7faab482855f0905a81b0c15bb98b0619d",
+    "contracts/scripts/deploy.js": "caeac174734f587de44900ed35d85850108fd5072167489c8e5d5503c5655637",
+    "contracts/test/XgboostProtocolMigration.test.js": "8fe93574df17c6dbbfc5f0ac7643fcb54e751c74a9d0ef8f555743e247a8c0a2",
+    "deploy/measurement-transactions.example.json": "ff9bd030f48d12debcf74f545bf2687c248d657e7b026d8a1341fe565695ec0f",
+    "e2e/tests/user-policy-claim.workflow.spec.js": "a5d315f1a6ef47fd8199b06ae8903a75fff16d2bd2c431951a5289cfb419579c",
+    "frontEnd/src/components/OracleComparisonPanel.jsx": "bfe0f3f91ac8199d7704bcd43b95ca3f8218948a4212a5f5532cf3865ed03d64",
+    "frontEnd/src/components/XgboostAdvisoryPanel.jsx": "64a1161b1157fb28fa9bdb540729752497c41c834cc3f466ec408f8dfec818f1",
+    "frontEnd/src/pages/AuditorVotingPage.jsx": "ff9dbf0fac45a92bb86ea31249113aed87f5729f2421a2ad38b6159cc9063bd3",
+    "frontEnd/src/pages/HomePage.jsx": "8a594ebfe62aac0097d4eb1d7a163c7f7e9c9b6411e7351ad854a492d7430f2a",
+    "frontEnd/src/services/api.js": "a0d34d101d8f3d29046eb21d3872c0874cd0fae7e347f96547ad6a00d6be45b3",
+    "oracle/index.js": "2c902a092173bfad2ecc27450a14ad4d3c3d60f8d8a1316281df1358fc59aa28",
+    "oracle/protocol.js": "1685cff264dfb89153aa6e054eec7de7c13d6717d188fce4b006527987adf147",
+    "oracle/protocolAssessment.js": "279edc1d51bb3ac839b5a03c7f512f206e07a43368df82ac62a0efd6109c7bae",
+    "oracle/runtimeProtocol.js": "c0b3fc99f6b2f0468652fa8b35641f073bf7ba7850c967792abdaf5a786e6dfe",
+    "oracle/shadowAssessment.js": "9fd73f543a9eef5141fa7d66193ad4faea0e8d5f941aa4e3f1b2579055f3ee2e",
+    "oracle/test/protocolAssessment.test.js": "295c737238c499cef4a667448719779452fc9a87fb252f010cfeea4d03864f96",
+    "package.json": "a9c111c86279f2dc7f9124b4dd48c4dfba7fcfa242a3712aa87ebafd6069164c",
+    "render.yaml": "db86e611fbac205cc803472ece73c1507e7933e4cdc31e51433b386182743e7d",
+    "scripts/deploymentNetworkSafety.js": "ee35529548ddfba68e2f45f423946dd34c7227407d2339d74951e58ddeacf2d1",
+    "scripts/devAll.js": "7023902e698e0cd8cdabb27079957db653133da96e4fc1657c747fff3c7f41b1",
+    "scripts/migrateProtocolModel.js": "9d0683c4ec3dca38cab5a11bbfb4e023f9c092f318c5f638acc8b1f5142ecb96",
+    "scripts/networkMeasurement.js": "151e92a8968a8218dfb951301eab9ba81c6d748b4b866417d80b623dfb998f1f",
+    "scripts/packageProtocolModel.js": "b46b1ef1140bffc3bdfbae1b8f2e194b8d33bcba46c2f57d526a80347c2239c3",
+    "scripts/prepareReleaseCandidate.js": "1882000aee342a5c7dae16e52ca06d3c0d778865b13dbe64419e2f9b690f84a3",
+    "scripts/stabilizationStack.js": "f752ad57ac4127bfc3227e622f1569f13ab2b3ea30b1b107be25fe9d338e2b99",
+    "scripts/verifySynchronization.js": "b61da8824f03ea8b6a1925a5ed72ebb9cf8d40ecb63ba5937eb4784fb94fa56a"
+  },
+  "cleanup": {
+    "applicationAndChainTestPortsClosed": true,
+    "existingMongoContainerRestoredToStopped": true,
+    "dockerDesktopLeftOpenAndUserOwned": true,
+    "systemSettingsChanged": false,
+    "newContainerOrEnvironmentCreated": false,
+    "savedEnvironmentsPreserved": true
+  },
+  "evidenceStorage": "Small structured summaries retained here. Raw screenshots/traces and temporary harness logs remain ignored under tmp/test-results/playwright report folders."
+}

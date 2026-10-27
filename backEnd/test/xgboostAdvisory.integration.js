@@ -3,6 +3,7 @@ const mongoose = require("mongoose"), { ethers } = require("ethers");
 const Chunk = require("../models/RegistrySnapshotChunk");
 const Model = require("../models/ClaimAdvisoryAssessment");
 const Shadow = require("../models/OracleShadowAssessment");
+const Decision = require("../models/OracleProtocolDecision");
 const { buildMerkleTree } = require("../services/merkleRegistryService");
 const { createAdvisoryService, readCommittedRecords } = require("../services/xgboostAdvisoryService");
 let name;
@@ -10,7 +11,7 @@ test.before(async () => {
   const uri = new URL(process.env.E2E_MONGODB_URI);
   if (!["127.0.0.1", "localhost", "[::1]"].includes(uri.hostname)) throw new Error("Prepared loopback MongoDB required");
   name = `xgboost_advisory_${Date.now()}_test`; uri.pathname = `/${name}`;
-  await mongoose.connect(uri.toString()); await Promise.all([Chunk.init(), Model.init(), Shadow.init()]);
+  await mongoose.connect(uri.toString()); await Promise.all([Chunk.init(), Model.init(), Shadow.init(), Decision.init()]);
 });
 test.after(async () => {
   if (mongoose.connection.name === name && /^xgboost_advisory_\d+_test$/.test(name)) await mongoose.connection.dropDatabase();
@@ -47,6 +48,33 @@ test("missing roots and interrupted archive chunks never fall back to current re
   const gapRoot = ethers.id("gap");
   await Chunk.create({ rootHash: gapRoot, chunkIndex: 1, records: [record] });
   await assert.rejects(readCommittedRecords(gapRoot), /incomplete/);
+});
+
+test("actual MongoDB preserves the first signed-routing decision through concurrent retries, service reload and request-block changes", async () => {
+  const load = require("./helpers/loadIsolatedModule"), f = require("./helpers/shadowFixture")();
+  const { binding, hash } = require("../../oracle/shadowAssessment");
+  const active = require("../../oracle/runtimeProtocol").loadProtocolArtifact();
+  f.authoritative.request.modelVersion = active.modelIdentityHash;
+  const bound = binding({ ...f.authoritative, bundleHash: f.loaded.bundleHash, manifestHash: f.loaded.manifestHash });
+  const packet = { ...f.packet, binding: bound, contextId: hash(bound) };
+  const expected = require("../../oracle/protocolAssessment").assessProtocol(packet, f.authoritative);
+  const build = () => load("services/oracleDecisionService.js", {
+    "./oracleShadowService": { authorizedRequest: async () => ({ authoritative: f.authoritative, wallet: f.wallet.address.toLowerCase(),
+      block: { number: 10, hash: "canonical" }, provider: { destroy() {}, getBlock: async () => ({ hash: "canonical" }) },
+      contract: { claimVersion: async () => "1" } }), getPacket: async () => packet },
+  });
+  const service = build();
+  const concurrent = await Promise.all(Array.from({ length: 4 }, () => service.decision({ assessment: expected }, true)));
+  for (const result of concurrent) assert.deepEqual(result.assessment, expected);
+  assert.equal(await Decision.countDocuments(), 1);
+  const restarted = build();
+  assert.deepEqual((await restarted.decision({})).assessment, expected);
+  const failed = require("../../oracle/protocolAssessment").unavailable();
+  assert.deepEqual((await restarted.decision({ assessment: failed }, true)).assessment, expected);
+  f.authoritative.requestBlockHash = ethers.id("new-deployment-request-block");
+  assert.equal((await restarted.decision({})).assessment, null);
+  assert.deepEqual((await restarted.decision({ assessment: failed }, true)).assessment, failed);
+  assert.equal(await Decision.countDocuments(), 2);
 });
 
 test("shadow agreement requires distinct wallets and isolates request block/deployment identity", async () => {

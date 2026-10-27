@@ -17,6 +17,10 @@ export const api = axios.create({
   timeout: 30000,
 });
 
+export async function getProtocolMonitoring() {
+  return (await api.get("/api/oracle/monitoring")).data;
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("blockinsure_jwt");
 

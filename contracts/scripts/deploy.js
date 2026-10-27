@@ -156,6 +156,9 @@ async function main() {
     process.env.ADMIN_PRIVATE_KEY,
     provider
   );
+  require("../../scripts/deploymentNetworkSafety").assertDeploymentSigner(
+    (await provider.getNetwork()).chainId, adminWallet.address, { local: isLocalNetwork }
+  );
 
   const adminBalance = await provider.getBalance(adminWallet.address);
 
@@ -231,8 +234,9 @@ async function main() {
   if (!modelVerification.valid) {
     throw new Error(`Frozen model artifact is invalid: ${modelVerification.errors.join("; ")}`);
   }
-  await (await insuranceManager.updateOracleModelVersion(modelArtifact.modelIdentityHash)).wait();
-  console.log("Frozen fraud-model identity:", modelArtifact.modelIdentityHash);
+  const protocolArtifact = require("../../oracle/runtimeProtocol").loadProtocolArtifact();
+  await (await insuranceManager.updateOracleModelVersion(protocolArtifact.modelIdentityHash)).wait();
+  console.log("Frozen XGBoost protocol identity:", protocolArtifact.modelIdentityHash);
 
   const ClaimAdjudicator = await hre.ethers.getContractFactory(
     "ClaimAdjudicator",
@@ -367,6 +371,8 @@ async function main() {
     network: networkName,
     chainId: network.chainId.toString(),
     deployedAt: new Date().toISOString(),
+    modelIdentityHash: protocolArtifact.modelIdentityHash,
+    protocolModel: protocolArtifact.modelVersion,
     deploymentBlock,
     benefitsDeploymentBlock,
     deployer: adminWallet.address,

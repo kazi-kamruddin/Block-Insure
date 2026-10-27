@@ -12,10 +12,10 @@ test("OTP delivery never calls a provider in simulation and production cannot ex
 test("Brevo accepts only the fixed endpoint and never returns the payment code", async () => {
   const service = load("services/otpDeliveryService.js", {}, environment);
   let calls = 0;
-  const result = await service.deliverOtp({ email: "recipient@example.com", otp: "123456", purpose: "payment" }, { fetchImpl: async (url, options) => {
+  const result = await service.deliverOtp({ email: "recipient+bank@example.com", otp: "123456", purpose: "payment" }, { fetchImpl: async (url, options) => {
     calls++; assert.equal(url, "https://api.brevo.com/v3/smtp/email"); assert.equal(options.redirect, "error");
     assert.equal(options.headers["api-key"], environment.BREVO_API_KEY);
-    const payload = JSON.parse(options.body); assert.equal(payload.to[0].email, "recipient@example.com");
+    const payload = JSON.parse(options.body); assert.equal(payload.to[0].email, "recipient+bank@example.com");
     assert.match(payload.textContent, /123456/); return { ok: true, status: 201, json: async () => ({ messageId: "synthetic-acceptance" }) };
   } });
   assert.equal(calls, 1); assert.equal(result.deliveryMode, "brevo"); assert.equal(result.demoOtp, undefined);

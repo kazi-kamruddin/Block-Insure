@@ -805,10 +805,15 @@ const verifyHospitalRecord = async (req, res, next) => {
       runtimeRegistryRecordCount,
       duplicateIntelligence,
     });
-    if (
+    let xgboostRequest = false;
+    if (modelVersion) {
+      try { xgboostRequest = require("../../oracle/runtimeProtocol").resolveRequestModel(modelVersion).kind === "xgboost"; }
+      catch { return res.status(409).json({ success: false, verified: false, message: "Unsupported request model identity" }); }
+    }
+    if (!xgboostRequest && (
       (modelVersion && normalizeHash(modelVersion) !== normalizeHash(riskAssessment.modelIdentityHash)) ||
       (modelArtifactHash && normalizeHash(modelArtifactHash) !== normalizeHash(riskAssessment.artifactHash))
-    ) {
+    )) {
       return res.status(409).json({
         success: false,
         verified: false,
@@ -870,7 +875,7 @@ const verifyHospitalRecord = async (req, res, next) => {
           : `Registry verification failed: ${failureSummary || record.fraudLabel}`,
       comparison,
       duplicateIntelligence,
-      riskAssessment,
+      riskAssessment: { ...riskAssessment, authority: xgboostRequest ? "LEGACY_COMPARISON_ONLY" : "HISTORICAL_NB_PROTOCOL" },
       merkleProof,
       query: verificationQuery,
       registrySnapshot,

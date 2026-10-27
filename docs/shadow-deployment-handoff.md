@@ -1,5 +1,12 @@
 # Shadow-verification release and deployment handoff
 
+**Historical 24 October stage.** The [27 October protocol migration](xgboost-protocol-migration.md)
+supersedes its NB-default rollout description. XGBoost protocol routing is distinct
+from the optional post-finality shadow reporter. `ORACLE_SHADOW_ENABLED=false`
+does not disable XGBoost routing for requests bound to its protocol identity.
+Keep this report's dated tests as historical evidence; do not treat them as
+verification of the later migration. Its old release snapshot is preserved.
+
 Reviewed 24 October 2026. This is preparation, not a deployed-release claim.
 The API, frontend and both Oracle workers have coordinated source dependencies.
 The NB protocol model, Solidity ABIs and authoritative decision rules are unchanged.

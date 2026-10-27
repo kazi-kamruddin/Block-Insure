@@ -136,7 +136,7 @@ export default function HomePage() {
             <span>03</span>
             <h3>Explainable fraud scoring</h3>
             <p>
-              Bernoulli evidence factors expose fraud probability separately from
+              Explainable model risk scores are shown separately from
               verification confidence.
             </p>
           </article>

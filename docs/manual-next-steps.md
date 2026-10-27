@@ -1,5 +1,12 @@
 # Manual next steps: local application, Brevo and hosted preview
 
+**27 October update:** see [XGBoost protocol migration](xgboost-protocol-migration.md)
+for the current routing default, existing-deployment migration/rollback, monitoring
+and Sepolia/Base Sepolia preparation. Fresh deployments publish XGBoost; daily
+resume does not silently change an old default. The 24 October environment
+inventory below is historical, not a fresh connectivity assertion. Keep the
+Brevo and disposable-database safeguards below.
+
 Prepared **24 October 2026** against commit `8a7b19a`, plus this handoff tooling.
 Start here instead of combining commands from older startup notes.
 

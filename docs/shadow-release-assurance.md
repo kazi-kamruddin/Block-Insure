@@ -1,5 +1,10 @@
 # Dual-worker shadow verification and release assurance
 
+**Historical assurance record, 24 October.** The [26 October migration](xgboost-protocol-migration.md)
+adds XGBoost protocol routing. The optional shadow side channel below remains
+observational; the new protocol wrapper is a separate decision path. Preserve
+the old counts and release hashes as dated evidence, not a certification of newer code.
+
 Review date: **24 October 2026 (Asia/Dhaka)**. Source baseline: `9a98b55`, plus
 this implementation. This report covers the selected shadow/DX/regression/release
 work, not a new fraud model or a protocol-model promotion.

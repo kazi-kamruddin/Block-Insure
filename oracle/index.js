@@ -23,7 +23,6 @@ const {
 const { loadCursorState, persistCursorState } = require("./cursorState");
 const { isWorkerReady } = require("./workerHealth");
 const {
-  assertRequestModelIdentity,
   loadAndVerifyModelArtifact,
 } = require("./modelArtifact");
 const { writeEvent } = require("../scripts/observability");
@@ -113,6 +112,10 @@ const simulatedNetworkDelayMs =
 const runtimeModelArtifact = loadAndVerifyModelArtifact(
   process.env.MODEL_ARTIFACT_PATH || undefined
 );
+const { resolveRequestModel, loadProtocolArtifact } = require("./runtimeProtocol");
+const { assessProtocol, unavailable: unavailableProtocol } = require("./protocolAssessment");
+// Legacy artifact is retained only for requests that already pin its identity.
+const activeProtocol = loadProtocolArtifact();
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const oracleWallet = ORACLE_WORKER_ENABLED
@@ -394,7 +397,7 @@ const validateAppealCommitment = async (request, claim, response) => {
   });
 };
 
-const classifyResponse = (request, claim, response, appealCommitmentValid) => {
+const classifyResponse = (request, claim, response, appealCommitmentValid, independentOverride) => {
   const usesAppealCorrection =
     Number(request.claimVersion) > 1 &&
     response.query?.source === "PENDING_APPEAL_CORRECTION";
@@ -420,7 +423,7 @@ const classifyResponse = (request, claim, response, appealCommitmentValid) => {
     normalizeHash(proof.canonicalRecord?.invoiceHash) === normalizeHash(evaluationClaim.invoiceHash) &&
     String(proof.canonicalRecord?.hospitalId || "") === String(evaluationClaim.hospitalId);
   const independent = recordMatchesClaim
-    ? independentlyAssessRecord({
+    ? independentOverride || independentlyAssessRecord({
         record: proof.canonicalRecord,
         claim: {
           claimantWallet: evaluationClaim.claimantWallet,
@@ -489,7 +492,6 @@ const handleOracleRequested = async (requestId, claimId) => {
 
   try {
     let request = await coordinator.getRequest(requestId);
-    assertRequestModelIdentity(request.modelVersion, runtimeModelArtifact);
     if (request.isFulfilled || (await coordinator.hasRevealed(requestId, oracleWallet.address))) {
       return true;
     }
@@ -497,7 +499,17 @@ const handleOracleRequested = async (requestId, claimId) => {
       console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Not eligible for request ${requestKey}`);
       return true;
     }
+    const selectedModel = resolveRequestModel(request.modelVersion);
     if (simulatedNetworkDelayMs > 0) await sleep(simulatedNetworkDelayMs);
+    const authorizeDecision = async (action, value) => {
+      const timestamp = Date.now(), network = await provider.getNetwork();
+      return { requestId: requestKey, oracleWallet: oracleWallet.address, oracleInstanceId: ORACLE_INSTANCE_ID, timestamp,
+        signature: await oracleWallet.signMessage(signedMessage({ action, requestId, wallet: oracleWallet.address, timestamp,
+          digest: value ? shadowHash(value) : "", chainId: network.chainId, coordinatorAddress })) };
+    };
+    const decisionOptions = { headers: { "x-oracle-api-key": ORACLE_API_KEY }, timeout: 15000 };
+    const pinnedDecision = selectedModel.kind === "xgboost" ? (await backendHttp.post(`${BACKEND_API_URL}/api/oracle/protocol/decision/read`,
+      await authorizeDecision("DECISION_READ"), decisionOptions)).data.data.assessment : null;
 
     const claim = await manager.getClaim(claimId);
     const queryData = {
@@ -512,7 +524,7 @@ const handleOracleRequested = async (requestId, claimId) => {
       registryVersion: request.registryVersion.toString(),
       registryRoot: request.registryRoot,
       modelVersion: request.modelVersion,
-      modelArtifactHash: runtimeModelArtifact.artifactHash,
+      modelArtifactHash: selectedModel.kind === "legacy-nb" ? runtimeModelArtifact.artifactHash : activeProtocol.modelIdentityHash,
     };
     const hospitalResponse = await backendHttp.get(MOCK_HOSPITAL_API_URL, {
       params: { ...queryData, registrySnapshot: ORACLE_REGISTRY_SNAPSHOT },
@@ -523,12 +535,37 @@ const handleOracleRequested = async (requestId, claimId) => {
       claim,
       hospitalResponse.data
     );
-    const assessment = classifyResponse(
+    let assessment = classifyResponse(
       request,
       claim,
       hospitalResponse.data,
-      appealCommitmentValid
+      appealCommitmentValid,
+      selectedModel.kind === "xgboost" ? { verified: true, riskLevel: "LOW" } : undefined
     );
+    if (selectedModel.kind === "xgboost") {
+      let routed;
+      if (assessment.verified) {
+        try {
+          const [snapshot, network, requestBlock] = await Promise.all([coordinator.getRegistrySnapshot(request.registryVersion), provider.getNetwork(), provider.getBlock(Number(request.requestBlock))]);
+          const timestamp = Date.now();
+          const authorization = { requestId: requestKey, oracleWallet: oracleWallet.address, oracleInstanceId: ORACLE_INSTANCE_ID, timestamp,
+            signature: await oracleWallet.signMessage(signedMessage({ action: "CONTEXT", requestId, wallet: oracleWallet.address,
+              timestamp, chainId: network.chainId, coordinatorAddress })) };
+          const packet = await backendHttp.post(`${BACKEND_API_URL}/api/oracle/shadow/context`, authorization,
+            { headers: { "x-oracle-api-key": ORACLE_API_KEY }, timeout: 8000, maxContentLength: 16 * 1024 * 1024 });
+          routed = assessProtocol(packet.data.data, { request, claim: shadowFacts({ ...claim.toObject(), claimAmountEth: ethers.formatEther(claim.claimAmount) }),
+            chainId: String(network.chainId), managerAddress: CONTRACT_ADDRESS, coordinatorAddress,
+            snapshotTimestamp: String(snapshot.publishedAt), requestBlockHash: requestBlock.hash });
+        } catch { routed = unavailableProtocol(); }
+      } else routed = { verified: false, model: "XGBoost", authority: "INTEGRITY_GATE", score: null, riskLevel: "HIGH", verificationCode: assessment.verificationCode };
+      const saved = pinnedDecision || (await backendHttp.post(`${BACKEND_API_URL}/api/oracle/protocol/decision/save`, {
+        ...await authorizeDecision("DECISION_SAVE", routed), assessment: routed,
+        contextAuthorization: await authorizeDecision("CONTEXT"),
+      }, decisionOptions)).data.data.assessment;
+      if (!saved) throw new Error("Pinned protocol decision unavailable");
+      assessment = { ...assessment, ...saved, independentAssessment: undefined,
+        remarks: saved.verified ? "XGBoost and committed integrity checks permit automatic verification" : "Oracle verification requires manual adjudication; this is not a fraud verdict" };
+    }
     const resultHash = buildResultHash({
       request,
       verified: assessment.verified,
@@ -571,13 +608,12 @@ const handleOracleRequested = async (requestId, claimId) => {
 
     const oracleResponse = {
       protocol: "exact-result-commit-reveal-v1",
+      deployment: { coordinatorAddress: coordinatorAddress.toLowerCase(), chainId: String((await provider.getNetwork()).chainId) },
       modelIdentity: {
-        modelVersion: runtimeModelArtifact.modelVersion,
-        modelIdentityHash: runtimeModelArtifact.modelIdentityHash,
-        artifactHash: runtimeModelArtifact.artifactHash,
-        trainingDataHash: runtimeModelArtifact.trainingDataHash,
-        featureSchemaVersion: runtimeModelArtifact.featureSchemaVersion,
-        calibrationVersion: runtimeModelArtifact.calibration.version,
+        modelVersion: selectedModel.artifact.modelVersion,
+        modelIdentityHash: selectedModel.artifact.modelIdentityHash,
+        artifactHash: selectedModel.kind === "legacy-nb" ? runtimeModelArtifact.artifactHash : activeProtocol.bundleHash,
+        role: selectedModel.kind === "legacy-nb" ? "HISTORICAL_REQUEST" : "ORACLE_ROUTING",
       },
       requestId: requestKey,
       claimId: claimId.toString(),
@@ -678,7 +714,7 @@ const startOracle = async () => {
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Manager: ${CONTRACT_ADDRESS}`);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Coordinator: ${coordinatorAddress}`);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Registry source: ${ORACLE_REGISTRY_SNAPSHOT}`);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Frozen model: ${runtimeModelArtifact.modelIdentityHash}`);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Packaged XGBoost identity: ${activeProtocol.modelIdentityHash}; each request selects its pinned evaluator`);
 
   const oracleRole = await manager.ORACLE_ROLE();
   if (!(await manager.hasRole(oracleRole, oracleWallet.address))) {
@@ -709,6 +745,8 @@ const sanitizedHealth = () => ({
   registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
   cursorMode: ORACLE_CURSOR_MODE,
   shadow: shadowState,
+  protocolModel: { model: "XGBoost", identity: activeProtocol.modelIdentityHash, legacyRequestsSupported: true,
+    scope: "Packaged configuration; actual routing follows each on-chain request model identity" },
   nextScanBlock: nextOracleScanBlock,
   startedAt: serviceState.startedAt,
   lastPollAt: serviceState.lastPollAt,

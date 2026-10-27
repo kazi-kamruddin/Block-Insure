@@ -1,4 +1,6 @@
-const { ethers } = require("ethers");
+// Shared by worker-only and API-only installs. Resolve from the subsystem that
+// owns the dependency, without a global NODE_PATH or a second API dependency tree.
+const { ethers } = require(require.resolve("ethers", { paths: [__dirname, require("node:path").resolve(__dirname, "../backEnd")] }));
 
 const codeHash = (value) => ethers.keccak256(ethers.toUtf8Bytes(value));
 

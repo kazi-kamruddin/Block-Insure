@@ -1,4 +1,5 @@
 require("dotenv").config();
+const OracleProtocolDecision = require("../models/OracleProtocolDecision");
 
 const dns = require("dns");
 const fs = require("fs");
@@ -67,6 +68,7 @@ const collections = [
   ["claim submission attempts", ClaimSubmissionAttempt],
   ["claim advisory assessments", ClaimAdvisoryAssessment],
   ["oracle shadow assessments", OracleShadowAssessment],
+  ["oracle protocol decisions", OracleProtocolDecision],
   ["documents", File],
   ["EFT mandates", EftMandate],
   ["hospital directory entries", Hospital],

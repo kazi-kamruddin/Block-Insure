@@ -150,7 +150,7 @@ test.describe("@workflow policyholder transaction journey", () => {
 
         const advisoryPanel = adminSession.page.getByRole("region", { name: "XGBoost advisory assessment" });
         await expect(advisoryPanel.getByRole("heading", { name: "XGBoost · Primary advisory" })).toBeVisible();
-        await expect(advisoryPanel.getByRole("heading", { name: "Bernoulli NB · Protocol comparison" })).toBeVisible();
+        await expect(advisoryPanel.getByRole("heading", { name: "Bernoulli NB · Historical comparison" })).toBeVisible();
         await expect(advisoryPanel.getByText(/warnings do not independently trigger review/)).toBeVisible();
         await advisoryPanel.getByText("Why this score? Exact SHAP explanation", { exact: true }).click();
         await expect(advisoryPanel.getByText(/Contributions add to the raw model margin/)).toBeVisible();
@@ -220,6 +220,20 @@ test.describe("@workflow policyholder transaction journey", () => {
         await expect.poll(async () => (await advisoryRead()).body.advisory?.workerShadow?.status,
           { timeout: 90000, intervals: [5000], message: "Both worker shadow computations must independently agree on the committed context" }).toBe("MATCHED");
         const finalAdvisory = (await advisoryRead()).body.advisory;
+        expect(finalAdvisory.protocolModel.kind).toBe("xgboost");
+        const monitoring = await adminSession.page.evaluate(async () => {
+          const response = await fetch("http://localhost:5000/api/oracle/monitoring", {
+            headers: { Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` },
+          });
+          return { status: response.status, body: await response.json() };
+        });
+        expect(monitoring.status).toBe(200);
+        expect(monitoring.body.monitoring.scoredRequests).toBeGreaterThanOrEqual(1);
+        expect(monitoring.body.monitoring.activeModelIdentity).toBe(finalAdvisory.protocolModel.identity);
+        const deniedMonitor = await session.context.request.get("http://localhost:5000/api/oracle/monitoring", {
+          headers: { Authorization: `Bearer ${userToken}` },
+        });
+        expect(deniedMonitor.status()).toBe(403);
         expect(finalAdvisory.workerShadow.reports).toBe(2);
         expect(finalAdvisory.workerShadow.authority).toBe("SHADOW_ONLY");
         expect(finalAdvisory.performance.totalAssessmentMs).toBeGreaterThanOrEqual(finalAdvisory.performance.inferenceMs);

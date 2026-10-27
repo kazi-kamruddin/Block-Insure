@@ -6,6 +6,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const root = path.resolve(__dirname, "..");
 const children = [];
+let stopping = false;
 const dailyLauncher = process.argv.includes("--daily-launcher");
 const shadowRestart = process.argv.includes("--shadow-restart");
 fs.mkdirSync(path.join(root, "tmp"), { recursive: true });
@@ -55,12 +56,14 @@ const backend = (script, args = []) => run(script, path.join(root, "backEnd/scri
 async function waitFor(check, label) {
   const deadline = Date.now() + 90000;
   while (Date.now() < deadline) {
+    if (stopping) throw new Error(`${label} cancelled during cleanup`);
     try { if (await check()) return; } catch { /* wait for local service */ }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error(`${label} did not become ready`);
 }
 async function cleanup() {
+  stopping = true;
   for (const child of [...children].reverse()) {
     if (child.exitCode !== null) continue;
     if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" });
@@ -130,13 +133,43 @@ async function main() {
   start("Backend", path.join(root, "backEnd/server.js"), [], path.join(root, "backEnd"), environment.E2E_BACKEND_RPC_URL ? { RPC_URL: environment.E2E_BACKEND_RPC_URL } : {});
   start("Frontend", path.join(root, "frontEnd/node_modules/vite/bin/vite.js"), ["--host", "localhost", "--port", "5173", "--strictPort"], path.join(root, "frontEnd"));
   const oracleChildren = [];
-  for (const instance of [1, 2]) oracleChildren.push(start(`Oracle ${instance}`, path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), { PORT: String(5100 + instance), ORACLE_INSTANCE_ID: String(instance), ORACLE_REGISTRY_SNAPSHOT: instance === 1 ? "primary" : "oracle2", ORACLE_START_BLOCK: String(deployment.deploymentBlock) }));
+  const workerOptions = (instance) => ({ PORT: String(5100 + instance), ORACLE_INSTANCE_ID: String(instance),
+    ORACLE_REGISTRY_SNAPSHOT: instance === 1 ? "primary" : "oracle2", ORACLE_START_BLOCK: String(deployment.deploymentBlock),
+    ...(shadowRestart && instance === 2 ? { ORACLE2_SIMULATED_NETWORK_DELAY_MS: "10000" } : {}) });
+  for (const instance of [1, 2]) oracleChildren.push(start(`Oracle ${instance}`, path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), workerOptions(instance)));
   await waitFor(async () => (await (await fetch("http://localhost:5000/health/ready")).json()).status === "ready", "Backend");
   await waitFor(async () => (await fetch("http://localhost:5173")).ok, "Frontend");
   for (const instance of [1, 2]) await waitFor(async () => (await fetch(`http://localhost:${5100 + instance}/health/ready`)).ok, `Oracle ${instance}`);
+  // Exercise the durability boundary that a post-finality restart cannot test:
+  // terminate worker 1 after its mined commitment, before either reveal.
+  const protocolRestart = shadowRestart ? (async () => {
+    const { ethers } = require("../backEnd/node_modules/ethers"), rpc = new ethers.JsonRpcProvider(environment.RPC_URL);
+    try {
+      const coordinator = new ethers.Contract(deployment.components.OracleCoordinator, require("../backEnd/abi/OracleCoordinator.json").abi, rpc);
+      const wallet = new ethers.Wallet(environment.ORACLE_PRIVATE_KEY).address;
+      let requestId, committed;
+      await waitFor(async () => {
+        requestId = (await coordinator.requestCounter()) - 1n;
+        if (requestId < 1n) return false;
+        committed = await coordinator.commitments(requestId, wallet);
+        return committed !== ethers.ZeroHash && Number(await coordinator.revealCount(requestId)) === 0 && !await coordinator.hasRevealed(requestId, wallet);
+      }, "Oracle commitment restart boundary");
+      if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(oracleChildren[0].pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+      else oracleChildren[0].kill("SIGTERM");
+      await waitFor(async () => { try { await fetch("http://127.0.0.1:5101/health/live", { signal: AbortSignal.timeout(500) }); return false; } catch { return true; } }, "Stopped Oracle health port");
+      oracleChildren[0] = start("Oracle 1 committed-request recovery", path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), workerOptions(1));
+      await waitFor(() => coordinator.hasRevealed(requestId, wallet), "Restarted Oracle reveal");
+      if ((await coordinator.commitments(requestId, wallet)) !== committed) throw new Error("Restart changed the mined commitment");
+      fs.writeFileSync(path.join(output, "protocol-restart.json"), JSON.stringify({ passed: true, requestId: String(requestId),
+        restartedAfterCommitBeforeReveal: true, sameMinedCommitment: true, restartedWorkerRevealed: true,
+        boundary: "Existing local disposable deployment only; no Docker/system restart" }, null, 2));
+    } finally { rpc.destroy(); }
+  })() : null;
+  protocolRestart?.catch(() => {});
   const showcase = process.argv.includes("--with-showcase");
   const specs = process.argv.slice(2).filter((arg) => !["--with-showcase", "--shadow-restart"].includes(arg));
   await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/unfinished-benefits.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, { E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: "playwright-reports/stabilization" });
+  if (protocolRestart) await protocolRestart;
   if (showcase) await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", "e2e/tests/showcase-coverage.spec.js", "--workers=1"], root, { E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: "playwright-reports/stabilization" });
   if (shadowRestart) {
     const mongoose = require("../backEnd/node_modules/mongoose");

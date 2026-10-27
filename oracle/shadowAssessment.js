@@ -1,5 +1,6 @@
-// Independent worker context/root verification. Never reads labels as features
-// and never returns a value used by Oracle commit/reveal.
+// Independent worker context/root verification. Never reads labels as features.
+// The protocol wrapper may bind this output into commit/reveal; the optional
+// post-finality shadow reporter remains observational.
 const crypto = require("node:crypto");
 const { hashCanonicalRecord, hashPair } = require("./merkleProof");
 const { prepareAdvisoryObservation } = require("../backEnd/services/advisoryContextService");
@@ -27,7 +28,7 @@ function binding({ request, claim, chainId, managerAddress, coordinatorAddress, 
   return { version: "request-shadow-v1", chainId: String(chainId), managerAddress: managerAddress.toLowerCase(), coordinatorAddress: coordinatorAddress.toLowerCase(),
     requestId: String(request.requestId), claimId: String(request.claimId), claimVersion: String(request.claimVersion), registryVersion: String(request.registryVersion),
     registryRoot: request.registryRoot.toLowerCase(), snapshotTimestamp: String(snapshotTimestamp), requestBlockHash: String(requestBlockHash).toLowerCase(),
-    bundleHash, manifestHash, factsHash: hash(facts(claim)) };
+    bundleHash, manifestHash, factsHash: hash(facts(claim)), modelVersion: String(request.modelVersion || "").toLowerCase() };
 }
 function summary(assessment) {
   return { scoreUnits: assessment.riskScoreUnits, recommendation: assessment.recommendation, reasons: assessment.reasons,

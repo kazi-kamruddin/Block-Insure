@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getClaimAdvisory } from "../services/api";
+import { getClaimAdvisory, getProtocolMonitoring } from "../services/api";
 import EvidenceField from "./EvidenceField";
 
 const percent = (value) => Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "Unavailable";
@@ -12,6 +12,8 @@ export default function XgboostAdvisoryPanel({ claimId, claimVersion, status }) 
     staleTime: 30_000, refetchOnWindowFocus: false, retry: false,
   });
   const result = error ? null : data?.advisory;
+  const monitoring = useQuery({ queryKey: ["protocolMonitoring"], queryFn: getProtocolMonitoring,
+    enabled: false, retry: false, refetchOnWindowFocus: false });
   const assessment = result?.assessment;
   const drivers = Object.entries(assessment?.explanation?.contributions || {}).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 8);
 
@@ -20,7 +22,7 @@ export default function XgboostAdvisoryPanel({ claimId, claimVersion, status }) 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 id="xgboost-advisory-title">XGBoost advisory assessment</h3>
-          <p className="muted-text">Primary Admin advisory · Protocol shadow</p>
+          <p className="muted-text">Primary Admin advisory · {result?.protocolModel?.kind === "xgboost" ? "XGBoost Oracle routing" : "Request-specific protocol model"}</p>
         </div>
         <button type="button" className="min-h-11" onClick={() => refetch()} disabled={isFetching}>
           {isFetching ? "Assessing…" : "Refresh advisory"}
@@ -30,6 +32,17 @@ export default function XgboostAdvisoryPanel({ claimId, claimVersion, status }) 
       {isLoading ? <p role="status">Loading the committed registry assessment…</p> : null}
       {error ? <p role="alert">XGBoost assessment unavailable. Refresh to retry; the existing claim workflow remains available.</p> : null}
       {result?.status === "UNAVAILABLE" ? <p role="status">Assessment unavailable: {label(result.reason)}. No replacement or zero-risk score was supplied.</p> : null}
+      <details>
+        <summary className="min-h-11 cursor-pointer py-3">Operational model monitoring</summary>
+        <button type="button" className="min-h-11" disabled={monitoring.isFetching} onClick={() => monitoring.refetch()}>Load monitoring summary</button>
+        {monitoring.error ? <p role="status">Monitoring unavailable; no accuracy estimate was substituted.</p> : null}
+        {monitoring.data?.monitoring ? <div className="space-y-2 [overflow-wrap:anywhere]">
+          <p>{monitoring.data.monitoring.requestsObserved} distinct requests observed; {monitoring.data.monitoring.reviewedByOracle} routed away from automatic verification; {monitoring.data.monitoring.inferenceOrContextUnavailable} unavailable assessments.</p>
+          <p>Missing prior patient history: {monitoring.data.monitoring.missingPriorPatientHistory}. OOD warnings: {monitoring.data.monitoring.oodWarnings}. Worker disagreements: {monitoring.data.monitoring.workerAssessmentDisagreements}.</p>
+          <p>{monitoring.data.monitoring.interpretation}</p>
+          <p>{monitoring.data.monitoring.truncated ? "Window truncated to the latest 1,000 worker logs." : "Bounded latest-log window; missing logs can limit coverage."}</p>
+        </div> : null}
+      </details>
       {result?.status === "AVAILABLE" ? (
         <>
           <div className="grid min-w-0 gap-3 sm:grid-cols-2">
@@ -40,10 +53,10 @@ export default function XgboostAdvisoryPanel({ claimId, claimVersion, status }) 
               <p className="muted-text">{assessment.riskMeaning}</p>
             </article>
             <article className="min-w-0 rounded-lg border border-[var(--line)] p-3">
-              <h4>Bernoulli NB · Protocol comparison</h4>
+              <h4>Bernoulli NB · Historical comparison</h4>
               <p className="text-2xl font-bold">{percent(result.comparison.riskScore)}</p>
               <p>{label(result.comparison.recommendation)}</p>
-              <p className="muted-text">Same snapshot, each model’s frozen feature contract. This is separate from recorded Oracle results.</p>
+              <p className="muted-text">Same snapshot, each model’s frozen feature contract. NB remains the routing evaluator only for requests that pin its historical identity.</p>
             </article>
           </div>
           <div>

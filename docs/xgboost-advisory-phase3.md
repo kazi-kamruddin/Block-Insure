@@ -1,5 +1,11 @@
 # XGBoost runtime advisory integration
 
+**Historical integration stage, 24 October.** For the current authoritative
+risk-routing arrangement, read [the 27 October migration](xgboost-protocol-migration.md).
+The results below remain evidence for their original model, policy and source
+configuration. No retraining or new natural-fraud accuracy claim is implied by
+the later worker integration.
+
 Review date: **24 October 2026 (Asia/Dhaka)**. Baseline: `856fd7f`, plus
 this implementation. The current package is a runtime advisory integration,
 not a replacement of the Oracle verification protocol.

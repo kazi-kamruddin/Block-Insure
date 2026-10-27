@@ -57,6 +57,10 @@ function getLatestOracleLog(logs) {
 }
 
 function getBayesianFraudPercent(log) {
+  if (log?.responseData?.assessment?.model === "XGBoost") {
+    const score = log.responseData.assessment.score;
+    return Number.isFinite(score) ? Math.round(score * 100) : null;
+  }
   return (
     log?.responseData?.hospitalVerification?.riskAssessment?.fraudProbabilityPercent ??
     log?.hospitalVerification?.riskAssessment?.fraudProbabilityPercent ??
@@ -230,7 +234,7 @@ export default function AuditorVotingPage() {
               <small> Higher means the deterministic submission checks passed.</small>
             </p>
             <p>
-              Bayesian fraud probability:{" "}
+              Recorded model risk score:{" "}
               {bayesianFraudPercent === null
                 ? "-"
                 : `${formatValue(bayesianFraudPercent)}%`}

@@ -151,8 +151,14 @@ async function verifyLocalDeployment() {
   const { Interface } = require("../backEnd/node_modules/ethers");
   const abi = new Interface(["function oracleModelVersion() view returns (bytes32)"]);
   const identity = await jsonRpc("eth_call", [{ to: managerAddress, data: abi.encodeFunctionData("oracleModelVersion") }, "latest"]);
-  const expected = require("../backEnd/model-params.json").modelIdentityHash;
-  if (String(identity).toLowerCase() !== expected.toLowerCase()) {
+  const protocol = require("../oracle/runtimeProtocol");
+  if (String(identity).toLowerCase() !== protocol.loadProtocolArtifact().modelIdentityHash.toLowerCase()) {
+    // A valid historical deployment can resume without silently publishing a
+    // new model. Unknown identities still fail closed.
+    if (protocol.resolveRequestModel(identity).kind === "legacy-nb") {
+      console.warn("[Launcher] Existing deployment uses legacy NB; explicit model migration is required for new XGBoost requests.");
+      return;
+    }
     throw new Error("The running chain uses a different model identity. Review and publish the current model through the administrator, or explicitly reset a disposable deployment. No configuration was changed.");
   }
 }

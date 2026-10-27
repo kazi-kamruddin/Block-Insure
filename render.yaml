@@ -15,6 +15,10 @@ services:
         - oracle/advisoryBundle.js
         - oracle/shadowAssessment.js
         - oracle/merkleProof.js
+        - oracle/runtimeProtocol.js
+        - oracle/protocolAssessment.js
+        - oracle/modelArtifact.js
+        - oracle/protocol.js
         - scripts/observability.js
         - render.yaml
     envVars:

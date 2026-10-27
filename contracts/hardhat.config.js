@@ -63,7 +63,13 @@ module.exports = {
       blockGasLimit: 100_000_000,
     },
     sepolia: {
-      url: RPC_URL || "",
+      url: process.env.SEPOLIA_RPC_URL || RPC_URL || "",
+      chainId: 11155111,
+      accounts: ADMIN_PRIVATE_KEY ? [ADMIN_PRIVATE_KEY] : [],
+    },
+    baseSepolia: {
+      url: process.env.BASE_SEPOLIA_RPC_URL || "",
+      chainId: 84532,
       accounts: ADMIN_PRIVATE_KEY ? [ADMIN_PRIVATE_KEY] : [],
     },
   },
