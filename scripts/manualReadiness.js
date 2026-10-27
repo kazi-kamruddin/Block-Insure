@@ -88,7 +88,7 @@ async function main(args = process.argv.slice(2)) {
   } catch { checks.push({ check: "Local deployment manifest", status: "ACTION", next: "Manifest is missing or invalid. Review it without changing secrets or resetting data." }); }
   if (args.includes("--local")) checks.push(...await inspectLocal({ deployment }));
   const report = { scope: args.includes("--local") ? "Configuration plus bounded loopback probes" : "Offline configuration only; no network requests", checks,
-    actions: checks.filter((row) => row.status === "ACTION").length, guide: "docs/manual-next-steps.md",
+    actions: checks.filter((row) => row.status === "ACTION").length, guide: "docs/local-development.md",
     boundary: "READY/CONFIGURED is not full workflow or real-delivery proof. No service startup, database write/reset, email send or hosted activation." };
   if (args.includes("--json")) console.log(JSON.stringify(report, null, 2));
   else { console.table(checks); console.log(`${report.actions} configuration/runtime actions remain. Read ${report.guide}.\n${report.boundary}`); }

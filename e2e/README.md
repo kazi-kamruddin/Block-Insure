@@ -14,6 +14,7 @@ assigned to the selected test actor.
 - Role-specific navigation and cross-role redirect protection
 - Every top-level public and authenticated application route, with browser-error and
   HTTP 5xx monitoring
+- Every role's top-level routes at 1366px and 320px, with retained route screenshots
 - Admin role synchronization and policy-package pages
 - Auditor registry, voting queue, and document-verification pages
 - Hospital dashboard, record/invoice maintenance with persistence, claim attestation,
@@ -30,6 +31,9 @@ assigned to the selected test actor.
   concurrent confirmation, and replay
 - Full Recrypt evidence lifecycle: Auditor identity, owner grant, proxy transform,
   exact decrypted-byte/hash verification, access logging, and revocation
+- Opt-in Brevo-mode profile verification and premium payment through a local
+  provider stub, including hidden codes, wrong-code rejection, single use,
+  the shared resend limit, verified-email invalidation and delivery failure
 - Manual-review finality: concurrent rejection submissions and expired-review timeout
 
 The Oracle workers are not controlled through browser pages. The E2E preflight
@@ -142,6 +146,38 @@ npm run test:e2e:unfinished:rpc
 
 The focused `claims` command intentionally excludes the separately named
 appeal scenario, so the sequence above executes each unfinished scenario once.
+
+For the complete serial campaign with fresh temporary deployments between
+time-changing stages, start the existing local MongoDB container, then use:
+
+```powershell
+$env:E2E_MONGODB_URI='mongodb://127.0.0.1:27019/block_insure_e2e'
+$env:E2E_RPC_PROXY='true'
+npm run test:stabilization
+```
+
+This runner refuses an occupied chain port or a database outside loopback
+`block_insure_e2e`. It preserves saved environment/deployment files and uses
+the in-memory Pinata simulator. Each stage keeps its HTML report, JSON results,
+screenshots and failure artifacts under its own `tmp/stabilization-*/`
+directory. The parent `campaign.json` records completed and failed stages.
+The runner discovers an installed Chromium; record any executable override with
+the campaign results. It does not start or reconfigure Docker itself.
+
+To run only the provider-mode email journey:
+
+```powershell
+npm run test:stabilization -- e2e/tests/email-delivery.workflow.spec.js --brevo-stub
+```
+
+The test-only backend launcher substitutes an in-memory response at Brevo's
+fixed HTTP endpoint. Its private loopback mailbox holds synthetic codes in
+memory. It requires the isolated database and synthetic sender/API key; saved
+Brevo credentials are overridden only in the spawned test process. The test
+waits through the actual one-minute resend interval and checks a mined premium
+receipt. A separate provider-rejection case checks that no usable challenge or
+simulated fallback remains. These checks prove application behavior against a
+provider stub; real mailbox receipt remains a separate manual check.
 
 The appeal check is a headed multi-role workflow: original Oracle failure,
 four-Auditor manual-review snapshot and rejection, browser-side encrypted

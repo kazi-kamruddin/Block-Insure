@@ -23,6 +23,7 @@ module.exports = defineConfig({
   },
   reporter: [
     ["list"],
+    ...(process.env.PLAYWRIGHT_JSON_OUTPUT_NAME ? [["json", { outputFile: process.env.PLAYWRIGHT_JSON_OUTPUT_NAME }]] : []),
     [
       "html",
       {
@@ -31,7 +32,7 @@ module.exports = defineConfig({
       },
     ],
   ],
-  outputDir: "test-results",
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || "test-results",
   use: {
     baseURL: environment.appUrl,
     actionTimeout: environment.actionTimeoutMs,

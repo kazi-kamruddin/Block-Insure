@@ -1,41 +1,40 @@
-# Repository artifact storage
+# Repository contents
 
-Source code, tests, deployment templates, documentation, dataset manifests,
-model artifacts and small dated verification summaries belong in Git.
+The public repository contains application source, tests, package lockfiles,
+deployment templates, public setup instructions, and the artifacts required by
+the runtime, dashboards, and integrity checks.
 
-The following are local, ignored working directories:
+## Versioned dependencies
 
-- `tmp/`: scratch scripts, PDF page renders, previews and temporary test stacks.
-- `output/`: generated paper PDFs, submission archives and exports.
-- `playwright-report/`, `playwright-report-frontend/`, `playwright-reports/`,
-  `test-results/`: generated browser reports, traces, screenshots and recordings.
-- `reference/`, `.project-context/`, `paper-evidence/`: local references and context.
-- Dependency, compiler, coverage and cache directories covered by `.gitignore`.
+Keep the packaged models, model policy, dataset manifests, required test
+fixtures, contract ABIs, and current evaluation/dashboard artifacts. Some modules
+inside `backEnd/research/` are runtime dependencies; that directory is not an
+optional collection of notes.
 
-Under `verification-results/`, small JSON and text records remain tracked;
-generated image, video and ZIP files are ignored. Keep dated provenance and
-revision boundaries when recording new results. Historical results do not verify
-newer source.
+## Local files
 
-Tests can continue writing to ignored report directories. Their source and
-configuration remain tracked. Reports will be created on demand in a fresh clone;
-no application code needs a pre-existing report, paper PDF or scratch render.
+Git ignores private environment files and keys, installed dependencies, build
+outputs, caches, generated browser reports, local execution evidence, working
+references, operator handoffs, and superseded evaluation exports.
 
-The reusable contact-sheet utility is `scripts/make_contact_sheet.py` and requires
-Pillow. For example:
+These files can remain at their existing local paths. Ignoring them does not
+prevent the application or development tools from reading or regenerating them.
+They are not supplied by a fresh clone and need a separate private backup if
+they must be retained.
 
-```powershell
-python scripts/make_contact_sheet.py tmp/pdfs/rendered-supervisor --output-dir tmp/pdfs
-```
+Public setup is documented in [local development](local-development.md).
+Verification commands generate local results as needed. Source snapshots can be
+created with `node scripts/prepareReleaseCandidate.js`; optional evidence is
+selected explicitly with `--evidence verification-results/<name>.json`.
+Snapshot output is local and refuses to overwrite an existing record.
 
-The old supervisor-document builder and artifact-tool spreadsheet helper in
-`tmp/` are machine-specific research scratch scripts; local copies are preserved.
-They are not application startup or test prerequisites.
+Historical research records retain their original hashes. The repository check
+validates those records and compares current runtime, model, dataset and study
+inputs. Changes to the source-snapshot and repository-check tools are reported
+separately; they do not turn a historical evaluation into a new one.
 
-Ignoring a path does not untrack previously committed files. This cleanup removes
-generated/local artifacts from the Git index while preserving their local files.
-After committing and pushing, they disappear from the branch's current tree;
-earlier commits still contain them. No history rewrite is required for housekeeping.
+## Git tracking
 
-Local-only papers and references require a separate backup if they must survive
-loss of this workstation; a fresh clone will not restore them.
+Ignore rules apply to untracked files. Removing a previously tracked path from
+the index with `git rm --cached` preserves its local copy. A later commit records
+the removal from the current tree; existing commits remain unchanged.

@@ -1,9 +1,12 @@
 # Deployment Guide
 
-For the current coordinated model rollout, explicit migration/rollback, hosted
-preview settings and separate Sepolia/Base Sepolia measurement preparation, use
-[XGBoost protocol migration](xgboost-protocol-migration.md). The optional
-self-hosted topology below is an alternative to the existing Vercel/Render setup.
+This guide covers the self-hosted container topology. For local setup, see
+[local development](local-development.md). A hosted preview can instead use
+[the Vercel/Render configuration](free-tier-staging-deployment.md).
+
+Keep the selected chain, deployed contracts, model identity, roles, registry
+commitments, API and both Oracle workers consistent. Restarting services does
+not migrate an existing on-chain model default or restore a lost local chain.
 
 ## Deployment boundary
 

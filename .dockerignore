@@ -27,7 +27,16 @@ reference
 AGENTS.md
 backEnd/research/.venv
 **/__pycache__
-docs/engineered
+docs
+verification-results
+backEnd/evaluation-results/baseline-comparison.csv
+backEnd/evaluation-results/evaluation-model-params.json
+backEnd/evaluation-results/precision-recall-curve.csv
+backEnd/evaluation-results/risk-model-records.csv
+backEnd/evaluation-results/risk-model-summary.json
+backEnd/evaluation-results/roc-curve.csv
+backEnd/evaluation-results/threshold-selection-training.csv
+backEnd/evaluation-results/threshold-sensitivity.csv
 tmp
 output
 playwright-reports

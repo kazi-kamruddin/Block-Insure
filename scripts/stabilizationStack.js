@@ -9,8 +9,9 @@ const children = [];
 let stopping = false;
 const dailyLauncher = process.argv.includes("--daily-launcher");
 const shadowRestart = process.argv.includes("--shadow-restart");
+const brevoStub = process.argv.includes("--brevo-stub");
 fs.mkdirSync(path.join(root, "tmp"), { recursive: true });
-const output = fs.mkdtempSync(path.join(root, "tmp", "stabilization-"));
+const output = fs.mkdtempSync(path.join(process.env.STABILIZATION_CAMPAIGN_DIR || path.join(root, "tmp"), "stabilization-"));
 const environment = {
   ...process.env, NODE_ENV: "development", FORCE_PUBLIC_DNS: "false",
   BLOCKCHAIN_RUNTIME_ENABLED: "true", INDEXER_ENABLED: "true", INDEXER_CONFIRMATIONS: "0",
@@ -26,6 +27,9 @@ const environment = {
   SKIP_LOCAL_ORACLE_CURSOR_RESET: "true",
   CLAIM_SUBMISSION_RATE_LIMIT: "100",
   OTP_DELIVERY_MODE: "simulation",
+  E2E_CAPTURE_SCREENSHOTS: "true",
+  ...(brevoStub ? { OTP_DELIVERY_MODE: "brevo", E2E_BREVO_STUB: "true", E2E_MAILBOX_TOKEN: crypto.randomBytes(32).toString("hex"),
+    BREVO_API_KEY: "block-insure-synthetic-only", BREVO_SENDER_EMAIL: "sender@example.test" } : {}),
   APPDATA: path.join(root, ".hardhat-appdata"), LOCALAPPDATA: path.join(root, ".hardhat-localappdata"),
 };
 const database = new URL(environment.MONGODB_URI);
@@ -79,6 +83,7 @@ async function main() {
       ["e2e/tests/public-smoke.spec.js", "e2e/tests/authentication-security.spec.js", "e2e/tests/role-workspaces.spec.js", "e2e/tests/route-inventory.spec.js"],
       ["e2e/tests/resilience-security.spec.js"],
       ["e2e/tests/part1-profile.workflow.spec.js"],
+      ["e2e/tests/email-delivery.workflow.spec.js", "--brevo-stub"],
       ["e2e/tests/user-policy-claim.workflow.spec.js", "--with-showcase", "--shadow-restart"],
       ["e2e/tests/shadow-concurrency.workflow.spec.js"],
       ["e2e/tests/bank-eft.workflow.spec.js"],
@@ -88,8 +93,20 @@ async function main() {
       ...["simultaneous rejection", "expired review", "encrypted corrected appeal"].map((grep) => ["e2e/tests/unfinished-claim-finality.workflow.spec.js", "--grep", grep]),
       ["e2e/tests/rpc-readiness.resilience.spec.js"],
     ];
+    const results = [];
+    const report = path.join(output, "campaign.json");
+    console.log(`[Stabilization] Campaign evidence: ${path.relative(root, output)}`);
     for (const selection of campaign) {
-      await run("Browser regression", __filename, selection);
+      const startedAt = new Date().toISOString();
+      try {
+        await run("Browser regression", __filename, selection, root, { STABILIZATION_CAMPAIGN_DIR: output });
+        results.push({ selection, startedAt, completedAt: new Date().toISOString(), passed: true });
+      } catch (error) {
+        results.push({ selection, startedAt, completedAt: new Date().toISOString(), passed: false });
+        throw error;
+      } finally {
+        fs.writeFileSync(report, JSON.stringify({ plannedStages: campaign.length, results }, null, 2));
+      }
       console.log(`\n[Stabilization] Passed: ${selection.join(" ")}`);
     }
     return;
@@ -130,7 +147,7 @@ async function main() {
     start("RPC recovery proxy", path.join(root, "scripts/localRpcProxy.js"));
     await waitFor(async () => (await fetch(`${environment.E2E_BACKEND_RPC_URL}/__control/status`)).ok, "RPC proxy");
   }
-  start("Backend", path.join(root, "backEnd/server.js"), [], path.join(root, "backEnd"), environment.E2E_BACKEND_RPC_URL ? { RPC_URL: environment.E2E_BACKEND_RPC_URL } : {});
+  start("Backend", path.join(root, brevoStub ? "e2e/support/localBrevoBackend.js" : "backEnd/server.js"), [], path.join(root, "backEnd"), environment.E2E_BACKEND_RPC_URL ? { RPC_URL: environment.E2E_BACKEND_RPC_URL } : {});
   start("Frontend", path.join(root, "frontEnd/node_modules/vite/bin/vite.js"), ["--host", "localhost", "--port", "5173", "--strictPort"], path.join(root, "frontEnd"));
   const oracleChildren = [];
   const workerOptions = (instance) => ({ PORT: String(5100 + instance), ORACLE_INSTANCE_ID: String(instance),
@@ -167,10 +184,13 @@ async function main() {
   })() : null;
   protocolRestart?.catch(() => {});
   const showcase = process.argv.includes("--with-showcase");
-  const specs = process.argv.slice(2).filter((arg) => !["--with-showcase", "--shadow-restart"].includes(arg));
-  await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/unfinished-benefits.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, { E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: "playwright-reports/stabilization" });
+  const specs = process.argv.slice(2).filter((arg) => !["--with-showcase", "--shadow-restart", "--brevo-stub"].includes(arg));
+  console.log(`[Stabilization] Stage evidence: ${path.relative(root, output)}`);
+  const browserReports = (name) => ({ E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: path.join(output, name, "report"),
+    PLAYWRIGHT_OUTPUT_DIR: path.join(output, name, "artifacts"), PLAYWRIGHT_JSON_OUTPUT_NAME: path.join(output, name, "results.json") });
+  await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/unfinished-benefits.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, browserReports("browser"));
   if (protocolRestart) await protocolRestart;
-  if (showcase) await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", "e2e/tests/showcase-coverage.spec.js", "--workers=1"], root, { E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: "playwright-reports/stabilization" });
+  if (showcase) await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", "e2e/tests/showcase-coverage.spec.js", "--workers=1"], root, browserReports("showcase"));
   if (shadowRestart) {
     const mongoose = require("../backEnd/node_modules/mongoose");
     await mongoose.connect(environment.MONGODB_URI);

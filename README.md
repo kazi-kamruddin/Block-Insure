@@ -1,378 +1,122 @@
 # Block-Insure
 
-Block-Insure is a thesis prototype for blockchain-backed insurance claims,
-multi-oracle verification, explainable fraud-risk scoring, independent auditor
-review, hospital-owned attestations, bank-managed premium payments, and on-chain
-settlement.
+Block-Insure is a blockchain-based insurance thesis prototype with role-based
+workspaces for policyholders, administrators, auditors, hospitals, and banks.
+It combines on-chain policy and claim management with encrypted evidence,
+hospital-registry verification, two Oracle workers, and explainable risk scoring.
 
-The base `InsuranceManager` contract is paired with a dedicated
-`ClaimAdjudicator` that snapshots four auditors, enforces fixed quorum rules,
-stores versioned decisions, and holds pull-payment settlement allocations. It
-is also paired with a deployable
-`PolicyBenefitsManager` extension for beneficiary designation, death benefits,
-surrender values, maturity benefits, versioned terms, and separately funded
-benefit settlement. The normal local deployment installs and synchronizes both
-modules.
+The project uses simulated banking and healthcare records for development and
+evaluation. It is not a production insurance service or a clinical fraud detector.
 
-## Project Layout
+## Features
 
-- `contracts`: Solidity contract, deployment scripts, and Hardhat tests.
-- `backEnd`: Express API, MongoDB models, fraud model, and evaluation scripts.
-- `frontEnd`: React dashboards for policyholders, administrators, auditors,
-  hospitals, and banks.
-- `oracle`: Two configurable oracle-node processes.
-- `docs`: Design decisions, limitations, and thesis methodology notes.
+- Policy purchase, premium payments, standing bank instructions, and statements.
+- Claims and corrected appeals with browser-encrypted supporting documents.
+- Hospital attestations and verification against committed Merkle registry roots.
+- Two Oracle workers with request-bound, versioned risk assessments.
+- Manual review with a four-auditor snapshot: three approvals allocate a payout,
+  two rejections reject, and an expired review rejects without sufficient quorum.
+- Pull-payment settlement: recipients withdraw allocated payouts.
+- Beneficiary, surrender, and maturity benefits with eligibility checks.
+- Wallet-based SIWE login, role isolation, and email confirmation/OTP support.
 
-## Local Services
+Model scores support claim routing; they do not establish fraud or bypass
+eligibility, auditor quorum, reserves, or payout-withdrawal rules. Fresh
+deployments use the packaged XGBoost routing model. Existing requests retain
+their captured model version.
 
-The [27 October XGBoost protocol migration](docs/xgboost-protocol-migration.md)
-makes the complete XGBoost pipeline the risk-routing default for fresh deployments.
-Both workers compute request-bound scores before commit/reveal, preserving proof
-checks, exact agreement, Auditor authority and pull-payment settlement. Existing
-deployments keep their current default until the explicit migration is applied;
-historical NB requests retain their frozen evaluator. Check packaging with
-`npm run protocol:check`. The guide includes dry-run/rollback, monitoring,
-Brevo completion, separate Sepolia/Base Sepolia configuration and actual receipt
-measurement. Hosted processing remains disabled until deliberately configured.
+## Architecture
 
-For the next hands-on steps, start with the [manual setup and Brevo walkthrough](docs/manual-next-steps.md).
-`npm run preflight:manual` checks configuration offline without displaying secrets;
-add `-- --local` for bounded local readiness probes. It starts or resets no services.
+| Directory | Contents |
+| --- | --- |
+| `contracts/` | Solidity contracts, Hardhat deployment scripts, and contract tests |
+| `backEnd/` | Express API, MongoDB models, cryptographic services, and model integration |
+| `frontEnd/` | React dashboards, wallet integration, and client-side evidence encryption |
+| `oracle/` | Independent Oracle workers, proof verification, and model dispatch |
+| `e2e/` | Playwright browser tests and isolated test-wallet helpers |
+| `scripts/` | Startup, configuration, packaging, and verification tools |
+| `deploy/` | Container definitions and deployment environment templates |
+| `docs/` | Public setup, deployment, and repository guidance |
 
-The historical [dual-worker shadow and release-assurance report](docs/shadow-release-assurance.md)
-describes independent worker context/root verification, signed reports, restart
-recovery, operational measurements and the actual daily-launcher checks. See
-the [deployment handoff](docs/shadow-deployment-handoff.md) before publishing a
-coordinated API/worker/frontend revision. Shadow agreement has no financial
-decision authority.
+The stack uses Solidity/Hardhat, Node.js/Express, MongoDB, React/Vite,
+Tailwind CSS, Ethers, and IronCore Recrypt.
 
-The historical [XGBoost runtime advisory integration](docs/xgboost-advisory-phase3.md)
-makes XGBoost the primary assessment in Admin claim details, alongside the NB
-protocol comparison. Graph/temporal context, calibration, OOD, conformal sets
-and exact SHAP explanations run on committed registry snapshots. The balanced
-advisory does not independently route claims or change the Oracle protocol;
-the 30% validation comparison budget is not a live queue guarantee. These paragraphs
-describe the 24 October stage; the migration guide above owns the current model arrangement.
+## Local development
 
-The [source-grounded engineering follow-up](docs/advanced-engineering-v2.md)
-adds benign counterexamples, explicit simulated billing actions, availability-safe
-history and frozen shift tests. Class-conditional calibration helps pure prevalence
-shift but creates substantial review workload; promotion remains HOLD.
+Use **Node.js 24**, npm, and a reachable MongoDB instance. Follow the
+[local development guide](docs/local-development.md) to create private
+configuration, select a disposable database, and start the stack safely.
 
-The [advanced ML Phase 1/2 notes](docs/advanced-ml-phase12.md) describe the new
-offline graph/temporal, GBDT, calibration, TreeSHAP, OOD and conformal candidate.
-That historical study records a HOLD decision. The running Oracle protocol
-at that stage retained its frozen NB artifact; the newer Admin advisory uses a separately
-versioned, balanced XGBoost policy, without claiming an overall performance win.
-
-The [24 October prototype-polish notes](docs/prototype-polish.md) cover the
-three-seed observable study, the HOLD promotion decision, evidence recovery,
-prepared Brevo email OTP delivery, confirmed benefit/payment projections and
-verification limits. Email sending is not activated by these code changes.
-
-Use **Node 24 LTS** for full-repository development. The frontend's patched PDF
-renderer requires Node 22.13+ (22.x) or 24.x to build; the existing Render backend
-and Oracle Node 20 configuration is unchanged. For Vercel, select Node 24.x when
-redeploying the frontend.
-
-### Clean local simulation
-
-Use this workflow for a fresh simulation. It deliberately removes only
-Block-Insure runtime data from the configured MongoDB database, deploys a new
-local contract, creates **one** `Health Basic` package, funds the configured
-local role accounts, and assigns one Admin, four Auditors, five Hospitals, one
-Bank, and two Oracle identities. It also funds a 1 ETH local settlement reserve. It creates **no
-policies, claims, appeals, evidence, oracle logs, or
-synthetic user activity**. It does rebuild the synthetic healthcare registry
-baseline and commits its Merkle root on the fresh local chain, so newly created
-claims can be verified by the oracle from the first run.
-
-The clean role baseline is exactly one Admin, four Auditors, five Hospitals,
-one Bank, and two Oracle wallets. Auditor reputation is not seeded; it is derived automatically from
-finalized review outcomes. Every manual review snapshots exactly four active
-auditors. Three approvals allocate payout automatically; two rejections reject
-immediately, and an expired review rejects for insufficient quorum. Local
-Hardhat auditor accounts fill any unconfigured third/fourth slots. The two oracle workers use separate registry
-collections, but clean setup gives both the same committed baseline so valid
-claims can reach quorum. Research scripts may deliberately introduce divergent
-data, but the clean workflow never does.
-
-For a fresh one-terminal development stack, configure the `.env` files once
-and run:
+Install dependencies from the repository root:
 
 ```powershell
-npm run dev:bootstrap
+npm run install:all
 ```
 
-`dev:bootstrap` explicitly requests a reset and clean deployment, even if a
-deployment already exists. The managed launcher starts Hardhat when needed and
-health-checks the backend, frontend and both Oracle workers. Use this command only
-with disposable data. Ctrl+C stops processes started by the launcher.
-
-To reuse an already running and deployed local chain without resetting data:
+After configuration, daily startup against an existing valid local chain is:
 
 ```powershell
-npm run dev:all
+npm run dev
 ```
 
-`npm run dev` is the same non-resetting daily launch. Keep the chain running
-separately with `npm run dev:chain`; restarting Hardhat loses its in-memory state.
-See [Part 1 startup and verification](docs/part1-stabilization.md) for generated
-deployment configuration, prepared test databases and sequential regression runs.
+Fresh setup uses `dev:bootstrap`; it resets the configured application database
+and deploys a new local baseline. Select a disposable loopback database first.
+The hybrid dataset workflow is optional and requires separately supplied source
+files. Both workflows are described in the local guide.
 
-### Hybrid healthcare-claims simulation
-
-To run the same claimant, admin, auditor, oracle, and settlement workflows with
-the hybrid registry, place the four required public CSV files under
-`backEnd/datasets/hybrid-v1/raw/` and run:
-
-```powershell
-npm run dev:hybrid
-```
-
-This validates the prepared hybrid artifacts before resetting local state,
-preserves five runtime-aligned compatibility presets required by the claim UI, loads
-4,995 deterministic public-secondary-derived registry rows (5,000 total),
-deploys the local contracts, commits the resulting registry Merkle root, and
-verifies that both Mongo registry snapshots match the on-chain commitment.
-Run `npm --prefix backEnd run build:hybrid` first when the raw CSVs change. The
-source `PotentialFraud` value remains a weak provider-risk label; only controlled
-Block-Insure scenario injection supplies claim-level attack truth.
-The original synthetic-only workflow remains available through
-`npm run dev:bootstrap`. See
-[the hybrid dataset contract](backEnd/datasets/hybrid-v1/README.md) for its
-splits, provenance fields, normalization, generated outputs, and limitations.
-
-The manual multi-terminal workflow remains available for debugging:
-
-```powershell
-npm --prefix contracts run node
-# In another terminal:
-npm run setup:local
-# Then start services separately or run npm run dev:all.
-```
-
-Open separate browser profiles (or separate browsers) and connect MetaMask to
-the local Hardhat network (`http://127.0.0.1:8545`, chain ID `31337`). Import
-the accounts corresponding to the configured `ADMIN_PRIVATE_KEY` and
-`AUDITOR_WALLET_ADDRESS` values for the Admin and Auditor profiles. Use any
-other funded Hardhat account for the policyholder profile; its first login is
-created as a normal `USER`. Do not run `demo:populate` or
-`loadtest:claims` when you want an empty simulation.
-
-Before opening the profiles, run `npm run preflight:metamask`. It validates the
-live services, chain, deployment, roles, and balances, then prints only the
-public address expected in each browser profile. See
-[`docs/manual-metamask-rehearsal-2026-09-01.md`](docs/manual-metamask-rehearsal-2026-09-01.md)
-for the complete multi-terminal sequence and MetaMask prompt checklist.
-
-After `dev:hybrid` reports ready, `npm run test:e2e` checks every public and
-role-isolated top-level page. `npm run test:e2e:workflow` runs four state-changing
-demonstrations: approved automatic/manual bank payments, bank rejection and
-policyholder cancellation, automatic two-Oracle approval, and Oracle failure
-resolved by three assigned Auditors. The claim journeys finish with claimant
-withdrawal and `SETTLED` status. After a clean setup, `npm run test:e2e:all` runs
-the complete ordered browser regression, including state-dependent workspace
-showcases and reversible hospital-record maintenance.
-`demo:populate` is a legacy synthetic-only fixture and must not be used to verify
-the hybrid registry because it replaces the runtime registry records.
-
-Administrators cannot approve, reject, settle, close, or decide appeals. Exact
-oracle success allocates a payout automatically. Oracle failure can be routed
-to manual review immediately by an operator and becomes permissionlessly
-routable after the SLA. A valid underfunded claim enters `FUNDING_REQUIRED`
-instead of being rejected; once funded, anyone can activate the allocation and
-the claimant withdraws it.
-
-Claim and appeal evidence is encrypted in the browser with AES-256-GCM before
-upload. Pinata, MongoDB, and the blockchain receive only encrypted bytes and
-their hash/CID. The random AES key is encapsulated for the uploader's versioned
-Recrypt identity. An owner can grant an assigned auditor a proxy
-re-encryption transform key; the backend transforms the encrypted key capsule
-without learning the AES key or document plaintext, and the recipient decrypts
-in the browser. Private evidence identities live in IndexedDB, with an
-encrypted recovery backup derived from a wallet signature. Access grants and
-key retrievals are recorded in the evidence-access log, while the raw AES key
-is never persisted in IPFS, MongoDB, or the blockchain. Production deployments
-must protect the proxy signing key with managed KMS/HSM custody and an explicit
-release policy.
-
-The normal claim allowance is controlled by `CLAIMS_PER_WALLET_24H`. Set it to
-`0` to disable the daily allowance locally, or opt into the authenticated local
-reset control with `DEV_ALLOW_CLAIM_LIMIT_RESET=true`. Never enable the reset
-control in production.
-
-The detailed synthetic hospital verification endpoint is not public. Oracle
-workers authenticate with `ORACLE_API_KEY`, and the response exposed to oracle
-logs contains a limited record commitment instead of patient and diagnosis
-fields.
-
-## Deployment
-
-For the no-cost, sleep-when-idle Vercel + Render + Atlas staging path, including
-an explicit off-chain preview phase and two restart-safe hosted Oracle web
-services, use the
-[free-tier staging guide](docs/free-tier-staging-deployment.md). This staging
-path is separate from the single-host Compose bundle below and does not alter
-the local `dev:hybrid` workflow.
-
-The tracked production bundle runs the frontend, backend, two independent oracle
-workers, and an automatic-TLS gateway while keeping MongoDB, Pinata, blockchain
-RPC, and wallet custody external. Start with the
-[deployment guide](docs/deployment-guide.md); do not deploy the prototype to
-mainnet or use real patient/insurance data.
-
-Validate the release structure without secrets:
-
-```powershell
-npm run release:check:template
-```
-
-After creating the ignored `deploy/production.env`, validate every production
-URL, chain, address, identity, and secret relationship with:
-
-```powershell
-npm run release:check
-```
+The frontend runs at `http://localhost:5173`, the API at
+`http://localhost:5000`, and the local blockchain uses chain ID `31337`.
+Hardhat state is in memory; saved deployment addresses do not restore a stopped
+chain. Keep its terminal running when restarting application services.
 
 ## Verification
 
-Run the complete repository verification from the project root:
-
 ```powershell
+npm run preflight:manual
+npm run doctor
 npm run verify:all
 ```
 
-This continues through every offline subsystem and writes a structured result
-to `verification-results/phase5-verification.json`. To include local
-environment/ABI/address synchronization, run:
+`preflight:manual` checks configuration without starting services or sending
+email. `doctor` checks local configuration and artifact integrity. `verify:all`
+runs the subsystem verification sequence; its hybrid-data check requires the
+separately prepared dataset. Individual checks are also available:
 
 ```powershell
-npm run verify:full
+npm --prefix contracts test
+npm --prefix backEnd test
+npm --prefix oracle test
+npm --prefix frontEnd run lint
+npm --prefix frontEnd run build
 ```
 
-For a fast prerequisite and artifact diagnosis:
+Browser workflows require a prepared local stack. See the
+[browser testing guide](e2e/README.md) for isolated databases, synthetic external
+services, and production-build checks. Tests and configuration are versioned;
+generated reports and local execution records are ignored.
 
-```powershell
-npm run doctor
-```
+## Deployment and configuration
 
-On a fresh checkout, install every workspace from its lock file with
-`npm run install:all`.
+- [Self-hosted testnet deployment](docs/deployment-guide.md)
+- [Hosted preview configuration](docs/free-tier-staging-deployment.md)
+- [Dataset requirements](backEnd/datasets/hybrid-v1/README.md)
+- [Repository contents and generated files](docs/repository-artifacts.md)
 
-Or run individual checks:
+Each service has an environment example. Keep private keys, database credentials,
+provider tokens, and real `.env` files out of Git and frontend `VITE_*` values.
+Hosted services need their own configuration; local environment edits do not
+configure hosting platforms. A hosted off-chain preview cannot complete
+blockchain transactions until its shared chain and services are configured.
 
-```powershell
-cd contracts
-npm test
-npm run coverage
-npm run test:stateful
-npm run test:mutations
-# Optional: requires slither-analyzer to be installed separately. If it is not
-# on PATH, point the runner at the executable for the current PowerShell window:
-$env:SLITHER_BIN = "E:\path\to\slither.exe"
-npm run analyze:slither
-```
+## Scope
 
-```powershell
-cd backEnd
-npm test
-npm run research:baseline
-npm run research:phase34
-```
+Bank balances and transfers are simulated. Email verification proves access to
+the configured mailbox, not legal identity. Hospital-registry commitments and
+Oracle agreement depend on the configured data sources and trust model.
+Research results use controlled scenarios and weak provider labels; they do not
+establish natural-fraud accuracy or clinical validity. Use synthetic test data
+and development/testnet funds.
 
-```powershell
-cd frontEnd
-npm run lint
-npm run build
-```
+## License
 
-```powershell
-cd oracle
-npm test
-```
-
-## Research Studies
-
-The reproducible offline fraud/triage study does not require MongoDB or a
-running blockchain:
-
-```powershell
-cd backEnd
-npm run research:baseline
-```
-
-That command regenerates and verifies the seeded datasets, freezes the
-capacity/cost triage policy against the existing model, runs schema-v4 grouped,
-provider-held-out and temporal evaluation, regenerates charts, and writes a
-research manifest. Runtime-dependent studies remain separate:
-
-```powershell
-cd backEnd
-npm run seed:mock
-npm run metrics:collect
-npm run loadtest:claims
-npm run analyze:auditors
-```
-
-The schema-v4 evaluation uses connected claimant-provider grouping, calibration
-inside training partitions, a strict 64/16/20 temporal fit/calibration/test
-split, explicit provider holdout, component-bootstrap intervals, grouped
-out-of-fold ablations, model baselines, and cost/capacity frontiers. The runtime
-triage policy can defer probabilistic risk to manual review but cannot reject a
-claim without an authoritative integrity failure.
-
-The hybrid study consumes all 558,211 unique public-secondary claims offline,
-trains and tests the separate `provider-risk-real-v1.0.0` weak-label model on
-provider-disjoint partitions, and evaluates the existing protocol model against
-paired controlled attacks. It does not relabel provider risk as confirmed claim
-fraud. Reproduce the hybrid evaluation and 5,000-row Merkle benchmark with:
-
-```powershell
-cd backEnd
-npm run evaluate:hybrid
-npm run benchmark:hybrid
-```
-
-Generate the paper-facing JSON, CSV tables, SVG figures, and assurance summary
-after regenerating and verifying the research artifacts:
-
-```powershell
-npm run research:paper-evidence
-```
-
-The paper-evidence command writes its generated tables, figures, and section map
-to the ignored local `paper-evidence/` directory. Generated paper PDFs and source
-archives live in the ignored local `output/` directory and are not included in a
-fresh clone. See [repository artifact storage](docs/repository-artifacts.md).
-
-The admin **Thesis Results** dashboard reads generated artifacts from
-`backEnd/evaluation-results`.
-
-The advisory reserve and confidential-evidence studies can be regenerated
-together without a running blockchain or MongoDB:
-
-```powershell
-npm run research:phase34
-```
-
-This produces seeded frequency–severity reserve stress results, real
-AES-GCM/Recrypt/Merkle lifecycle measurements, adversarial evidence checks,
-four SVG figures, and an updated research manifest. Run `npm run research:all`
-from the repository root to reproduce every Phase 0–4 research artifact and
-assurance campaign. Research artifacts use atomic replacement, so interruption
-cannot replace a valid JSON file with a partially written one.
-
-## Documentation
-
-- [Six-step demo and observable-pipeline follow-up](docs/observable-pipeline-stabilization.md)
-- [Deployment guide](docs/deployment-guide.md)
-- [Current protocol security and operational verification](docs/phase-5-operational-hardening.md)
-- [Supervisor showcase guide](docs/supervisor-showcase-guide.md)
-- [Current protocol migration manifest](docs/protocol-v2-migration.json)
-- [Phase 0/1/2 research and assurance implementation](docs/phase-0-1-2-research-assurance.md)
-- [Phase 3/4 reserve and evidence research](docs/phase-3-4-reserve-evidence-research.md)
-- Six-page thesis paper: local `output/pdf/block-insure-six-page-paper.pdf` (ignored)
-- [Current portable project context](reference/context%20Block_Insure%2027oct.md) (local, ignored by Git)
-- [Local context reading guide](.project-context/00_PROJECT_BRIEF.md) — eight complementary overview/specialist files, ignored by Git.
-- Historical deep technical reference: local `reference/block-insure-deep-technical-reference.md` (ignored)
+See [LICENSE](LICENSE).

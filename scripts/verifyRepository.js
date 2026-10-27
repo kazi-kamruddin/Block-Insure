@@ -29,6 +29,21 @@ const validateNodeVersion = (version = process.versions.node) => {
   );
 };
 
+// Release bookkeeping is not an input to model evaluation. Keep its recorded
+// historical hashes intact while still comparing every runtime/study input.
+const RESEARCH_METADATA_TOOLS = ["scripts/prepareReleaseCandidate.js", "scripts/verifyRepository.js"];
+const compareResearchManifests = (recorded, current) => {
+  const basis = (manifest) => {
+    const value = researchManifestReproducibilityBasis(manifest);
+    return { ...value, implementation: Object.fromEntries(Object.entries(value.implementation || {})
+      .filter(([file]) => !RESEARCH_METADATA_TOOLS.includes(file))) };
+  };
+  return {
+    matches: calculateReproducibilityHash(basis(recorded)) === calculateReproducibilityHash(basis(current)),
+    metadataToolingChanges: RESEARCH_METADATA_TOOLS.filter((file) => recorded.implementation?.[file] !== current.implementation?.[file]),
+  };
+};
+
 const verifyPackageMetadata = (failures) => {
   const directories = [".", "backEnd", "contracts", "frontEnd", "oracle"];
   for (const directory of directories) {
@@ -143,7 +158,9 @@ const verifyResearchArtifacts = (failures) => {
     failures
   );
   const expectedManifest = buildResearchManifest({ writeOutput: false });
-  assert(researchManifest.reproducibilityHash === expectedManifest.reproducibilityHash, "Research manifest is stale; regenerate research artifacts", failures);
+  const comparison = compareResearchManifests(researchManifest, expectedManifest);
+  assert(comparison.matches, "Research model, dataset, artifact or study-source bindings differ from the recorded manifest; review before regenerating", failures);
+  return comparison;
 };
 
 const verifyCharts = (failures) => {
@@ -200,22 +217,23 @@ const run = () => {
   verifyPackageMetadata(failures);
   verifyEnvironmentTemplates(failures);
   verifyDeploymentAssets(failures);
-  verifyResearchArtifacts(failures);
+  const researchSnapshot = verifyResearchArtifacts(failures);
   verifyCharts(failures);
   verifyCompiledContracts(failures);
   verifyTemporaryState(failures);
   if (failures.length) throw new Error(`Repository integrity verification failed:\n- ${failures.join("\n- ")}`);
-  return { checks: 7, node: process.version };
+  return { checks: 7, node: process.version, researchSnapshot };
 };
 
 if (require.main === module) {
   try {
     const result = run();
     console.log(`[Repository verification] ${result.checks} check groups passed on ${result.node}.`);
+    if (result.researchSnapshot.metadataToolingChanges.length) console.log("Research provenance retains historical release/verification-tool hashes; runtime and study inputs still match.");
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
   }
 }
 
-module.exports = { run, validateNodeVersion };
+module.exports = { run, validateNodeVersion, compareResearchManifests };

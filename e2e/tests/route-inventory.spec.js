@@ -69,34 +69,49 @@ test.describe("@smoke complete route inventory", () => {
   });
 
   for (const [actorName, routes] of Object.entries(roleRoutes)) {
-    test(`${actorName} can render every top-level workspace route without server errors`, async ({ browser }) => {
-      const session = await createActorContext(browser, actorName);
-      const serverErrors = [];
-      const pageErrors = [];
-      session.page.on("response", (response) => {
-        if (response.url().includes("/api/") && response.status() >= 500) {
-          serverErrors.push(`${response.status()} ${response.url()}`);
+    for (const width of [1366, 320]) {
+      test(`${actorName} can render every top-level workspace route without server errors at ${width}px`, async ({ browser }, testInfo) => {
+        const session = await createActorContext(browser, actorName, { viewport: { width, height: 900 } });
+        const serverErrors = [];
+        const pageErrors = [];
+        session.page.on("response", (response) => {
+          if (response.url().includes("/api/") && response.status() >= 500) {
+            serverErrors.push(`${response.status()} ${response.url()}`);
+          }
+        });
+        session.page.on("pageerror", (error) => pageErrors.push(error.message));
+
+        try {
+          await loginActor(session.page, session.actor);
+          for (const [route, heading] of routes) {
+            await session.page.goto(route);
+            await expect(session.page.getByRole("heading", { name: heading })).toBeVisible();
+            await expect(session.page.getByRole("heading", { name: heading })).toBeInViewport();
+            expect(await session.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${route} must fit ${width}px`).toBe(true);
+            if (actorName === "bank" && width === 320) {
+              const date = await session.page.getByLabel("Automation reference date").boundingBox();
+              const scan = await session.page.getByRole("button", { name: "Run reminder and debit scan" }).boundingBox();
+              expect(scan.y).toBeGreaterThanOrEqual(date.y + date.height);
+              expect(scan.width).toBeGreaterThanOrEqual(160);
+              expect(scan.height).toBeGreaterThanOrEqual(44);
+              expect(scan.height).toBeLessThanOrEqual(88);
+            }
+            await testInfo.attach(`${actorName}-${width}-${route.split("/").filter(Boolean).join("-")}.png`, {
+              body: await session.page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png",
+            });
+          }
+
+          for (const foreignRoot of workspaceRoots.filter((route) => route !== session.actor.home)) {
+            await session.page.goto(foreignRoot);
+            await expect(session.page).toHaveURL(new RegExp(`${session.actor.home.replaceAll("/", "\\/")}$`));
+          }
+
+          expect(serverErrors).toEqual([]);
+          expect(pageErrors).toEqual([]);
+        } finally {
+          await closeActor(session);
         }
       });
-      session.page.on("pageerror", (error) => pageErrors.push(error.message));
-
-      try {
-        await loginActor(session.page, session.actor);
-        for (const [route, heading] of routes) {
-          await session.page.goto(route);
-          await expect(session.page.getByRole("heading", { name: heading })).toBeVisible();
-        }
-
-        for (const foreignRoot of workspaceRoots.filter((route) => route !== session.actor.home)) {
-          await session.page.goto(foreignRoot);
-          await expect(session.page).toHaveURL(new RegExp(`${session.actor.home.replaceAll("/", "\\/")}$`));
-        }
-
-        expect(serverErrors).toEqual([]);
-        expect(pageErrors).toEqual([]);
-      } finally {
-        await closeActor(session);
-      }
-    });
+    }
   }
 });
