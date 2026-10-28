@@ -20,7 +20,7 @@ evaluation. It is not a production insurance service or a clinical fraud detecto
 - Beneficiary, surrender, and maturity benefits with eligibility checks.
 - SIWE for signing roles, separate hospital staff login, and email confirmation/OTP.
 
-The Phase 1 foundation uses fixed installment periods shared by wallet, OTP and
+Premium collection uses fixed installment periods shared by wallet, OTP and
 EFT payments. Simulated BDT debits settle funded test ETH atomically, with durable
 pending-operation recovery. Purchase documents reflect published contract rules
 and bind their hash to the issued policy. See
@@ -101,6 +101,16 @@ Browser workflows require a prepared local stack. See the
 [browser testing guide](e2e/README.md) for isolated databases, synthetic external
 services, and production-build checks. Tests and configuration are versioned;
 generated reports and local execution records are ignored.
+
+The financial/provider regression command is `npm run test:phase1`; its isolated
+database requirements and stage selection are described in the browser testing
+guide. It includes hospital login without a wallet, issued terms, coordinated
+payments, claim processing and recovery of persisted gateway transactions.
+
+Historical research artifacts retain their original source scope. The
+[reviewed source transition](docs/research-source-transition-v2.json) records
+changed runtime bindings without rewriting historical results. A passing repository
+check does not revalidate those measurements for the current release.
 
 ## Deployment and configuration
 

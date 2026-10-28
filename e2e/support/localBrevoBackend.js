@@ -4,7 +4,7 @@ const http = require("node:http");
 const crypto = require("node:crypto");
 const database = new URL(process.env.MONGODB_URI);
 if (process.env.E2E_BREVO_STUB !== "true" || process.env.NODE_ENV !== "development" ||
-    !["localhost", "127.0.0.1", "[::1]"].includes(database.hostname) || database.pathname !== "/block_insure_e2e" ||
+    !["localhost", "127.0.0.1", "[::1]"].includes(database.hostname) || !/^\/block_insure_[a-z0-9_]*e2e$/.test(database.pathname) ||
     process.env.BREVO_API_KEY !== "block-insure-synthetic-only" || !process.env.E2E_MAILBOX_TOKEN) {
   throw new Error("Local mail stub requires the isolated disposable E2E environment");
 }

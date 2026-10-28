@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { main: snapshot } = require("../../scripts/prepareReleaseCandidate");
 const { compareResearchManifests } = require("../../scripts/verifyRepository");
+const { sourceDifferences, verifySourceTransition } = require("../../scripts/researchSourceTransition");
 
 function fixture() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "block-insure-public-snapshot-"));
@@ -97,5 +98,28 @@ test("research checks distinguish bookkeeping changes while preserving runtime, 
   }
   const changedArtifact = structuredClone(current); changedArtifact.artifacts.model = "changed";
   assert.equal(compareResearchManifests(recorded, changedArtifact).matches, false);
+  assert.equal(JSON.stringify(recorded), before);
+});
+
+test("reviewed source transitions bind exact deltas and preserve historical evidence", () => {
+  const recorded = { reproducibilityHash: "historical", implementation: { "runtime.js": "old" },
+    artifacts: { model: "frozen", evaluation: "original" } };
+  const current = structuredClone(recorded);
+  current.implementation["runtime.js"] = "reviewed";
+  const receipt = { schemaVersion: 1, historicalManifestSha256: "file-hash",
+    historicalReproducibilityHash: "historical", evidenceStatus: "HISTORICAL_NOT_REVALIDATED",
+    changes: sourceDifferences(recorded, current).map((change) => ({ ...change, reason: "Reviewed runtime migration" })) };
+  const before = JSON.stringify(recorded);
+  assert.equal(verifySourceTransition(recorded, current, receipt, "file-hash"), true);
+  assert.equal(verifySourceTransition(recorded, current, receipt, "different-file"), false);
+  for (const field of ["model", "evaluation"]) {
+    const changed = structuredClone(current); changed.artifacts[field] = "unreviewed";
+    assert.equal(verifySourceTransition(recorded, changed, receipt, "file-hash"), false);
+  }
+  const extra = structuredClone(current); extra.implementation["runtime.js"] = "unreviewed";
+  assert.equal(verifySourceTransition(recorded, extra, receipt, "file-hash"), false);
+  const rewritten = structuredClone(recorded); rewritten.reproducibilityHash = "rewritten";
+  assert.equal(verifySourceTransition(rewritten, current, receipt, "file-hash"), false);
+  assert.equal(verifySourceTransition(recorded, current, { ...receipt, changes: [] }, "file-hash"), false);
   assert.equal(JSON.stringify(recorded), before);
 });

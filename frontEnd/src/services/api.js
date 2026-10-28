@@ -706,10 +706,6 @@ export async function reconcilePendingAdminTransactions() {
 }
 
 export async function requestOracleVerification(claimId) {
-  const hospitalResult = await getHospitalClaimVerification(claimId);
-  if (!hospitalResult.verification) {
-    throw new Error("The contracted hospital must verify this claim before insurer processing.");
-  }
   const contract = await getWalletContract();
   return executeAdminWalletAction(
     "REQUEST_ORACLE_VERIFICATION",

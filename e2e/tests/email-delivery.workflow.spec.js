@@ -100,7 +100,10 @@ test.describe("@workflow Brevo-mode application with a local provider stub", () 
       expect(await mongo.db.collection("banktransactions").countDocuments({ policyId, type: "MANUAL_OTP" })).toBe(0);
       await paymentInput.fill(paymentCode);
       await page.getByRole("button", { name: "Confirm manual payment" }).click();
-      await expect(page.getByText("Manual OTP", { exact: true })).toBeVisible({ timeout: 60_000 });
+      const transferRow = page.getByRole("row").filter({ has: page.getByRole("cell", { name: "Manual OTP", exact: true }) });
+      // The method is visible while durable reconciliation is still processing.
+      // Require the application to show confirmed settlement before checking it.
+      await expect(transferRow.getByRole("cell", { name: "PAID", exact: true })).toBeVisible({ timeout: 60_000 });
       const transfer = await mongo.db.collection("banktransactions").findOne({ policyId, type: "MANUAL_OTP" });
       expect(transfer.status).toBe("PAID");
       expect((await session.provider.getTransactionReceipt(transfer.transactionHash)).status).toBe(1);
@@ -114,6 +117,14 @@ test.describe("@workflow Brevo-mode application with a local provider stub", () 
       await saveEmail(page, "changed@example.test");
       await expect(page.getByText("Email verified for payment codes.")).toHaveCount(0);
       expect(await mongo.db.collection("users").countDocuments({ email: "changed@example.test", verifiedEmail: email })).toBe(0);
+      // Reach a payable next installment so this probe tests mailbox authority,
+      // rather than failing earlier because the paid period closed its window.
+      await advanceToInstallment(session, policyId);
+      await expect.poll(async () => {
+        const response = await page.request.get(`${getE2EConfig().apiUrl}/api/policies/my?limit=100`, { headers });
+        expect(response.status()).toBe(200);
+        return (await response.json()).policies.find((item) => item.policyId === policyId)?.installment?.payableNow;
+      }, { timeout: 10_000, message: "The next period must be eligible before probing unverified-email rejection" }).toBe(true);
       const unverifiedPayment = await page.request.post(`${getE2EConfig().apiUrl}/api/banks/user/manual-payments/otp`, {
         headers, data: { accountReference, policyId },
       });

@@ -10,6 +10,7 @@ const {
   run: buildResearchManifest,
 } = require("../backEnd/scripts/generateResearchManifest");
 const { parseEnv, verifyTemplate } = require("./releaseCheck");
+const { verifySourceTransition } = require("./researchSourceTransition");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const readJson = (relativePath) =>
@@ -159,7 +160,12 @@ const verifyResearchArtifacts = (failures) => {
   );
   const expectedManifest = buildResearchManifest({ writeOutput: false });
   const comparison = compareResearchManifests(researchManifest, expectedManifest);
-  assert(comparison.matches, "Research model, dataset, artifact or study-source bindings differ from the recorded manifest; review before regenerating", failures);
+  const transitionPath = "docs/research-source-transition-v2.json";
+  comparison.historicalTransition = !comparison.matches && fs.existsSync(path.join(PROJECT_ROOT, transitionPath))
+    && verifySourceTransition(researchManifest, expectedManifest, readJson(transitionPath),
+      sha256File("backEnd/evaluation-results/research-manifest-v4.json"));
+  assert(comparison.matches || comparison.historicalTransition,
+    "Research bindings differ from both the historical manifest and its reviewed source transition; review without overwriting historical evidence", failures);
   return comparison;
 };
 
@@ -229,7 +235,11 @@ if (require.main === module) {
   try {
     const result = run();
     console.log(`[Repository verification] ${result.checks} check groups passed on ${result.node}.`);
-    if (result.researchSnapshot.metadataToolingChanges.length) console.log("Research provenance retains historical release/verification-tool hashes; runtime and study inputs still match.");
+    if (result.researchSnapshot.historicalTransition) {
+      console.log("Historical research artifacts are preserved; exact source changes match docs/research-source-transition-v2.json. Historical measurements have NOT been revalidated for this runtime.");
+    } else if (result.researchSnapshot.metadataToolingChanges.length) {
+      console.log("Research provenance retains historical release/verification-tool hashes; runtime and study inputs still match.");
+    }
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

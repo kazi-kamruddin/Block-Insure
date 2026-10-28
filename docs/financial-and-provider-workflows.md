@@ -179,3 +179,10 @@ without altering Atlas or previous evidence.
 Later completion phases cover the full encrypted evidence bundle, auditor-access
 preparation, appeal recovery, optional-benefit scope and final hosted deployment.
 Passing the Phase 1 checks does not certify those later workflows as finished.
+
+Historical evaluation outputs and `research-manifest-v4.json` remain unchanged.
+The reviewed [source transition](research-source-transition-v2.json) records the
+exact changed bindings, including protocol identity and compiled contract sizes.
+Repository integrity accepts only those reviewed deltas and preserves all other
+bindings. This is provenance bookkeeping, not a new experiment: old gas, mutation,
+latency, reserve and classification measurements are not revalidated for this release.

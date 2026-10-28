@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "releaseProtocol": "BLOCK_INSURE_COMPLETION_PHASE1_V2",
+  "reviewDate": "2026-10-28",
+  "historicalManifest": "backEnd/evaluation-results/research-manifest-v4.json",
+  "historicalManifestSha256": "f9be1fdd686180701037a662937c0b03f7a0fae30cac0c3b7fc2582d0d405f01",
+  "historicalReproducibilityHash": "7cc953d5982e95d41690b9aba85dd544de4e43e86f2cef0ddffadacde4a3680c",
+  "evidenceStatus": "HISTORICAL_NOT_REVALIDATED",
+  "limitation": "This receipt acknowledges exact source-binding changes while preserving the original research record. Historical gas, mutation, reserve, latency and classification measurements are not new-release measurements. Fresh release measurements remain required before publication claims.",
+  "changes": [
+    {
+      "path": [
+        "artifacts",
+        "protocolRouting",
+        "modelIdentityHash"
+      ],
+      "before": "0xf86d83cbf87ac192b77aaf5bf830d99f7f4b01daf04c9f905502d3161b3fda8a",
+      "after": "0x4460b1114aa561fc89368523cb9a23f8a9bcfa83971b2eade89ee36b64c8a007",
+      "reason": "New protocol package identity binds the changed verifier/commitment sources; trained model and threshold unchanged"
+    },
+    {
+      "path": [
+        "contracts",
+        "BankIdentityRegistry",
+        "artifactSha256"
+      ],
+      "before": "c99fc28b2983d464d84c999b56e09fb6f99fdc8536217065ee517376f5e85295",
+      "after": "bd547418680130615332671dae145fe45c49185d427238ecd028cf1fb9a3c751",
+      "reason": "Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "BankIdentityRegistry",
+        "deployedBytecodeBytes"
+      ],
+      "before": 2423,
+      "after": 2416,
+      "reason": "Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "InsuranceManager",
+        "artifactSha256"
+      ],
+      "before": "4dd26a5045fce6b24f23eb3b8453bcc9cce5b372e0819a77f4fece0a2fd86ba8",
+      "after": "beae676649527e5e662d7192e6adec975c574b03950056f333b0a84eb0a87ec6",
+      "reason": "Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "InsuranceManager",
+        "deployedBytecodeBytes"
+      ],
+      "before": 24320,
+      "after": 24441,
+      "reason": "Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "OracleCoordinator",
+        "artifactSha256"
+      ],
+      "before": "4b528b7d5b58c7cda6b66369ed93df23242825d268f39778a6569007079316dc",
+      "after": "bc961812dc40499e91088dbd8a93482c9f724d2cb0f6af6bded4f475bcc1ca62",
+      "reason": "Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "OracleCoordinator",
+        "deployedBytecodeBytes"
+      ],
+      "before": 7878,
+      "after": 7429,
+      "reason": "Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyEconomics",
+        "artifactSha256"
+      ],
+      "before": "a074e111def63057944fa0da4d032e5ce1eb199a94b412c0e2a2072e0f971757",
+      "after": "ab200c98364c64afc7dbb20d92d70b6ba95f628aec8a2518832911ec80105e4a",
+      "reason": "Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyEconomics",
+        "deployedBytecodeBytes"
+      ],
+      "before": 10413,
+      "after": 13040,
+      "reason": "Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/artifacts/xgboost-advisory-manifest.json"
+      ],
+      "before": "d0ddf20bba29053ec770217108b21ee79d5d663769ceb465a41b2a3ae249e3f6",
+      "after": "ccc476d1644586f4db28676d794b06148067e62715557ef5c5f2c4d6bdf78b60",
+      "reason": "Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/services/merkleRegistryService.js"
+      ],
+      "before": "4eee02c246d69c6b9b92dec17793ce0e235a99e1e1cebbe2295e328c93729389",
+      "after": "4de67c6df10d06e037c687d43de1780ffad4187f4f43ed33a7a1e1ee0bf89870",
+      "reason": "Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/test/phase8OperationalHardening.test.js"
+      ],
+      "before": "a4d1b64e83d02a7353276ee3894c5c03d9b1a9af3033ef9215f8b2809206917e",
+      "after": "98e17053e6c19a3a2fc353df3d2d37fd991e9c304b25681db5c86e6533e2d008",
+      "reason": "Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "oracle/runtimeProtocol.js"
+      ],
+      "before": "c0b3fc99f6b2f0468652fa8b35641f073bf7ba7850c967792abdaf5a786e6dfe",
+      "after": "0b61a4703c52e072ac3ce193102135ea94b2e9aa8d79e5ae639f18f7e90d44bd",
+      "reason": "Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "scripts/packageProtocolModel.js"
+      ],
+      "before": "b46b1ef1140bffc3bdfbae1b8f2e194b8d33bcba46c2f57d526a80347c2239c3",
+      "after": "4c5ea6097aa87b7ae56a49cdea3f041a91444ebe43c92b74ef4aeee79fbda9e2",
+      "reason": "Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "packages",
+        "root",
+        "packageJsonSha256"
+      ],
+      "before": "a9c111c86279f2dc7f9124b4dd48c4dfba7fcfa242a3712aa87ebafd6069164c",
+      "after": "e68d50652c400bf0f658e8ccbb9de5a31ddd3a77f82ce9ac8df7634320209b4d",
+      "reason": "Add isolated financial/provider verification commands; dependency versions unchanged"
+    }
+  ]
+}
