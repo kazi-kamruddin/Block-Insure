@@ -650,7 +650,9 @@ const verifyHospitalRecord = async (req, res, next) => {
 
     if (claimId && Number.isInteger(requestedClaimVersion) && requestedClaimVersion > 1) {
       const activeAppeal = await Appeal.findOne({
+        deploymentScope: await require("../services/deploymentScopeService").getDeploymentScope(),
         claimId,
+        claimVersion: requestedClaimVersion,
         status: { $in: ["UNDER_REVIEW", "APPROVED"] },
       }).lean();
 
@@ -689,11 +691,7 @@ const verifyHospitalRecord = async (req, res, next) => {
         ].some(Boolean)
       ) {
         hospitalId = activeAppeal.proposedHospitalId || hospitalId;
-        invoiceHash = activeAppeal.proposedInvoiceNumber
-          ? ethers.keccak256(
-              ethers.toUtf8Bytes(activeAppeal.proposedInvoiceNumber.trim())
-            )
-          : invoiceHash;
+        invoiceHash = authoritativeClaim.invoiceHash;
         claimType = activeAppeal.proposedClaimType || claimType;
         claimAmountEth =
           activeAppeal.proposedClaimAmountEth || claimAmountEth;

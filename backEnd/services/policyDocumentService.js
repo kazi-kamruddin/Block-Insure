@@ -51,7 +51,7 @@ Wallet payment, manual bank OTP and authorized automatic collection settle the s
 
 ## Scope and acceptance
 
-Pre-existing-condition underwriting is not implemented or promised. Death, surrender and maturity schedules require separate benefit enrollment and funding; this medical purchase does not include a later-changing auxiliary schedule.
+Pre-existing-condition underwriting is not implemented or promised. Death and maturity products are not offered in this release. An optional cancellation refund requires its own accepted schedule, at least two scheduled paid installments, cancellation, insurer review and a separately funded reserve. It is a fixed contractual refund, not a savings return. Paid incidents retain their original reporting deadline; this medical purchase does not include a later-changing refund schedule.
 
 The application records acceptance of this document and submits its hash with the expected offer commitment. The contract rejects changed offers and records the document hash with the issued policy. A low-level protocol purchase without this document has no application acceptance binding and is identified as such.
 

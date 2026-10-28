@@ -128,10 +128,11 @@ test.describe("@smoke role workspaces", () => {
       await loginActor(session.page, session.actor);
 
       await session.page.goto("/auditor/healthcare-registry");
-      await expect(
-        session.page.getByRole("heading", { name: "Hybrid External Registry" })
-      ).toBeVisible();
-      await expect(session.page.getByText("Auditor registry view")).toBeVisible();
+      await expect(session.page).toHaveURL(/\/auditor\/votes$/);
+      const denied = await session.page.evaluate(async () => (await fetch("http://localhost:5000/mock/hospital/records", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` },
+      })).status);
+      expect(denied).toBe(403);
 
       await session.page.goto("/auditor/votes");
       await expect(session.page.getByRole("heading", { name: "Voting Queue" })).toBeVisible();

@@ -1,3 +1,4 @@
+const { attestTestAccess } = require("./helpers/reviewPreparation");
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
@@ -86,6 +87,7 @@ describe("Phase 2 - Automatic adjudication", function () {
   async function openFailedReview(fixture, claimId) {
     await decideWithOracles(fixture, claimId, false, "failed");
     await fixture.manager.sendToManualReview(claimId);
+    await attestTestAccess(fixture, claimId);
     return fixture.adjudicator.getReview(claimId, await fixture.manager.claimVersion(claimId));
   }
 
@@ -200,6 +202,7 @@ describe("Phase 2 - Automatic adjudication", function () {
     ).to.be.reverted;
     await time.increase(101);
     await fixture.manager.connect(fixture.publicCaller).sendToManualReview(claimId);
+    await attestTestAccess(fixture, claimId);
     await fixture.manager.connect(fixture.auditors[0]).castVote(claimId, 1);
     await time.increase(101);
     await fixture.manager.connect(fixture.publicCaller).finalizeExpiredManualReview(claimId);

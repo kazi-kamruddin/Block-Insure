@@ -11,13 +11,13 @@ evaluation. It is not a production insurance service or a clinical fraud detecto
 ## Features
 
 - Policy purchase, premium payments, standing bank instructions, and statements.
-- Claims and corrected appeals with browser-encrypted supporting documents.
+- Claims with versioned encrypted invoice/supporting-file bundles and recoverable appeals.
 - Hospital staff record maintenance, automatic publication and Merkle verification.
 - Two Oracle workers with request-bound, versioned risk assessments.
-- Manual review with a four-auditor snapshot: three approvals allocate a payout,
+- Manual review with bounded access preparation and a four-auditor snapshot: three approvals allocate a payout,
   two rejections reject, and an expired review rejects without sufficient quorum.
 - Pull-payment settlement: recipients withdraw allocated payouts.
-- Beneficiary, surrender, and maturity benefits with eligibility checks.
+- Optional cancellation refunds with reachable eligibility and a separate funded reserve.
 - SIWE for signing roles, separate hospital staff login, and email confirmation/OTP.
 
 Premium collection uses fixed installment periods shared by wallet, OTP and
@@ -26,6 +26,12 @@ pending-operation recovery. Purchase documents reflect published contract rules
 and bind their hash to the issued policy. See
 [financial and provider workflows](docs/financial-and-provider-workflows.md) for
 the supported rules, trust boundaries and new-deployment requirements.
+
+Reviewers receive one batch authorization for the fixed evidence set and can
+subsequently decrypt while the claimant is offline. Appeal registration and ordered
+evidence anchoring recover interrupted operations. Death and maturity products are
+disabled in this release. See [evidence, review and recovery](docs/evidence-review-and-recovery.md)
+for lifecycle rules and privacy limits.
 
 Model scores support claim routing; they do not establish fraud or bypass
 eligibility, auditor quorum, reserves, or payout-withdrawal rules. Fresh
@@ -102,13 +108,14 @@ Browser workflows require a prepared local stack. See the
 services, and production-build checks. Tests and configuration are versioned;
 generated reports and local execution records are ignored.
 
-The financial/provider regression command is `npm run test:phase1`; its isolated
+The financial/provider regression command is `npm run test:phase1`; the integrated
+evidence/recovery campaign is `npm run test:phase2`. Their isolated
 database requirements and stage selection are described in the browser testing
 guide. It includes hospital login without a wallet, issued terms, coordinated
 payments, claim processing and recovery of persisted gateway transactions.
 
 Historical research artifacts retain their original source scope. The
-[reviewed source transition](docs/research-source-transition-v2.json) records
+[reviewed source transition](docs/research-source-transition-v3.json) records
 changed runtime bindings without rewriting historical results. A passing repository
 check does not revalidate those measurements for the current release.
 

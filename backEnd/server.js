@@ -20,6 +20,7 @@ const {
   startEvidenceAnchorScheduler,
   stopEvidenceAnchorScheduler,
 } = require("./services/evidenceAnchorService");
+const { startReviewAccessScheduler, stopReviewAccessScheduler } = require("./services/reviewAccessService");
 const {
   startBankPaymentScheduler,
   stopBankPaymentScheduler,
@@ -278,6 +279,7 @@ const startServer = async () => {
     if (runtimeConfig.blockchainRuntimeEnabled) {
       await startBlockchainIndexer();
       startEvidenceAnchorScheduler();
+      startReviewAccessScheduler();
       await startBlockchainEventListener();
       startBankPaymentScheduler();
       startRegistryPublisher();
@@ -291,6 +293,7 @@ const startServer = async () => {
     if (runtimeConfig.blockchainRuntimeEnabled) {
       stopBlockchainIndexer();
       stopEvidenceAnchorScheduler();
+      stopReviewAccessScheduler();
       stopBankPaymentScheduler();
       stopRegistryPublisher();
       await stopBlockchainEventListener().catch(() => undefined);
@@ -314,6 +317,7 @@ const shutdownServer = async (signal) => {
       await stopBlockchainEventListener();
       stopBlockchainIndexer();
       stopEvidenceAnchorScheduler();
+      stopReviewAccessScheduler();
       stopBankPaymentScheduler();
       stopRegistryPublisher();
     }

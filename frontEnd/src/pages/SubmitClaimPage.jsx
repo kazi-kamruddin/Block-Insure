@@ -1,17 +1,18 @@
 import { useMemo, useState } from "react";
+import { formatEther } from "ethers";
 import { useQuery } from "@tanstack/react-query";
 
+import ClaimSubmissionRecoveryPanel from "../components/ClaimSubmissionRecoveryPanel";
+import { finishClaimAttempt, rememberClaimAttempt } from "../services/claimEvidenceSubmission";
 import TransactionLink from "../components/TransactionLink";
 import {
-  abandonClaimSubmission,
   authorizeClaimSubmission,
   attachDocumentToClaim,
   getMyPolicies,
+  getClaimSubmissionAttempt,
   getNetworkHospitals,
   previewPurchasedPolicyEligibility,
   previewInvoiceEligibility,
-  reconcileClaimSubmission,
-  recordClaimSubmissionTransaction,
   resetMyClaimSubmissionLimit,
   uploadClaimDocument,
 } from "../services/api";
@@ -24,18 +25,14 @@ import PolicyTermsPanel from "../components/PolicyTermsPanel";
 import {
   assertCorrectNetwork,
   getConnectedWalletAddress,
-  getWalletContract,
   hashInvoiceNumber,
   parseTransactionError,
-  parseEth,
-  toBytes32FromBackendSha256,
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
 import {
   encryptEvidenceFile,
   storeEvidenceKey,
 } from "../services/evidenceEncryption";
-import { getClaimIdsByWallet } from "../utils/contractQueries";
 import "../styles/pages/SubmitClaimPage.css";
 import { showToast } from "../services/toast";
 import { formatDateOnly, formatDateTime } from "../utils/dateFormat";
@@ -120,33 +117,6 @@ function getUploadedDocumentId(uploadResponse) {
   );
 }
 
-function extractClaimIdFromReceipt(contract, receipt) {
-  for (const log of receipt.logs || []) {
-    try {
-      const parsedLog = contract.interface.parseLog(log);
-
-      if (parsedLog?.name === "ClaimSubmitted") {
-        return parsedLog.args.claimId.toString();
-      }
-    } catch {
-      // Ignore logs from other contracts.
-    }
-  }
-
-  return "";
-}
-
-async function resolveSubmittedClaimId(contract, receipt, walletAddress) {
-  const eventClaimId = extractClaimIdFromReceipt(contract, receipt);
-
-  if (eventClaimId) return eventClaimId;
-
-  const claimIds = await getClaimIdsByWallet(contract, walletAddress);
-  const latestClaimId = claimIds[claimIds.length - 1];
-
-  return latestClaimId ? latestClaimId.toString() : "";
-}
-
 function dateTimeLocalToUnixSeconds(dateTimeValue) {
   return Math.floor(new Date(dateTimeValue).getTime() / 1000);
 }
@@ -161,6 +131,10 @@ export default function SubmitClaimPage() {
   const [hospitalId, setHospitalId] = useState("HOSP-001");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [file, setFile] = useState(null);
+  const [supportingFiles, setSupportingFiles] = useState([]);
+  const [resumeAttempt, setResumeAttempt] = useState(null);
+  const [recoveryRevision, setRecoveryRevision] = useState(0);
+  const [uploadStep, setUploadStep] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadInfo, setUploadInfo] = useState(null);
@@ -194,7 +168,7 @@ export default function SubmitClaimPage() {
   const networkHospitals = hospitalNetworkData?.hospitals || [];
 
   const activePolicies = useMemo(
-    () => policies.filter((policy) => policy.isActive !== false),
+    () => policies.filter((policy) => !["PENDING_PAYMENT", "RENEWED"].includes(policy.status?.label)),
     [policies]
   );
 
@@ -308,7 +282,7 @@ export default function SubmitClaimPage() {
         throw new Error("Selected policy was not found");
       }
 
-      if (!file) {
+      if (!file && !resumeAttempt?.documentId) {
         throw new Error("Upload a claim document first");
       }
 
@@ -354,41 +328,41 @@ export default function SubmitClaimPage() {
 
       const invoiceLookup = await previewInvoiceEligibility(hospitalId, undefined, invoiceNumber.trim());
       const invoiceHash = invoiceLookup.invoiceHash || hashInvoiceNumber(invoiceNumber.trim(), hospitalId);
-      const authorization = await authorizeClaimSubmission(policyId, {
+      const selectedFiles = [file, ...supportingFiles];
+      if (selectedFiles.length > 5 || selectedFiles.filter(Boolean).some((item) => item.size > 8 * 1024 * 1024 || !["application/pdf", "image/jpeg", "image/png"].includes(item.type)) ||
+          selectedFiles.filter(Boolean).reduce((sum, item) => sum + item.size, 0) > 20 * 1024 * 1024) throw new Error("Use one invoice plus up to four supporting PDF/JPEG/PNG files, at most 8 MiB each and 20 MiB total.");
+      const authorization = resumeAttempt ? { attemptId: resumeAttempt._id } : await authorizeClaimSubmission(policyId, {
         incidentDate: incidentSeconds,
         claimType,
         claimAmountEth: claimAmount,
         hospitalId,
         invoiceHash,
+        invoiceNumber: invoiceNumber.trim(),
+        evidenceCount: selectedFiles.length,
         preExistingCondition,
         disclosedAtPurchase,
       });
       const attemptId = authorization?.attemptId || authorization?.data?.attemptId || "";
       activeAttemptId = attemptId;
-      const contract = await getWalletContract();
-      const encryptedEvidence = await encryptEvidenceFile(file, {
-        claimId: `attempt:${attemptId}`,
-        claimVersion: 1,
-        uploader: activeWallet,
-        evidenceType: "HOSPITAL_BILL",
-      });
-
-      const uploadResponse = await uploadClaimDocument({
-        file: encryptedEvidence.encryptedFile,
-        documentType: "HOSPITAL_BILL",
-        attemptId,
-        encryption: {
-          enabled: true,
-          algorithm: encryptedEvidence.algorithm,
-          originalMimeType: encryptedEvidence.originalMimeType,
-          originalName: encryptedEvidence.originalName,
-          keyCapsule: encryptedEvidence.keyCapsule,
-          associatedData: encryptedEvidence.associatedData,
-          encryptionIdentityVersion:
-            encryptedEvidence.encryptionIdentityVersion,
-        },
-      });
-
+      rememberClaimAttempt(attemptId);
+      const stored = await getClaimSubmissionAttempt(attemptId);
+      const existing = stored.files;
+      let uploadResponse;
+      for (let slot = 0; slot < stored.attempt.expectedEvidenceCount; slot++) {
+        setUploadStep(`Preparing encrypted evidence ${slot + 1} of ${stored.attempt.expectedEvidenceCount}`);
+        const prior = existing.find((item) => item.uploadSlot === slot);
+        if (prior) { if (slot === 0) uploadResponse = { document: { id: prior._id, sha256Hash: prior.sha256Hash, ipfsCID: prior.ipfsCID } }; continue; }
+        const selectedFile = selectedFiles[slot];
+        if (!selectedFile) throw new Error(`Select the missing evidence file in slot ${slot + 1}. Uploaded files remain preserved.`);
+        const type = slot === 0 ? "HOSPITAL_BILL" : "SUPPORTING_DOCUMENT";
+        const encryptedEvidence = await encryptEvidenceFile(selectedFile, { claimId: `attempt:${attemptId}`, claimVersion: 1, uploader: activeWallet, evidenceType: type, fileSlot: slot });
+        const result = await uploadClaimDocument({ file: encryptedEvidence.encryptedFile, documentType: type, attemptId,
+          encryption: { enabled: true, algorithm: encryptedEvidence.algorithm, originalMimeType: encryptedEvidence.originalMimeType,
+            originalName: encryptedEvidence.originalName, keyCapsule: encryptedEvidence.keyCapsule, associatedData: encryptedEvidence.associatedData,
+            encryptionIdentityVersion: encryptedEvidence.encryptionIdentityVersion } });
+        storeEvidenceKey(result.document.ipfsCID, encryptedEvidence);
+        if (slot === 0) uploadResponse = result;
+      }
       const sha256Hash = getUploadedHash(uploadResponse);
       const ipfsCID = getUploadedCid(uploadResponse);
       const documentId = getUploadedDocumentId(uploadResponse);
@@ -399,91 +373,32 @@ export default function SubmitClaimPage() {
         );
       }
 
-      storeEvidenceKey(ipfsCID, encryptedEvidence);
-
       setUploadInfo({
         documentId,
         sha256Hash,
         ipfsCID,
         encryption: {
           enabled: true,
-          status: `${encryptedEvidence.algorithm}; encrypted before upload.`,
+          status: "AES-256-GCM; encrypted before upload.",
           keyStorage:
             "Your dedicated private encryption key remains in this browser; the backend receives only a transformable encrypted key capsule.",
         },
       });
 
-      const documentHashBytes32 = toBytes32FromBackendSha256(sha256Hash);
-      const tx = await contract.submitClaim(
-        BigInt(policyId),
-        parseEth(claimAmount),
-        BigInt(incidentSeconds),
-        claimType,
-        hospitalId,
-        invoiceHash,
-        documentHashBytes32,
-        ipfsCID
-      );
-
-      setTxHash(tx.hash);
-      submittedTransactionHash = tx.hash;
-      const pendingClaimKey = "block-insure:pending-claim-submissions";
-      const pendingClaims = JSON.parse(
-        localStorage.getItem(pendingClaimKey) || "[]"
-      );
-      localStorage.setItem(
-        pendingClaimKey,
-        JSON.stringify([
-          ...pendingClaims.filter((item) => item.attemptId !== attemptId),
-          { attemptId, transactionHash: tx.hash },
-        ])
-      );
-      await recordClaimSubmissionTransaction(attemptId, tx.hash);
-
-      const receipt = await tx.wait();
-      const claimId = await resolveSubmittedClaimId(contract, receipt, activeWallet);
-
-      if (!claimId) {
-        setSuccessMessage(
-          "Claim transaction was confirmed, but its ID could not be resolved. Refresh My Claims before retrying any evidence link."
-        );
-        return;
-      }
-
-      const evidenceLink = { documentId, claimId, attemptId };
-      setPendingEvidenceLink(evidenceLink);
-      setSuccessMessage(`Claim #${claimId} submitted on-chain. Linking evidence metadata...`);
-      await refetchPolicies();
-      await reconcileClaimSubmission(attemptId);
-      localStorage.setItem(
-        pendingClaimKey,
-        JSON.stringify(
-          JSON.parse(localStorage.getItem(pendingClaimKey) || "[]").filter(
-            (item) => item.attemptId !== attemptId
-          )
-        )
-      );
+      const result = await finishClaimAttempt(attemptId);
+      const claimId = result.attempt?.claimId;
+      if (!claimId || result.pending) throw new Error("Submission is still pending. Recover the existing operation below.");
+      setTxHash(result.attempt.transactionHash || "");
+      setResumeAttempt(null);
       setPendingEvidenceLink(null);
-      setSuccessMessage(
-        `Claim #${claimId} submitted and its encrypted evidence was reconciled successfully.`
-      );
-      showToast(`Claim #${claimId} and its encrypted evidence were confirmed.`, {
-        title: "Claim submitted",
-      });
+      await refetchPolicies();
+      setSuccessMessage(`Claim #${claimId} submitted and its encrypted evidence was reconciled successfully.`);
+      showToast(`Claim #${claimId} and its encrypted evidence were confirmed.`, { title: "Claim submitted" });
     } catch (err) {
       console.error(err);
 
-      if (activeAttemptId && !submittedTransactionHash) {
-        try {
-          await abandonClaimSubmission(
-            activeAttemptId,
-            "Submission stopped before a blockchain transaction was sent"
-          );
-        } catch (cleanupError) {
-          console.error("Could not clean up unused evidence:", cleanupError);
-        }
-      }
-
+      // Preserve partial uploads and unresolved wallet outcomes for recovery.
+      if (activeAttemptId) rememberClaimAttempt(activeAttemptId, submittedTransactionHash);
       const message = parseTransactionError(err);
       if (err.response?.status === 429) {
         setSubmissionLimit(err.response.data || null);
@@ -492,6 +407,8 @@ export default function SubmitClaimPage() {
       showToast(message, { tone: "error", title: "Claim submission failed" });
     } finally {
       setIsSubmitting(false);
+      setUploadStep("");
+      setRecoveryRevision((value) => value + 1);
     }
   }
 
@@ -605,11 +522,20 @@ export default function SubmitClaimPage() {
         </div>
       ) : null}
 
+      <ClaimSubmissionRecoveryPanel revision={recoveryRevision} onCompleted={async (result) => { setSuccessMessage(`Claim #${result.attempt.claimId} submitted and its encrypted evidence was reconciled successfully.`); await refetchPolicies(); }} onResume={(attempt) => {
+        setResumeAttempt(attempt); setPolicyId(attempt.policyId); setClaimAmount(formatEther(attempt.submittedFacts.claimAmountWei));
+        setClaimType(attempt.submittedFacts.claimType); setHospitalId(attempt.submittedFacts.hospitalId); setInvoiceNumber(attempt.submittedFacts.invoiceNumber);
+        const date = new Date(Number(attempt.submittedFacts.incidentDate) * 1000); date.setMinutes(date.getMinutes() - date.getTimezoneOffset()); setIncidentDateTime(date.toISOString().slice(0, 19));
+        setFile(null); setSupportingFiles(Array(Math.max(0, attempt.expectedEvidenceCount - 1)).fill(null)); setError("");
+      }} />
+      {resumeAttempt && <p role="status">Resuming the saved authorization for policy #{resumeAttempt.policyId}. Uploaded slots remain unchanged. Reselect missing files below.</p>}
+      {uploadStep && <p role="status">{uploadStep}</p>}
       <form className="form-grid" onSubmit={handleSubmit}>
         <label>
           Policy
           <select
             aria-label="Policy"
+            disabled={Boolean(resumeAttempt)}
             value={policyId}
             onChange={(event) => handlePolicyChange(event.target.value)}
             required
@@ -629,6 +555,7 @@ export default function SubmitClaimPage() {
           Test data preset
           <select
             aria-label="Test data preset"
+            disabled={Boolean(resumeAttempt)}
             defaultValue=""
             onChange={(event) => applyMockPreset(event.target.value)}
           >
@@ -653,7 +580,7 @@ export default function SubmitClaimPage() {
             step="0.001"
             min="0"
             value={claimAmount}
-            onChange={(event) => setClaimAmount(event.target.value)}
+            disabled={Boolean(resumeAttempt)} onChange={(event) => setClaimAmount(event.target.value)}
             required
           />
         </label>
@@ -665,7 +592,7 @@ export default function SubmitClaimPage() {
             type="datetime-local"
             step="60"
             value={incidentDateTime}
-            onChange={(event) => setIncidentDateTime(event.target.value)}
+            disabled={Boolean(resumeAttempt)} onChange={(event) => setIncidentDateTime(event.target.value)}
             required
           />
           <small>
@@ -680,7 +607,7 @@ export default function SubmitClaimPage() {
           <input
             type="text"
             value={claimType}
-            onChange={(event) => setClaimType(event.target.value)}
+            disabled={Boolean(resumeAttempt)} onChange={(event) => setClaimType(event.target.value)}
             required
           />
         </label>
@@ -690,7 +617,7 @@ export default function SubmitClaimPage() {
           <select
             aria-label="Hospital ID"
             value={hospitalId}
-            onChange={(event) => setHospitalId(event.target.value)}
+            disabled={Boolean(resumeAttempt)} onChange={(event) => setHospitalId(event.target.value)}
             required
           >
             <option value="">Select a contracted hospital</option>
@@ -708,7 +635,7 @@ export default function SubmitClaimPage() {
           <input
             type="text"
             value={invoiceNumber}
-            onChange={(event) => setInvoiceNumber(event.target.value)}
+            disabled={Boolean(resumeAttempt)} onChange={(event) => setInvoiceNumber(event.target.value)}
             placeholder="Example: INV-HOSP-001-001"
             required
           />
@@ -720,9 +647,13 @@ export default function SubmitClaimPage() {
             type="file"
             accept=".pdf,.jpg,.jpeg,.png"
             onChange={(event) => setFile(event.target.files?.[0] || null)}
-            required
+            required={!resumeAttempt?.documentId}
           />
         </label>
+        {!resumeAttempt && <label>Supporting evidence (optional)<input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => setSupportingFiles(Array.from(event.target.files || []))} /></label>}
+        <p>One primary invoice plus up to four optional PDFs/images. Maximum 8 MiB per file and 20 MiB total. Supporting images inform human review; XGBoost scores structured billing data.</p>
+        {resumeAttempt && supportingFiles.map((item, index) => <label key={index}>Supporting file slot {index + 2}<input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => setSupportingFiles((values) => values.map((value, slot) => slot === index ? event.target.files?.[0] || null : value))} /></label>)}
+        {!resumeAttempt && supportingFiles.length > 0 && <ul>{supportingFiles.map((item, index) => <li key={index}>{item.name}</li>)}</ul>}
 
         <section aria-label="Invoice readiness" className="rounded-lg border border-[var(--border)] p-3">
           <p>Dataset examples are not automatically authorized patient invoices. Check wallet binding before uploading evidence.</p>

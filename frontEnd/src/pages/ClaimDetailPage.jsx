@@ -5,6 +5,9 @@ import { useState } from "react";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import EvidenceChainPanel from "../components/EvidenceChainPanel";
+import AppealRecoveryPanel from "../components/AppealRecoveryPanel";
+import { sendPreparedAppeal } from "../services/appealSubmission";
+import ReviewAccessPanel from "../components/ReviewAccessPanel";
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
@@ -15,7 +18,8 @@ import {
   getAppealByClaim,
   getClaimById,
   getOracleResults,
-  submitAppeal,
+  prepareAppealAttempt,
+  readyAppealAttempt,
   uploadClaimDocument,
   revokeDocumentAccess,
 } from "../services/api";
@@ -25,11 +29,9 @@ import {
   getReadOnlyClaimAdjudicator,
   getReadOnlyContract,
   parseTransactionError,
-  toBytes32FromBackendSha256,
 } from "../services/contractService";
 import {
   encryptEvidenceFile,
-  createEvidenceDelegation,
   storeEvidenceKey,
 } from "../services/evidenceEncryption";
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
@@ -78,13 +80,6 @@ function buildAppealCommitmentPayload(source) {
   };
 }
 
-async function hashAppealCommitment(payload) {
-  const encoded = new TextEncoder().encode(JSON.stringify(payload));
-  const digest = await crypto.subtle.digest("SHA-256", encoded);
-  return `0x${Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("")}`;
-}
 
 export default function ClaimDetailPage() {
   const { id } = useParams();
@@ -100,6 +95,7 @@ export default function ClaimDetailPage() {
   const [appealMessage, setAppealMessage] = useState("");
   const [appealTxHash, setAppealTxHash] = useState("");
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
+  const [appealRevision, setAppealRevision] = useState(0);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [delegationPending, setDelegationPending] = useState("");
 
@@ -160,7 +156,7 @@ export default function ClaimDetailPage() {
     statusName,
     appealAlreadyUsed: Boolean(appeal),
   });
-  const canAppeal = appealRule.allowed;
+  const canAppeal = claim?.closure?.canAppeal ?? appealRule.allowed;
 
   const { data: assignedAuditors = [] } = useQuery({
     queryKey: ["claimAssignedAuditors", id],
@@ -176,24 +172,6 @@ export default function ClaimDetailPage() {
     enabled: Boolean(id && claim),
     retry: false,
   });
-
-  async function handleGrantAccess(documentId, auditor) {
-    const operationKey = `${documentId}:${auditor}`;
-    try {
-      setDelegationPending(operationKey);
-      await createEvidenceDelegation(documentId, auditor, id);
-      showToast("Future evidence access delegated to the assigned auditor.", {
-        title: "Access granted",
-      });
-    } catch (grantError) {
-      showToast(grantError.response?.data?.message || grantError.message, {
-        tone: "error",
-        title: "Delegation failed",
-      });
-    } finally {
-      setDelegationPending("");
-    }
-  }
 
   async function handleRevokeAccess(documentId, auditor) {
     const operationKey = `${documentId}:${auditor}`;
@@ -233,6 +211,10 @@ export default function ClaimDetailPage() {
           (proposedClaimType && proposedClaimType !== claim.claimType)) {
         throw new Error("Hospital and treatment identity cannot change in an appeal; contact the insurer for a new claim.");
       }
+      const initialPayload = buildAppealCommitmentPayload({ claimId: id, appealReason: trimmedReason, reasonCategory: appealReasonCategory,
+        appealDescription: appealDescription.trim() || trimmedReason, proposedHospitalId: "", proposedClaimType: "", proposedInvoiceNumber, proposedClaimAmountEth });
+      const prepared = (await prepareAppealAttempt(initialPayload)).attempt;
+      if (prepared.status !== "DRAFT") throw new Error("A sealed appeal already exists. Use its recovery controls instead of preparing another transaction.");
       if (proposedInvoiceNumber || proposedClaimAmountEth) {
         const manager = await getWalletContract();
         const current = await manager.getClaim(id);
@@ -245,10 +227,11 @@ export default function ClaimDetailPage() {
         }
       }
 
-      let additionalDocumentHash = "";
-      let additionalDocumentCID = "";
+      let additionalDocumentHash = prepared.payload.additionalDocumentHash || "";
+      let additionalDocumentCID = prepared.payload.additionalDocumentCID || "";
 
       if (appealFile) {
+        if (additionalDocumentHash) throw new Error("This draft already has a saved attachment. Clear the new file selection to use the retained evidence.");
         const manager = await getWalletContract();
         const currentVersion = Number(await manager.claimVersion(id));
         const encryptedAppealEvidence = await encryptEvidenceFile(appealFile, {
@@ -290,28 +273,10 @@ export default function ClaimDetailPage() {
         proposedClaimType,
         proposedClaimAmountEth,
       });
-      const appealReasonHash = await hashAppealCommitment(appealPayload);
-
-      const contract = await getWalletContract();
-      const tx = additionalDocumentHash
-        ? await contract.submitAppealWithEvidence(
-            id,
-            appealReasonHash,
-            toBytes32FromBackendSha256(additionalDocumentHash),
-            additionalDocumentCID
-          )
-        : await contract.submitAppeal(id, appealReasonHash);
-
-      setAppealTxHash(tx.hash);
-
-      await tx.wait();
-
-      await submitAppeal({
-        ...appealPayload,
-        appealReasonHash,
-        transactionHash: tx.hash,
-      });
-
+      const sealed = (await readyAppealAttempt(prepared.id, appealPayload)).attempt;
+      const result = await sendPreparedAppeal(sealed);
+      if (result.pending) throw new Error("The existing appeal is pending. Recover its saved registration below.");
+      setAppealTxHash(result.attempt.transactionHash);
       setAppealReason("");
       setAppealDescription("");
       setAppealFile(null);
@@ -332,6 +297,7 @@ export default function ClaimDetailPage() {
       showToast(message, { tone: "error", title: "Appeal failed" });
     } finally {
       setIsSubmittingAppeal(false);
+      setAppealRevision((value) => value + 1);
     }
   }
 
@@ -445,10 +411,10 @@ export default function ClaimDetailPage() {
               />
             </p>
           </details>
+          <ReviewAccessPanel claimId={id} onChange={refetch} />
           <EvidenceChainPanel
             evidenceChain={evidenceChain}
             assignedAuditors={assignedAuditors}
-            onGrantAccess={handleGrantAccess}
             onRevokeAccess={handleRevokeAccess}
             delegationPending={delegationPending}
           />
@@ -486,6 +452,12 @@ export default function ClaimDetailPage() {
         <div className="card">
           <h3>Funding required</h3>
           <p>This claim is valid. It is waiting for treasury backing and has not been rejected.</p>
+          <button type="button" disabled={isWithdrawing} onClick={async () => {
+            setIsWithdrawing(true);
+            try { await (await (await getWalletContract()).activateFundedClaim(id)).wait(); await refetch(); }
+            catch (failure) { showToast(parseTransactionError(failure), { tone: "error", title: "Funding is not ready" }); }
+            finally { setIsWithdrawing(false); }
+          }}>Activate funded payout</button>
         </div>
       ) : null}
 
@@ -526,6 +498,8 @@ export default function ClaimDetailPage() {
             </div>
           ) : null}
 
+          <AppealRecoveryPanel claimId={id} revision={appealRevision} onCompleted={async () => { await refetch(); await refetchAppeal(); }} />
+          {claim.closure?.rejectionExplanation && <p role="status">{claim.closure.rejectionExplanation}</p>}
           {canAppeal ? (
             <form className="appeal-form" onSubmit={handleSubmitAppeal}>
               <p>Invoice or amount corrections are recorded on-chain before the appeal opens and may require two wallet confirmations. Hospital and treatment identity cannot change in this appeal.</p>
@@ -575,17 +549,10 @@ export default function ClaimDetailPage() {
                 <legend>Corrected claim information (optional)</legend>
                 <p className="muted-text">
                   Enter only information that was wrong originally. The
-                  hospital will attest the corrected claim version before a new
-                  Oracle round evaluates it as appeal-supplied data.
+                  published hospital record will be checked automatically in the new
+                  Oracle round. Hospital and treatment identity remain fixed.
                 </p>
-                <label>
-                  Correct hospital ID
-                  <input
-                    value={proposedHospitalId}
-                    onChange={(event) => setProposedHospitalId(event.target.value)}
-                    placeholder={claim?.hospitalId || "HOSP-001"}
-                  />
-                </label>
+
                 <label>
                   Correct invoice number
                   <input
@@ -596,14 +563,7 @@ export default function ClaimDetailPage() {
                     placeholder="INV-HOSP-001-001"
                   />
                 </label>
-                <label>
-                  Correct claim type
-                  <input
-                    value={proposedClaimType}
-                    onChange={(event) => setProposedClaimType(event.target.value)}
-                    placeholder={claim?.claimType || "HOSPITALIZATION"}
-                  />
-                </label>
+
                 <label>
                   Correct claim amount in ETH
                   <input

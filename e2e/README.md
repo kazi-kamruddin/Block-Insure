@@ -271,3 +271,34 @@ Reports, synthetic screenshots and traces are stored beneath `tmp/stabilization-
 and stay ignored. A test failure is not a completion receipt. Phase 2 evidence
 bundle/access/appeal recovery and auxiliary-benefit decisions remain separately
 scoped; the Phase 1 command does not claim the full project is deployment-ready.
+
+## Integrated evidence and recovery verification
+
+The current release adds `npm run test:phase2`. Select an explicit loopback
+disposable database, with the existing MongoDB container already prepared:
+
+```powershell
+$env:E2E_MONGODB_URI='mongodb://127.0.0.1:27019/block_insure_phase2_e2e'
+$env:E2E_DATABASE_NAME='block_insure_phase2_e2e'
+npm run test:phase2
+```
+
+Run a bounded stage with `npm run test:phase2 -- foundation`, `recovery`, `evidence`, `claims`,
+`refund`, `funding`, `finality`, `payments`, or `email`. Each stage resets only the
+selected disposable database and deploys a new local chain, keeping time-travel
+fixtures separate. Existing Atlas and saved .env/standard manifest files are not
+rewritten. `funding` deliberately omits the test treasury top-up; `email` uses
+only a local Brevo-shaped stub. Operator setup is not a real public deployment.
+
+Evidence tests cover interrupted supporting upload/reload, fixed manifests, one
+batch of reviewer grants, revoked access and explicit resumption, claimant-offline
+actual PRE decryption/download, image preview, four-reviewer preparation, quorum
+withdrawal, preparation expiry and lost appeal registration. Recovery integration
+uses MongoDB/Hardhat and a fresh process for exact signed-transaction recovery,
+ordered predecessor anchoring and deployment isolation. The retired death/maturity
+and unlimited-immediate-premium script is replaced by the cancellation-refund test.
+
+Reports remain under ignored `tmp/stabilization-*`. Selected cases must actually
+pass before recording completion; prior failures and source-bound historical
+results are not substituted for the current release. Actual MetaMask/mailbox,
+production installation and public-testnet evidence remain later release checks.

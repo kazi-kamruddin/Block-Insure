@@ -12,7 +12,7 @@ const roleRoutes = {
     ["/user/banking", "Premium payments and standing EFT instructions"],
     ["/user/claims", "My Claims"],
     ["/user/claims/new", "Submit Claim"],
-    ["/user/benefits", "Beneficiary Benefit Request"],
+    ["/user/benefits", "Cancellation refunds"],
     ["/user/notifications", "Notifications"],
   ],
   admin: [
@@ -29,7 +29,7 @@ const roleRoutes = {
   ],
   auditor1: [
     ["/auditor/dashboard", "Claim audit and evidence review"],
-    ["/auditor/healthcare-registry", "Hybrid External Registry"],
+    ["/auditor/healthcare-registry", "Voting Queue"],
     ["/auditor/claims", "Claim Audit Timelines"],
     ["/auditor/votes", "Voting Queue"],
     ["/auditor/verify-document", "Document Integrity Verification"],
@@ -103,7 +103,9 @@ test.describe("@smoke complete route inventory", () => {
 
           for (const foreignRoot of workspaceRoots.filter((route) => route !== session.actor.home)) {
             await session.page.goto(foreignRoot);
-            await expect(session.page).toHaveURL(new RegExp(`${session.actor.home.replaceAll("/", "\\/")}$`));
+            // Hospital staff authenticate independently of the signing-role JWT.
+            const destination = foreignRoot === "/hospital/dashboard" ? "/hospital/login" : session.actor.home;
+            await expect(session.page).toHaveURL(new RegExp(`${destination.replaceAll("/", "\\/")}$`));
           }
 
           expect(serverErrors).toEqual([]);

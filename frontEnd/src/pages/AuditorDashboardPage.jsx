@@ -10,7 +10,7 @@ export default function AuditorDashboardPage() {
           <h2>Claim audit and evidence review</h2>
           <p>
             Examine claim histories, validate committed evidence, and contribute
-            reputation-weighted judgments without administrative authority.
+            fixed-quorum judgments after evidence access preparation.
           </p>
         </div>
         <span className="dashboard-context-pill">Independent review</span>

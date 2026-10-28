@@ -2,7 +2,6 @@ import RoleWorkspaceLayout from "./RoleWorkspaceLayout";
 
 const AUDITOR_LINKS = [
   { to: "/auditor/dashboard", label: "Overview", end: true },
-  { to: "/auditor/healthcare-registry", label: "Registry" },
   { to: "/auditor/claims", label: "Audit Timelines" },
   { to: "/auditor/votes", label: "Voting Queue" },
   { to: "/auditor/verify-document", label: "Verify Document" },

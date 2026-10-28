@@ -5,6 +5,7 @@ import { useState } from "react";
 import XgboostAdvisoryPanel from "../components/XgboostAdvisoryPanel";
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import EvidenceChainPanel from "../components/EvidenceChainPanel";
+import ReviewAccessPanel from "../components/ReviewAccessPanel";
 import EvidenceField from "../components/EvidenceField";
 import IpfsLink from "../components/IpfsLink";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
@@ -420,6 +421,7 @@ export default function AdminClaimDetailPage() {
               sha256Hash={originalEvidenceDocument?.sha256Hash}
             />
           </p>
+          <ReviewAccessPanel claimId={id} onChange={refetch} />
           <EvidenceChainPanel evidenceChain={evidenceChain} />
         </div>
       ) : null}
@@ -699,7 +701,7 @@ export default function AdminClaimDetailPage() {
             </details>
 
             <p className="muted-text">
-              Appeals open a new claim version. After hospital re-verification, the
+              Appeals open a new claim version. After automatic published-record verification, the
               administrator may request Oracle processing but cannot approve or reject
               the appeal.
             </p>

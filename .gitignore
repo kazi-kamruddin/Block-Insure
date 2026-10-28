@@ -74,6 +74,7 @@ artifacts/
 !/backEnd/artifacts/xgboost-advisory-manifest.json
 !/backEnd/artifacts/xgboost-protocol-v1.json
 !/backEnd/artifacts/xgboost-protocol-v2.json
+!/backEnd/artifacts/xgboost-protocol-v3.json
 cache/
 typechain/
 typechain-types/

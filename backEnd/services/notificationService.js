@@ -58,7 +58,7 @@ const notifyWallet = (walletAddress, payload) =>
     recipientWallet: walletAddress,
   });
 
-const notifyClaimStatusChange = ({
+const notifyClaimStatusChange = async ({
   claim,
   status,
   transactionHash = "",
@@ -80,7 +80,7 @@ const notifyClaimStatusChange = ({
     ORACLE_FAILED:
       "The oracle quorum could not verify the hospital record. Manual review becomes publicly routable after the SLA.",
     MANUAL_REVIEW:
-      "Four assigned auditors are voting. Three approvals allocate payout; two rejections reject automatically.",
+      "Four auditors have been assigned. Open the claim to authorize its fixed evidence set; the voting clock starts after access preparation.",
     PAYOUT_READY:
       "The settlement is allocated. Open the claim and withdraw your payment.",
     FUNDING_REQUIRED:
@@ -93,6 +93,16 @@ const notifyClaimStatusChange = ({
       "The claim lifecycle is complete. No further processing is available.",
   };
 
+  if (status === "MANUAL_REVIEW") {
+    const { getClaimAdjudicator } = require("./contractService");
+    const manager = getReadOnlyContract();
+    const version = await manager.claimVersion(claimId);
+    const panel = await (await getClaimAdjudicator(manager)).getReview(claimId, version);
+    for (const wallet of panel.auditors) if (wallet !== ethers.ZeroAddress) await notifyWallet(wallet, {
+      type: "REVIEW_ASSIGNED", title: `Claim #${claimId}: access preparation`, message: "You are assigned to this claim version. Prepare or restore your encryption identity in the voting workspace; voting waits for owner authorization.",
+      claimId, link: "/auditor/votes", dedupeKey: `review-assigned:${process.env.VITE_CONTRACT_ADDRESS}:${claimId}:${version}:${wallet}`,
+    });
+  }
   return notifyWallet(claimantWallet, {
     type: "CLAIM_STATUS_CHANGED",
     title: `Claim #${claimId} is now ${displayStatus}`,

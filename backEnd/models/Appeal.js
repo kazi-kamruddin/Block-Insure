@@ -2,11 +2,13 @@ const mongoose = require("mongoose");
 
 const appealSchema = new mongoose.Schema(
   {
+    deploymentScope: { type: String, default: "", index: true },
+    claimVersion: { type: Number, default: 2 },
+    appealRound: { type: Number, default: 1 },
     claimId: {
       type: String,
       required: true,
       trim: true,
-      unique: true,
       index: true,
     },
     claimantWallet: {
@@ -147,5 +149,6 @@ const appealSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+appealSchema.index({ deploymentScope: 1, claimId: 1, claimVersion: 1 }, { unique: true });
 
 module.exports = mongoose.model("Appeal", appealSchema);

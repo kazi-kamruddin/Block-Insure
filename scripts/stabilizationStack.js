@@ -44,7 +44,7 @@ function start(label, file, args = [], cwd = root, extra = {}) {
   const capture = (chunk) => {
     const safe = chunk.toString().split(/\r?\n/).filter((line) => !/private.?key|secret|mnemonic|seed phrase|0x[a-fA-F0-9]{64}/i.test(line)).join("\n");
     diagnostic = (diagnostic + safe).slice(-8000);
-    if (label === "Browser regression" || label === "Phase one settlement recovery") process.stdout.write(safe);
+    if (label === "Browser regression" || label === "Phase one settlement recovery" || label === "Evidence lifecycle recovery") process.stdout.write(safe);
   };
   child.stdout.on("data", capture); child.stderr.on("data", capture);
   child.completed = new Promise((resolve, reject) => {
@@ -88,7 +88,7 @@ async function main() {
       ["e2e/tests/shadow-concurrency.workflow.spec.js"],
       ["e2e/tests/bank-eft.workflow.spec.js"],
       ["e2e/tests/hospital-records.maintenance.spec.js"],
-      ["e2e/tests/unfinished-benefits.workflow.spec.js"],
+      ["e2e/tests/cancellation-refund.workflow.spec.js"],
       ["e2e/tests/unfinished-boundaries.spec.js"],
       ...["simultaneous rejection", "expired review", "encrypted corrected appeal"].map((grep) => ["e2e/tests/unfinished-claim-finality.workflow.spec.js", "--grep", grep]),
       ["e2e/tests/rpc-readiness.resilience.spec.js"],
@@ -130,7 +130,7 @@ async function main() {
   environment.POLICY_BENEFITS_DEPLOYMENT_BLOCK = String(deployment.benefitsDeploymentBlock);
   environment.VITE_POLICY_BENEFITS_DEPLOYMENT_BLOCK = String(deployment.benefitsDeploymentBlock);
   await backend("grantProjectRolesLocal.js");
-  await backend("fundContractLocal.js", ["5"]);
+  if (process.env.E2E_UNFUNDED_RESERVE !== "true") await backend("fundContractLocal.js", ["5"]);
   await backend("pushMerkleRoot.js");
   start("Pinata simulator", path.join(root, "scripts/localPinataMock.js"));
   if (dailyLauncher) {
@@ -149,6 +149,10 @@ async function main() {
   }
   if (process.env.PHASE_ONE_SETTLEMENT_ONLY === "true") {
     await run("Phase one settlement recovery", path.join(root, "backEnd/test/phaseOneSettlement.integration.js"), [], root, { NODE_ENV: "test" });
+    return;
+  }
+  if (process.env.PHASE_TWO_RECOVERY_ONLY === "true") {
+    await run("Evidence lifecycle recovery", path.join(root, "backEnd/test/phaseTwoRecovery.integration.js"), [], root, { NODE_ENV: "test" });
     return;
   }
   start("Backend", path.join(root, brevoStub ? "e2e/support/localBrevoBackend.js" : "backEnd/server.js"), [], path.join(root, "backEnd"), environment.E2E_BACKEND_RPC_URL ? { RPC_URL: environment.E2E_BACKEND_RPC_URL } : {});
@@ -192,7 +196,7 @@ async function main() {
   console.log(`[Stabilization] Stage evidence: ${path.relative(root, output)}`);
   const browserReports = (name) => ({ E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: path.join(output, name, "report"),
     PLAYWRIGHT_OUTPUT_DIR: path.join(output, name, "artifacts"), PLAYWRIGHT_JSON_OUTPUT_NAME: path.join(output, name, "results.json") });
-  await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/unfinished-benefits.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, browserReports("browser"));
+  await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/cancellation-refund.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, browserReports("browser"));
   if (process.env.PHASE_ONE_SETTLEMENT_TESTS === "true") await run("Phase one settlement recovery", path.join(root, "backEnd/test/phaseOneSettlement.integration.js"), [], root, { NODE_ENV: "test" });
   if (protocolRestart) await protocolRestart;
   if (showcase) await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", "e2e/tests/showcase-coverage.spec.js", "--workers=1"], root, browserReports("showcase"));

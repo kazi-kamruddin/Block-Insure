@@ -1,0 +1,26 @@
+{
+  "schema": "xgboost-oracle-routing-v3",
+  "modelVersion": "xgboost-protocol-v3",
+  "inferenceEngineVersion": "xgboost-context-v1",
+  "bundleHash": "e83eab8c8df7c9996471c754d352d9201ffd30246184c72cd1943c612d2ab380",
+  "manifestHash": "4d703e700526f1e5f33618c5de0d2dfcc024c23f770a62346253432da2714ed2",
+  "legacyModelIdentityHash": "0x291d87466f849c14d63b382e58436fc235b31ad0ecd777a4ee82b376d70492af",
+  "thresholdUnits": 86932212,
+  "decision": {
+    "uncertaintyAloneEscalates": false,
+    "unavailableMayApprove": false,
+    "rejectOnModelScore": false,
+    "completeContextRequired": true,
+    "scoreComparison": ">=",
+    "capacityGuarantee": false
+  },
+  "sourceHashes": {
+    "oracle/protocolAssessment.js": "279edc1d51bb3ac839b5a03c7f512f206e07a43368df82ac62a0efd6109c7bae",
+    "oracle/runtimeProtocol.js": "c41dd87ee584e487486aeaae937c3930197b9180ba565de3ef483cc5ebd3959a",
+    "oracle/protocol.js": "a18e2538b936213a88fe671e9c70b67133074b60a7e60e3f1c21f99f192baad5",
+    "oracle/recordIdentity.js": "37d190306a77184946956805573bd79b49b1840ae8d1cdd730da5a4b5db6e789",
+    "oracle/merkleProof.js": "00195d081d9cc0aa9b02ab40411b6a09243ed4802276ab020ace73a7c8e13a44",
+    "oracle/index.js": "23a04dc3a32e86ea62f8817cb3cb1701d896cf3ef5ef163a124b81e600e00234"
+  },
+  "modelIdentityHash": "0xa69e65242c043fe70f0bff227fb228113d944d53a71d8f8de08b5360b1e011f5"
+}

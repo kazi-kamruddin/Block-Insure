@@ -27,10 +27,10 @@ test.describe("@maintenance hospital-owned records", () => {
       await closeActor(user);
       await closeActor(hospital);
     }
-    const auditor = await createActorContext(browser, "auditor1");
+    const auditor = await createActorContext(browser, "admin");
     try {
       await loginActor(auditor.page, auditor.actor);
-      await auditor.page.goto("/auditor/healthcare-registry");
+      await auditor.page.goto("/admin/healthcare-registry");
       await expect(auditor.page.getByText("Roots Match", { exact: true })).toBeVisible({ timeout: 30000 });
     } finally { await closeActor(auditor); }
   });
@@ -77,10 +77,10 @@ test.describe("@maintenance hospital-owned records", () => {
       await closeActor(session);
     }
 
-    const auditorSession = await createActorContext(browser, "auditor1");
+    const auditorSession = await createActorContext(browser, "admin");
     try {
       await loginActor(auditorSession.page, auditorSession.actor);
-      await auditorSession.page.goto("/auditor/healthcare-registry");
+      await auditorSession.page.goto("/admin/healthcare-registry");
       await expect(auditorSession.page.getByText("Roots Match", { exact: true })).toBeVisible();
     } finally {
       await closeActor(auditorSession);

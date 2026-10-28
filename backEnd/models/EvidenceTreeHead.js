@@ -9,6 +9,7 @@ const evidenceTreeHeadSchema = new mongoose.Schema(
     signature: { type: String, required: true },
     anchorTransactionHash: { type: String, trim: true, default: "", index: true },
     anchorBlockNumber: { type: Number, min: 0, default: null },
+    anchorVerified: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

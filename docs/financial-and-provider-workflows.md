@@ -1,6 +1,7 @@
 # Financial and provider workflows
 
-This describes the completion Phase 1 protocol. It requires a **new deployment**;
+These rules remain the financial/provider foundation of the current release.
+It requires a **new deployment**;
 it is not a migration of existing policies or an instruction to reset a database.
 
 ## Hospital staff and source records
@@ -164,8 +165,8 @@ request, claim/registry/model versions, result and salt. Copying another eligibl
 worker's commitment and reveal cannot supply the second confirmation. Result
 digests still permit two independent workers to agree on the same assessment.
 
-The Phase 1 package is `xgboost-protocol-v2.json`; trained XGBoost weights and
-threshold remain unchanged. The old v1 artifact and NB artifacts are retained as
+The current package is `xgboost-protocol-v3.json`; trained XGBoost weights and
+threshold remain unchanged. The old v1/v2 artifacts and NB artifacts are retained as
 historical evidence. A new contract/worker release must be deployed together.
 Do not attach the new commitment encoder to an older coordinator or treat a
 preserved historical artifact as permission to change in-flight requests.
@@ -176,12 +177,14 @@ index synchronization or drop historical collections. Export/review any intended
 data migration explicitly; a new database creates the correct compound index
 without altering Atlas or previous evidence.
 
-Later completion phases cover the full encrypted evidence bundle, auditor-access
-preparation, appeal recovery, optional-benefit scope and final hosted deployment.
-Passing the Phase 1 checks does not certify those later workflows as finished.
+The current [evidence/review workflow](evidence-review-and-recovery.md) adds bounded
+encrypted bundles, reviewer-access preparation and appeal/anchor recovery. Death
+and maturity products are disabled; cancellation refunds use reachable scheduled
+receipts and a separate reserve. Final assurance, actual-user rehearsal and hosted
+deployment remain separate release work.
 
 Historical evaluation outputs and `research-manifest-v4.json` remain unchanged.
-The reviewed [source transition](research-source-transition-v2.json) records the
+The reviewed [source transition](research-source-transition-v3.json) records the
 exact changed bindings, including protocol identity and compiled contract sizes.
 Repository integrity accepts only those reviewed deltas and preserves all other
 bindings. This is provenance bookkeeping, not a new experiment: old gas, mutation,

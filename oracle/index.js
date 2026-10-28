@@ -352,12 +352,13 @@ const validateAppealCommitment = async (request, claim, response) => {
   }
 
   const query = response.query || {};
-  const expectedInvoiceHash = payload.proposedInvoiceNumber
-    ? ethers.keccak256(ethers.toUtf8Bytes(payload.proposedInvoiceNumber))
-    : claim.invoiceHash;
+  const invoiceCandidates = payload.proposedInvoiceNumber
+    ? [ethers.id(payload.proposedInvoiceNumber.trim()), invoiceIdentity(claim.hospitalId, payload.proposedInvoiceNumber)]
+    : [claim.invoiceHash];
+  const expectedInvoiceHash = claim.invoiceHash;
   const expectedAmount = payload.proposedClaimAmountEth || ethers.formatEther(claim.claimAmount);
   if (ethers.parseEther(expectedAmount) !== claim.claimAmount ||
-      normalizeHash(expectedInvoiceHash) !== normalizeHash(claim.invoiceHash) ||
+      !invoiceCandidates.some((hash) => normalizeHash(hash) === normalizeHash(claim.invoiceHash)) ||
       (payload.proposedHospitalId && payload.proposedHospitalId !== claim.hospitalId) ||
       (payload.proposedClaimType && payload.proposedClaimType !== claim.claimType)) return false;
   if (
@@ -388,7 +389,7 @@ const validateAppealCommitment = async (request, claim, response) => {
     try {
       const event = manager.interface.parseLog(log);
       return (
-        event?.name === "ClaimAppealed" &&
+        normalizeHash(log.address) === normalizeHash(CONTRACT_ADDRESS) && event?.name === "ClaimAppealed" &&
         event.args.claimId.toString() === claim.claimId.toString() &&
         normalizeHash(event.args.appealReasonHash) === normalizeHash(computedHash)
       );
@@ -549,7 +550,9 @@ const handleOracleRequested = async (requestId, claimId) => {
     if (selectedModel.kind === "xgboost") {
       let routed;
       if (assessment.verified) {
-        try {
+        // Bound transient context/API failures before pinning a negative decision.
+        // Persistent unavailability still fails closed; no model fallback.
+        for (let attempt = 0; attempt < 3 && !routed; attempt++) try {
           const [snapshot, network, requestBlock] = await Promise.all([coordinator.getRegistrySnapshot(request.registryVersion), provider.getNetwork(), provider.getBlock(Number(request.requestBlock))]);
           const timestamp = Date.now();
           const authorization = { requestId: requestKey, oracleWallet: oracleWallet.address, oracleInstanceId: ORACLE_INSTANCE_ID, timestamp,
@@ -560,7 +563,10 @@ const handleOracleRequested = async (requestId, claimId) => {
           routed = assessProtocol(packet.data.data, { request, claim: shadowFacts({ ...claim.toObject(), claimAmountEth: ethers.formatEther(claim.claimAmount) }),
             chainId: String(network.chainId), managerAddress: CONTRACT_ADDRESS, coordinatorAddress,
             snapshotTimestamp: String(snapshot.publishedAt), requestBlockHash: requestBlock.hash });
-        } catch { routed = unavailableProtocol(); }
+        } catch {
+          if (attempt === 2) routed = unavailableProtocol();
+          else await sleep(750 * (attempt + 1));
+        }
       } else routed = { verified: false, model: "XGBoost", authority: "INTEGRITY_GATE", score: null, riskLevel: "HIGH", verificationCode: assessment.verificationCode };
       const saved = pinnedDecision || (await backendHttp.post(`${BACKEND_API_URL}/api/oracle/protocol/decision/save`, {
         ...await authorizeDecision("DECISION_SAVE", routed), assessment: routed,

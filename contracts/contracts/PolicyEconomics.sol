@@ -121,6 +121,7 @@ contract PolicyEconomics {
 
     function closeTerminalCoverage(uint256 policyId, address caller) external onlyManager {
         require(caller == benefitsManager && caller != address(0), "Caller is not benefits manager");
+        require(coverageAccounts[policyId].reservedCoverageWei == 0, "Resolve pending medical claims before a terminal refund");
         require(!terminalBenefitSettled[policyId], "Terminal benefit already settled");
         terminalBenefitSettled[policyId] = true;
         coverageTerminated[policyId] = true;
@@ -369,7 +370,9 @@ contract PolicyEconomics {
     ) external onlyManager returns (uint256 insurerLiabilityWei) {
         PolicyTerms memory terms = policyTerms[policyId];
         require(terms.holder == claimant, "Policy owner mismatch");
-        require(!terminalBenefitSettled[policyId], "Policy closed by terminal benefit");
+        // The retained product is a cancellation refund, not death/maturity
+        // cover. Cancelling closes future intervals; paid historical incidents
+        // retain their original reporting deadline even after a refund.
         require(claimAmountWei > 0 && claimAmountWei <= terms.maximumClaimWei, "Claim amount not covered");
         require(incidentAt <= block.timestamp, "Incident is in the future");
         require(block.timestamp <= uint256(incidentAt) + terms.claimDeadline, "Claim deadline expired");
@@ -393,6 +396,9 @@ contract PolicyEconomics {
 
         account.reservedCoverageWei += insurerLiabilityWei;
         totalReservedCoverageWei += insurerLiabilityWei;
+        if (exposureClosed[policyId]) {
+            activeExposureWei += insurerLiabilityWei;
+        }
         invoiceClaimId[invoiceId] = claimId;
         claimReservations[claimId] = ClaimReservation({
             policyId: policyId,
@@ -407,7 +413,7 @@ contract PolicyEconomics {
 
     function reserveAppeal(uint256 claimId) external onlyManager {
         ClaimReservation storage reservation = claimReservations[claimId];
-        require(!terminalBenefitSettled[reservation.policyId], "Policy closed by terminal benefit");
+        // Cancellation refunds do not extinguish a covered medical claim's appeal.
         require(!reservation.reserved && !reservation.settled, "Claim coverage unavailable");
         CoverageAccount storage account = coverageAccounts[reservation.policyId];
         require(
@@ -426,7 +432,6 @@ contract PolicyEconomics {
     function amendRejectedClaim(uint256 claimId, uint256 amount, bytes32 invoiceId) external onlyManager {
         ClaimReservation storage reservation = claimReservations[claimId];
         require(!reservation.reserved && !reservation.settled, "Claim coverage unavailable");
-        require(!terminalBenefitSettled[reservation.policyId], "Policy closed by terminal benefit");
         PolicyTerms memory terms = policyTerms[reservation.policyId];
         require(amount > 0 && amount <= terms.maximumClaimWei, "Claim amount not covered");
         require(invoiceId != bytes32(0) && (invoiceClaimId[invoiceId] == 0 || invoiceClaimId[invoiceId] == claimId), "Invoice identity already used");

@@ -34,6 +34,12 @@ interface IInsurancePolicySource {
         uint256 installmentsPaid;
     }
 
+    struct PolicyPackage {
+        uint256 packageId; string name; string policyType; uint256 premiumAmount;
+        uint256 coverageAmount; uint256 durationDays; string requiredDocumentType; bool isActive;
+    }
+    function getPolicyPackage(uint256 packageId) external view returns (PolicyPackage memory);
+
     function getPolicy(uint256 policyId) external view returns (Policy memory);
     function getEffectivePolicyStatus(uint256 policyId) external view returns (PolicyStatus);
     function hasRole(bytes32 role, address account) external view returns (bool);
@@ -161,6 +167,9 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
     ) external onlyInsuranceAdmin {
         require(packageId > 0, "Invalid package");
         require(packageId < insuranceManager.packageCounter(), "Package does not exist");
+        require(!deathBenefitEnabled && !maturityEnabled, "Death and maturity products are not offered");
+        require(!surrenderEnabled || (minimumSurrenderInstallments == 2 && surrenderValueBps <= 5000 &&
+            insuranceManager.getPolicyPackage(packageId).durationDays > 90), "Refund requires two reachable installments and a maximum 50 percent rate");
         require(version > 0, "Version required");
         require(termsHash != bytes32(0), "Terms hash required");
         require(deathBenefitBps <= BPS_DENOMINATOR, "Invalid death benefit");

@@ -8,52 +8,45 @@ const {
 } = require("./contractService");
 
 let anchorTimer = null;
+let anchoring = false;
 
 const anchorCurrentEvidenceTree = async () => {
-  const head = await createSignedTreeHead();
-  if (head.anchorTransactionHash) return head;
+  await require("./evidenceBundleService").assertEvidenceDeployment();
+  const Head = require("../models/EvidenceTreeHead");
+  const { executeEvidenceOperation } = require("./evidenceOperationService");
+  const latest = await createSignedTreeHead();
   const signer = getAdminWallet();
   const registry = getEvidenceRegistry(signer);
-  const trustedTreeHeadSigner = await registry.treeHeadSigner();
-  if (trustedTreeHeadSigner.toLowerCase() !== head.signerWallet.toLowerCase()) {
-    const signerUpdate = await registry.setTreeHeadSigner(head.signerWallet);
-    await signerUpdate.wait();
-  }
-  const onChainSize = Number(await registry.currentTreeSize());
-  const onChainRoot = await registry.currentRootHash();
-  const rootHash = `0x${head.rootHash}`;
-  const previousRootHash = head.previousRootHash
-    ? `0x${head.previousRootHash}`
-    : ethers.ZeroHash;
-
-  if (onChainSize >= head.treeSize) {
-    if (
-      onChainSize !== head.treeSize ||
-      onChainRoot.toLowerCase() !== rootHash.toLowerCase()
-    ) {
-      const error = new Error("On-chain evidence tree is ahead of the local log");
-      error.statusCode = 409;
-      throw error;
+  for (const head of await Head.find({ treeSize: { $lte: latest.treeSize } }).sort({ treeSize: 1 })) {
+    const size = Number(await registry.currentTreeSize());
+    const rootHash = `0x${head.rootHash}`;
+    if (size >= head.treeSize) {
+      const anchored = await registry.getTreeHead(head.treeSize);
+      if (anchored.rootHash.toLowerCase() !== rootHash.toLowerCase()) throw new Error("Stored evidence head differs from the canonical anchor");
+      const block = Number(anchored.anchoredBlock);
+      const events = await registry.queryFilter(registry.filters.EvidenceTreeHeadAnchored(head.treeSize), block, block);
+      head.anchorTransactionHash = events[0]?.transactionHash || head.anchorTransactionHash;
+      head.anchorBlockNumber = block;
+      head.anchorVerified = true;
+      await head.save();
+      continue;
     }
-    return head;
+    if ((await registry.treeHeadSigner()).toLowerCase() !== head.signerWallet.toLowerCase()) {
+      const update = await executeEvidenceOperation(`tree-signer:${head.signerWallet}`, async () => registry.setTreeHeadSigner.populateTransaction(head.signerWallet), signer);
+      if (update.status !== "CONFIRMED") return latest;
+    }
+    const previous = head.previousRootHash ? `0x${head.previousRootHash}` : ethers.ZeroHash;
+    if ((await registry.currentRootHash()).toLowerCase() !== previous.toLowerCase()) throw new Error("Evidence predecessor is not yet canonical; retain ordered recovery");
+    const operation = await executeEvidenceOperation(`evidence-anchor:${head.treeSize}:${head.rootHash}`,
+      async () => registry.anchorEvidenceTreeHead.populateTransaction(head.treeSize, rootHash, previous, head.signature), signer);
+    if (operation.status !== "CONFIRMED") return latest;
+    const receipt = await signer.provider.getTransactionReceipt(operation.transactionHash);
+    head.anchorTransactionHash = operation.transactionHash;
+    head.anchorBlockNumber = Number(receipt.blockNumber);
+    head.anchorVerified = true;
+    await head.save();
   }
-  if (onChainRoot.toLowerCase() !== previousRootHash.toLowerCase()) {
-    const error = new Error("Evidence tree predecessor is not anchored");
-    error.statusCode = 409;
-    throw error;
-  }
-
-  const transaction = await registry.anchorEvidenceTreeHead(
-    head.treeSize,
-    rootHash,
-    previousRootHash,
-    head.signature
-  );
-  const receipt = await transaction.wait();
-  head.anchorTransactionHash = transaction.hash;
-  head.anchorBlockNumber = Number(receipt.blockNumber);
-  await head.save();
-  return head;
+  return Head.findById(latest._id);
 };
 
 const startEvidenceAnchorScheduler = () => {
@@ -65,11 +58,13 @@ const startEvidenceAnchorScheduler = () => {
     return;
   }
   anchorTimer = setInterval(() => {
+    if (anchoring) return;
+    anchoring = true;
     anchorCurrentEvidenceTree().catch((error) => {
       if (error.message !== "Cannot sign an empty evidence tree") {
         console.error("Evidence tree anchoring failed:", error.message);
       }
-    });
+    }).finally(() => { anchoring = false; });
   }, Number(process.env.EVIDENCE_ANCHOR_INTERVAL_MS || 300_000));
   anchorTimer.unref?.();
 };

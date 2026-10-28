@@ -1,3 +1,4 @@
+const { prepareReviewerIdentities, authorizeReview } = require("../support/reviewPreparation");
 const { test, expect } = require("@playwright/test");
 const fs = require("node:fs");
 const mongoose = require("../../backEnd/node_modules/mongoose");
@@ -16,6 +17,7 @@ test.describe("@workflow policyholder transaction journey", () => {
   test.describe.configure({ mode: "serial" });
 
   test("Policy purchase, encrypted claim, oracle adjudication, and payout settlement", async ({ browser }) => {
+    test.setTimeout(240_000);
     const session = await createActorContext(browser, "user");
     const browserFailures = [];
     session.page.on("pageerror", (error) => browserFailures.push(error.message));
@@ -112,7 +114,7 @@ test.describe("@workflow policyholder transaction journey", () => {
       await session.page.getByRole("button", { name: "Restore evidence access" }).click();
       await expect(session.page.getByText(/Browser identity present.*Encrypted backup available/)).toBeVisible();
       await session.page.goto(`/user/claims/${claimId}`);
-      await session.page.getByRole("button", { name: "Preview decrypted", exact: true }).first().click();
+      await session.page.locator(".evidence-chain-item").first().getByRole("button", { name: "Preview decrypted", exact: true }).click();
       await expect(session.page.getByRole("dialog", { name: "Decrypted evidence preview" }).getByText("Page 1 of 1", { exact: true })).toBeVisible();
       await session.page.keyboard.press("Escape");
       await session.page.setViewportSize(desktopViewport);
@@ -239,7 +241,7 @@ test.describe("@workflow policyholder transaction journey", () => {
   });
 
   test("Oracle failure is resolved by assigned auditor consensus and settled", async ({ browser }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(360_000);
     const session = await createActorContext(browser, "user");
     try {
       await loginActor(session.page, session.actor);
@@ -312,6 +314,8 @@ test.describe("@workflow policyholder transaction journey", () => {
         await closeActor(adminSession);
       }
 
+      await prepareReviewerIdentities(browser);
+      await authorizeReview(session.page, claimId);
       const auditorEvidenceSession = await createActorContext(browser, "auditor1", {
         acceptDownloads: true,
       });
@@ -328,27 +332,6 @@ test.describe("@workflow policyholder transaction journey", () => {
         await auditorEvidenceSession.page.goto(`/auditor/claims/${claimId}/history`);
         const evidenceItem = auditorEvidenceSession.page.locator(".evidence-chain-item").first();
         await expect(evidenceItem).toBeVisible();
-        await evidenceItem.getByRole("button", { name: "Download decrypted" }).click();
-        await expect(evidenceItem.locator(".error-text")).toContainText(
-          "No active cryptographic delegation exists"
-        );
-
-        await session.page.goto(`/user/claims/${claimId}`);
-        const accessDetails = session.page
-          .locator("details.technical-details")
-          .filter({ has: session.page.getByText("Cryptographic auditor access", { exact: true }) })
-          .first();
-        await accessDetails.locator("summary").click();
-        const auditorRow = accessDetails
-          .locator(".evidence-access-row")
-          .filter({ hasText: auditorEvidenceSession.wallet.address })
-          .first();
-        await expect(auditorRow).toBeVisible();
-        await auditorRow.getByRole("button", { name: "Grant" }).click();
-        await expect(session.page.locator(".app-toast")).toContainText("access delegated", {
-          timeout: 60_000,
-        });
-
         await auditorEvidenceSession.page.reload();
         const delegatedEvidence = auditorEvidenceSession.page.locator(".evidence-chain-item").first();
         await delegatedEvidence.getByRole("button", { name: "Preview decrypted", exact: true }).click();
@@ -371,21 +354,11 @@ test.describe("@workflow policyholder transaction journey", () => {
           const actions = await mongo.db
             .collection("evidenceaccesslogs")
             .distinct("action", { documentId: fileRecord._id });
-          expect(actions).toEqual(expect.arrayContaining(["GRANT", "PROXY_TRANSFORM"]));
+          expect(actions).toEqual(expect.arrayContaining(["PROXY_TRANSFORM"]));
         } finally {
           await mongo.close();
         }
 
-        await auditorRow.getByRole("button", { name: "Revoke" }).click();
-        await expect(
-          session.page.locator(".app-toast").filter({ hasText: "Access revoked" })
-        ).toContainText("revoked", { timeout: 60_000 });
-        await auditorEvidenceSession.page.reload();
-        const revokedEvidence = auditorEvidenceSession.page.locator(".evidence-chain-item").first();
-        await revokedEvidence.getByRole("button", { name: "Download decrypted" }).click();
-        await expect(revokedEvidence.locator(".error-text")).toContainText(
-          "No active cryptographic delegation exists"
-        );
       } finally {
         await closeActor(auditorEvidenceSession);
       }

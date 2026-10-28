@@ -88,7 +88,9 @@ const getAppealAdjustedClaim = async (claim, claimVersion) => {
   if (claimVersion <= 1) return claim;
 
   const appeal = await Appeal.findOne({
+    deploymentScope: await require("../services/deploymentScopeService").getDeploymentScope(),
     claimId: claim.claimId.toString(),
+    claimVersion,
     status: { $in: ["UNDER_REVIEW", "APPROVED"] },
   }).lean();
   if (!appeal) {

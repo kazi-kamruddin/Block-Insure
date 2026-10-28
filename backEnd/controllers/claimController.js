@@ -8,6 +8,7 @@ const {
 const { getEvidenceChainForClaim } = require("../services/evidenceChainService");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 const File = require("../models/File");
+const bundles = require("../services/evidenceBundleService");
 const Hospital = require("../models/Hospital");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const HospitalClaimVerification = require("../models/HospitalClaimVerification");
@@ -149,19 +150,27 @@ const formatEnrichedClaim = async (
   if (includeLifecycle) {
     try {
       const adjudicator = await getClaimAdjudicator(contract);
-      const [resolvedAt, round, appealFinalized, allocation, withdrawn] =
+      const [resolvedAt, round, appealFinalized, allocation, withdrawn, maximumAppeals, preparationRetryUsed, reason] =
         await Promise.all([
           contract.claimResolvedAt(claim.claimId),
           adjudicator.appealRound(claim.claimId),
           adjudicator.appealFinalized(claim.claimId),
           adjudicator.allocatedSettlementWei(claim.claimId),
           adjudicator.withdrawnSettlementWei(claim.claimId),
+          adjudicator.maxAppeals(),
+          adjudicator.preparationRetryUsed(claim.claimId),
+          contract.rejectionReason(claim.claimId),
         ]);
       closure = {
         resolvedAt: formatTimestamp(resolvedAt),
         appealed: Number(round) > 0,
         appealRound: Number(round),
         appealFinalized: Boolean(appealFinalized),
+        maximumAppeals: Number(maximumAppeals),
+        canAppeal: formatted.status.label === "REJECTED" && (Number(round) < Number(maximumAppeals) || (Number(reason) === 7 && !preparationRetryUsed)),
+        preparationRetryAvailable: formatted.status.label === "REJECTED" && Number(reason) === 7 && !preparationRetryUsed,
+        rejectionReasonCode: Number(reason),
+        rejectionExplanation: Number(reason) === 7 ? "Evidence access preparation was incomplete. This is not a fraud verdict." : "",
         canClose: false,
         lifecycleControlledByProtocol: true,
         allocatedSettlementWei: allocation.toString(),
@@ -298,6 +307,9 @@ const getClaimById = async (req, res, next) => {
     const [documents, claimVersion] = await Promise.all([
       contract.getClaimDocuments(req.params.claimId), contract.claimVersion(req.params.claimId),
     ]);
+    if (req.user.role === "AUDITOR" && !await (await getClaimAdjudicator(contract)).isAssigned(req.params.claimId, claimVersion, req.user.walletAddress)) {
+      throw createError("Clinical evidence requires the current reviewer assignment", 403);
+    }
     const [evidenceChain, hospitalVerification] = await Promise.all([
       getEvidenceChainForClaim(req.params.claimId),
       HospitalClaimVerification.findOne({ claimId: String(req.params.claimId) })
@@ -305,13 +317,19 @@ const getClaimById = async (req, res, next) => {
         .lean(),
     ]);
 
+    const bundle = await bundles.getBundle(req.params.claimId, claimVersion);
+    const visibleEvidence = req.user.role === "AUDITOR" && bundle ? {
+      ...evidenceChain, scope: "SEALED_REVIEW_SET", headHash: bundle.manifestHash,
+      documents: evidenceChain.documents.filter((file) => bundle.documentIds.includes(String(file.id))), documentCount: bundle.documentIds.length,
+    } : evidenceChain;
     res.status(200).json({
       success: true,
       claim: { ...await formatEnrichedClaim(contract, claim, {
         includeLifecycle: true,
       }), claimVersion: String(claimVersion) },
       documents: documents.map(formatClaimDocument),
-      evidenceChain,
+      evidenceChain: visibleEvidence,
+      evidenceSet: bundle ? { manifestHash: bundle.manifestHash, documentIds: bundle.documentIds, claimVersion: bundle.claimVersion } : null,
       hospitalVerification: formatHospitalVerification(hospitalVerification),
     });
   } catch (error) {
@@ -417,7 +435,7 @@ const authorizeClaimSubmission = async (req, res, next) => {
     const statusCode = Number(effectiveStatus);
     const statusLabel = POLICY_STATUS[statusCode] || "UNKNOWN";
 
-    if (statusLabel !== "ACTIVE") {
+    if (["PENDING_PAYMENT", "RENEWED"].includes(statusLabel)) {
       return res.status(409).json({
         success: false,
         message:
@@ -535,8 +553,17 @@ const authorizeClaimSubmission = async (req, res, next) => {
       throw createError("Claim amount cannot exceed policy coverage");
     }
     submittedFacts.incidentDate = String(canonicalIncidentDate);
+    if (req.body.invoiceNumber !== undefined && (typeof req.body.invoiceNumber !== "string" || req.body.invoiceNumber.length > 100)) throw createError("Invoice number is invalid", 422);
+    submittedFacts.invoiceNumber = req.body.invoiceNumber || "";
 
+    const expectedEvidenceCount = req.body.evidenceCount === undefined ? 1 : req.body.evidenceCount;
+    if (!Number.isSafeInteger(expectedEvidenceCount) || expectedEvidenceCount < 1 || expectedEvidenceCount > bundles.MAX_FILES) {
+      throw createError("Select one primary invoice and at most four supporting files", 422);
+    }
     const attempt = await ClaimSubmissionAttempt.create({
+      deploymentScope: await bundles.assertEvidenceDeployment(),
+      expectedEvidenceCount,
+      startBlock: await contract.runner.getBlockNumber(),
       walletAddress: req.user.walletAddress,
       policyId,
       submittedFacts,
@@ -598,6 +625,10 @@ const getOwnedAttempt = async (attemptId, walletAddress) => {
     throw createError("Claim submission attempt not found", 404);
   }
 
+  if (attempt.deploymentScope !== await bundles.assertEvidenceDeployment()) {
+    throw createError("Submission attempt belongs to another deployment", 409);
+  }
+
   return attempt;
 };
 
@@ -631,6 +662,7 @@ const recordClaimTransaction = async (req, res, next) => {
 
     attempt.transactionHash = transactionHash;
     attempt.status = "TX_SUBMITTED";
+    attempt.expiresAt = null;
     await attempt.save();
 
     res.status(200).json({ success: true, attempt });
@@ -646,11 +678,28 @@ const reconcileClaimSubmission = async (req, res, next) => {
       req.user.walletAddress
     );
 
+    const contract = getReadOnlyContract();
+    if (!attempt.transactionHash && attempt.sealedAt && attempt.status === "UPLOADED") {
+      const file = await File.findById(attempt.documentId);
+      const latest = await contract.runner.getBlockNumber();
+      if (latest - attempt.startBlock > 16000) throw createError("Recovery needs an operator-assisted bounded receipt scan", 409);
+      let found;
+      for (let start = attempt.startBlock; start <= latest && !found; start += 2000) {
+        const logs = await contract.queryFilter(contract.filters.ClaimSubmitted(null, BigInt(attempt.policyId), req.user.walletAddress), start, Math.min(start + 1999, latest));
+        for (const event of logs) {
+          const candidate = await contract.getClaim(event.args.claimId);
+          if (candidate.documentHash.toLowerCase() === `0x${file.sha256Hash}` && candidate.documentCID === file.ipfsCID) { found = event.transactionHash; break; }
+        }
+      }
+      if (!found) return res.status(202).json({ success: false, pending: true, message: "No matching confirmed claim found yet. Do not repeat an unresolved wallet submission." });
+      attempt.transactionHash = found;
+      attempt.status = "TX_SUBMITTED";
+      await attempt.save();
+    }
     if (!["TX_SUBMITTED", "COMPLETED"].includes(attempt.status) || !attempt.transactionHash) {
       throw createError("Attempt does not have a submitted transaction", 409);
     }
 
-    const contract = getReadOnlyContract();
     const receipt = await contract.runner.getTransactionReceipt(
       attempt.transactionHash
     );
@@ -672,8 +721,13 @@ const reconcileClaimSubmission = async (req, res, next) => {
 
     let claimId = "";
 
+    const transaction = await contract.runner.getTransaction(attempt.transactionHash);
+    if (!transaction || transaction.from.toLowerCase() !== req.user.walletAddress.toLowerCase()
+      || transaction.to?.toLowerCase() !== (await contract.getAddress()).toLowerCase()) throw createError("Submission signer or target does not match", 403);
+
     for (const log of receipt.logs) {
       try {
+        if (log.address.toLowerCase() !== (await contract.getAddress()).toLowerCase()) continue;
         const parsedLog = contract.interface.parseLog(log);
 
         if (parsedLog?.name === "ClaimSubmitted") {
@@ -721,7 +775,8 @@ const reconcileClaimSubmission = async (req, res, next) => {
       throw createError("Confirmed claim evidence does not match the uploaded document", 409);
     }
 
-    await finalizeEvidence({ file: fileRecord, claim, version: await contract.claimVersion(claimId), attempt, actorWallet: req.user.walletAddress });
+    await finalizeEvidence({ file: fileRecord, claim, version: 1, attempt, actorWallet: req.user.walletAddress });
+    await bundles.finalizeAttemptBundle({ attempt, claim, version: 1, actorWallet: req.user.walletAddress });
 
     attempt.claimId = claimId;
     attempt.status = "COMPLETED";
@@ -751,6 +806,69 @@ const reconcileClaimSubmission = async (req, res, next) => {
   }
 };
 
+const getSubmissionAttempt = async (req, res, next) => {
+  try {
+    const attempt = await getOwnedAttempt(req.params.attemptId, req.user.walletAddress);
+    const files = await File.find({ attemptId: String(attempt._id) }).sort({ uploadSlot: 1 }).select("sha256Hash ipfsCID uploadSlot originalName originalMimeType");
+    if (!attempt.sealedAt && ["AUTHORIZED", "UPLOADED", "UPLOADING"].includes(attempt.status) &&
+      (attempt.status !== "UPLOADING" || !attempt.uploadLeaseUntil || attempt.uploadLeaseUntil <= new Date())) {
+      const complete = files.length === attempt.expectedEvidenceCount && files.every((file, index) => file.uploadSlot === index);
+      attempt.documentIds = files.map((file) => String(file._id));
+      attempt.documentId = String(files.find((file) => file.uploadSlot === 0)?._id || "");
+      attempt.status = complete ? "UPLOADED" : "AUTHORIZED";
+      attempt.uploadLeaseUntil = null;
+      await attempt.save();
+    }
+    res.json({ success: true, attempt, files });
+  } catch (error) { next(error); }
+};
+
+const sealSubmissionAttempt = async (req, res, next) => {
+  try {
+    const attempt = await getOwnedAttempt(req.params.attemptId, req.user.walletAddress);
+    if (attempt.sealedAt) return res.json({ success: true, attempt });
+    if (attempt.status !== "UPLOADED") throw createError("Upload every selected evidence file before requesting a wallet transaction", 409);
+    const files = await File.find({ attemptId: String(attempt._id) }).sort({ uploadSlot: 1 });
+    if (files.length !== attempt.expectedEvidenceCount || files.some((file, index) => file.uploadSlot !== index)) throw createError("Evidence slots are incomplete", 409);
+    attempt.sealedAt = new Date();
+    attempt.expiresAt = null; // Unresolved wallet submissions must not expire out of recovery.
+    await attempt.save();
+    res.json({ success: true, attempt });
+  } catch (error) { next(error); }
+};
+
+const listSubmissionAttempts = async (req, res, next) => {
+  try {
+    const attempts = await ClaimSubmissionAttempt.find({ deploymentScope: await bundles.assertEvidenceDeployment(), walletAddress: req.user.walletAddress,
+      status: { $in: ["AUTHORIZED", "UPLOADING", "UPLOADED", "TX_SUBMITTED"] } }).sort({ createdAt: -1 }).limit(20);
+    res.json({ success: true, attempts });
+  } catch (error) { next(error); }
+};
+
+const reviseSubmissionPreparation = async (req, res, next) => {
+  try {
+    const attempt = await getOwnedAttempt(req.params.attemptId, req.user.walletAddress);
+    if (attempt.transactionHash || ["TX_SUBMITTED", "COMPLETED"].includes(attempt.status)) throw createError("Reconcile the recorded transaction before changing preparation", 409);
+    if (req.body.action === "WALLET_REJECTED") {
+      if (!attempt.sealedAt || attempt.status !== "UPLOADED") throw createError("Only a sealed, unrecorded wallet request can be returned to preparation", 409);
+      // Explicit owner retry keeps immutable slots; unknown outcomes are not
+      // automatically treated as rejection or used to delete uploaded evidence.
+      attempt.sealedAt = null;
+      attempt.status = "UPLOADED";
+      attempt.expiresAt = new Date(Date.now() + 86400000);
+    } else if (req.body.action === "KEEP_UPLOADED" && !attempt.sealedAt && ["AUTHORIZED", "UPLOADED"].includes(attempt.status)) {
+      const files = await File.find({ attemptId: String(attempt._id) }).sort({ uploadSlot: 1 });
+      if (!files.length || files.some((file, index) => file.uploadSlot !== index)) throw createError("Keep requires a contiguous uploaded set including the primary invoice", 409);
+      attempt.expectedEvidenceCount = files.length;
+      attempt.documentIds = files.map((file) => String(file._id));
+      attempt.documentId = String(files[0]._id);
+      attempt.status = "UPLOADED";
+    } else throw createError("Unsupported evidence preparation change", 422);
+    await attempt.save();
+    res.json({ success: true, attempt });
+  } catch (error) { next(error); }
+};
+
 const abandonClaimSubmission = async (req, res, next) => {
   try {
     const attempt = await getOwnedAttempt(
@@ -762,6 +880,7 @@ const abandonClaimSubmission = async (req, res, next) => {
       throw createError(`Attempt cannot be abandoned from ${attempt.status}`, 409);
     }
 
+    if (attempt.sealedAt || attempt.transactionHash) throw createError("A sealed wallet submission must be reconciled before any evidence cleanup", 409);
     if (attempt.documentId) {
       const fileRecord = await File.findById(attempt.documentId);
 
@@ -769,6 +888,10 @@ const abandonClaimSubmission = async (req, res, next) => {
         await unpinFromPinata(fileRecord.ipfsCID);
         await File.deleteOne({ _id: fileRecord._id });
       }
+    }
+    for (const file of await File.find({ attemptId: String(attempt._id) })) {
+      await unpinFromPinata(file.ipfsCID);
+      await File.deleteOne({ _id: file._id });
     }
 
     attempt.status = "ABANDONED";
@@ -806,6 +929,10 @@ const previewInvoiceEligibility = async (req, res, next) => {
 };
 
 module.exports = {
+  listSubmissionAttempts,
+  reviseSubmissionPreparation,
+  getSubmissionAttempt,
+  sealSubmissionAttempt,
   previewInvoiceEligibility,
   authorizeClaimSubmission,
   abandonClaimSubmission,

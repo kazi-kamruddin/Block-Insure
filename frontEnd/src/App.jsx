@@ -146,7 +146,7 @@ export default function App() {
                 <Route path="auditor" element={<AuditorLayout />}>
                   <Route index element={<Navigate to="/auditor/dashboard" replace />} />
                   <Route path="dashboard" element={<AuditorDashboardPage />} />
-                  <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
+                  <Route path="healthcare-registry" element={<Navigate to="/auditor/votes" replace />} />
                   <Route path="claims" element={<AuditorClaimLookupPage />} />
                   <Route path="claims/:id/history" element={<AuditorClaimHistoryPage />} />
                   <Route path="votes" element={<AuditorVoteQueuePage />} />

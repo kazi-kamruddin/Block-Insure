@@ -20,6 +20,14 @@ contract ClaimAdjudicator is ReentrancyGuard {
     uint8 public constant REVIEW_APPROVED = 4;
     uint8 public constant REVIEW_REJECTED = 5;
     uint8 public constant REVIEW_TIMED_OUT = 6;
+    uint8 public constant ACCESS_INCOMPLETE = 7;
+
+    struct AccessPreparation {
+        uint64 deadline;
+        uint64 activatedAt;
+        bytes32 evidenceSetHash;
+        bytes32 grantCommitment;
+    }
 
     struct ManualReview {
         address[4] auditors;
@@ -43,6 +51,9 @@ contract ClaimAdjudicator is ReentrancyGuard {
     uint64 public reviewDuration = 3 days;
     uint64 public routingDelay = 2 days;
     uint8 public maxAppeals = 1;
+    uint64 public preparationDuration = 3 days;
+    mapping(bytes32 => AccessPreparation) private preparations;
+    mapping(uint256 => bool) public preparationRetryUsed;
 
     address[] private activeAuditors;
     mapping(address => bool) public isActiveAuditor;
@@ -71,6 +82,8 @@ contract ClaimAdjudicator is ReentrancyGuard {
         address[4] auditors,
         uint64 deadline
     );
+    event ReviewPreparationStarted(uint256 indexed claimId, uint64 indexed claimVersion, address[4] auditors, uint64 deadline);
+    event ReviewAccessPrepared(uint256 indexed claimId, uint64 indexed claimVersion, bytes32 evidenceSetHash, bytes32 grantCommitment);
     event AuditorVoteCast(
         uint256 indexed claimId,
         uint64 indexed claimVersion,
@@ -172,7 +185,7 @@ contract ClaimAdjudicator is ReentrancyGuard {
     {
         bytes32 key = reviewKey(claimId, version);
         ManualReview storage review = reviews[key];
-        require(review.deadline == 0, "Review already exists");
+        require(preparations[key].deadline == 0, "Review already exists");
         require(activeAuditors.length >= 4, "Four active auditors required");
 
         address[4] memory selected;
@@ -182,9 +195,40 @@ contract ClaimAdjudicator is ReentrancyGuard {
             review.auditors[i] = selected[i];
         }
 
-        deadline = uint64(block.timestamp) + reviewDuration;
-        review.deadline = deadline;
-        emit ManualReviewOpened(claimId, version, selected, deadline);
+        preparations[key].deadline = uint64(block.timestamp) + preparationDuration;
+        emit ReviewPreparationStarted(claimId, version, selected, preparations[key].deadline);
+        return 0; // Assignment is not the start of substantive voting time.
+    }
+
+    function getPreparation(uint256 claimId, uint64 version) external view returns (AccessPreparation memory) {
+        return preparations[reviewKey(claimId, version)];
+    }
+
+    // The insurer attests technical availability of the owner's stored PRE grants.
+    // This does not attest medical truth, successful reading or claim approval.
+    function activateReview(uint256 claimId, uint64 version, bytes32 evidenceSetHash, bytes32 grantCommitment)
+        external onlyManagerAdmin
+    {
+        bytes32 key = reviewKey(claimId, version);
+        ManualReview storage review = reviews[key];
+        AccessPreparation storage preparation = preparations[key];
+        require(preparation.deadline != 0 && !review.finalized && review.deadline == 0, "Review is not preparing");
+        require(block.timestamp <= preparation.deadline, "Preparation deadline passed");
+        require(evidenceSetHash != bytes32(0) && grantCommitment != bytes32(0), "Access commitments required");
+        preparation.evidenceSetHash = evidenceSetHash;
+        preparation.grantCommitment = grantCommitment;
+        preparation.activatedAt = uint64(block.timestamp);
+        review.deadline = uint64(block.timestamp) + reviewDuration;
+        emit ReviewAccessPrepared(claimId, version, evidenceSetHash, grantCommitment);
+        emit ManualReviewOpened(claimId, version, review.auditors, review.deadline);
+    }
+
+    function expirePreparation(uint256 claimId, uint64 version) external {
+        bytes32 key = reviewKey(claimId, version);
+        ManualReview storage review = reviews[key];
+        require(preparations[key].deadline != 0 && review.deadline == 0 && !review.finalized, "Review is not preparing");
+        require(block.timestamp > preparations[key].deadline, "Preparation deadline active");
+        _finalize(claimId, version, review, false, ACCESS_INCOMPLETE);
     }
 
     function castVote(
@@ -335,8 +379,12 @@ contract ClaimAdjudicator is ReentrancyGuard {
         onlyManager
         returns (uint8 round)
     {
-        require(appealRound[claimId] < maxAppeals, "Maximum appeals reached");
-        appealRound[claimId]++;
+        if (decisions[claimId][newVersion - 1].rejectionReason == ACCESS_INCOMPLETE && !preparationRetryUsed[claimId]) {
+            preparationRetryUsed[claimId] = true;
+        } else {
+            require(appealRound[claimId] < maxAppeals, "Maximum appeals reached");
+            appealRound[claimId]++;
+        }
         round = appealRound[claimId];
         appealFinalized[claimId] = false;
         emit AppealStarted(claimId, round, newVersion);
@@ -376,7 +424,7 @@ contract ClaimAdjudicator is ReentrancyGuard {
         review.approved = approved;
         // Expiry is an availability outcome, not evidence that an approving
         // auditor was wrong on the merits of the claim.
-        if (reasonCode != REVIEW_TIMED_OUT) _recordAuditorObservations(claimId, version, review, approved);
+        if (reasonCode != REVIEW_TIMED_OUT && reasonCode != ACCESS_INCOMPLETE) _recordAuditorObservations(claimId, version, review, approved);
         IClaimAdjudicationManager(manager).finalizeManualReview(
             claimId,
             version,
@@ -402,7 +450,7 @@ contract ClaimAdjudicator is ReentrancyGuard {
             decisionHash: decisionHash,
             decidedAt: uint64(block.timestamp)
         });
-        if (appealRound[claimId] > 0) appealFinalized[claimId] = true;
+        if (version > 1) appealFinalized[claimId] = true;
         emit DecisionRecorded(claimId, version, approved, rejectionReason, decisionHash);
     }
 

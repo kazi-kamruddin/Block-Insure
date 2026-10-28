@@ -1,4 +1,6 @@
 const Appeal = require("../models/Appeal");
+const File = require("../models/File");
+const { assertEvidenceDeployment, sealBundle, getBundle } = require("../services/evidenceBundleService");
 const { assertAppealFactsMatch } = require("../services/appealFactService");
 const {
   getClaimAdjudicator,
@@ -21,6 +23,8 @@ const formatAppeal = (appeal) =>
     ? {
         id: appeal._id,
         claimId: appeal.claimId,
+        claimVersion: appeal.claimVersion,
+        appealRound: appeal.appealRound,
         claimantWallet: appeal.claimantWallet,
         appealReason: appeal.appealReason,
         reasonCategory: appeal.reasonCategory,
@@ -42,11 +46,17 @@ const formatAppeal = (appeal) =>
       }
     : null;
 
-const assertCanReadAppeal = (req, appeal) => {
-  if (["ADMIN", "AUDITOR"].includes(req.user.role)) return;
+const assertCanReadAppeal = async (req, appeal) => {
+  if (req.user.role === "ADMIN") return;
   if (
     appeal.claimantWallet.toLowerCase() === req.user.walletAddress.toLowerCase()
   ) return;
+  if (req.user.role === "AUDITOR") {
+    const contract = getReadOnlyContract();
+    const version = await contract.claimVersion(appeal.claimId);
+    const adjudicator = await getClaimAdjudicator(contract);
+    if (Number(version) === appeal.claimVersion && await adjudicator.isAssigned(appeal.claimId, version, req.user.walletAddress)) return;
+  }
   throw createError("Access denied: appeal does not belong to this wallet", 403);
 };
 
@@ -77,6 +87,7 @@ const verifyAppealTransaction = async (
     try {
       const parsed = contract.interface.parseLog(log);
       return (
+        log.address.toLowerCase() === String(contract.target).toLowerCase() &&
         parsed?.name === "ClaimAppealed" &&
         parsed.args.claimId.toString() === claimId &&
         String(parsed.args.appealReasonHash).toLowerCase() ===
@@ -87,12 +98,22 @@ const verifyAppealTransaction = async (
     }
   });
   if (!matched) throw createError("Transaction does not contain this claim appeal", 409);
+  const adjudicator = await getClaimAdjudicator(contract);
+  for (const log of receipt.logs) {
+    try {
+      if (log.address.toLowerCase() !== String(adjudicator.target).toLowerCase()) continue;
+      const event = adjudicator.interface.parseLog(log);
+      if (event?.name === "AppealStarted" && String(event.args.claimId) === claimId) {
+        return { claimVersion: Number(event.args.newClaimVersion), appealRound: Number(event.args.appealRound), blockNumber: receipt.blockNumber };
+      }
+    } catch { /* unrelated event */ }
+  }
+  throw createError("Version-bound appeal event is unavailable", 409);
 };
 
-const submitAppeal = async (req, res, next) => {
-  try {
-    const claimId = String(req.body.claimId || "").trim();
-    const appealReason = String(req.body.appealReason || "").trim();
+const registerConfirmedAppeal = async (payload, user) => {
+    const claimId = String(payload.claimId || "").trim();
+    const appealReason = String(payload.appealReason || "").trim();
     if (!claimId || !appealReason) {
       throw createError("claimId and appealReason are required", 400);
     }
@@ -100,39 +121,41 @@ const submitAppeal = async (req, res, next) => {
     const contract = getReadOnlyContract();
     const adjudicator = await getClaimAdjudicator(contract);
     const claim = await contract.getClaim(claimId);
-    if (claim.claimantWallet.toLowerCase() !== req.user.walletAddress.toLowerCase()) {
+    if (claim.claimantWallet.toLowerCase() !== user.walletAddress.toLowerCase()) {
       throw createError("Access denied: claim does not belong to this wallet", 403);
     }
 
     const commitmentPayload = buildAppealCommitmentPayload({
-      ...req.body,
+      ...payload,
       claimId,
       appealReason,
     });
     const appealReasonHash = hashAppealCommitment(commitmentPayload);
-    assertAppealFactsMatch(claim, commitmentPayload);
-    const providedHash = String(req.body.appealReasonHash || "").trim();
+    const providedHash = String(payload.appealReasonHash || "").trim();
     if (providedHash.toLowerCase() !== appealReasonHash.toLowerCase()) {
       throw createError("appealReasonHash does not match the committed appeal payload", 400);
     }
 
-    const round = await adjudicator.appealRound(claimId);
-    if (Number(round) === 0) {
-      throw createError("Submit the on-chain appeal before saving its metadata", 400);
-    }
-    await verifyAppealTransaction(
+    const verified = await verifyAppealTransaction(
       contract,
       claimId,
-      req.user.walletAddress,
-      String(req.body.transactionHash || "").trim(),
+      user.walletAddress,
+      String(payload.transactionHash || "").trim(),
       appealReasonHash
     );
+    const round = verified.appealRound;
+    const historicalClaim = await contract.getClaim(claimId, { blockTag: verified.blockNumber });
+    assertAppealFactsMatch(historicalClaim, commitmentPayload);
+    const deploymentScope = await assertEvidenceDeployment();
 
     const appeal = await Appeal.findOneAndUpdate(
-      { claimId },
+      { deploymentScope, claimId, claimVersion: verified.claimVersion },
       {
         $setOnInsert: {
           claimId,
+          deploymentScope,
+          claimVersion: verified.claimVersion,
+          appealRound: round,
           claimantWallet: claim.claimantWallet.toLowerCase(),
           appealReason,
           reasonCategory: commitmentPayload.reasonCategory,
@@ -144,42 +167,69 @@ const submitAppeal = async (req, res, next) => {
           proposedInvoiceNumber: commitmentPayload.proposedInvoiceNumber,
           proposedClaimType: commitmentPayload.proposedClaimType,
           proposedClaimAmountEth: commitmentPayload.proposedClaimAmountEth,
-          transactionHash: req.body.transactionHash,
+          transactionHash: payload.transactionHash,
           status: "UNDER_REVIEW",
           history: [{
             status: "UNDER_REVIEW",
-            actorWallet: req.user.walletAddress,
-            actorRole: req.user.role,
-            note: `Appeal round ${round} opened a new claim version for hospital re-verification`,
+            actorWallet: user.walletAddress,
+            actorRole: user.role,
+            note: `Appeal/recovery round ${round} opened claim version ${verified.claimVersion} for automatic registry verification`,
             timestamp: new Date(),
           }],
         },
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
+    if (appeal.appealReasonHash !== appealReasonHash || appeal.transactionHash !== payload.transactionHash) throw createError("This claim version already has another registered appeal", 409);
+    const previousBundle = await getBundle(claimId, verified.claimVersion - 1);
+    if (!previousBundle) throw createError("Recover the previous claim evidence set before registering this appeal", 409);
+    const documents = [];
+    for (const id of previousBundle.documentIds) {
+      const file = await File.findById(id);
+      if (!file) throw createError("Original evidence is unavailable", 409);
+      documents.push(file);
+    }
+    if (commitmentPayload.additionalDocumentHash) {
+      const file = await File.findOne({ claimId, claimVersion: verified.claimVersion, uploaderWallet: user.walletAddress,
+        sha256Hash: commitmentPayload.additionalDocumentHash.replace(/^0x/, ""), ipfsCID: commitmentPayload.additionalDocumentCID });
+      if (!file) throw createError("Appeal evidence does not match an owned version-bound upload", 409);
+      await require("../services/evidenceChainService").assignEvidenceChainLink(file, claimId);
+      const event = await require("../services/evidenceTransparencyService").appendEvidenceEvent({
+        idempotencyKey: `evidence-added:${file._id}:${verified.claimVersion}`, eventType: "EVIDENCE_ADDED", claimId,
+        claimVersion: verified.claimVersion, documentId: file._id, actorWallet: user.walletAddress,
+        ciphertextHash: file.sha256Hash, ciphertextReference: file.ipfsCID, associatedDataHash: file.associatedDataHash,
+        encryptionSchemeVersion: file.encryptionSchemeVersion,
+      });
+      file.evidenceEventIndex = event.treeIndex;
+      await file.save();
+      if (!documents.some((document) => String(document._id) === String(file._id))) documents.push(file);
+    }
+    await sealBundle({ claimId, claimVersion: verified.claimVersion, ownerWallet: user.walletAddress, documents });
 
     await notifyAdmins({
       actorWallet: claim.claimantWallet,
       type: "APPEAL_SUBMITTED",
       title: `Appeal submitted for claim #${claimId}`,
-      message: `Appeal round ${round} is awaiting hospital re-verification before the new Oracle cycle.`,
+      message: `Claim version ${verified.claimVersion} is ready for the new automatic Oracle cycle.`,
       claimId,
       appealId: appeal._id.toString(),
       link: `/admin/claims/${claimId}`,
       dedupeKey: `appeal:${appeal._id}:submitted`,
     });
-    res.status(201).json({ success: true, appeal: formatAppeal(appeal) });
-  } catch (error) {
-    next(error);
-  }
+    return { success: true, appeal: formatAppeal(appeal) };
+};
+
+const submitAppeal = async (req, res, next) => {
+  try { res.status(201).json(await registerConfirmedAppeal(req.body, req.user)); }
+  catch (error) { next(error); }
 };
 
 const getAppealByClaim = async (req, res, next) => {
   try {
     const claimId = String(req.params.claimId || "").trim();
-    let appeal = await Appeal.findOne({ claimId });
+    let appeal = await Appeal.findOne({ deploymentScope: await assertEvidenceDeployment(), claimId }).sort({ claimVersion: -1 });
     if (!appeal) throw createError("Appeal not found for this claim", 404);
-    assertCanReadAppeal(req, appeal);
+    await assertCanReadAppeal(req, appeal);
 
     const contract = getReadOnlyContract();
     const adjudicator = await getClaimAdjudicator(contract);
@@ -187,7 +237,7 @@ const getAppealByClaim = async (req, res, next) => {
       contract.claimVersion(claimId),
       adjudicator.appealFinalized(claimId),
     ]);
-    if (finalized && !["APPROVED", "REJECTED"].includes(appeal.status)) {
+    if (finalized && Number(version) === appeal.claimVersion && !["APPROVED", "REJECTED"].includes(appeal.status)) {
       const decision = await adjudicator.getDecision(claimId, version);
       const status = decision.approved ? "APPROVED" : "REJECTED";
       appeal = await Appeal.findByIdAndUpdate(
@@ -213,4 +263,4 @@ const getAppealByClaim = async (req, res, next) => {
   }
 };
 
-module.exports = { submitAppeal, getAppealByClaim };
+module.exports = { submitAppeal, getAppealByClaim, verifyAppealTransaction, registerConfirmedAppeal };

@@ -1,376 +1,143 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
+const { configureOracleFixture, finalizeExactResult } = require("./helpers/oracleCoordinator");
 
-describe("PolicyBenefitsManager - Phase 2 benefits", function () {
-  async function deployFixture() {
-    const [admin, holder, beneficiaryOne, beneficiaryTwo, outsider] =
-      await ethers.getSigners();
-    const InsuranceManager = await ethers.getContractFactory("InsuranceManager");
-    const insurance = await InsuranceManager.deploy();
-    const premium = ethers.parseEther("0.01");
-    const coverage = ethers.parseEther("1");
-    await insurance.createPolicyPackage(
-      "Family Protection",
-      "HEALTH_AND_LIFE",
-      premium,
-      coverage,
-      365,
-      "HOSPITAL_BILL"
-    );
+describe("Policy cancellation refunds", function () {
+  const premium = ethers.parseEther("0.01");
+  async function fixture(funded = true) {
+    const [admin, holder, outsider] = await ethers.getSigners();
+    const insurance = await (await ethers.getContractFactory("InsuranceManager")).deploy();
+    await insurance.createPolicyPackage("Medical", "HEALTH", premium, ethers.parseEther("1"), 365, "HOSPITAL_BILL");
     await insurance.connect(holder).purchasePolicy(1, { value: premium });
-
-    const Benefits = await ethers.getContractFactory("PolicyBenefitsManager");
-    const benefits = await Benefits.deploy(await insurance.getAddress());
+    const benefits = await (await ethers.getContractFactory("PolicyBenefitsManager")).deploy(await insurance.getAddress());
     const economics = await ethers.getContractAt("PolicyEconomics", await insurance.policyEconomics());
     await economics.configureBenefitsManager(await benefits.getAddress());
-    const termsHash = ethers.keccak256(ethers.toUtf8Bytes("family-protection-v1"));
-    await benefits.publishBenefitTerms(
-      1,
-      true,
-      true,
-      true,
-      10000,
-      5000,
-      500,
-      1,
-      1,
-      termsHash
-    );
-    await admin.sendTransaction({
-      to: await benefits.getAddress(),
-      value: ethers.parseEther("3"),
-    });
-
-    return {
-      admin,
-      holder,
-      beneficiaryOne,
-      beneficiaryTwo,
-      outsider,
-      insurance,
-      benefits,
-      premium,
-      coverage,
-      termsHash,
-    };
+    await benefits.publishBenefitTerms(1, false, true, false, 0, 5000, 0, 2, 1, ethers.id("refund-v1"));
+    if (funded) await admin.sendTransaction({ to: await benefits.getAddress(), value: ethers.parseEther("1") });
+    return { insurance, benefits, economics, admin, holder, outsider };
   }
-
-  it("publishes only increasing, hashed benefit-term versions", async function () {
-    const { benefits, outsider, termsHash } = await deployFixture();
-    const Benefits = await ethers.getContractFactory("PolicyBenefitsManager");
-    await expect(Benefits.deploy(outsider.address)).to.be.reverted;
-    await expect(
-      benefits.connect(outsider).publishBenefitTerms(
-        1, true, true, true, 10000, 5000, 500, 1, 2, termsHash
-      )
-    ).to.be.reverted;
-    await expect(
-      benefits.publishBenefitTerms(
-        1, true, true, true, 10000, 5000, 500, 1, 1, termsHash
-      )
-    ).to.be.reverted;
-    await expect(
-      benefits.publishBenefitTerms(
-        2, true, true, true, 10000, 5000, 500, 1, 1, termsHash
-      )
-    ).to.be.reverted;
-  });
-
-  it("lets only the holder register one to three beneficiaries totaling 100 percent", async function () {
-    const { benefits, holder, beneficiaryOne, beneficiaryTwo, outsider } =
-      await deployFixture();
-    await expect(
-      benefits.connect(outsider).setBeneficiaries(1, [beneficiaryOne.address], [10000])
-    ).to.be.reverted;
-    await expect(
-      benefits.connect(holder).setBeneficiaries(
-        1,
-        [beneficiaryOne.address, beneficiaryTwo.address],
-        [5000, 4000]
-      )
-    ).to.be.reverted;
-
-    await benefits.connect(holder).setBeneficiaries(
-      1,
-      [beneficiaryOne.address, beneficiaryTwo.address],
-      [6000, 4000]
-    );
-    const beneficiaries = await benefits.getBeneficiaries(1);
-    expect(beneficiaries).to.have.length(2);
-    expect(beneficiaries[0].shareBps).to.equal(6000);
-  });
-
-  it("requires a registered beneficiary and evidence for a death request", async function () {
-    const { benefits, holder, beneficiaryOne, outsider, coverage } = await deployFixture();
-    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
-    const evidenceHash = ethers.keccak256(ethers.toUtf8Bytes("death-certificate"));
-
-    await expect(
-      benefits.connect(outsider).requestBenefit(1, 0, evidenceHash)
-    ).to.be.reverted;
-    await expect(
-      benefits.connect(beneficiaryOne).requestBenefit(1, 0, ethers.ZeroHash)
-    ).to.be.reverted;
-    await expect(benefits.connect(beneficiaryOne).requestBenefit(1, 0, evidenceHash))
-      .to.emit(benefits, "BenefitRequested")
-      .withArgs(1, 1, 0, coverage, beneficiaryOne.address);
-    await expect(
-      benefits.connect(holder).setBeneficiaries(1, [outsider.address], [10000])
-    ).to.be.reverted;
-  });
-
-  it("does not allow death cover after the base policy is cancelled", async function () {
-    const { benefits, holder, beneficiaryOne, insurance } = await deployFixture();
-    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
-    await insurance.connect(holder).cancelPolicy(1);
-    await expect(
-      benefits.connect(beneficiaryOne).requestBenefit(
-        1,
-        0,
-        ethers.keccak256(ethers.toUtf8Bytes("late-death-record"))
-      )
-    ).to.be.reverted;
-  });
-
-  it("terminal allocation closes the policy, blocks other benefits and new claims, but preserves reservations", async function () {
-    const { benefits, holder, beneficiaryOne, insurance, outsider } = await deployFixture();
-    const economics = await ethers.getContractAt("PolicyEconomics", await insurance.policyEconomics());
-    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
-    const policy = await insurance.getPolicy(1);
-    const submit = (suffix) => insurance.connect(holder).submitClaim(1, ethers.parseEther("0.1"), policy.startDate, "HOSPITALIZATION", "HOSP-001", ethers.id(`invoice-${suffix}`), ethers.id(`doc-${suffix}`), `ipfs://${suffix}`);
-    await submit("reserved");
-    const before = await economics.getCoverageAccount(1);
-    await expect(insurance.connect(outsider).closePolicyForBenefit(1)).to.be.reverted;
-    await benefits.connect(beneficiaryOne).requestBenefit(1, 0, ethers.id("death"));
-    await benefits.approveBenefit(1);
-    await benefits.settleBenefit(1);
-    expect((await insurance.getPolicy(1)).isActive).to.equal(false);
-    expect(await economics.terminalBenefitSettled(1)).to.equal(true);
-    expect((await economics.getCoverageAccount(1)).reservedCoverageWei).to.equal(before.reservedCoverageWei);
-    await expect(submit("new")).to.be.reverted;
-    await expect(benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash)).to.be.reverted;
-    await expect(benefits.connect(holder).requestBenefit(1, 2, ethers.ZeroHash)).to.be.reverted;
-  });
-
-  it("reserves and allocates an approved death benefit by registered shares", async function () {
-    const { benefits, holder, beneficiaryOne, beneficiaryTwo, coverage } =
-      await deployFixture();
-    await benefits.connect(holder).setBeneficiaries(
-      1,
-      [beneficiaryOne.address, beneficiaryTwo.address],
-      [6000, 4000]
-    );
-    await benefits.connect(beneficiaryOne).requestBenefit(
-      1,
-      0,
-      ethers.keccak256(ethers.toUtf8Bytes("verified-death-record"))
-    );
-    await benefits.approveBenefit(1);
-    expect(await benefits.totalReservedLiabilityWei()).to.equal(coverage);
-
-    await benefits.settleBenefit(1);
-    expect((await benefits.getBenefitRequest(1)).status).to.equal(4);
-    expect(await benefits.claimableBenefitWei(beneficiaryOne.address)).to.equal(
-      ethers.parseEther("0.6")
-    );
-    expect(await benefits.claimableBenefitWei(beneficiaryTwo.address)).to.equal(
-      ethers.parseEther("0.4")
-    );
-    expect(await benefits.totalReservedLiabilityWei()).to.equal(coverage);
-
-    await expect(() => benefits.connect(beneficiaryOne).withdrawBenefit()).to.changeEtherBalances(
-      [beneficiaryOne, benefits],
-      [ethers.parseEther("0.6"), -ethers.parseEther("0.6")]
-    );
-    expect(await benefits.totalReservedLiabilityWei()).to.equal(
-      ethers.parseEther("0.4")
-    );
-  });
-
-  for (const winner of [1, 2]) {
-    it(`atomically releases a competing approval when request ${winner} settles`, async function () {
-      const { benefits, holder, beneficiaryOne, insurance, coverage, premium } = await deployFixture();
-      await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
-      await benefits.connect(beneficiaryOne).requestBenefit(1, 0, ethers.id("death-before-cancellation"));
-      await insurance.connect(holder).cancelPolicy(1);
-      await benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash);
-      await benefits.approveBenefit(1);
-      await benefits.approveBenefit(2);
-      expect(await benefits.totalReservedLiabilityWei()).to.equal(coverage + premium / 2n);
-      const loser = winner === 1 ? 2 : 1;
-      await expect(benefits.settleBenefit(winner)).to.emit(benefits, "BenefitRejected")
-        .withArgs(loser, ethers.id("SUPERSEDED_BY_TERMINAL_BENEFIT"));
-      expect((await benefits.getBenefitRequest(loser)).status).to.equal(3);
-      expect(await benefits.totalReservedLiabilityWei()).to.equal(winner === 1 ? coverage : premium / 2n);
-      await expect(benefits.settleBenefit(loser)).to.be.reverted;
-      await expect(benefits.approveBenefit(loser)).to.be.reverted;
-      await expect(benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash)).to.be.reverted;
-      const recipient = winner === 1 ? beneficiaryOne : holder;
-      await benefits.connect(recipient).withdrawBenefit();
-      expect(await benefits.totalReservedLiabilityWei()).to.equal(0);
-    });
+  async function paidTwice(f) {
+    const policy = await f.insurance.getPolicy(1);
+    await time.increaseTo(policy.startDate + 60n * 86400n);
+    await f.insurance.connect(f.holder).payPremium(1, 2, { value: premium });
   }
-
-  it("supersedes a requested competitor without releasing an unreserved amount", async function () {
-    const { benefits, holder, beneficiaryOne, insurance, premium } = await deployFixture();
-    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
-    await benefits.connect(beneficiaryOne).requestBenefit(1, 0, ethers.id("death"));
-    await insurance.connect(holder).cancelPolicy(1);
-    await benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash);
-    await benefits.approveBenefit(2);
-    await benefits.settleBenefit(2);
-    expect((await benefits.getBenefitRequest(1)).status).to.equal(3);
-    expect(await benefits.totalReservedLiabilityWei()).to.equal(premium / 2n);
+  async function request(f) {
+    await paidTwice(f); await f.insurance.connect(f.holder).cancelPolicy(1);
+    await f.benefits.connect(f.holder).requestBenefit(1, 1, ethers.ZeroHash);
+  }
+  it("rejects death/maturity product publication and unreachable or excessive refund terms", async function () {
+    const f = await fixture();
+    const publish = (...args) => f.benefits.publishBenefitTerms(1, ...args, 2, ethers.id("v2"));
+    await expect(publish(true, true, false, 10000, 5000, 0, 2)).to.be.reverted;
+    await expect(publish(false, true, true, 0, 5000, 500, 2)).to.be.reverted;
+    await expect(publish(false, true, false, 0, 5000, 0, 6)).to.be.reverted;
+    await expect(publish(false, true, false, 0, 5001, 0, 2)).to.be.reverted;
+    await f.insurance.createPolicyPackage("Short", "HEALTH", premium, premium, 30, "HOSPITAL_BILL");
+    await expect(f.benefits.publishBenefitTerms(2, false, true, false, 0, 5000, 0, 2, 1, ethers.id("short"))).to.be.reverted;
   });
-
-  it("requires cancellation and minimum installments before surrender", async function () {
-    const { benefits, holder, insurance, premium } = await deployFixture();
-    await expect(
-      benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash)
-    ).to.be.reverted;
-    await insurance.connect(holder).cancelPolicy(1);
-    await benefits.connect(holder).requestBenefit(1, 1, ethers.ZeroHash);
-    expect((await benefits.getBenefitRequest(1)).amount).to.equal(premium / 2n);
+  it("requires actual scheduled receipts, ownership and cancellation", async function () {
+    const f = await fixture();
+    await expect(f.benefits.connect(f.outsider).requestBenefit(1, 1, ethers.ZeroHash)).to.be.reverted;
+    await expect(f.benefits.connect(f.holder).requestBenefit(1, 1, ethers.ZeroHash)).to.be.reverted;
+    await expect(f.insurance.connect(f.holder).payPremium(1, 2, { value: premium })).to.be.reverted;
+    await paidTwice(f);
+    await expect(f.benefits.connect(f.holder).requestBenefit(1, 1, ethers.ZeroHash)).to.be.reverted;
+    await f.insurance.connect(f.holder).cancelPolicy(1);
+    await f.benefits.connect(f.holder).requestBenefit(1, 1, ethers.ZeroHash);
+    expect((await f.benefits.getBenefitRequest(1)).amount).to.equal(premium);
+    await expect(f.benefits.connect(f.holder).requestBenefit(1, 1, ethers.ZeroHash)).to.be.reverted;
   });
-
-  it("requires expiry before maturity and applies the published bonus", async function () {
-    const { benefits, holder, insurance, premium } = await deployFixture();
-    await expect(
-      benefits.connect(holder).requestBenefit(1, 2, ethers.ZeroHash)
-    ).to.be.reverted;
-    const policy = await insurance.getPolicy(1);
-    await time.increaseTo(policy.endDate + 1n);
-    await benefits.connect(holder).requestBenefit(1, 2, ethers.ZeroHash);
-    expect((await benefits.getBenefitRequest(1)).amount).to.equal(
-      (premium * 10500n) / 10000n
-    );
+  it("keeps disabled products unavailable even when their other conditions would hold", async function () {
+    const f = await fixture();
+    await expect(f.benefits.connect(f.holder).requestBenefit(1, 0, ethers.id("unverified-death"))).to.be.reverted;
+    await time.increaseTo((await f.insurance.getPolicy(1)).endDate + 1n);
+    await expect(f.benefits.connect(f.holder).requestBenefit(1, 2, ethers.ZeroHash)).to.be.reverted;
   });
-
-  it("does not allow withdrawal of an approved benefit liability", async function () {
-    const { benefits, holder, beneficiaryOne, admin } = await deployFixture();
-    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
-    await benefits.connect(beneficiaryOne).requestBenefit(
-      1,
-      0,
-      ethers.keccak256(ethers.toUtf8Bytes("death-evidence"))
-    );
-    await benefits.approveBenefit(1);
-    await expect(
-      benefits.withdrawExcess(admin.address, ethers.parseEther("2.1"))
-    ).to.be.reverted;
+  it("reserves only backed refunds and later recovers after funding", async function () {
+    const f = await fixture(false); await request(f);
+    await expect(f.benefits.approveBenefit(1)).to.be.reverted;
+    expect(await f.benefits.totalReservedLiabilityWei()).to.equal(0);
+    await f.admin.sendTransaction({ to: await f.benefits.getAddress(), value: premium });
+    await f.benefits.approveBenefit(1);
+    expect(await f.benefits.totalReservedLiabilityWei()).to.equal(premium);
+    await expect(f.benefits.withdrawExcess(f.admin.address, 1)).to.be.reverted;
   });
-
-  it("allows an approved request to be rejected and releases its reserve", async function () {
-    const { benefits, holder, beneficiaryOne } = await deployFixture();
-    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10_000]);
-    await benefits.connect(beneficiaryOne).requestBenefit(
-      1,
-      0,
-      ethers.keccak256(ethers.toUtf8Bytes("death-evidence"))
-    );
-    await benefits.approveBenefit(1);
-
-    expect(await benefits.totalReservedLiabilityWei()).to.equal(ethers.parseEther("1"));
-    await benefits.rejectBenefit(1, ethers.keccak256(ethers.toUtf8Bytes("evidence invalid")));
-
-    expect((await benefits.getBenefitRequest(1)).status).to.equal(3);
-    expect(await benefits.totalReservedLiabilityWei()).to.equal(0);
-    expect(await benefits.availableReserveWei()).to.equal(ethers.parseEther("3"));
+  it("allocates a pull refund once, closes future cover and preserves paid-incident reporting", async function () {
+    const f = await fixture(); await request(f); await f.benefits.approveBenefit(1); await f.benefits.settleBenefit(1);
+    expect(await f.benefits.claimableBenefitWei(f.holder.address)).to.equal(premium);
+    await expect(f.benefits.connect(f.outsider).withdrawBenefit()).to.be.reverted;
+    const before = await ethers.provider.getBalance(await f.benefits.getAddress());
+    await f.benefits.connect(f.holder).withdrawBenefit();
+    expect(await ethers.provider.getBalance(await f.benefits.getAddress())).to.equal(before - premium);
+    expect(await f.benefits.claimableBenefitWei(f.holder.address)).to.equal(0);
+    await expect(f.benefits.connect(f.holder).withdrawBenefit()).to.be.reverted;
+    await expect(f.benefits.settleBenefit(1)).to.be.reverted;
+    const policy = await f.insurance.getPolicy(1);
+    const now = BigInt(await time.latest());
+    await expect(f.insurance.connect(f.holder).submitClaim(1, premium, now, "HOSPITALIZATION", "HOSP-001", ethers.id("post-refund"), ethers.id("doc"), "ipfs://doc")).to.be.reverted;
+    await f.insurance.connect(f.holder).submitClaim(1, premium, policy.startDate, "HOSPITALIZATION", "HOSP-001", ethers.id("covered-before-cancellation"), ethers.id("historical-doc"), "ipfs://historical-doc");
+    expect((await f.economics.getClaimReservation(1)).reserved).to.equal(true);
   });
-
-  it("allows corrected evidence to be resubmitted after rejection", async function () {
-    const { benefits, holder, beneficiaryOne } = await deployFixture();
-    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
-    await benefits.connect(beneficiaryOne).requestBenefit(
-      1,
-      0,
-      ethers.keccak256(ethers.toUtf8Bytes("incomplete-evidence"))
-    );
-    await benefits.rejectBenefit(
-      1,
-      ethers.keccak256(ethers.toUtf8Bytes("evidence incomplete"))
-    );
-    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
-    await benefits.connect(beneficiaryOne).requestBenefit(
-      1,
-      0,
-      ethers.keccak256(ethers.toUtf8Bytes("corrected-evidence"))
-    );
-    expect(await benefits.requestByPolicyAndType(1, 0)).to.equal(2);
+  it("preserves correction and appeal rights for a covered medical incident after a refund", async function () {
+    const f = await fixture(); await request(f); await f.benefits.approveBenefit(1); await f.benefits.settleBenefit(1);
+    const [, , , oracle1, oracle2, ...auditors] = await ethers.getSigners();
+    const adjudicator = await (await ethers.getContractFactory("ClaimAdjudicator")).deploy(await f.insurance.getAddress());
+    await f.insurance.configureClaimAdjudicator(await adjudicator.getAddress());
+    const coordinator = await configureOracleFixture(f.insurance, f.admin, [oracle1, oracle2], { threshold: 2, commitBlocks: 8, revealBlocks: 8 });
+    for (const auditor of auditors.slice(0, 4)) await f.insurance.grantProjectRole(await f.insurance.AUDITOR_ROLE(), auditor.address);
+    const policy = await f.insurance.getPolicy(1);
+    await f.insurance.connect(f.holder).submitClaim(1, premium, policy.startDate, "HOSPITALIZATION", "HOSP-001", ethers.id("runoff-invoice"), ethers.id("runoff-document"), "ipfs://runoff");
+    const initialLiability = ethers.parseEther("0.0072");
+    const amendedLiability = ethers.parseEther("0.0144");
+    expect(await f.economics.activeExposureWei()).to.equal(initialLiability);
+    await f.insurance.requestOracleVerification(1);
+    const oracleRequest = await coordinator.getRequestByClaimId(1);
+    await finalizeExactResult(coordinator, oracleRequest.requestId, [oracle1, oracle2], false, ethers.id("runoff-negative"));
+    await f.insurance.sendToManualReview(1);
+    await time.increaseTo((await adjudicator.getPreparation(1, 1)).deadline + 1n);
+    await adjudicator.expirePreparation(1, 1);
+    expect(await f.economics.activeExposureWei()).to.equal(0);
+    await f.insurance.connect(f.holder).amendRejectedClaim(1, premium * 2n, ethers.id("corrected-runoff-invoice"));
+    await f.insurance.connect(f.holder).submitAppeal(1, "corrected covered-incident appeal after refund");
+    expect(await f.insurance.claimVersion(1)).to.equal(2);
+    expect((await f.economics.getClaimReservation(1)).reserved).to.equal(true);
+    expect(await f.economics.coverageTerminated(1)).to.equal(true);
+    expect(await f.economics.activeExposureWei()).to.equal(amendedLiability);
+    await f.insurance.requestOracleVerification(1);
+    const appealRequest = await coordinator.getRequestByClaimId(1);
+    await finalizeExactResult(coordinator, appealRequest.requestId, [oracle1, oracle2], true, ethers.id("runoff-approved"));
+    await f.insurance.connect(f.holder).withdrawSettlement(1);
+    expect(await f.economics.activeExposureWei()).to.equal(0);
+    expect((await f.economics.getClaimReservation(1)).settled).to.equal(true);
+    expect((await f.economics.getCoverageAccount(1)).settledCoverageWei).to.equal(amendedLiability);
   });
-
-  it("binds a policy to accepted terms so later package versions are not retroactive", async function () {
-    const { benefits, holder, beneficiaryOne } = await deployFixture();
-    await benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000]);
-    expect(await benefits.acceptedTermsVersionByPolicy(1)).to.equal(1);
-
-    await benefits.publishBenefitTerms(
-      1,
-      true,
-      true,
-      true,
-      5000,
-      2500,
-      1000,
-      2,
-      2,
-      ethers.keccak256(ethers.toUtf8Bytes("family-protection-v2"))
-    );
-    expect((await benefits.getBenefitTerms(1)).version).to.equal(2);
-    expect((await benefits.getAcceptedBenefitTerms(1)).version).to.equal(1);
-    expect(await benefits.calculateBenefit(1, 0)).to.equal(ethers.parseEther("1"));
+  it("rejection releases liability and permits one replacement request without changing accepted terms", async function () {
+    const f = await fixture(); await request(f); await f.benefits.approveBenefit(1);
+    await f.benefits.rejectBenefit(1, ethers.id("incomplete-request"));
+    expect(await f.benefits.totalReservedLiabilityWei()).to.equal(0);
+    await f.benefits.publishBenefitTerms(1, false, true, false, 0, 2500, 0, 2, 2, ethers.id("new-refund"));
+    await f.benefits.connect(f.holder).requestBenefit(1, 1, ethers.ZeroHash);
+    expect((await f.benefits.getBenefitRequest(2)).amount).to.equal(premium);
+    expect((await f.benefits.getBenefitRequest(2)).termsVersion).to.equal(1);
   });
-
-  it("uses the base contract admin role instead of a second revocable admin registry", async function () {
-    const { insurance, benefits, outsider, holder, beneficiaryOne } = await deployFixture();
-    await expect(benefits.connect(outsider).pause()).to.be.reverted;
-    const adminRole = await insurance.ADMIN_ROLE();
-    await insurance.grantProjectRole(adminRole, outsider.address);
-    await expect(
-      benefits.connect(outsider).publishBenefitTerms(
-        1,
-        false,
-        false,
-        false,
-        0,
-        0,
-        0,
-        0,
-        2,
-        ethers.keccak256(ethers.toUtf8Bytes("package-two-v1"))
-      )
-    ).to.emit(benefits, "BenefitTermsPublished");
-    await benefits.connect(outsider).pause();
-    await expect(
-      benefits.connect(holder).setBeneficiaries(1, [beneficiaryOne.address], [10000])
-    ).to.be.reverted;
-    await benefits.connect(outsider).unpause();
+  it("preserves manager-admin authority and restricts request decisions", async function () {
+    const f = await fixture(); await request(f);
+    await expect(f.benefits.connect(f.outsider).approveBenefit(1)).to.be.reverted;
+    await expect(f.benefits.connect(f.outsider).rejectBenefit(1, ethers.id("reason"))).to.be.reverted;
+    await expect(f.benefits.connect(f.outsider).settleBenefit(1)).to.be.reverted;
   });
-
-  it("isolates a reverting contract beneficiary from other withdrawals", async function () {
-    const { benefits, holder, beneficiaryOne } = await deployFixture();
-    const RevertingRecipient = await ethers.getContractFactory(
-      "RevertingBenefitRecipient"
-    );
-    const revertingRecipient = await RevertingRecipient.deploy();
-    await benefits.connect(holder).setBeneficiaries(
-      1,
-      [await revertingRecipient.getAddress(), beneficiaryOne.address],
-      [5000, 5000]
-    );
-    await benefits.connect(beneficiaryOne).requestBenefit(
-      1,
-      0,
-      ethers.keccak256(ethers.toUtf8Bytes("verified-death-record"))
-    );
-    await benefits.approveBenefit(1);
-    await benefits.settleBenefit(1);
-
-    await expect(revertingRecipient.withdraw(await benefits.getAddress())).to.be.reverted;
-    await expect(() => benefits.connect(beneficiaryOne).withdrawBenefit()).to.changeEtherBalance(
-      beneficiaryOne,
-      ethers.parseEther("0.5")
-    );
+  it("blocks terminal refund allocation while a medical claim remains reserved", async function () {
+    const f = await fixture(); await paidTwice(f);
+    const policy = await f.insurance.getPolicy(1);
+    await f.insurance.connect(f.holder).submitClaim(1, premium, policy.startDate, "HOSPITALIZATION", "HOSP-001", ethers.id("pending"), ethers.id("pending-doc"), "ipfs://pending");
+    await f.insurance.connect(f.holder).cancelPolicy(1);
+    await f.benefits.connect(f.holder).requestBenefit(1, 1, ethers.ZeroHash);
+    await f.benefits.approveBenefit(1);
+    expect((await f.economics.getClaimReservation(1)).reserved).to.equal(true);
+    const reserved = await f.benefits.totalReservedLiabilityWei();
+    await expect(f.benefits.settleBenefit(1)).to.be.reverted;
+    expect(await f.benefits.totalReservedLiabilityWei()).to.equal(reserved);
+    expect(await f.benefits.terminalBenefitSettled(1)).to.equal(false);
   });
 });

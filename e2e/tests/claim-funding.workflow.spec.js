@@ -1,0 +1,48 @@
+const { test, expect } = require("@playwright/test");
+const { Contract } = require("../../backEnd/node_modules/ethers");
+const { createActorContext, closeActor } = require("../support/walletBridge");
+const { loginActor, syntheticPdfEvidenceFile, localDateTimeValue } = require("../support/actions");
+test("@workflow approved claim remains unfunded until treasury funding then withdraws exactly once", async ({ browser }) => {
+  test.skip(process.env.E2E_UNFUNDED_RESERVE !== "true", "Requires the dedicated zero-reserve disposable stage");
+  test.setTimeout(180000);
+  const user = await createActorContext(browser, "user");
+  const admin = await createActorContext(browser, "admin");
+  try {
+    await loginActor(user.page, user.actor);
+    await user.page.goto("/user/policies/buy");
+    await user.page.getByRole("checkbox", { name: /I have read and agree/ }).first().check();
+    await user.page.getByRole("button", { name: "Buy Policy" }).first().click();
+    await expect(user.page.locator(".success-text")).toContainText("policy purchased successfully");
+    await user.page.goto("/user/claims/new");
+    const policy = user.page.getByLabel("Policy", { exact: true });
+    await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1); await policy.selectOption({ index: 1 });
+    await user.page.getByLabel("Test data preset").selectOption({ label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH" });
+    const incident = user.page.getByLabel("Incident date/time"); await incident.evaluate((input) => input.setAttribute("step", "1"));
+    await incident.fill(localDateTimeValue(new Date(Number((await user.provider.getBlock("latest")).timestamp) * 1000)));
+    await user.page.getByLabel("Claim document", { exact: true }).setInputFiles(syntheticPdfEvidenceFile());
+    await user.page.getByRole("button", { name: "Submit Claim", exact: true }).click();
+    await expect(user.page.locator(".success-text")).toContainText("reconciled successfully", { timeout: 60000 });
+    const claimId = (await user.page.locator(".success-text").textContent()).match(/Claim #(\d+)/)[1];
+    const manager = new Contract(process.env.CONTRACT_ADDRESS || process.env.VITE_CONTRACT_ADDRESS, require("../../backEnd/abi/InsuranceManager.json").abi, user.wallet);
+    await loginActor(admin.page, admin.actor); await admin.page.goto(`/admin/claims/${claimId}`);
+    await admin.page.getByRole("button", { name: "Request Oracle Verification" }).click();
+    await expect.poll(async () => Number((await manager.getClaim(claimId)).status), { timeout: 90000, intervals: [2000] }).toBe(11);
+    await user.page.goto(`/user/claims/${claimId}`);
+    await expect(user.page.locator(".status-badge").filter({ hasText: /^FUNDING_REQUIRED$/ })).toBeVisible();
+    await expect(user.page.getByRole("button", { name: "Withdraw Payment" })).toHaveCount(0);
+    await user.page.getByRole("button", { name: "Activate funded payout" }).click();
+    await expect(user.page.locator(".toast-error")).toBeVisible();
+    expect(Number((await manager.getClaim(claimId)).status)).toBe(11);
+    await admin.page.goto("/admin/dashboard");
+    await admin.page.getByLabel("Funding reference").fill("synthetic-recovery-capital");
+    await admin.page.getByLabel("Amount (ETH)", { exact: true }).fill("1");
+    const form = admin.page.getByRole("heading", { name: "Referenced Treasury Funding" }).locator("..");
+    await form.getByRole("button", { name: /Fund/ }).click();
+    await expect(admin.page.locator(".app-toast").filter({ hasText: "Treasury funded" })).toBeVisible({ timeout: 60000 });
+    await user.page.getByRole("button", { name: "Activate funded payout" }).click();
+    await expect(user.page.getByRole("button", { name: "Withdraw Payment" })).toBeVisible();
+    await user.page.getByRole("button", { name: "Withdraw Payment" }).click();
+    await expect(user.page.locator(".status-badge").filter({ hasText: /^SETTLED$/ })).toBeVisible();
+    await expect(manager.withdrawSettlement(claimId)).rejects.toBeTruthy();
+  } finally { await closeActor(user); await closeActor(admin); }
+});

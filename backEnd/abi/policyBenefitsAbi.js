@@ -1,4 +1,5 @@
 module.exports = [
+  "event BenefitWithdrawn(address indexed account,uint256 amount)",
   "function requestCounter() view returns (uint256)",
   "function totalReservedLiabilityWei() view returns (uint256)",
   "function availableReserveWei() view returns (uint256)",

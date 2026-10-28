@@ -1,3 +1,4 @@
+const { prepareReviewerIdentities, authorizeReview } = require("../support/reviewPreparation");
 const { test, expect } = require("@playwright/test");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -109,6 +110,8 @@ async function createManualReview(browser) {
   } finally {
     await closeActor(admin);
   }
+  await prepareReviewerIdentities(browser);
+  await authorizeReview(user.page, claimId);
   return { user, claimId, correctedInvoice };
 }
 
@@ -130,7 +133,7 @@ test.describe("@unfinished manual-review finality", () => {
   test.describe.configure({ mode: "serial" });
 
   test("simultaneous rejection submissions fail safely and converge once", async ({ browser }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     const { user, claimId } = await createManualReview(browser);
     const auditors = await Promise.all([
       createActorContext(browser, "auditor1"),
@@ -199,7 +202,7 @@ test.describe("@unfinished manual-review finality", () => {
   });
 
   test("expired review rejects for insufficient quorum", async ({ browser }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     const { user, claimId } = await createManualReview(browser);
     try {
       const { manager, adjudicator } = await contractsFor(user);

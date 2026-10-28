@@ -530,9 +530,10 @@ export async function reconcilePendingClaimSubmissions() {
 
   for (const item of pending) {
     try {
-      await recordClaimSubmissionTransaction(item.attemptId, item.transactionHash);
-      await reconcileClaimSubmission(item.attemptId);
-      reconciled += 1;
+      if (item.transactionHash) await recordClaimSubmissionTransaction(item.attemptId, item.transactionHash);
+      const result = await reconcileClaimSubmission(item.attemptId);
+      if (result.pending) remaining.push(item);
+      else reconciled += 1;
     } catch {
       remaining.push(item);
     }
@@ -541,6 +542,17 @@ export async function reconcilePendingClaimSubmissions() {
   localStorage.setItem(pendingKey, JSON.stringify(remaining));
   return { reconciled, remaining: remaining.length };
 }
+
+export const getClaimSubmissionAttempt = async (id) => (await api.get(`/api/claims/submission-attempts/${id}`)).data;
+export const sealClaimSubmissionAttempt = async (id) => (await api.post(`/api/claims/submission-attempts/${id}/seal`)).data;
+export const getReviewAccess = async (id) => (await api.get(`/api/claims/${id}/review-access`)).data;
+export const authorizeReviewAccess = async (id, payload) => (await api.post(`/api/claims/${id}/review-access`, payload)).data;
+export const resumeReviewAccess = async (id) => (await api.post(`/api/claims/${id}/review-access/resume`)).data;
+export const prepareAppealAttempt = async (payload) => (await api.post("/api/appeals/attempts", payload)).data;
+export const readyAppealAttempt = async (id, payload) => (await api.post(`/api/appeals/attempts/${id}/ready`, payload)).data;
+export const recordAppealTransaction = async (id, transactionHash) => (await api.patch(`/api/appeals/attempts/${id}/transaction`, { transactionHash })).data;
+export const reconcileAppealAttempt = async (id) => (await api.post(`/api/appeals/attempts/${id}/reconcile`)).data;
+export const getPendingAppealAttempts = async (claimId) => (await api.get("/api/appeals/attempts", { params: { claimId } })).data;
 
 export async function getClaimDocumentHash(claimId, documentId = "") {
   const response = await api.get(`/api/claims/${claimId}/document-hash`, {

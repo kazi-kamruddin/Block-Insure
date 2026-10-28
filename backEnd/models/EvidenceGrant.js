@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 
 const evidenceGrantSchema = new mongoose.Schema(
   {
+    deploymentScope: { type: String, default: "" },
+    manifestHash: { type: String, default: "" },
     documentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "File",

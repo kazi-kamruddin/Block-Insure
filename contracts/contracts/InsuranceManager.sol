@@ -118,7 +118,8 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         ORACLE_INVALID,
         AUDITOR_QUORUM_REJECTED,
         REVIEW_TIMEOUT,
-        INVALID_POLICY_RULE
+        INVALID_POLICY_RULE,
+        EVIDENCE_ACCESS_INCOMPLETE
     }
 
     // =============================================================
@@ -1125,7 +1126,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         if (approved) {
             _allocatePayout(claimId, decisionHash);
         } else {
-            RejectionReason reason = reasonCode == 6
+            RejectionReason reason = reasonCode == 7 ? RejectionReason.EVIDENCE_ACCESS_INCOMPLETE : reasonCode == 6
                 ? RejectionReason.REVIEW_TIMEOUT
                 : RejectionReason.AUDITOR_QUORUM_REJECTED;
             _rejectFromAuditorQuorum(claimId, reason, decisionHash);

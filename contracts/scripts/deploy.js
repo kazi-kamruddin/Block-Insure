@@ -302,24 +302,24 @@ async function main() {
   const defaultTermsDocument = JSON.stringify({
     packageId: 1,
     version: 1,
-    deathBenefitEnabled: true,
+    deathBenefitEnabled: false,
     surrenderEnabled: true,
     maturityEnabled: false,
-    deathBenefitBps: 10000,
+    deathBenefitBps: 0,
     surrenderValueBps: 5000,
     maturityBonusBps: 0,
-    minimumSurrenderInstallments: 6,
+    minimumSurrenderInstallments: 2,
   });
   await (
     await benefitsManager.publishBenefitTerms(
       1,
-      true,
+      false,
       true,
       false,
-      10000,
+      0,
       5000,
       0,
-      6,
+      2,
       1,
       hre.ethers.keccak256(hre.ethers.toUtf8Bytes(defaultTermsDocument))
     )
@@ -346,18 +346,18 @@ async function main() {
     adminWallet
   );
   const deploymentRegistry = await ProtocolDeploymentRegistry.deploy(
-    hre.ethers.id("BLOCK_INSURE_COMPLETION_PHASE1_V2"),
+    hre.ethers.id("BLOCK_INSURE_COMPLETION_PHASE2_V3"),
     hre.ethers.keccak256(hre.ethers.toUtf8Bytes(migrationManifest))
   );
   await deploymentRegistry.waitForDeployment();
   const deploymentRegistryAddress = await deploymentRegistry.getAddress();
   for (const [name, address, interfaceVersion] of [
-    ["InsuranceManager", contractAddress, "IInsuranceManager/2"],
+      ["InsuranceManager", contractAddress, "IInsuranceManager/3"],
     ["OracleCoordinator", await insuranceManager.oracleCoordinator(), "IOracleCoordinator/2"],
-    ["ClaimAdjudicator", adjudicatorAddress, "IClaimAdjudicator/1"],
-    ["PolicyEconomics", economicsAddress, "IPolicyEconomics/2"],
+      ["ClaimAdjudicator", adjudicatorAddress, "IClaimAdjudicator/2"],
+      ["PolicyEconomics", economicsAddress, "IPolicyEconomics/3"],
     ["EvidenceRegistry", evidenceRegistryAddress, "IEvidenceRegistry/1"],
-    ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/1"],
+    ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/2"],
     ["HospitalVerificationRegistry", hospitalVerificationRegistryAddress, "IHospitalVerificationRegistry/1"],
     ["BankIdentityRegistry", bankIdentityRegistryAddress, "IBankIdentityRegistry/2"],
   ]) {

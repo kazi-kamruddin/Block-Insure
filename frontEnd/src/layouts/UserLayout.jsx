@@ -9,7 +9,7 @@ const POLICYHOLDER_LINKS = [
   { to: "/user/banking", label: "Banking & EFT" },
   { to: "/user/claims", label: "My Claims", end: true },
   { to: "/user/claims/new", label: "Submit Claim" },
-  { to: "/user/benefits", label: "Beneficiary Benefits" },
+  { to: "/user/benefits", label: "Cancellation refunds" },
   { to: "/user/notifications", label: "Notifications" },
 ];
 

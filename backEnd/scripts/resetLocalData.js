@@ -56,6 +56,8 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 }
 
 const collections = [
+  ["evidence database binding", { deleteMany: (query) => mongoose.connection.collection("evidence_deployment_binding").deleteMany(query) }],
+  ...["EvidenceBundle", "EvidenceLogLock", "EvidenceOperation", "ReviewAccessBatch", "AppealSubmissionAttempt"].map((name) => [name, require(`../models/${name}`)]),
   ["chain read projections", ChainReadSnapshot],
   ["registry publication jobs", RegistryPublication],
   ["registry snapshot archives", RegistrySnapshotChunk],

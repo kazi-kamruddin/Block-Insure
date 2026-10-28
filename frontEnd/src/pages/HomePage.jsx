@@ -152,8 +152,8 @@ export default function HomePage() {
             <span>05</span>
             <h3>Independent review</h3>
             <p>
-              Auditor votes are weighted by reputation without granting
-              administrative authority.
+              Four assigned auditors decide by three approvals or two rejections.
+              Reputation is observational and does not change this quorum.
             </p>
           </article>
           <article>

@@ -17,37 +17,37 @@ const router = express.Router();
 router.get(
   "/records",
   authMiddleware,
-  requireRole("ADMIN", "AUDITOR"),
+  requireRole("ADMIN"),
   getAllHospitalRecords
 );
 router.get(
   "/records/summary",
   authMiddleware,
-  requireRole("ADMIN", "AUDITOR"),
+  requireRole("ADMIN"),
   getHospitalRegistrySummary
 );
 router.get(
   "/records/merkle-root",
   authMiddleware,
-  requireRole("ADMIN", "AUDITOR"),
+  requireRole("ADMIN"),
   getHospitalRegistryMerkleRoot
 );
 router.get(
   "/records/on-chain-merkle-root",
   authMiddleware,
-  requireRole("ADMIN", "AUDITOR"),
+  requireRole("ADMIN"),
   getHospitalOnChainRegistryMerkleRoot
 );
 router.get(
   "/records/merkle-proof",
   authMiddleware,
-  requireRole("ADMIN", "AUDITOR"),
+  requireRole("ADMIN"),
   getHospitalRegistryMerkleProof
 );
 router.get(
   "/records/:id",
   authMiddleware,
-  requireRole("ADMIN", "AUDITOR"),
+  requireRole("ADMIN"),
   getHospitalRecordById
 );
 router.get("/verify", requireOracleApiKey, verifyHospitalRecord);

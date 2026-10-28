@@ -54,7 +54,7 @@ export default function EvidenceChainPanel({
     <div className="evidence-chain-panel">
       <div className="evidence-chain-header">
         <div>
-          <h3>Evidence Hash Chain</h3>
+          <h3>{evidenceChain.scope === "SEALED_REVIEW_SET" ? "Sealed review evidence" : "Evidence Hash Chain"}</h3>
           <p>
             {formatValue(evidenceChain.documentCount)} linked document
             {evidenceChain.documentCount === 1 ? "" : "s"}
@@ -75,7 +75,7 @@ export default function EvidenceChainPanel({
 
       {evidenceChain.headHash ? (
         <p className="evidence-chain-head">
-          <strong>Current head:</strong>{" "}
+          <strong>{evidenceChain.scope === "SEALED_REVIEW_SET" ? "Evidence set hash:" : "Current head:"}</strong>{" "}
           <CopyableText value={evidenceChain.headHash} label="Copy head" />
         </p>
       ) : (
@@ -141,7 +141,7 @@ export default function EvidenceChainPanel({
                   />
                 </p>
               </details>
-              {assignedAuditors.length > 0 && onGrantAccess ? (
+              {assignedAuditors.length > 0 && (onGrantAccess || onRevokeAccess) ? (
                 <details className="technical-details">
                   <summary>Cryptographic auditor access</summary>
                   {assignedAuditors.map((auditor) => {
@@ -149,13 +149,13 @@ export default function EvidenceChainPanel({
                     return (
                       <div key={auditor} className="evidence-access-row">
                         <CopyableText value={auditor} label="Copy auditor" />
-                        <button
+                        {onGrantAccess && <button
                           type="button"
                           disabled={delegationPending === operationKey}
                           onClick={() => onGrantAccess(document.id, auditor)}
                         >
                           {delegationPending === operationKey ? "Working..." : "Grant"}
-                        </button>
+                        </button>}
                         <button
                           type="button"
                           disabled={delegationPending === operationKey}

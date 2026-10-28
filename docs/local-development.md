@@ -137,8 +137,15 @@ npm run verify:all
 dataset. The subsystem test commands in the root README can run independently.
 See [browser testing](../e2e/README.md) for the isolated end-to-end campaign.
 
-The Phase 1 changes require a new local deployment and a separately selected
+The current financial/evidence changes require a new local deployment and a separately selected
 database. An old saved manifest does not represent a running compatible chain.
 Keep Atlas and existing snapshots intact; do not run `setup:local` against them.
 For disposable verification, use the explicit loopback database described in the
-browser-testing guide and `npm run test:phase1`.
+browser-testing guide and `npm run test:phase2`.
+
+Manual review begins with access preparation. All four assigned auditors prepare
+or restore their encryption identities, then the claimant authorizes the fixed
+evidence set once. Only activation starts voting time. Existing grants support
+owner-offline viewing. Use the claim/appeal recovery controls after an interrupted
+upload or wallet/API response; do not submit another unresolved transaction.
+See [evidence and recovery](evidence-review-and-recovery.md).
