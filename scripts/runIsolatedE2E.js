@@ -38,7 +38,9 @@ const mongoUrl = new URL(configuredMongoUri);
 if (!["mongodb:", "mongodb+srv:"].includes(mongoUrl.protocol)) {
   throw new Error("Configured MONGODB_URI is not a MongoDB URL");
 }
-mongoUrl.pathname = "/block_insure_e2e";
+const databaseName = process.env.E2E_DATABASE_NAME || "block_insure_e2e";
+if (!/^block_insure_[a-z0-9_]*e2e$/.test(databaseName)) throw new Error("E2E_DATABASE_NAME must be a Block-Insure disposable e2e database");
+mongoUrl.pathname = `/${databaseName}`;
 if (
   process.env.E2E_REQUIRE_LOCAL_MONGO === "true" &&
   !["127.0.0.1", "localhost", "::1"].includes(mongoUrl.hostname)
@@ -104,6 +106,7 @@ const isolatedEnvironment = {
   E2E_HOSPITAL_PRIVATE_KEY_2: wallets[11].privateKey,
   BANK_WALLET_ADDRESS: wallets[15].address,
   E2E_BANK_PRIVATE_KEY: wallets[15].privateKey,
+  BANK_PRIVATE_KEY: wallets[15].privateKey,
   E2E_BENEFICIARY_PRIVATE_KEY: wallets[16].privateKey,
   DEMO_BANK_ACCOUNT_OWNER_ADDRESSES: [wallets[1], wallets[16], wallets[17]]
     .map((entry) => entry.address)
@@ -111,7 +114,7 @@ const isolatedEnvironment = {
 };
 
 console.log(
-  `[Isolated E2E] npm run ${scriptName}; MongoDB host=${mongoUrl.hostname}; database=block_insure_e2e; ` +
+  `[Isolated E2E] npm run ${scriptName}; MongoDB host=${mongoUrl.hostname}; database=${databaseName}; ` +
     `RPC=http://127.0.0.1:8545; chainId=31337; wallets=Hardhat defaults; ` +
     `browser=${isolatedEnvironment.E2E_HEADED === "true" ? "headed" : "headless"}; ` +
     `backendRpcProxy=${rpcProxyEnabled ? "enabled" : "disabled"}; ` +

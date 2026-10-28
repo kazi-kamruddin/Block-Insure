@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { loginActor } = require("../support/actions");
+const { loginActor, advanceToInstallment } = require("../support/actions");
 const { closeActor, createActorContext } = require("../support/walletBridge");
 
 const dateOnly = (date) => date.toISOString().slice(0, 10);
@@ -60,7 +60,9 @@ test.describe("@workflow quarterly bank EFT", () => {
       const startingBalanceText = await fundedAccount.locator("td").nth(3).textContent();
       const startingBalance = Number(String(startingBalanceText).replace(/[^0-9.]/g, ""));
       expect(startingBalance).toBeGreaterThanOrEqual(1000);
-      await bankSession.page.getByLabel("Automation reference date").fill(dateOnly(tomorrow));
+      await advanceToInstallment(bankSession, policyId, 0);
+      const dueBlock = await bankSession.provider.getBlock("latest");
+      await bankSession.page.getByLabel("Automation reference date").fill(dateOnly(new Date((Number(dueBlock.timestamp) + 86400) * 1000)));
       const automationResponsePromise = bankSession.page.waitForResponse(
         (response) => response.request().method() === "POST" && response.url().endsWith("/api/banks/automation/run")
       );
@@ -83,6 +85,7 @@ test.describe("@workflow quarterly bank EFT", () => {
       await expect(paymentSession.page.getByText("Quarterly EFT", { exact: true }).first()).toBeVisible();
       await paymentSession.page.getByLabel("Source account").selectOption({ index: 1 });
       await paymentSession.page.locator(".banking-form select").nth(1).selectOption(policyId);
+      await advanceToInstallment(paymentSession, policyId);
       await paymentSession.page.getByRole("button", { name: "Make a manual bank payment" }).click();
       const otpInput = paymentSession.page.getByLabel("Bank payment OTP");
       await expect(otpInput).toHaveValue(/^\d{6}$/);

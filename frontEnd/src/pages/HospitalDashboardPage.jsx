@@ -1,18 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { useWallet } from "../context/useWallet";
+import { useOutletContext } from "react-router-dom";
 import { getMyHospitalProfile, getMyHospitalRecords } from "../services/api";
 import { formatDateOnly } from "../utils/dateFormat";
 import "../styles/pages/HospitalDashboardPage.css";
 
 export default function HospitalDashboardPage() {
-  const { walletAddress } = useWallet();
+  const { staff } = useOutletContext();
   const profileQuery = useQuery({
-    queryKey: ["hospitalProfile", walletAddress],
+    queryKey: ["hospitalProfile", staff.hospitalId],
     queryFn: getMyHospitalProfile,
   });
   const recordsQuery = useQuery({
-    queryKey: ["hospitalRecords", walletAddress],
+    queryKey: ["hospitalRecords", staff.hospitalId],
     queryFn: () => getMyHospitalRecords({ limit: 100 }),
   });
 
@@ -29,7 +29,7 @@ export default function HospitalDashboardPage() {
           <span className="dashboard-eyebrow">Independent provider workspace</span>
           <h2>{hospital?.name || "Hospital Workspace"}</h2>
           <p>
-            This view is scoped to the connected hospital wallet and its own
+            This view is scoped to the signed-in hospital staff account and its own
             patient and invoice records.
           </p>
         </div>
@@ -60,7 +60,7 @@ export default function HospitalDashboardPage() {
             <div><span>Location</span><strong>{hospital.district}, {hospital.division}</strong></div>
             <div><span>Provider tier</span><strong>{hospital.hospitalTier}</strong></div>
             <div className="hospital-wallet-field">
-              <span>Hospital wallet</span><strong>{hospital.walletAddress}</strong>
+              <span>Staff member</span><strong>{staff.displayName}</strong>
             </div>
           </section>
 
@@ -73,12 +73,12 @@ export default function HospitalDashboardPage() {
 
           <section className="card hospital-foundation-note">
             <span className="dashboard-eyebrow">Provider workflow status</span>
-            <h3>Independent hospital verification active</h3>
+            <h3>Automatic registry publication active</h3>
             <p>{profileQuery.data?.capabilities?.note}</p>
             <div>
               <span>View owned records: Enabled</span>
               <span>Record maintenance: Enabled</span>
-              <span>Claim verification: On-chain hospital attestation</span>
+              <span>Claim matching: Oracle checks against published records</span>
             </div>
           </section>
         </>

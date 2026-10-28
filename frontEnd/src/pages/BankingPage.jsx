@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { api } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import {
   cancelEftMandate, confirmManualBankPayment, createEftMandate,
@@ -31,19 +32,22 @@ export default function BankingPage() {
   const accountsQuery = useQuery({ queryKey: ["myBankingAccounts", walletAddress], queryFn: getMyBankingAccounts });
   const policiesQuery = useQuery({ queryKey: ["bankingPolicies", walletAddress], queryFn: () => getMyPolicies({ limit: 100 }) });
   const mandatesQuery = useQuery({ queryKey: ["myEftMandates", walletAddress], queryFn: getMyEftMandates });
-  const transactionsQuery = useQuery({ queryKey: ["myBankingTransactions", walletAddress], queryFn: getMyBankingTransactions });
+  const transactionsQuery = useQuery({ queryKey: ["myBankingTransactions", walletAddress], queryFn: getMyBankingTransactions, refetchInterval: (query) => query.state.data?.transactions?.some((item) => item.status === "PROCESSING") ? 3000 : false });
 
   const accounts = accountsQuery.data?.accounts || [];
   const policies = useMemo(() => (policiesQuery.data?.policies || []).filter((policy) => ["ACTIVE", "GRACE_PERIOD"].includes(policy.status?.label)), [policiesQuery.data]);
   const mandates = mandatesQuery.data?.mandates || [];
   const transactions = transactionsQuery.data?.transactions || [];
   const selectedPolicy = policies.find((policy) => policy.policyId === policyId);
+  const gatewayQuery = useQuery({ queryKey: ["gatewayReadiness", walletAddress, policyId], queryFn: async () => (await api.get("/api/banks/user/gateway-readiness", { params: { policyId } })).data, enabled: Boolean(policyId), refetchInterval: 30000 });
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ["myBankingAccounts"] }),
     queryClient.invalidateQueries({ queryKey: ["myEftMandates"] }),
     queryClient.invalidateQueries({ queryKey: ["myBankingTransactions"] }),
     queryClient.invalidateQueries({ queryKey: ["myPayments"] }),
+    queryClient.invalidateQueries({ queryKey: ["bankingPolicies"] }),
+    queryClient.invalidateQueries({ queryKey: ["myPolicies"] }),
   ]);
 
   const mandateMutation = useMutation({
@@ -78,9 +82,12 @@ export default function BankingPage() {
       <span className="dashboard-eyebrow">Policyholder banking</span>
       <h2>Premium payments and standing EFT instructions</h2>
       <p>Quarterly EFT runs automatically after bank approval and never asks for OTP. OTP is required only when you initiate a manual bank payment.</p>
-      <p>Bank balances are simulated. OTP delivery is explicitly marked as a simulated inbox or email. A paid premium is confirmed separately by its blockchain transaction.</p>
+      <p>BDT balances and conversion are simulated at 100,000 BDT per test ETH. A funded gateway supplies the test ETH and gas; this does not debit a real bank account. All methods pay the same installment, which opens 30 days before its fixed due date.</p>
     </header>
 
+    {gatewayQuery.data && <p role="status">Gateway: {gatewayQuery.data.gateway.message} Balance: {gatewayQuery.data.gateway.balanceEth} test ETH.</p>}
+    {gatewayQuery.error && <p role="alert">Gateway check: {messageOf(gatewayQuery.error)}</p>}
+    {selectedPolicy && <p>Next shared installment #{selectedPolicy.installment?.installmentId}: {selectedPolicy.installment?.amountEth} test ETH. The OTP locks this installment and amount.</p>}
     <div className="banking-grid">
       <form className="card banking-form" onSubmit={submitMandate}>
         <h3>Set up quarterly EFT</h3>

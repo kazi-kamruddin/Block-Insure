@@ -33,7 +33,8 @@ The provided Compose file does not create insecure local replacements for them.
 - A Sepolia HTTPS/WSS RPC endpoint.
 - A Pinata project/JWT used only by this deployment.
 - Distinct funded testnet wallets for the deployer/admin, bank, evidence signer,
-  two oracles, claim officer, four auditors, five hospitals, and demo users.
+  two oracles, claim officer, four auditors, and demo users. Hospital staff use
+  administrator-provisioned credentials and require no blockchain wallet.
 
 Never use Hardhat's public development keys on a public network. Keep private
 keys in the deployment host's secret store and rotate them after a demonstration
@@ -81,8 +82,8 @@ Use the deployment receipt blocks for `CONTRACT_DEPLOYMENT_BLOCK`,
 `VITE_CONTRACT_DEPLOYMENT_BLOCK`, `ORACLE_START_BLOCK`, and the corresponding
 policy-benefits block variables.
 
-Grant the two oracle wallets, claim officer, four auditors, five hospital
-wallets, and bank wallet only after confirming every address out of band. The
+Grant the two oracle wallets, claim officer, four auditors and bank wallet
+only after confirming every address out of band. The
 role bootstrap is idempotent, but a public-network run must use the explicit
 wallet values in `deploy/production.env`; local fallback identities are forbidden
 by the release checker.
@@ -102,8 +103,17 @@ slides. Use independent random secrets of at least 32 characters for
 `JWT_SECRET`, `BANK_OTP_SECRET`, and `ORACLE_API_KEY`.
 
 Set all contract addresses, deployment blocks, external URLs, and actor wallets.
-`BANK_PRIVATE_KEY` must control `BANK_WALLET_ADDRESS`. The five hospital wallets
-and three demo-account owners are comma-separated in their declared order.
+`BANK_PRIVATE_KEY` must control `BANK_WALLET_ADDRESS` and be funded for test-ETH
+settlement and gas. The three demo-account owners are comma-separated in their
+declared order. Hospital-wallet variables are optional historical metadata;
+provision actual staff through Administration after launch.
+
+This release changes installment/payment entry points and Oracle commitment
+encoding. Deploy the contracts and workers together to a new environment, with
+the correct positive manager creation block. Do not activate it over an older
+coordinator or database without an explicit migration. The legacy hospital
+registry is marked inactive in the deployment directory. See
+[financial and provider workflows](financial-and-provider-workflows.md).
 
 For the thesis deployment, `ENABLE_SIMULATED_HOSPITAL_API=true` exposes the
 clearly labelled hybrid/synthetic registry endpoints. Set it to `false` when

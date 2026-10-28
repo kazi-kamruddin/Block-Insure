@@ -175,7 +175,8 @@ test("isolated E2E launcher supports and enforces a loopback MongoDB override", 
   assert.match(source, /E2E_MONGODB_URI/);
   assert.match(source, /E2E_REQUIRE_LOCAL_MONGO/);
   assert.match(source, /requires a loopback MongoDB host/);
-  assert.match(source, /mongoUrl\.pathname = "\/block_insure_e2e"/);
+  assert.match(source, /E2E_DATABASE_NAME/);
+  assert.match(source, /disposable e2e database/);
   assert.match(source, /E2E_RPC_PROXY/);
   assert.match(source, /E2E_PINATA_API_URL/);
   assert.match(source, /PINATA_API_BASE_URL: e2ePinataBaseUrl/);

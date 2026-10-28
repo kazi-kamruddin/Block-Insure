@@ -45,7 +45,7 @@ test("publication mirrors both collections and preserves pinned historical proof
       getOracleCoordinator: async () => ({ publishRegistrySnapshot: async () => ({ hash: `0x${String(++count).padStart(64, "0")}`, wait: async () => ({ status: 1 }) }) }),
     },
   });
-  await Primary.create(record("one"));
+  await Primary.create({ ...record("one"), identityVersion: 2 });
   await publisher.queueRegistryPublication();
   const first = await publisher.publishPendingRegistry();
   assert.equal(first.status, "PUBLISHED");
@@ -270,7 +270,8 @@ test("manual OTP email delivery requires a verified profile and fails without a 
   await Account.create({ walletAddress, ownerWalletAddress: walletAddress, bankId: "DEMO", accountReference, accountHolderName: "Synthetic test holder", lastFour: "0000", balanceMinor: 1000000 });
   let fail = false;
   const service = load("services/bankPaymentService.js", {
-    "./contractService": { getReadOnlyContract: () => ({ getPolicy: async () => ({ holderWallet: walletAddress, premiumAmount: 10000000000000000n, nextPremiumDueDate: 1n }), getEffectivePolicyStatus: async () => 1 }) },
+    "./deploymentScopeService": { getDeploymentScope: async () => "synthetic-deployment" },
+    "./contractService": { getPolicyEconomics: async () => ({ getInstallmentQuote: async () => ({ installmentId: 2n, amountWei: 10000000000000000n, dueAt: 1n, opensAt: 1n, payableNow: true, reinstatement: false }) }), getReadOnlyContract: () => ({ getPolicy: async () => ({ holderWallet: walletAddress, premiumAmount: 10000000000000000n, nextPremiumDueDate: 1n }), getEffectivePolicyStatus: async () => 1 }) },
     "./emailVerificationService": { reserveDelivery: async () => {} },
     "./otpDeliveryService": { deliveryMode: () => "brevo", deliverOtp: async ({ email }) => {
       assert.equal(email, "bank-otp@example.test"); if (fail) throw new Error("Delivery rejected"); return { deliveryMode: "brevo", maskedRecipient: "b***@example.test" };
@@ -292,6 +293,7 @@ test("a stale OTP expiry check cannot overwrite a concurrently consumed challeng
   const walletAddress = `0x${"d".repeat(40)}`;
   const stale = await Challenge.create({ challengeId: "expiry-race", ownerWalletAddress: walletAddress, accountReference: "RACE", policyId: "1", otpHash: "unused", expiresAt: new Date(Date.now() - 1000) });
   const service = load("services/bankPaymentService.js", {
+    "./deploymentScopeService": { getDeploymentScope: async () => "synthetic-deployment" },
     "../models/BankOtpChallenge": {
       findOne: () => ({ select: async () => { await Challenge.updateOne({ _id: stale._id }, { status: "USED" }); return stale; } }),
       updateOne: (...args) => Challenge.updateOne(...args),

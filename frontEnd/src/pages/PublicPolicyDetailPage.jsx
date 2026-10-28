@@ -70,7 +70,8 @@ export default function PublicPolicyDetailPage() {
         <p><strong>Covered:</strong> {readableList(terms.coveredClaimTypes)}</p>
         <p><strong>Excluded:</strong> {readableList(terms.excludedClaimTypes)}</p>
         <p>Initial waiting period: {terms.waitingPeriodDays} days.</p>
-        <p>Pre-existing-condition waiting period: {terms.preExistingConditionWaitingDays} days.</p>
+        <p>Pre-existing-condition underwriting is outside this prototype scope.</p>
+        <p>Deductible: {terms.deductibleRateBps / 100}% with a cap of {BigInt(terms.deductibleCapWei || 0).toString()} wei. Claim deadline: {terms.claimDeadlineDays} days.</p>
         <p>Insurer share after applicable limits: {terms.coinsuranceBps / 100}%.</p>
       </section>
 

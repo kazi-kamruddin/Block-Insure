@@ -129,7 +129,7 @@ export default function PolicyListPage() {
 
       const contract = await getWalletContract();
 
-      const tx = await contract.purchasePolicy(policyPackage.packageId, {
+      const tx = await contract.purchasePolicyWithTerms(policyPackage.packageId, policyPackage.issueHash, policyPackage.policyDocument.documentHash, {
         value: toWeiBigInt(policyPackage.premiumAmountWei),
       });
 

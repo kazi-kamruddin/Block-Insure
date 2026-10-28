@@ -15,6 +15,7 @@ const {
   hashAppealCommitment,
 } = require("../services/appealCommitmentService");
 const Appeal = require("../models/Appeal");
+const Hospital = require("../models/Hospital");
 
 const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -840,7 +841,8 @@ const verifyHospitalRecord = async (req, res, next) => {
       });
     }
 
-    const comparisonVerified = comparison.blockingFailureCount === 0;
+    const contractedHospital = Boolean(await Hospital.exists({ hospitalId: record.hospitalId, networkStatus: "CONTRACTED" }));
+    const comparisonVerified = contractedHospital && comparison.blockingFailureCount === 0;
     const verified =
       comparisonVerified &&
       riskAssessment.recommendation === "AUTO_VERIFY_RECOMMENDED";
@@ -881,6 +883,7 @@ const verifyHospitalRecord = async (req, res, next) => {
       registrySnapshot,
       boundaryNote: BOUNDARY_NOTE,
       appealCommitment,
+      contractedHospital,
       recordCommitment: {
         hospitalId: record.hospitalId,
         invoiceHash: record.invoiceHash,

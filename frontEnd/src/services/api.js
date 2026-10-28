@@ -1,4 +1,5 @@
 import axios from "axios";
+import { hospitalApi } from "./hospitalApi";
 import { ethers } from "ethers";
 
 import {
@@ -488,8 +489,8 @@ export async function authorizeClaimSubmission(policyId, facts = {}) {
   return response.data;
 }
 
-export async function previewInvoiceEligibility(hospitalId, invoiceHash) {
-  const response = await api.post("/api/claims/invoice-eligibility", { hospitalId, invoiceHash });
+export async function previewInvoiceEligibility(hospitalId, invoiceHash, invoiceNumber) {
+  const response = await api.post("/api/claims/invoice-eligibility", { hospitalId, invoiceHash, invoiceNumber });
   return response.data;
 }
 
@@ -758,22 +759,22 @@ export async function getNetworkHospitals() {
 }
 
 export async function getMyHospitalProfile() {
-  const response = await api.get("/api/hospitals/me");
+  const response = await hospitalApi.get("/api/hospitals/me");
   return response.data;
 }
 
 export async function getMyHospitalRecords(params = {}) {
-  const response = await api.get("/api/hospitals/records", { params });
+  const response = await hospitalApi.get("/api/hospitals/records", { params });
   return response.data;
 }
 
 export async function createMyHospitalRecord(record) {
-  const response = await api.post("/api/hospitals/records", record);
+  const response = await hospitalApi.post("/api/hospitals/records", record);
   return response.data;
 }
 
 export async function updateMyHospitalRecord(recordId, updates) {
-  const response = await api.patch(`/api/hospitals/records/${recordId}`, updates);
+  const response = await hospitalApi.patch(`/api/hospitals/records/${recordId}`, updates);
   return response.data;
 }
 

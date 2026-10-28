@@ -14,6 +14,7 @@ const productionEnvironment = () => ({
   JWT_SECRET: "a-production-secret-with-32-characters",
   RPC_URL: "https://rpc.example.invalid",
   CHAIN_ID: "11155111",
+  CONTRACT_DEPLOYMENT_BLOCK: "1",
   ALLOWED_ORIGINS: "https://insurance.example.invalid",
   SIWE_URI: "https://insurance.example.invalid",
   VITE_CONTRACT_ADDRESS: address("1"),
@@ -102,6 +103,7 @@ test("accepts a deliberately limited production off-chain preview", () => {
   for (const key of [
     "RPC_URL",
     "CHAIN_ID",
+    "CONTRACT_DEPLOYMENT_BLOCK",
     "VITE_CONTRACT_ADDRESS",
     "POLICY_BENEFITS_ADDRESS",
     "EVIDENCE_REGISTRY_ADDRESS",

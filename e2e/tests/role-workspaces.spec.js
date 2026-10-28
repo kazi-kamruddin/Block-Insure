@@ -79,14 +79,14 @@ test.describe("@smoke role workspaces", () => {
       await expect(
         session.page.getByRole("navigation", { name: "Hospital navigation" })
       ).toBeVisible();
-      await expect(session.page.getByText("Independent hospital verification active")).toBeVisible();
+      await expect(session.page.getByText("Automatic registry publication active")).toBeVisible();
       await expect(session.page.getByText("HOSP-001", { exact: true })).toBeVisible();
       await expect(session.page.getByText("INV-HOSP-001-001", { exact: true })).toBeVisible();
 
       await session.page.goto("/hospital/records");
       await expect(session.page.getByRole("heading", { name: "Patient and Invoice Records" })).toBeVisible();
       await session.page.goto("/hospital/claims");
-      await expect(session.page.getByRole("heading", { name: "Claim Verification Requests" })).toBeVisible();
+      await expect(session.page.getByRole("heading", { name: "Patient and Invoice Records" })).toBeVisible();
 
       await session.page.goto("/admin/dashboard");
       await expect(session.page).toHaveURL(/\/hospital\/dashboard$/);

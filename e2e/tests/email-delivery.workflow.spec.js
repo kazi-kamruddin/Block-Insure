@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 const mongoose = require("../../backEnd/node_modules/mongoose");
-const { loginActor } = require("../support/actions");
+const { loginActor, advanceToInstallment } = require("../support/actions");
 const { createActorContext, closeActor } = require("../support/walletBridge");
 const { getE2EConfig, requireDisposableE2EMongoUri } = require("../support/environment");
 
@@ -77,6 +77,7 @@ test.describe("@workflow Brevo-mode application with a local provider stub", () 
       await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1);
       await policy.selectOption({ index: 1 });
       const policyId = await policy.inputValue();
+      await advanceToInstallment(session, policyId);
       // Keep the actual durable resend limit intact, including the shared
       // profile/payment wallet limit. Do not mutate quota rows to skip it.
       await page.waitForTimeout(Math.max(0, 61_000 - (Date.now() - sentAt)));

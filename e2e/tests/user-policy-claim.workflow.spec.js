@@ -12,22 +12,6 @@ const {
 const { closeActor, createActorContext } = require("../support/walletBridge");
 const { requireDisposableE2EMongoUri } = require("../support/environment");
 
-async function verifyClaimAsHospital(browser, claimId, expectedOutcome) {
-  const hospitalSession = await createActorContext(browser, "hospital");
-  try {
-    await loginActor(hospitalSession.page, hospitalSession.actor);
-    await hospitalSession.page.goto("/hospital/claims");
-    await hospitalSession.page.getByRole("button", { name: new RegExp(`Claim #${claimId}`) }).click();
-    await expect(hospitalSession.page.getByRole("heading", { name: expectedOutcome })).toBeVisible();
-    await hospitalSession.page.getByRole("button", { name: "Verify against hospital record" }).click();
-    const attestationResult = hospitalSession.page.locator(".hospital-attestation-result");
-    await expect(attestationResult).toContainText("On-chain hospital attestation:", { timeout: 60_000 });
-    await expect(attestationResult).toContainText(expectedOutcome);
-  } finally {
-    await closeActor(hospitalSession);
-  }
-}
-
 test.describe("@workflow policyholder transaction journey", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -133,7 +117,6 @@ test.describe("@workflow policyholder transaction journey", () => {
       await session.page.keyboard.press("Escape");
       await session.page.setViewportSize(desktopViewport);
 
-      await verifyClaimAsHospital(browser, claimId, "VERIFIED");
 
       const adminSession = await createActorContext(browser, "admin");
       adminSession.page.on("pageerror", (error) => browserFailures.push(`admin: ${error.message}`));
@@ -299,7 +282,6 @@ test.describe("@workflow policyholder transaction journey", () => {
       const claimId = (await successMessage.textContent())?.match(/Claim #(\d+)/)?.[1];
       expect(claimId, "The manual-review claim should expose its claim ID").toBeTruthy();
 
-      await verifyClaimAsHospital(browser, claimId, "NOT FOUND");
 
       const adminSession = await createActorContext(browser, "admin");
       try {

@@ -13,6 +13,7 @@ const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("./abi/InsuranceManager.json");
 const OracleCoordinatorArtifact = require("./abi/OracleCoordinator.json");
 const { verifyRegistryProof } = require("./merkleProof");
+const { invoiceIdentity } = require("./recordIdentity");
 const { independentlyAssessRecord } = require("./independentAssessment");
 const triagePolicy = require("../backEnd/triage-policy.json");
 const {
@@ -418,7 +419,10 @@ const classifyResponse = (request, claim, response, appealCommitmentValid, indep
     normalizeHash(localRoot) !== "" &&
     normalizeHash(localRoot) === normalizeHash(request.registryRoot);
   const snapshotMatches = response.registrySnapshot === ORACLE_REGISTRY_SNAPSHOT;
+  const namespaceValid = proof?.canonicalRecord?.identityVersion !== 2 ||
+    normalizeHash(invoiceIdentity(proof.canonicalRecord.hospitalId, proof.canonicalRecord.invoiceNumber)) === normalizeHash(proof.canonicalRecord.invoiceHash);
   const recordMatchesClaim =
+    namespaceValid && response.contractedHospital === true &&
     proofValid &&
     normalizeHash(proof.canonicalRecord?.invoiceHash) === normalizeHash(evaluationClaim.invoiceHash) &&
     String(proof.canonicalRecord?.hospitalId || "") === String(evaluationClaim.hospitalId);
@@ -577,7 +581,11 @@ const handleOracleRequested = async (requestId, claimId) => {
       requestId,
       oracleAddress: oracleWallet.address,
     });
-    const commitment = buildCommitment(request, assessment.verified, resultHash, salt);
+    const commitment = buildCommitment(request, assessment.verified, resultHash, salt, {
+      chainId: (await provider.getNetwork()).chainId,
+      coordinatorAddress,
+      oracleAddress: oracleWallet.address,
+    });
     const existingCommitment = await coordinator.commitments(requestId, oracleWallet.address);
 
     if (existingCommitment === ethers.ZeroHash) {
@@ -607,7 +615,7 @@ const handleOracleRequested = async (requestId, claimId) => {
     await revealTx.wait();
 
     const oracleResponse = {
-      protocol: "exact-result-commit-reveal-v1",
+      protocol: "exact-result-commit-reveal-v2",
       deployment: { coordinatorAddress: coordinatorAddress.toLowerCase(), chainId: String((await provider.getNetwork()).chainId) },
       modelIdentity: {
         modelVersion: selectedModel.artifact.modelVersion,

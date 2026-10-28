@@ -172,11 +172,22 @@ describe("OracleCoordinator - Exact Consensus and Commit-Reveal", function () {
     ).to.be.reverted;
   });
 
+  it("rejects a second eligible oracle copying the first commitment and reveal", async function () {
+    const fixture = await deployFixture(2);
+    const request = await requestClaim(fixture);
+    const resultHash = hashText("copied-result");
+    const commitment = await commitResult(fixture.coordinator, fixture.oracle1, request, true, resultHash, salt("copied"));
+    await fixture.coordinator.connect(fixture.oracle2).commitOracleResult(request.requestId, commitment);
+    await revealResult(fixture.coordinator, fixture.oracle1, request, true, resultHash, salt("copied"));
+    await expect(revealResult(fixture.coordinator, fixture.oracle2, request, true, resultHash, salt("copied"))).to.be.reverted;
+    expect((await fixture.coordinator.getRequest(request.requestId)).isFulfilled).to.equal(false);
+  });
+
   it("binds commitments to claim, registry, and model versions", async function () {
     const fixture = await deployFixture(2);
     const request = await requestClaim(fixture);
     const resultHash = hashText("versioned-result");
-    const commitment = buildCommitment(request, true, resultHash, salt("1"));
+    const commitment = await buildCommitment(request, true, resultHash, salt("1"), fixture.coordinator, fixture.oracle1);
 
     await fixture.coordinator.connect(fixture.oracle1).commitOracleResult(1, commitment);
     await commitResult(fixture.coordinator, fixture.oracle2, request, true, resultHash, salt("2"));
@@ -228,7 +239,7 @@ describe("OracleCoordinator - Exact Consensus and Commit-Reveal", function () {
     const fixture = await deployFixture(2);
     const request = await requestClaim(fixture);
     const resultHash = hashText("result");
-    const commitment = buildCommitment(request, true, resultHash, salt("1"));
+    const commitment = await buildCommitment(request, true, resultHash, salt("1"), fixture.coordinator, fixture.oracle1);
 
     await fixture.coordinator.connect(fixture.oracle1).commitOracleResult(1, commitment);
     await expect(
@@ -263,7 +274,7 @@ describe("OracleCoordinator - Exact Consensus and Commit-Reveal", function () {
     const fixture = await deployFixture(2);
     const request = await requestClaim(fixture);
     const resultHash = hashText("paused-result");
-    const commitment = buildCommitment(request, true, resultHash, salt("1"));
+    const commitment = await buildCommitment(request, true, resultHash, salt("1"), fixture.coordinator, fixture.oracle1);
 
     await fixture.insuranceManager.pause();
     await expect(

@@ -33,7 +33,7 @@ const environment = {
   APPDATA: path.join(root, ".hardhat-appdata"), LOCALAPPDATA: path.join(root, ".hardhat-localappdata"),
 };
 const database = new URL(environment.MONGODB_URI);
-if (!["127.0.0.1", "localhost", "[::1]"].includes(database.hostname) || database.pathname !== "/block_insure_e2e") {
+if (!["127.0.0.1", "localhost", "[::1]"].includes(database.hostname) || !/^\/block_insure_[a-z0-9_]*e2e$/.test(database.pathname)) {
   throw new Error("Stabilization stack requires disposable loopback block_insure_e2e");
 }
 function start(label, file, args = [], cwd = root, extra = {}) {
@@ -44,7 +44,7 @@ function start(label, file, args = [], cwd = root, extra = {}) {
   const capture = (chunk) => {
     const safe = chunk.toString().split(/\r?\n/).filter((line) => !/private.?key|secret|mnemonic|seed phrase|0x[a-fA-F0-9]{64}/i.test(line)).join("\n");
     diagnostic = (diagnostic + safe).slice(-8000);
-    if (label === "Browser regression") process.stdout.write(safe);
+    if (label === "Browser regression" || label === "Phase one settlement recovery") process.stdout.write(safe);
   };
   child.stdout.on("data", capture); child.stderr.on("data", capture);
   child.completed = new Promise((resolve, reject) => {
@@ -147,6 +147,10 @@ async function main() {
     start("RPC recovery proxy", path.join(root, "scripts/localRpcProxy.js"));
     await waitFor(async () => (await fetch(`${environment.E2E_BACKEND_RPC_URL}/__control/status`)).ok, "RPC proxy");
   }
+  if (process.env.PHASE_ONE_SETTLEMENT_ONLY === "true") {
+    await run("Phase one settlement recovery", path.join(root, "backEnd/test/phaseOneSettlement.integration.js"), [], root, { NODE_ENV: "test" });
+    return;
+  }
   start("Backend", path.join(root, brevoStub ? "e2e/support/localBrevoBackend.js" : "backEnd/server.js"), [], path.join(root, "backEnd"), environment.E2E_BACKEND_RPC_URL ? { RPC_URL: environment.E2E_BACKEND_RPC_URL } : {});
   start("Frontend", path.join(root, "frontEnd/node_modules/vite/bin/vite.js"), ["--host", "localhost", "--port", "5173", "--strictPort"], path.join(root, "frontEnd"));
   const oracleChildren = [];
@@ -189,6 +193,7 @@ async function main() {
   const browserReports = (name) => ({ E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: path.join(output, name, "report"),
     PLAYWRIGHT_OUTPUT_DIR: path.join(output, name, "artifacts"), PLAYWRIGHT_JSON_OUTPUT_NAME: path.join(output, name, "results.json") });
   await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/unfinished-benefits.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, browserReports("browser"));
+  if (process.env.PHASE_ONE_SETTLEMENT_TESTS === "true") await run("Phase one settlement recovery", path.join(root, "backEnd/test/phaseOneSettlement.integration.js"), [], root, { NODE_ENV: "test" });
   if (protocolRestart) await protocolRestart;
   if (showcase) await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", "e2e/tests/showcase-coverage.spec.js", "--workers=1"], root, browserReports("showcase"));
   if (shadowRestart) {

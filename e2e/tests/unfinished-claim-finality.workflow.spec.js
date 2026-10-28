@@ -20,41 +20,6 @@ function backendEnv(name) {
   return line?.slice(name.length + 1).trim() || "";
 }
 
-async function verifyMissingRecord(browser, claimId) {
-  const hospital = await createActorContext(browser, "hospital");
-  try {
-    await loginActor(hospital.page, hospital.actor);
-    await hospital.page.goto("/hospital/claims");
-    await hospital.page.getByRole("button", { name: new RegExp(`Claim #${claimId}`) }).click();
-    await expect(hospital.page.getByRole("heading", { name: "NOT FOUND" })).toBeVisible();
-    await hospital.page.getByRole("button", { name: "Verify against hospital record" }).click();
-    await expect(hospital.page.locator(".hospital-attestation-result")).toContainText(
-      "On-chain hospital attestation:",
-      { timeout: 60_000 }
-    );
-  } finally {
-    await closeActor(hospital);
-  }
-}
-
-async function verifyCorrectedAppealAsHospital(browser, claimId, correctedInvoice) {
-  const hospital = await createActorContext(browser, "hospital");
-  try {
-    await loginActor(hospital.page, hospital.actor);
-    await hospital.page.goto("/hospital/claims");
-    await hospital.page.getByRole("button", { name: new RegExp(`Claim #${claimId}`) }).click();
-    await expect(hospital.page.getByRole("heading", { name: "VERIFIED" })).toBeVisible();
-    await expect(hospital.page.getByText(new RegExp(`Matched source invoice:\\s*${correctedInvoice}`))).toBeVisible();
-    await hospital.page.getByRole("button", { name: "Verify against hospital record" }).click();
-    await expect(hospital.page.locator(".hospital-attestation-result")).toContainText(
-      "On-chain hospital attestation: VERIFIED",
-      { timeout: 60_000 }
-    );
-  } finally {
-    await closeActor(hospital);
-  }
-}
-
 async function requestAppealOracleAsAdmin(browser, claimId) {
   const admin = await createActorContext(browser, "admin");
   try {
@@ -125,7 +90,6 @@ async function createManualReview(browser) {
   );
   const claimId = (await success.textContent())?.match(/Claim #(\d+)/)?.[1];
   expect(claimId).toBeTruthy();
-  await verifyMissingRecord(browser, claimId);
 
   const admin = await createActorContext(browser, "admin");
   try {
@@ -297,7 +261,6 @@ test.describe("@unfinished manual-review finality", () => {
       await expect(user.page.locator(".appeal-status")).toContainText(appealReason);
       await expect(user.page.locator(".status-badge").filter({ hasText: "APPEALED" })).toBeVisible();
 
-      await verifyCorrectedAppealAsHospital(browser, claimId, correctedInvoice);
       await requestAppealOracleAsAdmin(browser, claimId);
 
       await expect

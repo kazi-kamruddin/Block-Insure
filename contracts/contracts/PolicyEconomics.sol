@@ -2,12 +2,35 @@
 pragma solidity ^0.8.26;
 
 interface IPolicyEconomicsManager {
+    struct PolicyPackage {
+        uint256 packageId;
+        string name;
+        string policyType;
+        uint256 premiumAmount;
+        uint256 coverageAmount;
+        uint256 durationDays;
+        string requiredDocumentType;
+        bool isActive;
+    }
     function hasRole(bytes32 role, address account) external view returns (bool);
+    function getPolicyPackage(uint256 packageId) external view returns (PolicyPackage memory);
 }
 
 contract PolicyEconomics {
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint16 private constant BPS = 10_000;
+    uint256 private constant PREMIUM_INTERVAL = 90 days;
+    uint256 private constant ADVANCE_WINDOW = 30 days;
+
+    struct InstallmentQuote {
+        uint256 installmentId;
+        uint256 dueAt;
+        uint256 endsAt;
+        uint256 amountWei;
+        uint256 opensAt;
+        bool payableNow;
+        bool reinstatement;
+    }
 
     struct PackageRules {
         uint64 version;
@@ -79,6 +102,9 @@ contract PolicyEconomics {
     mapping(bytes32 => bool) private allowedServiceCodes;
     mapping(bytes32 => bool) private excludedServiceCodes;
     mapping(uint256 => PolicyTerms) private policyTerms;
+    mapping(uint256 => bytes32) public issuedDocumentHash;
+    mapping(bytes32 => bytes32[]) private packageAllowedServices;
+    mapping(bytes32 => bytes32[]) private packageExcludedServices;
     mapping(uint256 => CoverageAccount) private coverageAccounts;
     mapping(uint256 => CoverageInterval[]) private coverageIntervals;
     mapping(uint256 => ClaimReservation) private claimReservations;
@@ -146,7 +172,7 @@ contract PolicyEconomics {
     ) external onlyManagerAdmin {
         require(packageId != 0, "Package required");
         require(rules.version == currentPackageRuleVersion[packageId] + 1, "Version must increase by one");
-        require(rules.minimumDocumentCommitments > 0, "Documents required");
+        require(rules.minimumDocumentCommitments == 1, "Only primary invoice supported");
         require(rules.deductibleRateBps <= BPS && rules.insurerShareBps <= BPS, "Invalid settlement bps");
         require(rules.claimDeadline > 0, "Claim deadline required");
         require(rules.settlementFormulaVersion != bytes32(0), "Formula version required");
@@ -155,6 +181,8 @@ contract PolicyEconomics {
         packageRules[packageId][rules.version] = rules;
         currentPackageRuleVersion[packageId] = rules.version;
         bytes32 scope = keccak256(abi.encode(packageId, rules.version));
+        packageAllowedServices[scope] = allowedServices;
+        packageExcludedServices[scope] = excludedServices;
         for (uint256 i = 0; i < allowedServices.length; i++) {
             require(allowedServices[i] != bytes32(0), "Invalid allowed service");
             allowedServiceCodes[keccak256(abi.encode(scope, allowedServices[i]))] = true;
@@ -164,6 +192,52 @@ contract PolicyEconomics {
             excludedServiceCodes[keccak256(abi.encode(scope, excludedServices[i]))] = true;
         }
         emit PackageRulesPublished(packageId, rules.version, rules.policyRuleVersion);
+    }
+
+    function getPackageRules(uint256 packageId, uint64 version) external view returns (
+        PackageRules memory rules, bytes32[] memory allowed, bytes32[] memory excluded
+    ) {
+        bytes32 scope = keccak256(abi.encode(packageId, version));
+        return (packageRules[packageId][version], packageAllowedServices[scope], packageExcludedServices[scope]);
+    }
+
+    function validateAndBindOffer(uint256 packageId, bytes32 expectedIssueHash, uint256 policyId, bytes32 documentHash) external onlyManager {
+        require(currentPackageRuleVersion[packageId] > 0 && expectedIssueHash == getPackageIssueHash(packageId), "Offer incomplete or changed");
+        require(documentHash != bytes32(0) && issuedDocumentHash[policyId] == bytes32(0), "Invalid document binding");
+        issuedDocumentHash[policyId] = documentHash;
+    }
+
+    function getPackageIssueHash(uint256 packageId) public view returns (bytes32) {
+        return keccak256(abi.encode(IPolicyEconomicsManager(manager).getPolicyPackage(packageId), currentPackageRuleVersion[packageId]));
+    }
+
+    /// @notice Fixed periods from issue date. The first period is the advertised
+    /// price; only a subsequent short final period is prorated (rounded up).
+    /// Reinstatement pays the current calendar period, with no retroactive cover.
+    function getInstallmentQuote(uint256 policyId, uint256 paidThrough) public view returns (InstallmentQuote memory q) {
+        PolicyTerms memory terms = policyTerms[policyId];
+        if (terms.holder == address(0) || coverageTerminated[policyId] ||
+            paidThrough >= terms.endsAt || block.timestamp >= terms.endsAt) return q;
+        uint256 period = (paidThrough - terms.startsAt) / PREMIUM_INTERVAL;
+        q.reinstatement = block.timestamp > paidThrough + 7 days;
+        if (q.reinstatement) period = (block.timestamp - terms.startsAt) / PREMIUM_INTERVAL;
+        q.installmentId = period + 1;
+        q.dueAt = terms.startsAt + period * PREMIUM_INTERVAL;
+        q.endsAt = q.dueAt + PREMIUM_INTERVAL;
+        if (q.endsAt > terms.endsAt) q.endsAt = terms.endsAt;
+        q.amountWei = (terms.premiumWei * (q.endsAt - q.dueAt) + PREMIUM_INTERVAL - 1) / PREMIUM_INTERVAL;
+        q.opensAt = q.dueAt - ADVANCE_WINDOW;
+        q.payableNow = block.timestamp >= q.opensAt;
+    }
+
+    function acceptInstallment(uint256 policyId, uint256 paidThrough, uint256 expectedInstallmentId, uint256 amount)
+        external onlyManager returns (uint256)
+    {
+        InstallmentQuote memory q = getInstallmentQuote(policyId, paidThrough);
+        require(q.payableNow && q.installmentId == expectedInstallmentId, "Installment unavailable or changed");
+        require(q.amountWei == amount, "Incorrect premium amount");
+        _recordPremium(policyId, uint64(paidThrough), uint64(block.timestamp), uint64(q.endsAt));
+        return q.endsAt;
     }
 
     function configureSolvency(uint16 newReserveRatioBps, uint256 newMinimumCapitalBufferWei)
@@ -185,10 +259,7 @@ contract PolicyEconomics {
         uint64 paidThrough,
         uint256 coverageLimitWei,
         uint256 premiumWei,
-        bytes32 requiredDocumentType,
-        uint16 deductibleRateBps,
-        uint128 deductibleCapWei,
-        uint16 insurerShareBps
+        bytes32 requiredDocumentType
     ) external onlyManager {
         require(policyTerms[policyId].holder == address(0), "Policy already recorded");
         require(holder != address(0) && startsAt < endsAt, "Invalid policy");
@@ -210,9 +281,9 @@ contract PolicyEconomics {
         if (version == 0) {
             terms.claimDeadline = 365 days;
             terms.minimumDocumentCommitments = 1;
-            terms.deductibleRateBps = deductibleRateBps;
-            terms.insurerShareBps = insurerShareBps;
-            terms.deductibleCapWei = deductibleCapWei;
+            terms.deductibleRateBps = 1000;
+            terms.insurerShareBps = 8000;
+            terms.deductibleCapWei = 0.02 ether;
             terms.maximumClaimWei = uint128(coverageLimitWei);
             terms.requiredDocumentsRoot = keccak256(abi.encode(requiredDocumentType));
             terms.settlementFormulaVersion = keccak256("BLOCK_INSURE_SETTLEMENT_V1");
@@ -249,6 +320,10 @@ contract PolicyEconomics {
         uint64 paidAt,
         uint64 newPaidThrough
     ) external onlyManager {
+        _recordPremium(policyId, previousPaidThrough, paidAt, newPaidThrough);
+    }
+
+    function _recordPremium(uint256 policyId, uint64 previousPaidThrough, uint64 paidAt, uint64 newPaidThrough) internal {
         PolicyTerms memory terms = policyTerms[policyId];
         require(terms.holder != address(0), "Policy not recorded");
         CoverageInterval[] storage intervals = coverageIntervals[policyId];

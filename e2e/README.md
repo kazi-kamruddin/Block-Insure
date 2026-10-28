@@ -8,7 +8,7 @@ assigned to the selected test actor.
 ## What is covered
 
 - Public landing page and backend health
-- SIWE wallet login for User, Admin, Bank, Hospital, and all four Auditors
+- SIWE wallet login for User, Admin, Bank and all four Auditors; separate hospital staff login
 - SIWE invalid-signature, wrong-wallet, wrong-chain, nonce-replay, logout, missing-token,
   and guest direct-navigation rejection
 - Role-specific navigation and cross-role redirect protection
@@ -17,7 +17,7 @@ assigned to the selected test actor.
 - Every role's top-level routes at 1366px and 320px, with retained route screenshots
 - Admin role synchronization and policy-package pages
 - Auditor registry, voting queue, and document-verification pages
-- Hospital dashboard, record/invoice maintenance with persistence, claim attestation,
+- Hospital dashboard, scoped staff record/invoice maintenance with persistence, automatic publication,
   and restored Merkle-root verification
 - Bank dashboard, mandate approval/rejection, automatic quarterly EFT, manual OTP
   rejection/success, and policyholder cancellation
@@ -181,7 +181,7 @@ provider stub; real mailbox receipt remains a separate manual check.
 
 The appeal check is a headed multi-role workflow: original Oracle failure,
 four-Auditor manual-review snapshot and rejection, browser-side encrypted
-correction, version-2 Hospital attestation, Admin Oracle request, exact
+correction, fresh version-bound Admin Oracle request without hospital-wallet attestation, exact
 two-worker approval, allocation, claimant withdrawal, and final UI/API/MongoDB/
 contract/event reconciliation. The RPC check requires `E2E_RPC_PROXY=true` and
 proves `/health/ready` returns 503 during a paused loopback proxy while
@@ -239,3 +239,35 @@ bundled browser. Clear the variable to restore the default.
 - `support/actions.js` — shared login, date, and evidence helpers
 
 Add future scenarios as focused spec files instead of extending one giant test.
+
+## Completion Phase 1 verification
+
+Select an explicit **loopback disposable database**; the runner refuses Atlas.
+Do not use the saved application database or reset existing project data. The
+runner creates fresh local deployments serially and stops only its own services.
+It does not change saved `.env` files, standard deployment manifests, Docker
+resource settings, trained weights or historical research artifacts. The broader
+hybrid fixture still requires the separately prepared runtime dataset.
+
+```powershell
+$env:E2E_MONGODB_URI='mongodb://127.0.0.1:27019/block_insure_phase1_e2e'
+$env:E2E_DATABASE_NAME='block_insure_phase1_e2e'
+npm run test:phase1
+```
+
+An already installed compatible Chromium can be selected with
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`; otherwise the normal Playwright browser
+installation is used. On Windows the harness needs permission to stop the process
+trees it starts. Do not kill unrelated Node or Docker processes.
+
+Run one stage with `npm run test:phase1 -- foundation`, `payments`, `claims`,
+`email`, or `settlement`. Each stage gets a new local chain, preventing premium
+time travel from expiring a later claim fixture. Email uses a local Brevo-shaped
+provider stub and never sends external messages. Settlement tests exercise actual
+MongoDB, Hardhat, signed transactions, a fresh recovery process, competing wallet
+payment, gateway/account insufficiency and manual/EFT final-period coordination.
+
+Reports, synthetic screenshots and traces are stored beneath `tmp/stabilization-*`
+and stay ignored. A test failure is not a completion receipt. Phase 2 evidence
+bundle/access/appeal recovery and auxiliary-benefit decisions remain separately
+scoped; the Phase 1 command does not claim the full project is deployment-ready.

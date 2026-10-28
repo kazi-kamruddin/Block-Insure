@@ -269,6 +269,40 @@
       "type": "event"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "policyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "paidThrough",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "expectedInstallmentId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "acceptInstallment",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "activeExposureWei",
       "outputs": [
@@ -635,6 +669,187 @@
           "internalType": "uint256",
           "name": "policyId",
           "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "paidThrough",
+          "type": "uint256"
+        }
+      ],
+      "name": "getInstallmentQuote",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "installmentId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "dueAt",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "endsAt",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amountWei",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "opensAt",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "payableNow",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "reinstatement",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct PolicyEconomics.InstallmentQuote",
+          "name": "q",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "packageId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getPackageIssueHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "packageId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "version",
+          "type": "uint64"
+        }
+      ],
+      "name": "getPackageRules",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "version",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "waitingPeriod",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "reinstatementWaitingPeriod",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "claimDeadline",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint16",
+              "name": "minimumDocumentCommitments",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint16",
+              "name": "deductibleRateBps",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint16",
+              "name": "insurerShareBps",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint128",
+              "name": "deductibleCapWei",
+              "type": "uint128"
+            },
+            {
+              "internalType": "uint128",
+              "name": "maximumClaimWei",
+              "type": "uint128"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "exclusionsRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "requiredDocumentsRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "settlementFormulaVersion",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "policyRuleVersion",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct PolicyEconomics.PackageRules",
+          "name": "rules",
+          "type": "tuple"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "allowed",
+          "type": "bytes32[]"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "excluded",
+          "type": "bytes32[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "policyId",
+          "type": "uint256"
         }
       ],
       "name": "getPolicyTerms",
@@ -759,6 +974,25 @@
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "issuedDocumentHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
         }
       ],
       "stateMutability": "view",
@@ -950,21 +1184,6 @@
           "internalType": "bytes32",
           "name": "requiredDocumentType",
           "type": "bytes32"
-        },
-        {
-          "internalType": "uint16",
-          "name": "deductibleRateBps",
-          "type": "uint16"
-        },
-        {
-          "internalType": "uint128",
-          "name": "deductibleCapWei",
-          "type": "uint128"
-        },
-        {
-          "internalType": "uint16",
-          "name": "insurerShareBps",
-          "type": "uint16"
         }
       ],
       "name": "recordPolicy",
@@ -1101,6 +1320,34 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "packageId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "expectedIssueHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "policyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "documentHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "validateAndBindOffer",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

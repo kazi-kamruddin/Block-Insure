@@ -209,7 +209,7 @@ describe("Phase 2 - Automatic adjudication", function () {
     expect(await fixture.adjudicator.auditorReputation(fixture.auditors[0].address)).to.equal(0);
   });
 
-  it("appeals preserve the rejected decision and require a fresh hospital attestation", async function () {
+  it("appeals preserve the rejected decision and request a new version without hospital wallet attestation", async function () {
     const fixture = await deployFixture();
     const claimId = await submitClaim(fixture, "appeal");
     const review = await openFailedReview(fixture, claimId);
@@ -239,10 +239,6 @@ describe("Phase 2 - Automatic adjudication", function () {
       originalDecision.decisionHash
     );
     expect((await fixture.manager.getClaimDocuments(claimId)).length).to.equal(2);
-    await expect(fixture.manager.requestOracleVerification(claimId)).to.be.reverted;
-    await registry
-      .connect(fixture.publicCaller)
-      .submitHospitalVerification(claimId, true, hash("appeal-hospital-attestation"));
     await expect(fixture.manager.requestOracleVerification(claimId)).to.emit(
       fixture.manager,
       "OracleRequested"

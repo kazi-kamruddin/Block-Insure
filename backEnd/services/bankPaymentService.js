@@ -11,9 +11,11 @@ const { notifyWallet } = require("./notificationService");
 const { deliveryMode, deliverOtp } = require("./otpDeliveryService");
 const { reserveDelivery } = require("./emailVerificationService");
 const User = require("../models/User");
+const { getPolicyEconomics } = require("./contractService");
+const { getDeploymentScope } = require("./deploymentScopeService");
+const { createSettlement, reconcilePendingSettlements } = require("./bankSettlementService");
 
 const BDT_MINOR_PER_ETH = 10_000_000;
-const QUARTER_MS = 90 * 24 * 60 * 60 * 1000;
 const EFT_RETRY_INTERVAL_MS = 60 * 60 * 1000;
 const REMINDER_MIN_DAYS = 15;
 const REMINDER_MAX_DAYS = 20;
@@ -21,6 +23,7 @@ const LOCAL_BANK_PRIVATE_KEY =
   "0x8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61";
 
 let scheduler = null;
+let reconciliationScheduler = null;
 let transferQueue = Promise.resolve();
 
 const createError = (message, statusCode = 400) => {
@@ -30,7 +33,7 @@ const createError = (message, statusCode = 400) => {
 };
 
 const normalizeWallet = (value) => String(value || "").trim().toLowerCase();
-const createInstructionKey = (walletAddress, policyId) => `${normalizeWallet(walletAddress)}:${policyId}`;
+const createInstructionKey = async (walletAddress, policyId) => `${await getDeploymentScope()}:${normalizeWallet(walletAddress)}:${policyId}`;
 const createId = (prefix) => `${prefix}-${crypto.randomUUID()}`;
 const getOtpSecret = () => {
   const secret = String(process.env.BANK_OTP_SECRET || process.env.JWT_SECRET || "").trim();
@@ -79,11 +82,14 @@ const loadOwnedPolicy = async (walletAddress, policyId) => {
   }
   const status = Number(await contract.getEffectivePolicyStatus(policyId));
   if (![1, 2].includes(status)) throw createError("Policy is not active or in its grace period", 409);
+  const economics = await getPolicyEconomics(contract);
+  const quote = await economics.getInstallmentQuote(policyId, policy.nextPremiumDueDate);
+  if (quote.installmentId === 0n) throw createError("Policy is fully paid or expired.", 409);
   return {
-    policy,
-    amountWei: policy.premiumAmount.toString(),
-    amountMinor: premiumWeiToMinor(policy.premiumAmount),
-    nextDueAt: new Date(Number(policy.nextPremiumDueDate) * 1000),
+    policy, installmentId: quote.installmentId.toString(), amountWei: quote.amountWei.toString(),
+    amountMinor: premiumWeiToMinor(quote.amountWei), nextDueAt: new Date(Number(quote.dueAt) * 1000),
+    opensAt: new Date(Number(quote.opensAt) * 1000), payableNow: quote.payableNow && !quote.reinstatement,
+    deploymentScope: await getDeploymentScope(),
   };
 };
 
@@ -109,6 +115,7 @@ const createMandate = async ({ walletAddress, accountReference, policyId, validF
   if (end <= start) throw createError("Mandate end date must be after its start date");
 
   const duplicate = await EftMandate.findOne({
+    deploymentScope: policyDetails.deploymentScope,
     ownerWalletAddress: normalizeWallet(walletAddress),
     policyId: String(policyId),
     status: { $in: ["PENDING_BANK_APPROVAL", "ACTIVE"] },
@@ -119,11 +126,12 @@ const createMandate = async ({ walletAddress, accountReference, policyId, validF
   try {
     mandate = await EftMandate.create({
       mandateId: createId("EFT"),
+      deploymentScope: policyDetails.deploymentScope,
       bankId: account.bankId,
       accountReference: account.accountReference,
       policyId: String(policyId),
       ownerWalletAddress: normalizeWallet(walletAddress),
-      activeInstructionKey: createInstructionKey(walletAddress, policyId),
+      activeInstructionKey: await createInstructionKey(walletAddress, policyId),
       destinationReference: "BLOCK-INSURE-PREMIUM-TREASURY",
       amountMinor: policyDetails.amountMinor,
       validFrom: start,
@@ -151,23 +159,24 @@ const createMandate = async ({ walletAddress, accountReference, policyId, validF
 };
 
 const approveMandate = async ({ bankId, bankWallet, mandateId }) => {
+  const deploymentScope = await getDeploymentScope();
   const now = new Date();
   const mandate = await EftMandate.findOneAndUpdate(
-    { mandateId, bankId, status: "PENDING_BANK_APPROVAL", validUntil: { $gt: now } },
+    { mandateId, bankId, deploymentScope: await getDeploymentScope(), status: "PENDING_BANK_APPROVAL", validUntil: { $gt: now } },
     [{
       $set: {
         status: "ACTIVE",
         approvedAt: now,
         approvedByWallet: normalizeWallet(bankWallet),
         nextDebitAt: "$validFrom",
-        activeInstructionKey: { $concat: ["$ownerWalletAddress", ":", "$policyId"] },
+        activeInstructionKey: { $concat: [deploymentScope, ":", "$ownerWalletAddress", ":", "$policyId"] },
       },
     }],
     { returnDocument: "after", updatePipeline: true }
   );
   if (!mandate) {
     const expired = await EftMandate.findOneAndUpdate(
-      { mandateId, bankId, status: "PENDING_BANK_APPROVAL", validUntil: { $lte: now } },
+      { mandateId, bankId, deploymentScope: await getDeploymentScope(), status: "PENDING_BANK_APPROVAL", validUntil: { $lte: now } },
       { $set: { status: "EXPIRED" }, $unset: { activeInstructionKey: 1 } },
       { returnDocument: "after" }
     );
@@ -191,7 +200,7 @@ const rejectMandate = async ({ bankId, mandateId, reason }) => {
   const rejectionReason = String(reason || defaultReason).trim() || defaultReason;
   if (rejectionReason.length > 500) throw createError("Rejection reason cannot exceed 500 characters");
   const mandate = await EftMandate.findOneAndUpdate(
-    { mandateId, bankId, status: "PENDING_BANK_APPROVAL" },
+    { mandateId, bankId, deploymentScope: await getDeploymentScope(), status: "PENDING_BANK_APPROVAL" },
     { $set: { status: "REJECTED", rejectedAt: new Date(), rejectionReason }, $unset: { activeInstructionKey: 1 } },
     { returnDocument: "after" }
   );
@@ -210,7 +219,7 @@ const rejectMandate = async ({ bankId, mandateId, reason }) => {
 
 const cancelMandate = async ({ walletAddress, mandateId }) => {
   const mandate = await EftMandate.findOneAndUpdate(
-    { mandateId, ownerWalletAddress: normalizeWallet(walletAddress), status: { $in: ["PENDING_BANK_APPROVAL", "ACTIVE"] } },
+    { mandateId, deploymentScope: await getDeploymentScope(), ownerWalletAddress: normalizeWallet(walletAddress), status: { $in: ["PENDING_BANK_APPROVAL", "ACTIVE"] } },
     { $set: { status: "CANCELLED", cancelledAt: new Date() }, $unset: { activeInstructionKey: 1 } },
     { returnDocument: "after" }
   );
@@ -228,83 +237,32 @@ const getBankSigner = async () => {
   return new ethers.Wallet(configured || LOCAL_BANK_PRIVATE_KEY, provider);
 };
 
-const executeTransferInternal = async ({ account, policyId, amountMinor, amountWei, type, dueAt, mandateId = "" }) => {
-  const transaction = await BankTransaction.create({
-    transactionId: createId(type === "EFT" ? "EFT-TXN" : "OTP-TXN"),
-    bankId: account.bankId,
-    accountReference: account.accountReference,
-    ownerWalletAddress: account.ownerWalletAddress,
-    policyId: String(policyId),
-    mandateId,
-    type,
-    amountMinor,
-    amountWei,
-    dueAt,
-  });
-  const debited = await BankAccount.findOneAndUpdate(
-    { _id: account._id, status: "ACTIVE", balanceMinor: { $gte: amountMinor } },
-    { $inc: { balanceMinor: -amountMinor } },
-    { returnDocument: "after" }
-  );
-  if (!debited) {
-    transaction.status = "FAILED";
-    transaction.failureReason = "Insufficient account balance";
-    transaction.completedAt = new Date();
-    await transaction.save();
-    await notifyWallet(account.ownerWalletAddress, {
-      type: "BANK_PAYMENT_FAILED",
-      title: `Premium payment failed for policy #${policyId}`,
-      message: "The linked bank account does not have enough available balance.",
-      policyId: String(policyId), status: "FAILED", link: "/user/banking",
-      dedupeKey: `bank-payment-failed:${transaction.transactionId}`,
-    });
-    return transaction;
-  }
+const getGatewayReadiness = async ({ walletAddress, policyId }) => {
+  const signer = await getBankSigner();
+  const registry = getBankIdentityRegistry(signer);
+  const [balance, fees, authorized] = await Promise.all([
+    signer.provider.getBalance(signer.address), signer.provider.getFeeData(),
+    registry.hasRole(await registry.BANK_ROLE(), signer.address),
+  ]);
+  const quote = policyId ? await loadOwnedPolicy(walletAddress, policyId) : null;
+  const required = BigInt(quote?.amountWei || 0) + 300000n * (fees.maxFeePerGas || fees.gasPrice || 0n);
+  return { simulatedFiat: true, quoteRateBdtPerEth: "100000", gatewayWallet: signer.address,
+    balanceWei: String(balance), balanceEth: ethers.formatEther(balance), requiredWei: String(required),
+    ready: authorized && balance >= required,
+    message: !authorized ? "Gateway signer is not authorized for this deployment." : balance < required
+      ? "The gateway needs test ETH for settlement and gas. The policyholder does not fund the gateway implicitly."
+      : "Authorized gateway has estimated settlement and gas funding. Actual transaction validation still applies." };
+};
 
-  let receipt;
-  try {
-    const signer = await getBankSigner();
-    const registry = getBankIdentityRegistry(signer);
-    const referenceHash = ethers.id(transaction.transactionId);
-    const instructionHash = ethers.id(mandateId || `MANUAL:${transaction.transactionId}`);
-    const tx = await registry.confirmEftTransfer(
-      policyId,
-      account.ownerWalletAddress,
-      amountWei,
-      referenceHash,
-      instructionHash
-    );
-    receipt = await tx.wait();
-  } catch (error) {
-    await BankAccount.updateOne({ _id: account._id }, { $inc: { balanceMinor: amountMinor } });
-    transaction.status = "FAILED";
-    transaction.failureReason = error.shortMessage || error.reason || error.message;
-    transaction.completedAt = new Date();
-    await transaction.save();
-    await notifyWallet(account.ownerWalletAddress, {
-      type: "BANK_PAYMENT_FAILED",
-      title: `Premium payment failed for policy #${policyId}`,
-      message: "The bank restored the reserved balance because the policy ledger rejected the transfer.",
-      policyId: String(policyId), status: "FAILED", link: "/user/banking",
-      dedupeKey: `bank-payment-failed:${transaction.transactionId}`,
-    });
-    return transaction;
-  }
-
-  // The chain confirmation is irreversible. Persist it outside the compensation
-  // block so a later database/notification failure can never refund settled funds.
-  transaction.status = "PAID";
-  transaction.completedAt = new Date();
-  transaction.transactionHash = receipt.hash;
-  await transaction.save();
-  await notifyWallet(account.ownerWalletAddress, {
-    type: "PREMIUM_PAYMENT_CONFIRMED",
-    title: `Bank payment confirmed for policy #${policyId}`,
-    message: `${(amountMinor / 100).toFixed(2)} BDT was debited by ${type === "EFT" ? "quarterly EFT" : "manual OTP payment"}.`,
-    policyId: String(policyId), transactionHash: receipt.hash, status: "PAID", link: `/user/payments?policyId=${policyId}`,
-    dedupeKey: `bank-payment-paid:${transaction.transactionId}`,
+const executeTransferInternal = async (details) => {
+  const result = await createSettlement(details, await getBankSigner());
+  if (result.status === "PAID") await notifyWallet(details.account.ownerWalletAddress, {
+    type: "PREMIUM_PAYMENT_CONFIRMED", title: `Premium installment #${result.installmentId} settled`,
+    message: `${(result.amountMinor / 100).toFixed(2)} simulated BDT charged; ${ethers.formatEther(result.amountWei)} test ETH settled.`,
+    policyId: String(details.policyId), transactionHash: result.transactionHash, status: "PAID", link: "/user/payments",
+    dedupeKey: `bank-payment-paid:${result.transactionId}`,
   });
-  return transaction;
+  return result;
 };
 
 const executeTransfer = (details) => {
@@ -316,9 +274,11 @@ const executeTransfer = (details) => {
 const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {}) => {
   const now = new Date(referenceDate);
   if (Number.isNaN(now.getTime())) throw createError("Invalid automation reference date");
-  const filter = { status: "ACTIVE", ...(bankId ? { bankId } : {}) };
+  const deploymentScope = await getDeploymentScope();
+  await reconcilePendingSettlements(await getBankSigner());
+  const filter = { deploymentScope, status: "ACTIVE", ...(bankId ? { bankId } : {}) };
   const mandates = await EftMandate.find(filter).sort({ nextDebitAt: 1 });
-  const result = { referenceDate: now, reminders: 0, paid: 0, failed: 0, expired: 0, skipped: 0, errors: 0 };
+  const result = { referenceDate: now, reminders: 0, paid: 0, pending: 0, failed: 0, expired: 0, skipped: 0, errors: 0 };
 
   for (const mandate of mandates) {
     try {
@@ -329,6 +289,12 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
         result.expired += 1;
         continue;
       }
+      const shared = await loadOwnedPolicy(mandate.ownerWalletAddress, mandate.policyId);
+      if (mandate.nextDebitAt?.getTime() !== shared.nextDueAt.getTime()) {
+        mandate.nextDebitAt = shared.nextDueAt; mandate.lastReminderAt = null;
+      }
+      mandate.amountMinor = shared.amountMinor;
+      await mandate.save();
       const daysUntilDue = getReminderLeadDays(mandate.nextDebitAt, now);
       if (!mandate.lastReminderAt && isReminderWindow(mandate.nextDebitAt, now)) {
         await notifyWallet(mandate.ownerWalletAddress, {
@@ -342,7 +308,7 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
         await mandate.save();
         result.reminders += 1;
       }
-      if (mandate.nextDebitAt > now) continue;
+      if (mandate.nextDebitAt > now || mandate.validFrom > now || !shared.payableNow) continue;
       const retryCutoff = new Date(now.getTime() - EFT_RETRY_INTERVAL_MS);
       const claimedMandate = await EftMandate.findOneAndUpdate(
         {
@@ -371,7 +337,7 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
       }
       const policyDetails = await loadOwnedPolicy(claimedMandate.ownerWalletAddress, claimedMandate.policyId);
       const transfer = await executeTransfer({
-        account, policyId: claimedMandate.policyId, amountMinor: claimedMandate.amountMinor,
+        account, policyId: claimedMandate.policyId, amountMinor: policyDetails.amountMinor, installmentId: policyDetails.installmentId,
         amountWei: policyDetails.amountWei, type: "EFT", dueAt: claimedMandate.nextDebitAt,
         mandateId: claimedMandate.mandateId,
       });
@@ -379,14 +345,20 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
       if (transfer.status === "PAID") {
         claimedMandate.lastDebitedAt = now;
         claimedMandate.lastReminderAt = null;
-        claimedMandate.debitCount += 1;
-        claimedMandate.nextDebitAt = new Date(claimedMandate.nextDebitAt.getTime() + QUARTER_MS);
+        const updatedPolicy = await getReadOnlyContract().getPolicy(claimedMandate.policyId);
+        claimedMandate.nextDebitAt = new Date(Number(updatedPolicy.nextPremiumDueDate) * 1000);
         result.paid += 1;
+      } else if (transfer.status === "PROCESSING") {
+        result.pending += 1;
       } else {
         result.failed += 1;
       }
       await claimedMandate.save();
     } catch (error) {
+      if (error.statusCode === 409 && /fully paid|expired/i.test(error.message)) {
+        await EftMandate.updateOne({ _id: mandate._id, status: "ACTIVE" }, { $set: { status: "EXPIRED" }, $unset: { activeInstructionKey: 1 } });
+        result.expired += 1; continue;
+      }
       result.errors += 1;
       console.warn(`EFT mandate ${mandate.mandateId} scan failed:`, error.message);
     }
@@ -395,7 +367,8 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
 };
 
 const requestManualPaymentOtp = async ({ walletAddress, accountReference, policyId }) => {
-  await Promise.all([loadOwnedAccount(walletAddress, accountReference), loadOwnedPolicy(walletAddress, policyId)]);
+  const [, quote] = await Promise.all([loadOwnedAccount(walletAddress, accountReference), loadOwnedPolicy(walletAddress, policyId)]);
+  if (!quote.payableNow) throw createError("Next installment opens 30 days before its due date.", 409);
   const mode = deliveryMode();
   let email = "";
   if (mode === "brevo") {
@@ -418,9 +391,9 @@ const requestManualPaymentOtp = async ({ walletAddress, accountReference, policy
   );
   const challenge = await BankOtpChallenge.create({
     challengeId, ownerWalletAddress: normalizeWallet(walletAddress),
-    accountReference, policyId: String(policyId), otpHash: hashOtp(challengeId, otp), expiresAt, deliveryMode: mode,
+    accountReference, policyId: String(policyId), deploymentScope: quote.deploymentScope, installmentId: quote.installmentId, amountWei: quote.amountWei, amountMinor: quote.amountMinor, otpHash: hashOtp(challengeId, otp), expiresAt, deliveryMode: mode,
   });
-  try { return { challengeId, expiresAt, ...(await deliverOtp({ email, otp, purpose: "payment" })) }; }
+  try { return { challengeId, expiresAt, installmentId: quote.installmentId, amountWei: quote.amountWei, amountMinor: quote.amountMinor, simulated: true, ...(await deliverOtp({ email, otp, purpose: "payment" })) }; }
   catch (error) {
     await BankOtpChallenge.updateOne({ _id: challenge._id, status: "PENDING" }, { $set: { status: "FAILED" } });
     throw error;
@@ -430,7 +403,7 @@ const requestManualPaymentOtp = async ({ walletAddress, accountReference, policy
 const confirmManualPaymentOtp = async ({ walletAddress, challengeId, otp }) => {
   if (typeof challengeId !== "string" || challengeId.length > 80 || typeof otp !== "string" || !/^\d{6}$/.test(otp)) throw createError("Supply a payment challenge and six-digit code.", 422);
   const challenge = await BankOtpChallenge.findOne({
-    challengeId, ownerWalletAddress: normalizeWallet(walletAddress), status: "PENDING",
+    challengeId, ownerWalletAddress: normalizeWallet(walletAddress), deploymentScope: await getDeploymentScope(), status: "PENDING",
   }).select("+otpHash");
   if (!challenge) throw createError("Pending OTP challenge was not found", 404);
   if (challenge.deliveryMode !== deliveryMode()) throw createError("OTP delivery mode changed. Request a new payment code.", 409);
@@ -449,6 +422,12 @@ const confirmManualPaymentOtp = async ({ walletAddress, challengeId, otp }) => {
     loadOwnedAccount(walletAddress, challenge.accountReference),
     loadOwnedPolicy(walletAddress, challenge.policyId),
   ]);
+  if (!policyDetails.payableNow || challenge.deploymentScope !== policyDetails.deploymentScope ||
+    challenge.installmentId !== policyDetails.installmentId || challenge.amountWei !== policyDetails.amountWei ||
+    challenge.amountMinor !== policyDetails.amountMinor) {
+    await BankOtpChallenge.updateOne({ _id: challenge._id, status: "PENDING" }, { $set: { status: "EXPIRED" } });
+    throw createError("The authorized installment was paid or changed. Request a fresh quote.", 409);
+  }
   const consumed = await BankOtpChallenge.findOneAndUpdate(
     { _id: challenge._id, status: "PENDING", attempts: challenge.attempts, expiresAt: { $gt: new Date() } },
     { $set: { status: "USED" } },
@@ -456,8 +435,8 @@ const confirmManualPaymentOtp = async ({ walletAddress, challengeId, otp }) => {
   );
   if (!consumed) throw createError("OTP challenge was already used or expired", 409);
   return executeTransfer({
-    account, policyId: challenge.policyId, amountMinor: policyDetails.amountMinor,
-    amountWei: policyDetails.amountWei, type: "MANUAL_OTP", dueAt: new Date(),
+    account, policyId: challenge.policyId, amountMinor: challenge.amountMinor, installmentId: challenge.installmentId,
+    amountWei: challenge.amountWei, type: "MANUAL_OTP", dueAt: policyDetails.nextDueAt,
   });
 };
 
@@ -467,11 +446,17 @@ const startBankPaymentScheduler = () => {
     runBankAutomation().catch((error) => console.warn("Bank payment scheduler failed:", error.message));
   }, 15 * 60 * 1000);
   scheduler.unref();
+  reconciliationScheduler = setInterval(() => {
+    getBankSigner().then(reconcilePendingSettlements).catch(() => console.warn("Bank settlement reconciliation will retry; unresolved balances remain reserved."));
+  }, 5000);
+  reconciliationScheduler.unref();
   runBankAutomation().catch((error) => console.warn("Initial bank payment scan failed:", error.message));
 };
 
 const stopBankPaymentScheduler = () => {
   if (scheduler) clearInterval(scheduler);
+  if (reconciliationScheduler) clearInterval(reconciliationScheduler);
+  reconciliationScheduler = null;
   scheduler = null;
 };
 
@@ -483,6 +468,7 @@ module.exports = {
   createMandate,
   executeTransfer,
   getReminderLeadDays,
+  getGatewayReadiness,
   isReminderWindow,
   premiumWeiToMinor,
   rejectMandate,

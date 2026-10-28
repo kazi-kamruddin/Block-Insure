@@ -223,7 +223,7 @@ export default function HomePage() {
           <h2>One identity. One workspace. Clear authority.</h2>
           <p>
             Connecting a wallet opens only the workspace assigned to that
-            identity. Administrative, policyholder, bank, hospital, and auditor
+            identity. Hospital staff sign in separately with provisioned credentials; other
             responsibilities remain deliberately separate.
           </p>
         </div>
@@ -257,8 +257,8 @@ export default function HomePage() {
             <span>Hospital</span>
             <h3>Own patient and invoice records</h3>
             <p>
-              Use a separate provider wallet and view only records belonging to
-              the contracted hospital identity.
+              Use a provisioned staff account to maintain records belonging to
+              your contracted hospital. No wallet or transaction is required.
             </p>
           </article>
           <article>

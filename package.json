@@ -37,6 +37,7 @@
     "capture:e2e-state": "node scripts/captureE2EState.js",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
+    "test:phase1": "node scripts/runPhaseOneVerification.js",
     "test:stabilization:stack": "node scripts/stabilizationStack.js",
     "test:stabilization": "node scripts/runStabilizationE2E.js",
     "test:stabilization:storage": "node --test backEnd/test/stabilizationStorage.integration.js",

@@ -195,12 +195,12 @@ export function toBytes32FromBackendSha256(hash) {
   return normalizedHash;
 }
 
-export function hashInvoiceNumber(invoiceNumber) {
+export function hashInvoiceNumber(invoiceNumber, hospitalId) {
   if (!invoiceNumber) {
     throw new Error("Invoice number is required");
   }
 
-  return ethers.keccak256(ethers.toUtf8Bytes(invoiceNumber));
+  return hospitalId ? ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["string", "string", "string"], ["BLOCK_INSURE_INVOICE_V2", hospitalId.trim().toUpperCase(), invoiceNumber.trim()])) : ethers.keccak256(ethers.toUtf8Bytes(invoiceNumber));
 }
 
 export function toUnixSecondsFromDateInput(dateValue) {
@@ -363,14 +363,14 @@ export function parseTransactionError(error) {
   return rawMessage;
 }
 
-export async function payPolicyPremium(policyId, premiumWei) {
+export async function payPolicyPremium(policyId, premiumWei, installmentId) {
   const contract = await getWalletContract();
-  return contract.payPremium(policyId, { value: premiumWei });
+  return contract.payPremium(policyId, installmentId, { value: premiumWei });
 }
 
-export async function reinstatePolicy(policyId, premiumWei) {
+export async function reinstatePolicy(policyId, premiumWei, installmentId) {
   const contract = await getWalletContract();
-  return contract.reinstatePolicy(policyId, { value: premiumWei });
+  return contract.reinstatePolicy(policyId, installmentId, { value: premiumWei });
 }
 
 export function getEtherscanTxUrl(txHash) {

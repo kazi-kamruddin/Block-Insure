@@ -47,7 +47,7 @@ function requireDisposableE2EMongoUri(value = process.env.MONGODB_URI) {
 
   const parsed = new URL(value);
   const databaseName = parsed.pathname.replace(/^\//, "");
-  if (databaseName !== "block_insure_e2e") {
+  if (!/^block_insure_[a-z0-9_]*e2e$/.test(databaseName)) {
     throw new Error("Refusing database-backed E2E assertions outside block_insure_e2e");
   }
 
@@ -101,6 +101,7 @@ function getE2EConfig() {
         privateKey: requirePrivateKey(backend.ADMIN_PRIVATE_KEY, "ADMIN_PRIVATE_KEY"),
       },
       hospital: {
+        hospitalId: "HOSP-001",
         role: "HOSPITAL",
         home: "/hospital/dashboard",
         privateKey: requirePrivateKey(
@@ -109,6 +110,7 @@ function getE2EConfig() {
         ),
       },
       hospital2: {
+        hospitalId: "HOSP-002",
         role: "HOSPITAL",
         home: "/hospital/dashboard",
         privateKey: requirePrivateKey(

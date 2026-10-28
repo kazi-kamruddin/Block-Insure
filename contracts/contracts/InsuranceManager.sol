@@ -616,8 +616,17 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     // =============================================================
 
     function purchasePolicy(uint256 packageId) external payable whenNotPaused returns (uint256) {
-        require(_packageExists(packageId), "Package does not exist");
+        return _purchasePolicy(packageId);
+    }
 
+    function purchasePolicyWithTerms(uint256 packageId, bytes32 expectedIssueHash, bytes32 documentHash)
+        external payable whenNotPaused returns (uint256 policyId)
+    {
+        policyEconomics.validateAndBindOffer(packageId, expectedIssueHash, policyCounter, documentHash);
+        policyId = _purchasePolicy(packageId);
+    }
+
+    function _purchasePolicy(uint256 packageId) internal returns (uint256) {
         PolicyPackage memory selectedPackage = policyPackages[packageId];
 
         require(selectedPackage.isActive, "Package is not active");
@@ -658,10 +667,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             uint64(nextPremiumDueDate),
             selectedPackage.coverageAmount,
             selectedPackage.premiumAmount,
-            keccak256(bytes(selectedPackage.requiredDocumentType)),
-            DEFAULT_DEDUCTIBLE_RATE_BPS,
-            DEFAULT_DEDUCTIBLE_CAP_WEI,
-            DEFAULT_INSURER_SHARE_BPS
+            keccak256(bytes(selectedPackage.requiredDocumentType))
         );
 
         emit PolicyPurchased(
@@ -695,40 +701,21 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         return _effectivePolicyStatus(policies[policyId]);
     }
 
-    function payPremium(uint256 policyId) external payable whenNotPaused {
-        _recordPremiumFor(policyId, msg.sender, msg.value);
+    function payPremium(uint256 policyId, uint256 expectedInstallmentId) external payable {
+        _recordPremiumFor(policyId, msg.sender, expectedInstallmentId, false);
     }
 
     function recordExternalPremium(
         uint256 policyId,
         address policyholder,
-        uint256 amountWei
-    ) external {
+        uint256 expectedInstallmentId
+    ) external payable {
         require(msg.sender == bankPaymentRegistry, "Caller is not bank registry");
-        _recordPremiumFor(policyId, policyholder, amountWei);
+        _recordPremiumFor(policyId, policyholder, expectedInstallmentId, false);
     }
 
-    function reinstatePolicy(uint256 policyId) external payable whenNotPaused {
-        require(_policyExists(policyId), "Policy does not exist");
-
-        Policy storage selectedPolicy = policies[policyId];
-
-        _syncPolicyStatus(policyId, selectedPolicy);
-
-        require(selectedPolicy.holderWallet == msg.sender, "Caller is not policy holder");
-        require(selectedPolicy.status == PolicyStatus.LAPSED, "Policy is not lapsed");
-        require(block.timestamp <= selectedPolicy.endDate, "Policy has expired");
-        require(msg.value == selectedPolicy.premiumAmount, "Incorrect premium amount");
-
-        uint256 previousPaidThrough = selectedPolicy.nextPremiumDueDate;
-        _recordPremiumPayment(policyId, selectedPolicy, msg.value);
-        policyEconomics.recordPremium(
-            policyId,
-            uint64(previousPaidThrough),
-            uint64(block.timestamp),
-            uint64(selectedPolicy.nextPremiumDueDate)
-        );
-
+    function reinstatePolicy(uint256 policyId, uint256 expectedInstallmentId) external payable {
+        _recordPremiumFor(policyId, msg.sender, expectedInstallmentId, true);
     }
 
     function cancelPolicy(uint256 policyId) external {
@@ -1341,7 +1328,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             return PolicyStatus.CANCELLED;
         }
 
-        if (block.timestamp > selectedPolicy.endDate) {
+        if (block.timestamp >= selectedPolicy.endDate) {
             return PolicyStatus.EXPIRED;
         }
 
@@ -1384,13 +1371,14 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     function _recordPremiumPayment(
         uint256 policyId,
         Policy storage selectedPolicy,
-        uint256 amount
+        uint256 amount,
+        uint256 paidThrough
     ) internal {
         selectedPolicy.lastPaidTimestamp = block.timestamp;
         selectedPolicy.totalPremiumPaid += amount;
         selectedPolicy.premiumPaid = selectedPolicy.totalPremiumPaid;
         selectedPolicy.installmentsPaid += 1;
-        selectedPolicy.nextPremiumDueDate = _nextDueDate(block.timestamp, selectedPolicy.endDate);
+        selectedPolicy.nextPremiumDueDate = paidThrough;
         selectedPolicy.gracePeriodEnd = _gracePeriodEnd(
             selectedPolicy.nextPremiumDueDate,
             selectedPolicy.endDate
@@ -1412,26 +1400,18 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     function _recordPremiumFor(
         uint256 policyId,
         address policyholder,
-        uint256 amount
+        uint256 expectedInstallmentId,
+        bool reinstatement
     ) internal {
-        require(_policyExists(policyId), "Policy does not exist");
+        _requireNotPaused();
         Policy storage selectedPolicy = policies[policyId];
         _syncPolicyStatus(policyId, selectedPolicy);
         require(selectedPolicy.holderWallet == policyholder, "Caller is not policy holder");
-        require(
-            selectedPolicy.status == PolicyStatus.ACTIVE ||
-                selectedPolicy.status == PolicyStatus.GRACE_PERIOD,
-            "Policy is not payable"
-        );
-        require(amount == selectedPolicy.premiumAmount, "Incorrect premium amount");
-        uint256 previousPaidThrough = selectedPolicy.nextPremiumDueDate;
-        _recordPremiumPayment(policyId, selectedPolicy, amount);
-        policyEconomics.recordPremium(
-            policyId,
-            uint64(previousPaidThrough),
-            uint64(block.timestamp),
-            uint64(selectedPolicy.nextPremiumDueDate)
-        );
+        require(reinstatement ? selectedPolicy.status == PolicyStatus.LAPSED :
+            (selectedPolicy.status == PolicyStatus.ACTIVE || selectedPolicy.status == PolicyStatus.GRACE_PERIOD),
+            "Policy is not payable");
+        uint256 paidThrough = policyEconomics.acceptInstallment(policyId, selectedPolicy.nextPremiumDueDate, expectedInstallmentId, msg.value);
+        _recordPremiumPayment(policyId, selectedPolicy, msg.value, paidThrough);
     }
 
 

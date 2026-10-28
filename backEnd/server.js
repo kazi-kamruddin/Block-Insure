@@ -184,6 +184,7 @@ app.use("/api/audit", require("./routes/auditRoutes"));
 app.use("/api/oracle", require("./routes/oracleRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/hospitals", require("./routes/hospitalRoutes"));
+app.use("/api/hospital-staff", require("./routes/hospitalStaffRoutes"));
 app.use("/api/banks", require("./routes/bankRoutes"));
 app.use("/api/indexer", require("./routes/indexerRoutes"));
 app.use(

@@ -18,20 +18,7 @@ const seedHospitalDirectory = async () => {
     await Hospital.findOneAndUpdate(
       { hospitalId: hospital.hospitalId },
       {
-        $set: {
-          ...hospital,
-          networkStatus: "CONTRACTED",
-        },
-        $setOnInsert: { joinedAt: new Date() },
-      },
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    );
-    await User.findOneAndUpdate(
-      { walletAddress: hospital.walletAddress },
-      {
-        walletAddress: hospital.walletAddress,
-        name: hospital.name,
-        role: "HOSPITAL",
+        $setOnInsert: { ...hospital, networkStatus: "CONTRACTED", joinedAt: new Date() },
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );

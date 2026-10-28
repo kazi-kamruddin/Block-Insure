@@ -9,8 +9,8 @@ interface IExternalPremiumManager {
     function recordExternalPremium(
         uint256 policyId,
         address policyholder,
-        uint256 amountWei
-    ) external;
+        uint256 expectedInstallmentId
+    ) external payable;
 }
 
 /// @notice Establishes independently authorized bank identities for the EFT subsystem.
@@ -65,35 +65,33 @@ contract BankIdentityRegistry is AccessControl {
         emit BankIdentityRegistered(bankIdHash, bankId, bankWallet);
     }
 
-    /// @notice Records a bank-confirmed fiat transfer against the policy ledger.
-    /// @dev No native currency is moved here: the bank-owned account ledger is the
-    ///      source of truth for the simulated BDT debit, while this call creates an
-    ///      immutable, replay-protected premium receipt on-chain.
+    /// @notice Settles gateway test ETH atomically with one installment credit.
+    /// @dev The BDT ledger/quote is simulated; the native settlement is real.
     function confirmEftTransfer(
         uint256 policyId,
         address policyholder,
-        uint256 amountWei,
+        uint256 expectedInstallmentId,
         bytes32 transferReference,
         bytes32 mandateHash
-    ) external onlyRole(BANK_ROLE) {
+    ) external payable onlyRole(BANK_ROLE) {
         require(policyholder != address(0), "Invalid policyholder");
-        require(amountWei > 0, "Invalid amount");
+        require(msg.value > 0, "Invalid amount");
         require(transferReference != bytes32(0), "Transfer reference required");
         require(!processedTransferReferences[transferReference], "Transfer already processed");
         require(!insuranceManager.paused(), "Insurance manager paused");
 
         processedTransferReferences[transferReference] = true;
-        insuranceManager.recordExternalPremium(
+        insuranceManager.recordExternalPremium{value: msg.value}(
             policyId,
             policyholder,
-            amountWei
+            expectedInstallmentId
         );
         emit EftTransferConfirmed(
             transferReference,
             policyId,
             policyholder,
             msg.sender,
-            amountWei,
+            msg.value,
             mandateHash
         );
     }

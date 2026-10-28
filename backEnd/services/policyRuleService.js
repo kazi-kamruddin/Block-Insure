@@ -25,6 +25,7 @@ const resolveRuleSetId = ({ name = "", policyType = "" } = {}) => {
 };
 
 const getPolicyTerms = (policyPackage = {}) => {
+  if (policyPackage.policyTerms?.authoritative) return policyPackage.policyTerms;
   const ruleSetId = resolveRuleSetId(policyPackage);
   return { ...POLICY_RULES[ruleSetId] };
 };
@@ -67,6 +68,7 @@ const evaluatePolicyEligibility = ({
   coverageAmountWei,
   preExistingCondition = false,
   disclosedAtPurchase = false,
+  currentTimestamp = Math.floor(Date.now() / 1000),
 }) => {
   const start = parseUnixSeconds(policyStartDate, "policyStartDate");
   const end = parseUnixSeconds(policyEndDate, "policyEndDate");
@@ -94,7 +96,8 @@ const evaluatePolicyEligibility = ({
     );
   }
 
-  if (outcome === "COVERED" && terms.excludedClaimTypes.includes(normalizedType)) {
+  const serviceHash = ethers.id(String(claimType || ""));
+  if (outcome === "COVERED" && (terms.authoritative ? terms.excludedServiceHashes.includes(serviceHash) : terms.excludedClaimTypes.includes(normalizedType))) {
     outcome = "EXCLUDED";
     reasons.push(
       createReason(
@@ -107,13 +110,13 @@ const evaluatePolicyEligibility = ({
 
   if (
     outcome === "COVERED" &&
-    !terms.coveredClaimTypes.includes(normalizedType)
+    (terms.authoritative ? (terms.version !== "0" && !terms.allowedServiceHashes.includes(serviceHash)) : !terms.coveredClaimTypes.includes(normalizedType))
   ) {
-    outcome = "MANUAL_REVIEW";
+    outcome = terms.authoritative ? "EXCLUDED" : "MANUAL_REVIEW";
     reasons.push(
       createReason(
         "UNLISTED_CLAIM_TYPE",
-        "The claim type is not explicitly listed and requires policy interpretation.",
+        terms.authoritative ? "This exact service code is not eligible under the issued contract rules." : "The claim type is not explicitly listed and requires policy interpretation.",
         "REVIEW"
       )
     );
@@ -121,7 +124,7 @@ const evaluatePolicyEligibility = ({
 
   if (
     outcome === "COVERED" &&
-    preExistingCondition &&
+    !terms.authoritative && preExistingCondition &&
     daysFromStart < terms.preExistingConditionWaitingDays
   ) {
     outcome = "WAITING_PERIOD";
@@ -148,7 +151,7 @@ const evaluatePolicyEligibility = ({
 
   if (
     outcome === "COVERED" &&
-    preExistingCondition &&
+    !terms.authoritative && preExistingCondition &&
     !disclosedAtPurchase
   ) {
     outcome = "MANUAL_REVIEW";
@@ -161,10 +164,37 @@ const evaluatePolicyEligibility = ({
     );
   }
 
-  const cappedWei = requestedWei < coverageWei ? requestedWei : coverageWei;
+  if (terms.authoritative) {
+    if (terms.coverageIntervals && !terms.coverageIntervals.some((interval) => incident >= Number(interval.waitingEndsAt) && incident <= Number(interval.endsAt))) {
+      outcome = "OUTSIDE_COVERAGE";
+      reasons.push(createReason("UNPAID_OR_WAITING_INTERVAL", "Incident is outside paid coverage or inside a waiting period.", "BLOCK"));
+    }
+    if (requestedWei > BigInt(terms.maximumClaimWei || coverageWei)) {
+      outcome = "EXCLUDED";
+      reasons.push(createReason("MAXIMUM_CLAIM_EXCEEDED", "Requested amount exceeds the issued maximum claim amount.", "BLOCK"));
+    }
+    if (currentTimestamp > incident + terms.claimDeadlineDays * DAY_SECONDS) {
+      outcome = "OUTSIDE_COVERAGE";
+      reasons.push(createReason("CLAIM_DEADLINE", "The issued claim submission deadline has passed.", "BLOCK"));
+    }
+  }
+  const remaining = terms.remainingCoverageWei === undefined ? coverageWei : BigInt(terms.remainingCoverageWei);
+  const cappedWei = requestedWei < remaining ? requestedWei : remaining;
+  const nominalDeductible = terms.authoritative ? requestedWei * BigInt(terms.deductibleRateBps) / 10000n : 0n;
+  const deductible = terms.authoritative && nominalDeductible > BigInt(terms.deductibleCapWei) ? BigInt(terms.deductibleCapWei) : nominalDeductible;
+  const afterDeductible = requestedWei > deductible ? requestedWei - deductible : 0n;
+  const shared = afterDeductible * BigInt(terms.coinsuranceBps) / 10000n;
+  if (terms.authoritative && (shared <= 0n || shared > remaining)) {
+    outcome = "OUTSIDE_COVERAGE";
+    reasons.push(createReason("INSUFFICIENT_REMAINING_COVERAGE", "Calculated insurer liability is zero or exceeds remaining coverage; the contract rejects this claim.", "BLOCK"));
+  }
+  if (terms.authoritative && incident > currentTimestamp) {
+    outcome = "OUTSIDE_COVERAGE";
+    reasons.push(createReason("FUTURE_INCIDENT", "A future incident cannot be submitted.", "BLOCK"));
+  }
   const estimatedBenefitWei =
     outcome === "COVERED" || outcome === "MANUAL_REVIEW"
-      ? (cappedWei * BigInt(terms.coinsuranceBps)) / 10000n
+      ? (terms.authoritative ? (shared < cappedWei ? shared : cappedWei) : (cappedWei * BigInt(terms.coinsuranceBps)) / 10000n)
       : 0n;
 
   if (outcome === "COVERED" && estimatedBenefitWei < requestedWei) {

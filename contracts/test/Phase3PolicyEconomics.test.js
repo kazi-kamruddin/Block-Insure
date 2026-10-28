@@ -152,7 +152,7 @@ describe("Phase 3 - Policy economics and Solidity rules", function () {
     const policyBefore = await fixture.manager.getPolicy(1);
     const gapIncident = policyBefore.nextPremiumDueDate + 1n;
     await time.increaseTo(policyBefore.gracePeriodEnd + 1n);
-    await fixture.manager.connect(fixture.user).reinstatePolicy(1, { value: premium });
+    await fixture.manager.connect(fixture.user).reinstatePolicy(1, 2, { value: premium });
 
     await expect(
       submit(fixture.manager, fixture.user, "lapse-gap", ethers.parseEther("0.1"), gapIncident)
@@ -180,7 +180,7 @@ describe("Phase 3 - Policy economics and Solidity rules", function () {
     const fixture = await deployFixture({
       configuredRules: {
         waitingPeriod: 7 * 24 * 60 * 60,
-        minimumDocumentCommitments: 2,
+        minimumDocumentCommitments: 1,
       },
     });
     const policy = await fixture.manager.getPolicy(1);

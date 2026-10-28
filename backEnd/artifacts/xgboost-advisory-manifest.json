@@ -7,7 +7,7 @@
     "oracle/observableFeatures.js": "8a8066f60312aa4c3f67952392e153e2127282d9617749f1146956a829b242ab",
     "oracle/advisoryBundle.js": "76cf174df79ac9a2f16db5a185341154f46c5a1b3ccaf1dcd2e8a103b33360a7",
     "oracle/shadowAssessment.js": "9fd73f543a9eef5141fa7d66193ad4faea0e8d5f941aa4e3f1b2579055f3ee2e",
-    "oracle/merkleProof.js": "5e51abe8acd115f60618b16d0d8c7ef1e529ea0a6bb161b9cb8a6cdd2ac738ed",
+    "oracle/merkleProof.js": "00195d081d9cc0aa9b02ab40411b6a09243ed4802276ab020ace73a7c8e13a44",
     "oracle/independentAssessment.js": "9fb46d1b564543107f07d6aae888cad1be5b240654484796a9d72721390c4645",
     "backEnd/research/context.js": "95842cfa612bf6c3220ee63d12b3b9cd3fb368f8591e9c60f256bcbaf1654a33",
     "backEnd/research/phase3-plan.json": "0d1c2033f2104a391f8fdd68f75f010e91d7b814cf7fcb84e15d4637f2a1556c",

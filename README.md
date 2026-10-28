@@ -12,13 +12,20 @@ evaluation. It is not a production insurance service or a clinical fraud detecto
 
 - Policy purchase, premium payments, standing bank instructions, and statements.
 - Claims and corrected appeals with browser-encrypted supporting documents.
-- Hospital attestations and verification against committed Merkle registry roots.
+- Hospital staff record maintenance, automatic publication and Merkle verification.
 - Two Oracle workers with request-bound, versioned risk assessments.
 - Manual review with a four-auditor snapshot: three approvals allocate a payout,
   two rejections reject, and an expired review rejects without sufficient quorum.
 - Pull-payment settlement: recipients withdraw allocated payouts.
 - Beneficiary, surrender, and maturity benefits with eligibility checks.
-- Wallet-based SIWE login, role isolation, and email confirmation/OTP support.
+- SIWE for signing roles, separate hospital staff login, and email confirmation/OTP.
+
+The Phase 1 foundation uses fixed installment periods shared by wallet, OTP and
+EFT payments. Simulated BDT debits settle funded test ETH atomically, with durable
+pending-operation recovery. Purchase documents reflect published contract rules
+and bind their hash to the issued policy. See
+[financial and provider workflows](docs/financial-and-provider-workflows.md) for
+the supported rules, trust boundaries and new-deployment requirements.
 
 Model scores support claim routing; they do not establish fraud or bypass
 eligibility, auditor quorum, reserves, or payout-withdrawal rules. Fresh
@@ -110,7 +117,8 @@ blockchain transactions until its shared chain and services are configured.
 
 ## Scope
 
-Bank balances and transfers are simulated. Email verification proves access to
+BDT balances, bank ownership and conversion are simulated; the gateway settles
+actual test ETH. Email verification proves access to
 the configured mailbox, not legal identity. Hospital-registry commitments and
 Oracle agreement depend on the configured data sources and trust model.
 Research results use controlled scenarios and weak provider labels; they do not

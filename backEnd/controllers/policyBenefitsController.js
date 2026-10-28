@@ -1,5 +1,6 @@
 const { ethers } = require("ethers");
 const { getReadOnlyContract } = require("../services/contractService");
+const { getIssuedTerms, getIssuedDocument } = require("../services/issuedPolicyTermsService");
 const { getPolicyTerms } = require("../services/policyRuleService");
 const {
   formatBenefitRequest,
@@ -41,7 +42,7 @@ const loadReadableSnapshot = async (req, policyId) => {
     throw createError("Access denied: wallet is not a policy party", 403);
   }
   const policyPackage = await insurance.getPolicyPackage(policy.packageId);
-  return { policy, policyPackage, snapshot, effectiveStatus };
+  return { policy, policyPackage: { ...policyPackage.toObject(), policyTerms: await getIssuedTerms(insurance, policyId) }, snapshot, effectiveStatus };
 };
 
 const getPolicyBenefits = async (req, res, next) => {
@@ -94,7 +95,7 @@ Coverage period: ${new Date(Number(policy.startDate) * 1000).toISOString()} to $
 
 - Rule profile: ${healthTerms.displayName} v${healthTerms.version}
 - Initial waiting period: ${healthTerms.waitingPeriodDays} days
-- Pre-existing-condition waiting period: ${healthTerms.preExistingConditionWaitingDays} days
+- Pre-existing-condition underwriting: outside the implemented prototype scope
 - Insurer share: ${healthTerms.coinsuranceBps / 100}%
 - Covered claim types: ${healthTerms.coveredClaimTypes.join(", ")}
 - Exclusions: ${healthTerms.excludedClaimTypes.join(", ")}
@@ -127,7 +128,8 @@ This document is generated from the policy's current blockchain records and publ
 const downloadPolicyTerms = async (req, res, next) => {
   try {
     const policyData = await loadReadableSnapshot(req, req.params.policyId);
-    const markdown = buildPolicyMarkdown(policyData);
+    const issued = await getIssuedDocument(getReadOnlyContract(), policyData.policy);
+    const markdown = issued.available ? `${issued.content}\n\n---\n\n# Current optional benefits report (separate enrollment)\n\n${buildPolicyMarkdown(policyData)}` : buildPolicyMarkdown(policyData);
     res.setHeader("Content-Type", "text/markdown; charset=utf-8");
     res.setHeader(
       "Content-Disposition",

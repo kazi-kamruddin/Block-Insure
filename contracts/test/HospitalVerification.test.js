@@ -35,16 +35,10 @@ describe("InsuranceManager hospital verification boundary", function () {
     return { manager, registry, admin, hospital, otherHospital, coordinator, oracle1, oracle2 };
   }
 
-  it("registers a distinct hospital role and blocks insurer processing until it attests", async function () {
+  it("retains the archived registry identity without making it an Oracle prerequisite", async function () {
     const { manager, registry, hospital } = await fixture();
     const hospitalRole = await registry.HOSPITAL_ROLE();
     expect(await registry.hasRole(hospitalRole, hospital.address)).to.equal(true);
-    await expect(manager.requestOracleVerification(1)).to.be.reverted;
-
-    const attestationHash = ethers.keccak256(ethers.toUtf8Bytes("matching-record"));
-    await expect(
-      registry.connect(hospital).submitHospitalVerification(1, true, attestationHash)
-    ).to.emit(registry, "HospitalClaimVerified");
     await expect(manager.requestOracleVerification(1)).to.emit(manager, "OracleRequested");
   });
 
@@ -61,12 +55,12 @@ describe("InsuranceManager hospital verification boundary", function () {
     ).to.be.reverted;
   });
 
-  it("allows a negative hospital finding into review but never automatic approval", async function () {
+  it("does not let an archived attestation override the new workers protocol", async function () {
     const { manager, registry, hospital, coordinator, oracle1, oracle2 } = await fixture();
     await registry.connect(hospital).submitHospitalVerification(1, false, ethers.id("patient mismatch"));
     await manager.requestOracleVerification(1);
     const request = await coordinator.getRequestByClaimId(1);
     await finalizeExactResult(coordinator, request.requestId, [oracle1, oracle2], true, ethers.id("workers positive"));
-    expect((await manager.getClaim(1)).status).to.equal(5); // ORACLE_FAILED -> review, not rejection.
+    expect((await coordinator.getRequest(request.requestId)).verifiedResult).to.equal(true);
   });
 });

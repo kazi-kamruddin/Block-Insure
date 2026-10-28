@@ -1,4 +1,5 @@
 const { ethers } = require("ethers");
+const { invoiceIdentity, patientIdentity } = require("../../oracle/recordIdentity");
 const Appeal = require("../models/Appeal");
 const { assertAppealFactsMatch } = require("../services/appealFactService");
 const Hospital = require("../models/Hospital");
@@ -36,9 +37,10 @@ const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const getHospitalIdentity = async (user) => {
-  const hospital = await findHospitalByWallet(user.walletAddress);
+  const hospital = user.authMethod === "HOSPITAL_STAFF"
+    ? await Hospital.findOne({ hospitalId: user.hospitalId }) : null;
   if (!hospital || hospital.networkStatus !== "CONTRACTED") {
-    const error = new Error("No active hospital identity is assigned to this wallet");
+    const error = new Error("No active hospital is assigned to this staff session");
     error.statusCode = 403;
     throw error;
   }
@@ -50,6 +52,8 @@ const formatRecord = (record) => ({
   hospitalId: record.hospitalId,
   hospitalName: record.hospitalName,
   patientHash: record.patientHash,
+  identityVersion: record.identityVersion || 1,
+  revision: record.sourceRevision || 0,
   authorizedClaimants: record.authorizedClaimants || [],
   publicationPending: Boolean(record.publicationPending),
   invoiceNumber: record.invoiceNumber,
@@ -203,9 +207,9 @@ const getMyHospitalProfile = async (req, res, next) => {
         viewOwnedRecords: true,
         createRecords: true,
         maintainRecords: true,
-        verifyClaims: true,
-        onChainAttestations: true,
-        note: "The hospital owns its records and independently attests claim matches before insurer processing.",
+        verifyClaims: false,
+        onChainAttestations: false,
+        note: "Staff maintain hospital source records. The insurer publisher commits versioned snapshots automatically; Oracle workers check claims against those records. Publication establishes integrity, not independent clinical truth.",
       },
     });
   } catch (error) {
@@ -229,6 +233,7 @@ const createMyHospitalRecord = async (req, res, next) => {
     const dischargeDate = new Date(req.body.dischargeDate);
     const invoiceDate = new Date(req.body.invoiceDate || req.body.dischargeDate);
 
+    if (invoiceNumber.length > 128 || patientReference.length > 128 || treatmentType.length > 64 || diagnosisCode.length > 64) throw createError("Hospital reference or code exceeds its supported length", 422);
     if (!invoiceNumber || !patientReference || !treatmentType || !diagnosisCode) {
       throw createError(
         "invoiceNumber, patientReference, treatmentType, and diagnosisCode are required"
@@ -247,7 +252,7 @@ const createMyHospitalRecord = async (req, res, next) => {
       throw createError("Bill amount must be a positive ETH amount");
     }
 
-    const invoiceHash = ethers.keccak256(ethers.toUtf8Bytes(invoiceNumber));
+    const invoiceHash = invoiceIdentity(hospital.hospitalId, invoiceNumber);
     const record = await MockHospitalRecord.create({
       hospitalId: hospital.hospitalId,
       providerId: hospital.hospitalId,
@@ -256,7 +261,11 @@ const createMyHospitalRecord = async (req, res, next) => {
       district: hospital.district,
       hospitalTier: hospital.hospitalTier,
       licenseStatus: "ACTIVE",
-      patientHash: ethers.keccak256(ethers.toUtf8Bytes(patientReference)),
+      patientHash: patientIdentity(hospital.hospitalId, patientReference),
+      identityVersion: 2,
+      sourceRevision: 1,
+      createdByStaffId: req.user.staffId,
+      modifiedByStaffId: req.user.staffId,
       authorizedClaimants,
       publicationPending: true,
       treatmentType,
@@ -282,6 +291,8 @@ const createMyHospitalRecord = async (req, res, next) => {
     });
 
     await queueRegistryPublication();
+    await logAdminAction({ req, action: "HOSPITAL_RECORD_CREATED", targetType: "HospitalRecord", targetId: record.id,
+      metadata: { hospitalId: hospital.hospitalId, revision: record.sourceRevision } });
     res.status(201).json({
       success: true,
       message: "Hospital record created. Registry publication queued automatically.",
@@ -340,11 +351,14 @@ const updateMyHospitalRecord = async (req, res, next) => {
       throw createError("Discharge date cannot precede admission date");
     }
     const record = await MockHospitalRecord.findOneAndUpdate(
-      { _id: req.params.id, hospitalId: hospital.hospitalId },
-      { $set: { ...updates, publicationPending: true } },
+      { _id: req.params.id, hospitalId: hospital.hospitalId, updatedAt: currentRecord.updatedAt },
+      { $set: { ...updates, publicationPending: true, modifiedByStaffId: req.user.staffId }, $inc: { sourceRevision: 1 } },
       { returnDocument: "after", runValidators: true }
     );
+    if (!record) throw createError("Record changed while editing. Reload and retry.", 409);
     await queueRegistryPublication();
+    await logAdminAction({ req, action: "HOSPITAL_RECORD_UPDATED", targetType: "HospitalRecord", targetId: record.id,
+      metadata: { hospitalId: hospital.hospitalId, revision: record.sourceRevision, fields: Object.keys(updates) } });
     res.status(200).json({
       success: true,
       message: "Hospital record updated. Registry publication queued automatically.",

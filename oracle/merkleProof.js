@@ -4,6 +4,7 @@ const normalizeHash = (value) => String(value || "").trim().toLowerCase();
 const stripHexPrefix = (value) => normalizeHash(value).replace(/^0x/, "");
 
 const getCanonicalRecordPayload = (record = {}) => ({
+  ...(record.identityVersion === 2 ? { identityVersion: 2 } : {}),
   hospitalId: record.hospitalId,
   hospitalName: record.hospitalName,
   licenseStatus: record.licenseStatus,

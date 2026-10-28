@@ -205,11 +205,8 @@ async function main() {
     await insuranceManager.oracleCoordinator(),
     adminWallet
   );
-  await (
-    await oracleCoordinator.configureHospitalVerificationRegistry(
-      hospitalVerificationRegistryAddress
-    )
-  ).wait();
+  // The legacy registry is retained for archival ABI compatibility only.
+  // Hospital staff publication replaces per-claim wallet attestations.
   console.log(
     "HospitalVerificationRegistry deployed to:",
     hospitalVerificationRegistryAddress
@@ -277,7 +274,17 @@ async function main() {
 
   await tx.wait();
 
-  console.log("Health Basic policy package created");
+  const { buildRulePublication } = require("../../backEnd/services/packageRuleDefinitionService");
+  const issue = buildRulePublication(1, 1, {
+    waitingPeriodDays: 0, reinstatementWaitingPeriodDays: 0, claimDeadlineDays: 365,
+    minimumDocumentCommitments: 1, deductibleRateBps: 1000, deductibleCapEth: "0.02", insurerShareBps: 8000,
+    maximumClaimEth: hre.ethers.formatEther(coverageAmount),
+    allowedClaimTypes: ["HEALTH", "HOSPITALIZATION", "SURGERY", "EMERGENCY", "ACCIDENT", "CONSULTATION", "DIAGNOSTIC", "TRAUMA"],
+    excludedClaimTypes: ["COSMETIC"], requiredDocumentTypes: ["HOSPITAL_BILL"],
+  });
+  const issueEconomics = await hre.ethers.getContractAt("PolicyEconomics", economicsAddress, adminWallet);
+  await (await issueEconomics.publishPackageRules(1, issue.rules, issue.allowedServices, issue.excludedServices)).wait();
+  console.log("Health Basic package and enforceable issue rules published");
 
   const PolicyBenefitsManager = await hre.ethers.getContractFactory(
     "PolicyBenefitsManager",
@@ -339,27 +346,27 @@ async function main() {
     adminWallet
   );
   const deploymentRegistry = await ProtocolDeploymentRegistry.deploy(
-    hre.ethers.id("BLOCK_INSURE_V1"),
+    hre.ethers.id("BLOCK_INSURE_COMPLETION_PHASE1_V2"),
     hre.ethers.keccak256(hre.ethers.toUtf8Bytes(migrationManifest))
   );
   await deploymentRegistry.waitForDeployment();
   const deploymentRegistryAddress = await deploymentRegistry.getAddress();
   for (const [name, address, interfaceVersion] of [
-    ["InsuranceManager", contractAddress, "IInsuranceManager/1"],
-    ["OracleCoordinator", await insuranceManager.oracleCoordinator(), "IOracleCoordinator/1"],
+    ["InsuranceManager", contractAddress, "IInsuranceManager/2"],
+    ["OracleCoordinator", await insuranceManager.oracleCoordinator(), "IOracleCoordinator/2"],
     ["ClaimAdjudicator", adjudicatorAddress, "IClaimAdjudicator/1"],
-    ["PolicyEconomics", economicsAddress, "IPolicyEconomics/1"],
+    ["PolicyEconomics", economicsAddress, "IPolicyEconomics/2"],
     ["EvidenceRegistry", evidenceRegistryAddress, "IEvidenceRegistry/1"],
     ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/1"],
     ["HospitalVerificationRegistry", hospitalVerificationRegistryAddress, "IHospitalVerificationRegistry/1"],
-    ["BankIdentityRegistry", bankIdentityRegistryAddress, "IBankIdentityRegistry/1"],
+    ["BankIdentityRegistry", bankIdentityRegistryAddress, "IBankIdentityRegistry/2"],
   ]) {
     await (
       await deploymentRegistry.registerComponent(
         hre.ethers.id(name),
         address,
         hre.ethers.id(interfaceVersion),
-        true
+        name !== "HospitalVerificationRegistry"
       )
     ).wait();
   }

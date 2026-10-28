@@ -1,6 +1,36 @@
 const { expect } = require("@playwright/test");
 
 async function loginActor(page, actor) {
+  if (actor.role === "HOSPITAL") {
+    const { getE2EConfig } = require("./environment");
+    const { Wallet } = require("../../backEnd/node_modules/ethers");
+    const config = getE2EConfig();
+    const admin = new Wallet(config.actors.admin.privateKey);
+    const nonceResponse = await page.request.get(`${config.apiUrl}/api/auth/nonce/${admin.address}`);
+    const nonce = await nonceResponse.json();
+    const login = await page.request.post(`${config.apiUrl}/api/auth/wallet-login`, { data: {
+      walletAddress: admin.address, message: nonce.message, signature: await admin.signMessage(nonce.message),
+    } });
+    expect(login.ok()).toBe(true);
+    const headers = { Authorization: `Bearer ${(await login.json()).token}` };
+    const hospitalId = actor.name === "hospital2" || actor.hospitalId === "HOSP-002" ? "HOSP-002" : "HOSP-001";
+    // Synthetic test credential only; never a maintained user credential.
+    const username = `e2e.staff.${hospitalId.toLowerCase()}`;
+    const password = `Synthetic-staff-${require("node:crypto").randomBytes(18).toString("hex")}`;
+    const created = await page.request.post(`${config.apiUrl}/api/hospital-staff/accounts`, { headers, data: { username, password, hospitalId, displayName: "Synthetic hospital staff" } });
+    if (created.status() === 409) {
+      const accounts = await (await page.request.get(`${config.apiUrl}/api/hospital-staff/accounts`, { headers })).json();
+      const existing = accounts.staff.find((staff) => staff.username === username);
+      const reset = await page.request.patch(`${config.apiUrl}/api/hospital-staff/accounts/${existing.staffId}`, { headers, data: { password, active: true } });
+      expect(reset.ok()).toBe(true);
+    } else expect(created.status(), await created.text()).toBe(201);
+    await page.goto("/hospital/login");
+    await page.getByLabel("Username", { exact: true }).fill(username);
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Sign in to hospital" }).click();
+    await expect(page).toHaveURL(/\/hospital\/dashboard$/);
+    return;
+  }
   await page.goto("/");
   await page.getByRole("button", { name: /connect wallet/i }).first().click();
   await expect(page).toHaveURL(new RegExp(`${actor.home.replaceAll("/", "\\/")}$`));
@@ -62,7 +92,22 @@ function syntheticPdfEvidenceFile() {
   return { name: `demo-evidence-${Date.now()}.pdf`, mimeType: "application/pdf", buffer: Buffer.from(pdf) };
 }
 
+async function advanceToInstallment(session, policyId, daysBeforeDue = 30) {
+  const { Contract } = require("../../backEnd/node_modules/ethers");
+  expect((await session.provider.getNetwork()).chainId).toBe(31337n);
+  const manager = new Contract(process.env.CONTRACT_ADDRESS || process.env.VITE_CONTRACT_ADDRESS, require("../../backEnd/abi/InsuranceManager.json").abi, session.provider);
+  const policy = await manager.getPolicy(policyId);
+  const target = Number(policy.nextPremiumDueDate) - daysBeforeDue * 86400;
+  const current = await session.provider.getBlock("latest");
+  if (target > Number(current.timestamp)) {
+    await session.provider.send("evm_setNextBlockTimestamp", [target]);
+    await session.provider.send("evm_mine", []);
+  }
+  return policy;
+}
+
 module.exports = {
+  advanceToInstallment,
   localDateTimeValue,
   loginActor,
   resetLocalClaimSubmissionLimit,

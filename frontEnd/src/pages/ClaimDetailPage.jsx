@@ -11,6 +11,7 @@ import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
 import TransactionLink from "../components/TransactionLink";
 import {
+  previewInvoiceEligibility,
   getAppealByClaim,
   getClaimById,
   getOracleResults,
@@ -19,6 +20,7 @@ import {
   revokeDocumentAccess,
 } from "../services/api";
 import {
+  hashInvoiceNumber,
   getWalletContract,
   getReadOnlyClaimAdjudicator,
   getReadOnlyContract,
@@ -235,7 +237,8 @@ export default function ClaimDetailPage() {
         const manager = await getWalletContract();
         const current = await manager.getClaim(id);
         const amount = proposedClaimAmountEth ? ethers.parseEther(proposedClaimAmountEth) : current.claimAmount;
-        const invoice = proposedInvoiceNumber ? ethers.id(proposedInvoiceNumber.trim()) : current.invoiceHash;
+        const lookup = proposedInvoiceNumber ? await previewInvoiceEligibility(current.hospitalId, undefined, proposedInvoiceNumber.trim()) : null;
+        const invoice = proposedInvoiceNumber ? lookup.invoiceHash || hashInvoiceNumber(proposedInvoiceNumber.trim(), current.hospitalId) : current.invoiceHash;
         if (amount !== current.claimAmount || invoice !== current.invoiceHash) {
           const amendment = await manager.amendRejectedClaim(id, amount, invoice);
           await amendment.wait();
@@ -454,7 +457,7 @@ export default function ClaimDetailPage() {
 
       {claim ? (
         <div className="card">
-          <h3>Hospital verification</h3>
+          <h3>Hospital record verification</h3>
           {hospitalVerification ? (
             <>
               <p>Outcome: <strong>{hospitalVerification.outcome}</strong></p>
@@ -464,7 +467,7 @@ export default function ClaimDetailPage() {
               <p><TransactionLink txHash={hospitalVerification.transactionHash} /></p>
             </>
           ) : (
-            <p>The claim is waiting for its contracted hospital to verify the source invoice.</p>
+            <p>Oracle workers check the published hospital record automatically. Staff do not attest to individual claims; missing or unavailable records require recovery or review.</p>
           )}
         </div>
       ) : null}

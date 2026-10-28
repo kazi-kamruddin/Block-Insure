@@ -34,6 +34,7 @@ const sortRecordsForTree = (records) => {
 };
 
 const getCanonicalRecordPayload = (record) => ({
+  ...(record.identityVersion === 2 ? { identityVersion: 2 } : {}),
   hospitalId: record.hospitalId,
   hospitalName: record.hospitalName,
   licenseStatus: record.licenseStatus,
@@ -186,7 +187,7 @@ const getRegistryRecordsForMerkle = async (registrySnapshot = "primary") => {
 
   return RegistryModel.find()
     .select(
-      "hospitalId hospitalName licenseStatus patientHash observableHistory authorizedClaimants treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel datasetProfile baseDataOrigin claimSetting providerPotentialFraud providerLabelType scenarioInjected scenarioType scenarioVersion sourceClaimAmountUsd sourceProcedureCode amountNormalizationVersion amountNormalizationDivisor previousClaimCount providerVelocityAnomaly claimantVelocityAnomaly nearDuplicateAdvisory isMissingOrNoisy dataQuality recurringLegitimate fraudSignals"
+      "identityVersion hospitalId hospitalName licenseStatus patientHash observableHistory authorizedClaimants treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel datasetProfile baseDataOrigin claimSetting providerPotentialFraud providerLabelType scenarioInjected scenarioType scenarioVersion sourceClaimAmountUsd sourceProcedureCode amountNormalizationVersion amountNormalizationDivisor previousClaimCount providerVelocityAnomaly claimantVelocityAnomaly nearDuplicateAdvisory isMissingOrNoisy dataQuality recurringLegitimate fraudSignals"
     )
     .lean();
 };

@@ -108,6 +108,18 @@ requests. A provider acceptance response does not establish mailbox receipt or
 premium payment; verify the inbox and the resulting confirmed transaction.
 Simulation never verifies ownership of a real mailbox.
 
+Premium collection opens 30 days before the next fixed installment due date.
+Requesting an OTP immediately after purchase is correctly refused. The OTP binds
+the installment and quote; a wallet or EFT payment invalidates a stale challenge.
+The gateway signer needs test ETH for both settlement and gas. Inspect its funding
+status on the Banking page. See [the payment rules](financial-and-provider-workflows.md).
+
+Hospital staff use `/hospital/login` without MetaMask. Provision staff from
+**Administration → Hospital Staff** after ordinary administrator SIWE sign-in.
+Share credentials privately; no default staff password is seeded. Staff maintain
+source records and publication runs automatically. The legacy hospital-wallet
+attestation screen is retired.
+
 Evidence is encrypted in the browser before upload. Preserve the browser's
 evidence identity and its encrypted recovery backup when reusing a wallet.
 
@@ -124,3 +136,9 @@ npm run verify:all
 `verify:all` includes hybrid dataset validation and needs the separately prepared
 dataset. The subsystem test commands in the root README can run independently.
 See [browser testing](../e2e/README.md) for the isolated end-to-end campaign.
+
+The Phase 1 changes require a new local deployment and a separately selected
+database. An old saved manifest does not represent a running compatible chain.
+Keep Atlas and existing snapshots intact; do not run `setup:local` against them.
+For disposable verification, use the explicit loopback database described in the
+browser-testing guide and `npm run test:phase1`.

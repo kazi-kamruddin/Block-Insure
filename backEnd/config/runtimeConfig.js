@@ -12,12 +12,12 @@ const PRODUCTION_REQUIRED_KEYS = [
   "JWT_SECRET",
   "RPC_URL",
   "CHAIN_ID",
+  "CONTRACT_DEPLOYMENT_BLOCK",
   "ALLOWED_ORIGINS",
   "SIWE_URI",
   "VITE_CONTRACT_ADDRESS",
   "POLICY_BENEFITS_ADDRESS",
   "EVIDENCE_REGISTRY_ADDRESS",
-  "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS",
   "BANK_IDENTITY_REGISTRY_ADDRESS",
   "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS",
   "ADMIN_PRIVATE_KEY",
@@ -32,7 +32,6 @@ const PRODUCTION_REQUIRED_KEYS = [
   "AUDITOR_WALLET_ADDRESS_2",
   "AUDITOR_WALLET_ADDRESS_3",
   "AUDITOR_WALLET_ADDRESS_4",
-  "HOSPITAL_WALLET_ADDRESSES",
   "DEMO_BANK_ACCOUNT_OWNER_ADDRESSES",
 ];
 
@@ -50,7 +49,6 @@ const CONTRACT_ADDRESS_KEYS = [
   "VITE_CONTRACT_ADDRESS",
   "POLICY_BENEFITS_ADDRESS",
   "EVIDENCE_REGISTRY_ADDRESS",
-  "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS",
   "BANK_IDENTITY_REGISTRY_ADDRESS",
   "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS",
 ];
@@ -122,6 +120,13 @@ const inspectRuntimeEnvironment = (environment = process.env) => {
     if (blockchainRuntimeEnabled && Number(environment.CHAIN_ID) === 31337) {
       failures.push("Production must not use the local Hardhat chain ID 31337");
     }
+    if (blockchainRuntimeEnabled && (!Number.isSafeInteger(Number(environment.CONTRACT_DEPLOYMENT_BLOCK)) || Number(environment.CONTRACT_DEPLOYMENT_BLOCK) < 1)) {
+      failures.push("CONTRACT_DEPLOYMENT_BLOCK must identify the positive manager creation block");
+    }
+    if (environment.BANK_SETTLEMENT_CONFIRMATIONS !== undefined &&
+      (!Number.isSafeInteger(Number(environment.BANK_SETTLEMENT_CONFIRMATIONS)) || Number(environment.BANK_SETTLEMENT_CONFIRMATIONS) < 1)) {
+      failures.push("BANK_SETTLEMENT_CONFIRMATIONS must be a positive integer");
+    }
     for (const key of blockchainRuntimeEnabled ? CONTRACT_ADDRESS_KEYS : []) {
       if (environment[key] && !isAddress(environment[key])) {
         failures.push(`${key} must be a valid Ethereum address`);
@@ -140,7 +145,6 @@ const inspectRuntimeEnvironment = (environment = process.env) => {
       }
     }
     for (const [key, expectedCount] of blockchainRuntimeEnabled ? [
-      ["HOSPITAL_WALLET_ADDRESSES", 5],
       ["DEMO_BANK_ACCOUNT_OWNER_ADDRESSES", 3],
     ] : []) {
       const addresses = splitCommaSeparated(environment[key]);

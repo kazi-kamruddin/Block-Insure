@@ -171,8 +171,8 @@ export default function SubmitClaimPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
   const [submissionLimit, setSubmissionLimit] = useState(null);
-  const [preExistingCondition, setPreExistingCondition] = useState(false);
-  const [disclosedAtPurchase, setDisclosedAtPurchase] = useState(false);
+  const preExistingCondition = false;
+  const disclosedAtPurchase = false;
 
   const {
     data: policiesData,
@@ -204,7 +204,7 @@ export default function SubmitClaimPage() {
 
   const invoiceEligibility = useQuery({
     queryKey: ["invoiceEligibility", walletAddress, hospitalId, invoiceNumber.trim()],
-    queryFn: () => previewInvoiceEligibility(hospitalId, hashInvoiceNumber(invoiceNumber.trim())),
+    queryFn: () => previewInvoiceEligibility(hospitalId, undefined, invoiceNumber.trim()),
     enabled: false,
     retry: false,
   });
@@ -352,7 +352,8 @@ export default function SubmitClaimPage() {
 
       setIsSubmitting(true);
 
-      const invoiceHash = hashInvoiceNumber(invoiceNumber.trim());
+      const invoiceLookup = await previewInvoiceEligibility(hospitalId, undefined, invoiceNumber.trim());
+      const invoiceHash = invoiceLookup.invoiceHash || hashInvoiceNumber(invoiceNumber.trim(), hospitalId);
       const authorization = await authorizeClaimSubmission(policyId, {
         incidentDate: incidentSeconds,
         claimType,
@@ -731,28 +732,7 @@ export default function SubmitClaimPage() {
           {invoiceEligibility.error && <p role="alert">Invoice readiness could not be checked. No submission was created.</p>}
         </section>
 
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={preExistingCondition}
-            onChange={(event) => {
-              setPreExistingCondition(event.target.checked);
-              if (!event.target.checked) setDisclosedAtPurchase(false);
-            }}
-          />
-          Claim involves a pre-existing condition
-        </label>
-
-        {preExistingCondition ? (
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={disclosedAtPurchase}
-              onChange={(event) => setDisclosedAtPurchase(event.target.checked)}
-            />
-            Condition was disclosed when the policy was purchased
-          </label>
-        ) : null}
+        <p className="muted-text">Pre-existing-condition underwriting is outside this prototype scope. Eligibility uses your issued policy rules and paid coverage intervals.</p>
 
         <div className="card">
           <h3>Document Privacy</h3>

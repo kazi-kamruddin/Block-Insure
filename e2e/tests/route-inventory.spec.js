@@ -38,7 +38,7 @@ const roleRoutes = {
   hospital: [
     ["/hospital/dashboard", "Dhaka Central Medical Hospital"],
     ["/hospital/records", "Patient and Invoice Records"],
-    ["/hospital/claims", "Claim Verification Requests"],
+    ["/hospital/claims", "Patient and Invoice Records"],
   ],
   bank: [["/bank/dashboard", "Bangladesh Demo Commercial Bank"]],
 };

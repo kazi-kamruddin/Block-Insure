@@ -52,11 +52,14 @@ async function configureOracleFixture(
   return coordinator;
 }
 
-function buildCommitment(request, verified, resultHash, salt) {
+async function buildCommitment(request, verified, resultHash, salt, coordinator, oracle) {
   return ethers.keccak256(
     ethers.AbiCoder.defaultAbiCoder().encode(
-      ["uint256", "uint64", "uint64", "bool", "bytes32", "bytes32", "bytes32"],
+      ["uint256", "address", "address", "uint256", "uint64", "uint64", "bool", "bytes32", "bytes32", "bytes32"],
       [
+        (await ethers.provider.getNetwork()).chainId,
+        await coordinator.getAddress(),
+        oracle.address,
         request.requestId,
         request.claimVersion,
         request.registryVersion,
@@ -70,7 +73,7 @@ function buildCommitment(request, verified, resultHash, salt) {
 }
 
 async function commitResult(coordinator, oracle, request, verified, resultHash, salt) {
-  const commitment = buildCommitment(request, verified, resultHash, salt);
+  const commitment = await buildCommitment(request, verified, resultHash, salt, coordinator, oracle);
   await coordinator.connect(oracle).commitOracleResult(request.requestId, commitment);
   return commitment;
 }

@@ -13,7 +13,7 @@ test("@workflow simultaneous claimant submissions retain separate evidence and s
     }
     const [first, second, hospital, admin] = sessions;
     const users = [first, second], invoices = users.map((_, i) => `CONCURRENT-SHADOW-${Date.now()}-${i}`);
-    const headers = async (session) => ({ Authorization: `Bearer ${await session.page.evaluate(() => localStorage.getItem("blockinsure_jwt"))}` });
+    const headers = async (session) => ({ Authorization: `Bearer ${await session.page.evaluate(() => sessionStorage.getItem("blockinsure_hospital_session") || localStorage.getItem("blockinsure_jwt"))}` });
     for (const user of users) {
       await user.page.goto("/user/policies/buy");
       await user.page.getByRole("checkbox", { name: /I have read and agree/ }).first().check();
@@ -59,10 +59,6 @@ test("@workflow simultaneous claimant submissions retain separate evidence and s
     expect(assessed.every((a) => a.status === "AVAILABLE")).toBe(true);
     expect(new Set(assessed.map((a) => a.assessmentId)).size).toBe(2);
     for (const id of ids) {
-      await hospital.page.goto("/hospital/claims");
-      await hospital.page.getByRole("button", { name: new RegExp(`Claim #${id}(?:\\D|$)`) }).click();
-      await hospital.page.getByRole("button", { name: "Verify against hospital record" }).click();
-      await expect(hospital.page.locator(".hospital-attestation-result")).toContainText("On-chain hospital attestation: VERIFIED", { timeout: 60000 });
       await admin.page.goto(`/admin/claims/${id}`);
       await admin.page.getByRole("button", { name: "Request Oracle Verification" }).click();
       await expect(admin.page.locator(".success-text")).toContainText("Oracle verification requested successfully");

@@ -165,6 +165,7 @@ export default function AdminPolicyPackagesPage() {
             <p>Duration: {policyPackage.durationDays} days</p>
             <p>Required document: {policyPackage.requiredDocumentType}</p>
             <p>Active: {String(policyPackage.isActive ?? true)}</p>
+            <p>Configuration: {policyPackage.configurationStatus || "Checking"}. Application purchase: {policyPackage.purchaseAvailable ? "available" : "unavailable"}.</p>
 
             <div className="action-row">
               <button
@@ -284,7 +285,7 @@ export default function AdminPolicyPackagesPage() {
                   Required document type
                   <input
                     type="text"
-                    value={editForm.requiredDocumentType}
+                    value={editForm.requiredDocumentType} readOnly
                     onChange={(event) =>
                       updateEditField("requiredDocumentType", event.target.value)
                     }

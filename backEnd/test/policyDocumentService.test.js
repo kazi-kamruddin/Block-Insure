@@ -1,50 +1,25 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-
+const { ethers } = require("ethers");
 const { buildPolicyDocument } = require("../services/policyDocumentService");
+const policyPackage = { packageId: "1", name: "Custom Health", policyType: "HEALTH", premiumAmountWei: ethers.parseEther("0.01").toString(), premiumAmountEth: "0.01", coverageAmountEth: "1", durationDays: "365", requiredDocumentType: "HOSPITAL_BILL", deploymentScope: "isolated-test", issueHash: ethers.id("offer"),
+  policyTerms: { authoritative: true, version: "2", waitingPeriodDays: 7, reinstatementWaitingPeriodDays: 2, claimDeadlineDays: 180,
+    maximumClaimWei: ethers.parseEther("1").toString(), deductibleRateBps: 1000, deductibleCapWei: ethers.parseEther("0.02").toString(), coinsuranceBps: 8000,
+    coveredClaimTypes: ["SURGERY"], excludedClaimTypes: ["COSMETIC"], policyRuleVersion: ethers.id("rules"), settlementFormulaVersion: ethers.id("formula"), notice: "Academic prototype" } };
 
-const policyPackage = {
-  packageId: "1",
-  name: "Supervisor Demo Health",
-  policyType: "HEALTH",
-  premiumAmountEth: "0.01",
-  coverageAmountEth: "1.0",
-  durationDays: "365",
-  requiredDocumentType: "HOSPITAL_BILL",
-};
-
-const benefits = {
-  configured: true,
-  version: 2,
-  deathBenefitEnabled: true,
-  deathBenefitPercent: 100,
-  surrenderEnabled: true,
-  surrenderValuePercent: 50,
-  minimumSurrenderInstallments: 6,
-  maturityEnabled: true,
-  maturityBonusPercent: 10,
-  termsHash: `0x${"1".repeat(64)}`,
-};
-
-test("builds a deterministic, versioned public policy document", () => {
-  const first = buildPolicyDocument({ policyPackage, benefitTerms: benefits });
-  const second = buildPolicyDocument({ policyPackage, benefitTerms: benefits });
-
-  assert.equal(first.documentVersion, "2026.1-benefits.2");
-  assert.equal(first.documentHash, second.documentHash);
-  assert.match(first.documentHash, /^0x[0-9a-f]{64}$/);
-  assert.match(first.markdown, /Initial waiting period: 30 days/);
-  assert.match(first.markdown, /Surrender value: 50%/);
-  assert.match(first.markdown, /Digital Acceptance/);
+test("policy documents deterministically bind the published medical rules and deployment", () => {
+  const first = buildPolicyDocument({ policyPackage });
+  assert.equal(first.documentHash, buildPolicyDocument({ policyPackage }).documentHash);
+  assert.equal(first.documentVersion, "medical-rules.2-schedule.2");
+  assert.match(first.markdown, /Initial waiting period: 7 days/);
+  assert.match(first.markdown, /capped at 0.02 test ETH/);
+  assert.match(first.markdown, /acceptance/);
+  assert.notEqual(first.documentHash, buildPolicyDocument({ policyPackage: { ...policyPackage, issueHash: ethers.id("changed offer") } }).documentHash);
 });
-
-test("changes the commitment when the published benefit schedule changes", () => {
-  const original = buildPolicyDocument({ policyPackage, benefitTerms: benefits });
-  const revised = buildPolicyDocument({
-    policyPackage,
-    benefitTerms: { ...benefits, version: 3, surrenderValuePercent: 60 },
-  });
-
-  assert.notEqual(original.documentVersion, revised.documentVersion);
-  assert.notEqual(original.documentHash, revised.documentHash);
+test("unconfigured offers cannot invent policy documents from a package name", () => {
+  assert.throws(() => buildPolicyDocument({ policyPackage: { name: "Health Basic" } }), /Published contract terms/);
+});
+test("later auxiliary benefit changes do not change an accepted medical document", () => {
+  assert.equal(buildPolicyDocument({ policyPackage, benefitTerms: { version: 1 } }).documentHash,
+    buildPolicyDocument({ policyPackage, benefitTerms: { version: 2 } }).documentHash);
 });

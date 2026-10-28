@@ -259,7 +259,7 @@ export default function AdminCreatePolicyPackagePage() {
           Required document type
           <input
             type="text"
-            value={form.requiredDocumentType}
+            value={form.requiredDocumentType} readOnly
             onChange={(event) =>
               updateField("requiredDocumentType", event.target.value)
             }
@@ -284,7 +284,7 @@ export default function AdminCreatePolicyPackagePage() {
 
         <label>
           Minimum evidence commitments
-          <input type="number" min="1" value={form.minimumDocumentCommitments} onChange={(event) => updateField("minimumDocumentCommitments", event.target.value)} required />
+          <input type="number" min="1" max="1" value={form.minimumDocumentCommitments} onChange={(event) => updateField("minimumDocumentCommitments", event.target.value)} required />
         </label>
 
         <label>

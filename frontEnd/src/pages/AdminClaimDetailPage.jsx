@@ -15,7 +15,6 @@ import {
   getAppealByClaim,
   getClaimById,
   getClaimVoteSummary,
-  getHospitalClaimVerification,
   getOracleResults,
   resolveOracleTimeout,
   requestOracleVerification,
@@ -225,16 +224,6 @@ export default function AdminClaimDetailPage() {
     enabled: Boolean(id),
   });
 
-  const {
-    data: hospitalVerificationData,
-    isLoading: hospitalVerificationLoading,
-    refetch: refetchHospitalVerification,
-  } = useQuery({
-    queryKey: ["adminHospitalVerification", id],
-    queryFn: () => getHospitalClaimVerification(id),
-    enabled: Boolean(id),
-    refetchInterval: 2000,
-  });
 
   const {
     data: settlementBreakdown,
@@ -270,7 +259,6 @@ export default function AdminClaimDetailPage() {
 
   const appeal = appealData?.appeal || null;
   const voteSummary = extractVoteSummary(voteData);
-  const hospitalVerification = hospitalVerificationData?.verification || null;
 
   const getAdminRule = (action, extra = {}) =>
     getClaimActionRule({
@@ -281,12 +269,7 @@ export default function AdminClaimDetailPage() {
       ...extra,
     });
   const baseRequestOracleRule = getAdminRule(CLAIM_ACTIONS.REQUEST_ORACLE);
-  const requestOracleRule = !hospitalVerification
-    ? {
-        allowed: false,
-        reason: "The contracted hospital must complete its independent verification first.",
-      }
-    : baseRequestOracleRule;
+  const requestOracleRule = baseRequestOracleRule;
   const manualReviewRule =
     statusName === "FRAUD_FLAGGED"
       ? { allowed: true, reason: "" }
@@ -309,7 +292,6 @@ export default function AdminClaimDetailPage() {
     await refetchAppeal();
     await refetchVotes();
     await refetchSettlementBreakdown();
-    await refetchHospitalVerification();
 
     if (statusName === "ORACLE_PENDING") {
       await refetchOracleQuorumStatus();
@@ -444,30 +426,7 @@ export default function AdminClaimDetailPage() {
 
       {claim ? <XgboostAdvisoryPanel claimId={id} claimVersion={claim.claimVersion} status={statusName} /> : null}
 
-      <div className="card hospital-verification-card">
-        <h3>Independent Hospital Verification</h3>
-        {hospitalVerificationLoading ? <p>Loading hospital attestation...</p> : null}
-        {!hospitalVerificationLoading && !hospitalVerification ? (
-          <p className="warning-text">
-            Pending hospital verification. Oracle processing is locked until the
-            contracted hospital wallet submits an attestation.
-          </p>
-        ) : null}
-        {hospitalVerification ? (
-          <>
-            <p>Outcome: <strong>{hospitalVerification.outcome}</strong></p>
-            <p>Hospital: {hospitalVerification.hospitalId}</p>
-            <p>Bill and claim match: {hospitalVerification.verified ? "Yes" : "No"}</p>
-            <p><TransactionLink txHash={hospitalVerification.transactionHash} /></p>
-            <EvidenceField label="Attestation hash" value={hospitalVerification.attestationHash} />
-            <ul>
-              {Object.entries(hospitalVerification.checks || {}).map(([check, passed]) => (
-                <li key={check}>{check.replaceAll(/([A-Z])/g, " $1")}: {passed ? "Passed" : "Failed"}</li>
-              ))}
-            </ul>
-          </>
-        ) : null}
-      </div>
+      <div className="card hospital-verification-card"><h3>Published hospital records</h3><p>Oracle workers verify the committed record, hospital membership and patient authorization automatically. Hospital staff do not attest to individual claims. Missing records or conflicting results lead to failed automatic verification and the existing review recovery route.</p></div>
 
       {canSettle ? (
         <div className="card settlement-breakdown-card">
@@ -713,7 +672,7 @@ export default function AdminClaimDetailPage() {
                     </p>
                   ))}
                 <p className="muted-text">
-                  The hospital attests these values before the next Oracle round.
+                  The next Oracle round checks amended on-chain values against the committed source records.
                 </p>
               </div>
             ) : null}

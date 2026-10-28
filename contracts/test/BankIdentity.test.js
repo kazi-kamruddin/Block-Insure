@@ -41,16 +41,18 @@ describe("BankIdentityRegistry", function () {
     const premium = ethers.parseEther("0.01");
     await manager.createPolicyPackage("Quarterly Health", "HEALTH", premium, ethers.parseEther("1"), 365, "HOSPITAL_BILL");
     await manager.connect(policyholder).purchasePolicy(1, { value: premium });
+    const initialPolicy = await manager.getPolicy(1);
+    await ethers.provider.send("evm_setNextBlockTimestamp", [Number(initialPolicy.nextPremiumDueDate - 30n * 86400n)]);
     const transferReference = ethers.id("EFT-TXN-001");
     await expect(registry.connect(bankWallet).confirmEftTransfer(
-      1, policyholder.address, premium, transferReference, ethers.id("EFT-MANDATE-001")
+      1, policyholder.address, 2, transferReference, ethers.id("EFT-MANDATE-001"), { value: premium }
     )).to.emit(registry, "EftTransferConfirmed");
 
     const policy = await manager.getPolicy(1);
     expect(policy.installmentsPaid).to.equal(2n);
     expect(policy.premiumInterval).to.equal(90n * 24n * 60n * 60n);
     await expect(registry.connect(bankWallet).confirmEftTransfer(
-      1, policyholder.address, premium, transferReference, ethers.id("EFT-MANDATE-001")
+      1, policyholder.address, 2, transferReference, ethers.id("EFT-MANDATE-001"), { value: premium }
     )).to.be.reverted;
   });
 

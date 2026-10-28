@@ -6,6 +6,7 @@ const ADMIN_LINKS = [
   { to: "/admin/policy-packages/new", label: "Create Package" },
   { to: "/admin/benefits", label: "Benefits" },
   { to: "/admin/healthcare-registry", label: "Registry" },
+  { to: "/admin/hospital-staff", label: "Hospital Staff" },
   { to: "/admin/thesis-dashboard", label: "Thesis Results" },
   { to: "/admin/audit-actions", label: "Action Audit" },
   { to: "/admin/role-health", label: "Role Health" },

@@ -28,7 +28,7 @@ test("both container recipes include every hashed shared inference source", () =
     const copy = fs.readFileSync(path.join(root, dockerfile), "utf8").split(/\r?\n/).filter((line) => /^COPY /.test(line))
       .flatMap((line) => line.split(/\s+/).slice(1, -1).filter((part) => !part.startsWith("--")));
     for (const file of [...Object.keys(manifest.files), "backEnd/artifacts/xgboost-advisory-manifest.json",
-      "backEnd/artifacts/xgboost-protocol-v1.json", ...require("../../oracle/runtimeProtocol").SOURCES]) {
+      "backEnd/artifacts/xgboost-protocol-v2.json", ...require("../../oracle/runtimeProtocol").SOURCES]) {
       assert.ok(copy.some((source) => file === source || fs.statSync(path.join(root, source)).isDirectory() && file.startsWith(source + "/")), `${dockerfile} missing ${file}`);
     }
   }

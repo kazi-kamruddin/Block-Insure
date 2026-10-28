@@ -4,6 +4,8 @@ const {
 } = require("./contractQueryService");
 const BankTransaction = require("../models/BankTransaction");
 const EftMandate = require("../models/EftMandate");
+const { getInstallment } = require("./issuedPolicyTermsService");
+const { getDeploymentScope } = require("./deploymentScopeService");
 
 const SECONDS_PER_DAY = 24 * 60 * 60;
 const PAYMENT_METHOD = "BLOCKCHAIN_WALLET";
@@ -89,7 +91,7 @@ const formatPolicy = (policy, policyPackage) => ({
 const formatPremiumEvent = (event, policy) => {
   const args = event.args;
   const paidAt = Number(args.paidAt);
-  const installmentNumber = Number(args.installmentsPaid);
+  const installmentNumber = Math.ceil((Number(args.nextPremiumDueDate) - Date.parse(policy.issueDate) / 1000) / (policy.premiumIntervalDays * SECONDS_PER_DAY));
 
   return {
     paymentId: `${event.transactionHash}:${event.index}`,
@@ -106,6 +108,7 @@ const formatPremiumEvent = (event, policy) => {
       Number(args.nextPremiumDueDate) * 1000
     ).toISOString(),
     installmentNumber,
+    installmentsPaidCount: Number(args.installmentsPaid),
     totalPremiumPaidWei: args.totalPremiumPaid.toString(),
     totalPremiumPaidEth: ethers.formatEther(args.totalPremiumPaid),
     purpose: installmentNumber === 1 ? "INITIAL_PREMIUM" : "RECURRING_PREMIUM",
@@ -126,7 +129,7 @@ const loadPolicy = async (contract, policyId, walletAddress) => {
     throw createError("Access denied: policy does not belong to this wallet", 403);
   }
   const policyPackage = await contract.getPolicyPackage(policy.packageId);
-  return formatPolicy(policy, policyPackage);
+  return { ...formatPolicy(policy, policyPackage), installment: await getInstallment(contract, policy) };
 };
 
 const buildPaymentStatement = async ({
@@ -153,14 +156,15 @@ const buildPaymentStatement = async ({
   let activeMandates = [];
   try {
     if (BankTransaction.db.readyState !== 1) throw new Error("Bank ledger unavailable");
+    const deploymentScope = await getDeploymentScope();
     [bankTransactions, activeMandates] = await Promise.all([
       BankTransaction.find({
-        ownerWalletAddress: walletAddress.toLowerCase(),
-        status: "PAID",
+        deploymentScope, ownerWalletAddress: walletAddress.toLowerCase(),
+        status: { $in: ["PAID", "PROCESSING"] },
         policyId: { $in: policies.map((policy) => policy.policyId) },
       }).lean(),
       EftMandate.find({
-        ownerWalletAddress: walletAddress.toLowerCase(),
+        deploymentScope, ownerWalletAddress: walletAddress.toLowerCase(),
         status: "ACTIVE",
         policyId: { $in: policies.map((policy) => policy.policyId) },
       }).lean(),
@@ -183,10 +187,11 @@ const buildPaymentStatement = async ({
       const isEft = bankPayment.type === "EFT";
       return {
         ...payment,
-        payerWallet: walletAddress,
+        settledByGatewayWallet: bankPayment.gatewayWallet || "",
         paymentMethod: isEft ? "BANK_EFT" : "BANK_MANUAL_OTP",
         paymentMethodLabel: isEft ? "Quarterly bank EFT" : "Manual bank payment (OTP)",
         bankTransactionId: bankPayment.transactionId,
+        simulatedBdtStatus: bankPayment.status === "PAID" ? "SETTLED" : "RESERVED_PENDING_RECONCILIATION",
         amountBdt: (Number(bankPayment.amountMinor) / 100).toFixed(2),
       };
     })
@@ -204,8 +209,8 @@ const buildPaymentStatement = async ({
   );
   const upcomingPayments = policies
     .filter((policy) => {
-      if (!policy.nextPremiumDueDate) return false;
-      const dueAt = toUnixSeconds(new Date(policy.nextPremiumDueDate));
+      if (!policy.installment || policy.installment.installmentId === "0") return false;
+      const dueAt = Number(policy.installment.dueAt);
       return (
         dueAt >= selectedFiscalYear.startUnix &&
         dueAt < selectedFiscalYear.endUnixExclusive
@@ -216,9 +221,10 @@ const buildPaymentStatement = async ({
       return ({
       policyId: policy.policyId,
       planName: policy.planName,
-      dueAt: policy.nextPremiumDueDate,
-      amountWei: policy.premiumAmountWei,
-      amountEth: policy.premiumAmountEth,
+      dueAt: new Date(Number(policy.installment.dueAt) * 1000).toISOString(),
+      installmentId: policy.installment.installmentId,
+      amountWei: policy.installment.amountWei,
+      amountEth: policy.installment.amountEth,
       paymentMethod: mandate ? "BANK_EFT" : "NOT_CONFIGURED",
       paymentMethodLabel: mandate ? "Quarterly bank EFT" : "Manual wallet payment",
       status: "SCHEDULED",

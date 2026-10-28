@@ -32,6 +32,7 @@ const validEnvironment = () => {
     JWT_SECRET: "jwt-secret-that-is-longer-than-32-characters",
     BANK_OTP_SECRET: "bank-secret-that-is-longer-than-32-characters",
     CHAIN_ID: "11155111",
+    CONTRACT_DEPLOYMENT_BLOCK: "1",
     RPC_URL: "https://rpc.example.invalid",
     VITE_RPC_URL: "https://rpc.example.invalid",
     VITE_CHAIN_ID: "11155111",

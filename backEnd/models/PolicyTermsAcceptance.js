@@ -2,6 +2,9 @@ const mongoose = require("mongoose");
 
 const policyTermsAcceptanceSchema = new mongoose.Schema(
   {
+    deploymentScope: { type: String, default: "", index: true },
+    issueHash: { type: String, default: "" },
+    documentContent: { type: String, default: "" },
     walletAddress: {
       type: String,
       required: true,

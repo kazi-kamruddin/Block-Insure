@@ -92,12 +92,6 @@ async function main() {
     "VITE_CONTRACT_ADDRESS",
     "backEnd/.env"
   );
-  const hospitalRegistryAddress = requireValue(
-    failures,
-    backend,
-    "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS",
-    "backEnd/.env"
-  );
   const bankRegistryAddress = requireValue(
     failures,
     backend,
@@ -250,21 +244,15 @@ async function main() {
           InsuranceManagerArtifact.abi,
           provider
         );
-        const hospitalRegistry = new Contract(
-          hospitalRegistryAddress,
-          HospitalVerificationRegistryArtifact.abi,
-          provider
-        );
         const bankRegistry = new Contract(
           bankRegistryAddress,
           BankIdentityRegistryArtifact.abi,
           provider
         );
-        const [adminRole, auditorRole, oracleRole, hospitalRole, bankRole] = await Promise.all([
+        const [adminRole, auditorRole, oracleRole, bankRole] = await Promise.all([
           contract.DEFAULT_ADMIN_ROLE(),
           contract.AUDITOR_ROLE(),
           contract.ORACLE_ROLE(),
-          hospitalRegistry.HOSPITAL_ROLE(),
           bankRegistry.BANK_ROLE(),
         ]);
 
@@ -286,18 +274,6 @@ async function main() {
               failures.push(`Auditor ${index + 1} does not have AUDITOR_ROLE on the current deployment`);
             }
           });
-        }
-
-        if (hospitalWallet) {
-          const hospitalIdHash = keccak256(toUtf8Bytes("HOSP-001"));
-          const [hasHospitalRole, registeredHospital] = await Promise.all([
-            hospitalRegistry.hasRole(hospitalRole, hospitalWallet.address),
-            hospitalRegistry.hospitalWalletByIdHash(hospitalIdHash),
-          ]);
-          if (!hasHospitalRole) failures.push("Hospital wallet does not have HOSPITAL_ROLE on the current deployment");
-          if (registeredHospital.toLowerCase() !== hospitalWallet.address.toLowerCase()) {
-            failures.push("HOSP-001 is not registered to the E2E Hospital wallet");
-          }
         }
 
         if (bankWallet) {

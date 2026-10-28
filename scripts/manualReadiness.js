@@ -31,6 +31,7 @@ function inspectConfiguration(environment, { nodeVersion = process.versions.node
   add("Email configuration", valid && mode === "brevo" && environment.BREVO_API_KEY?.trim() && senderValid ? "CONFIGURED" : "ACTION",
     !valid ? "Select a valid delivery mode; production simulation is disallowed." : mode === "brevo" ? "Brevo requires a private API key and valid registered sender. Presence does not verify credentials, sender approval or delivery." : "Local simulation/disabled delivery does not test a real mailbox. Complete the Brevo section when ready.");
   add("Real delivery proof", "MANUAL", "Verify the saved profile email and a payment code in your inbox. This check never sends mail.");
+  add("Hospital staff access", "MANUAL", "Provision staff in Administration → Hospital Staff, then open /hospital/login without a wallet extension. Hospital wallet grants are retired.");
   return rows;
 }
 

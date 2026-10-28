@@ -13,7 +13,7 @@ async function main() {
   const existingUri = process.env.E2E_MONGODB_URI;
   if (!existingUri) throw new Error("Set E2E_MONGODB_URI to the prepared local disposable database; this runner no longer starts a database automatically.");
   const parsed = new URL(existingUri);
-  if (!["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) || parsed.pathname !== "/block_insure_e2e") throw new Error("Use a loopback block_insure_e2e database");
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) || !/^\/block_insure_[a-z0-9_]*e2e$/.test(parsed.pathname)) throw new Error("Use a loopback block_insure_e2e database");
   const browserCache = process.env.PLAYWRIGHT_BROWSERS_PATH;
   const cachedBrowsers = browserCache && fs.existsSync(browserCache)
     ? fs.readdirSync(browserCache).filter((entry) => /^chromium-\d+$/.test(entry)).sort().reverse()

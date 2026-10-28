@@ -3,6 +3,18 @@ const mongoose = require("mongoose");
 const bankTransactionSchema = new mongoose.Schema(
   {
     transactionId: { type: String, required: true, unique: true, trim: true },
+    deploymentScope: { type: String, index: true, default: "" },
+    installmentId: { type: String, default: "" },
+    operationKey: { type: String, unique: true, sparse: true },
+    stage: { type: String, enum: ["PREPARING", "RESERVED", "SIGNED", "PENDING", "SETTLED", "REFUNDED"], default: "PREPARING" },
+    quoteRateMinorPerEth: { type: String, default: "10000000" },
+    notificationPending: { type: Boolean, default: true, index: true },
+    gatewayWallet: { type: String, lowercase: true, default: "" },
+    nonce: { type: Number, default: null },
+    nonceKey: { type: String, unique: true, sparse: true },
+    signedTransaction: { type: String, select: false },
+    leaseOwner: { type: String, select: false },
+    leaseUntil: { type: Date, select: false },
     bankId: { type: String, required: true, uppercase: true, trim: true, index: true },
     accountReference: { type: String, required: true, uppercase: true, trim: true },
     ownerWalletAddress: { type: String, required: true, lowercase: true, trim: true, index: true },

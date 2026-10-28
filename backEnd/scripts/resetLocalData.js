@@ -24,6 +24,8 @@ const EvidenceGrant = require("../models/EvidenceGrant");
 const EvidenceTreeHead = require("../models/EvidenceTreeHead");
 const File = require("../models/File");
 const Hospital = require("../models/Hospital");
+const HospitalStaff = require("../models/HospitalStaff");
+const PolicyRulePublication = require("../models/PolicyRulePublication");
 const HospitalClaimVerification = require("../models/HospitalClaimVerification");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
@@ -72,6 +74,8 @@ const collections = [
   ["documents", File],
   ["EFT mandates", EftMandate],
   ["hospital directory entries", Hospital],
+  ["hospital staff accounts", HospitalStaff],
+  ["package rule preimages", PolicyRulePublication],
   ["hospital claim verifications", HospitalClaimVerification],
   ["evidence access logs", EvidenceAccessLog],
   ["evidence events", EvidenceEvent],

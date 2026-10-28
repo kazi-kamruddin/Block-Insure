@@ -259,7 +259,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "amountWei",
+          "name": "expectedInstallmentId",
           "type": "uint256"
         },
         {
@@ -275,7 +275,7 @@
       ],
       "name": "confirmEftTransfer",
       "outputs": [],
-      "stateMutability": "nonpayable",
+      "stateMutability": "payable",
       "type": "function"
     },
     {

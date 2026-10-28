@@ -69,11 +69,11 @@ export default function MyPoliciesPage() {
     setActingPolicyId(policy.policyId);
 
     try {
-      const premiumWei = BigInt(policy.premiumAmountWei || policy.premiumPaidWei || 0);
+      const premiumWei = BigInt(policy.installment?.amountWei || 0);
       const tx =
         actionType === "reinstate"
-          ? await reinstatePolicy(policy.policyId, premiumWei)
-          : await payPolicyPremium(policy.policyId, premiumWei);
+          ? await reinstatePolicy(policy.policyId, premiumWei, policy.installment.installmentId)
+          : await payPolicyPremium(policy.policyId, premiumWei, policy.installment.installmentId);
 
       await tx.wait();
       await confirmPremiumPayment(tx.hash).catch((confirmationError) => {
@@ -171,18 +171,19 @@ export default function MyPoliciesPage() {
               <div><span>Grace deadline</span><strong>{formatDateOnly(policy.gracePeriodEnd)}</strong></div>
               <div><span>Coverage ends</span><strong>{formatDateOnly(policy.endDate)}</strong></div>
             </div>
+            <p>{policy.installment?.installmentId !== "0" ? `Next installment #${policy.installment?.installmentId}: ${policy.installment?.amountEth} test ETH. Opens ${formatDateOnly(Number(policy.installment?.opensAt) * 1000)}. Dates remain anchored to purchase.` : "No further installment is collectible for this term."}</p>
             <div className="action-row">
               {["ACTIVE", "GRACE_PERIOD"].includes(policy.status?.label) ? <button
                 type="button"
                 onClick={() => runPremiumAction(policy, "pay")}
-                disabled={actingPolicyId === policy.policyId}
+                disabled={actingPolicyId === policy.policyId || !policy.installment?.payableNow}
               >
                 {actingPolicyId === policy.policyId ? "Confirming..." : "Pay Premium"}
               </button> : null}
               {policy.status?.label === "LAPSED" ? <button
                 type="button"
                 onClick={() => runPremiumAction(policy, "reinstate")}
-                disabled={actingPolicyId === policy.policyId}
+                disabled={actingPolicyId === policy.policyId || !policy.installment?.payableNow}
               >
                 Reinstate
               </button> : null}

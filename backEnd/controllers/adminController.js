@@ -18,6 +18,7 @@ const { notifyClaimStatusChange } = require("../services/notificationService");
 const { logAdminAction } = require("../services/adminActionLogService");
 const AdminActionLog = require("../models/AdminActionLog");
 const User = require("../models/User");
+const { getConfiguredTerms } = require("../services/issuedPolicyTermsService");
 
 const CONFIRMABLE_ADMIN_ACTIONS = {
   REQUEST_ORACLE_VERIFICATION: {
@@ -137,61 +138,20 @@ const ROLE_KEYS = {
   ORACLE: "ORACLE_ROLE",
 };
 
-const asServiceCode = (value) =>
-  ethers.keccak256(ethers.toUtf8Bytes(String(value || "").trim().toUpperCase()));
-
+const { normalizeRuleDefinition, buildRulePublication } = require("../services/packageRuleDefinitionService");
+const { getDeploymentScope } = require("../services/deploymentScopeService");
+const RulePublication = require("../models/PolicyRulePublication");
 const publishEconomicRules = async ({ contract, packageId, economicRules }) => {
   const economics = await getPolicyEconomics(contract);
-  const currentVersion = await economics.currentPackageRuleVersion(packageId);
-  const allowedServices = (economicRules.allowedClaimTypes || []).map(asServiceCode);
-  const excludedServices = (economicRules.excludedClaimTypes || []).map(asServiceCode);
-  if (allowedServices.length === 0) {
-    throw createError("At least one allowed claim type is required", 400);
-  }
-  const requiredDocuments = (economicRules.requiredDocumentTypes || []).map(asServiceCode);
-  const exclusionsRoot = excludedServices.length
-    ? ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32[]"], [excludedServices]))
-    : ethers.ZeroHash;
-  const requiredDocumentsRoot = requiredDocuments.length
-    ? ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32[]"], [requiredDocuments]))
-    : ethers.ZeroHash;
-  const normalizedRules = {
-    waitingPeriod: Number(economicRules.waitingPeriodDays || 0) * 86400,
-    reinstatementWaitingPeriod:
-      Number(economicRules.reinstatementWaitingPeriodDays || 0) * 86400,
-    claimDeadline: Number(economicRules.claimDeadlineDays || 365) * 86400,
-    minimumDocumentCommitments: Number(economicRules.minimumDocumentCommitments || 1),
-    deductibleRateBps: Number(economicRules.deductibleRateBps || 0),
-    insurerShareBps: Number(economicRules.insurerShareBps || 10000),
-    deductibleCapWei: ethers.parseEther(String(economicRules.deductibleCapEth || "0")),
-    maximumClaimWei: ethers.parseEther(String(economicRules.maximumClaimEth || "0")),
-    exclusionsRoot,
-    requiredDocumentsRoot,
-  };
-  const formulaName = economicRules.settlementFormulaVersion || "BLOCK_INSURE_SETTLEMENT_V1";
-  const ruleDocument = JSON.stringify({
-    packageId: String(packageId),
-    version: (currentVersion + 1n).toString(),
-    ...Object.fromEntries(
-      Object.entries(normalizedRules).map(([key, value]) => [key, value.toString()])
-    ),
-    allowedServices,
-    excludedServices,
-    requiredDocuments,
-  });
-  const transaction = await economics.publishPackageRules(
-    packageId,
-    {
-      version: currentVersion + 1n,
-      ...normalizedRules,
-      settlementFormulaVersion: ethers.keccak256(ethers.toUtf8Bytes(formulaName)),
-      policyRuleVersion: ethers.keccak256(ethers.toUtf8Bytes(ruleDocument)),
-    },
-    allowedServices,
-    excludedServices
-  );
+  const version = await economics.currentPackageRuleVersion(packageId) + 1n;
+  const publication = buildRulePublication(packageId, version, economicRules);
+  // Save the commitment preimage before sending. A lost receipt cannot leave
+  // already-published custom service names impossible to reconstruct.
+  await RulePublication.updateOne({ deploymentScope: await getDeploymentScope(), policyRuleVersion: publication.rules.policyRuleVersion },
+    { $setOnInsert: { packageId: String(packageId), version: String(version), ruleDocument: publication.ruleDocument } }, { upsert: true });
+  const transaction = await economics.publishPackageRules(packageId, publication.rules, publication.allowedServices, publication.excludedServices);
   const receipt = await transaction.wait();
-  return { transaction, receipt, version: currentVersion + 1n, ruleDocument };
+  return { transaction, receipt, version, ruleDocument: publication.ruleDocument };
 };
 
 const getRoleBytes = async (contract, roleKey) => contract[ROLE_KEYS[roleKey]]();
@@ -233,7 +193,8 @@ const getAllPolicyPackages = async (req, res, next) => {
     const packages = await Promise.all(
       packageIds.map(async (packageId) => {
         const policyPackage = await contract.getPolicyPackage(packageId);
-        return formatPolicyPackage(policyPackage);
+        const configured = Boolean(await getConfiguredTerms(contract, packageId));
+        return { ...formatPolicyPackage(policyPackage), configurationStatus: configured ? "READY" : "RULES_REQUIRED", purchaseAvailable: configured && policyPackage.isActive };
       })
     );
 
@@ -250,6 +211,8 @@ const getAllPolicyPackages = async (req, res, next) => {
 
 const createPolicyPackage = async (req, res, next) => {
   try {
+    normalizeRuleDefinition(req.body.economicRules);
+    if (req.body.economicRules.requiredDocumentTypes[0] !== req.body.requiredDocumentType) throw createError("Primary document type must match the package", 422);
     const {
       name,
       policyType,
@@ -302,11 +265,13 @@ const createPolicyPackage = async (req, res, next) => {
 
     let economicsPublication = null;
     if (req.body.economicRules) {
-      economicsPublication = await publishEconomicRules({
-        contract,
-        packageId,
-        economicRules: req.body.economicRules,
-      });
+      try {
+        economicsPublication = await publishEconomicRules({ contract, packageId, economicRules: req.body.economicRules });
+      } catch {
+        let disabled = false;
+        try { await (await contract.deactivatePolicyPackage(packageId)).wait(); disabled = true; } catch { /* RPC outcome needs operator reconciliation */ }
+        throw createError(`Package #${packageId} was created, but economic publication was not confirmed. ${disabled ? "It has been disabled." : "Check its chain status before retrying."} It is unavailable for application purchase until complete rules are published. Use its authenticated economic-rules recovery endpoint rather than creating another copy.`, 409);
+      }
     }
 
     await logAdminAction({
@@ -493,6 +458,7 @@ const reactivatePolicyPackage = async (req, res, next) => {
     }
 
     const contract = getAdminContract();
+    if (!await getConfiguredTerms(contract, id)) throw createError("Publish complete medical economic rules before reactivating this offer", 409);
     const tx = await contract.reactivatePolicyPackage(id);
 
     const receipt = await tx.wait();

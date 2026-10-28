@@ -1,4 +1,4 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import Footer from "../components/Footer";
 import ThemeToggle from "../components/ThemeToggle";
 import WalletConnectButton from "../components/WalletConnectButton";
@@ -7,6 +7,7 @@ import { REQUIRED_CHAIN_ID, REQUIRED_NETWORK_NAME } from "../services/contractSe
 
 export default function PublicLayout() {
   const { isConnected, workspace } = useWallet();
+  const hospitalPortal = useLocation().pathname.startsWith("/hospital");
 
   return (
     <div className="app-shell relative isolate overflow-x-clip">
@@ -37,6 +38,7 @@ export default function PublicLayout() {
 
         <div className="nav-links" aria-label="Product navigation">
           <Link to="/policies">Policies</Link>
+          <Link to="/hospital/login">Hospital portal</Link>
           {isConnected && workspace ? (
             <span className="portal-context">{workspace.label}</span>
           ) : (
@@ -50,7 +52,7 @@ export default function PublicLayout() {
 
         <div className="nav-actions">
           <ThemeToggle />
-          <WalletConnectButton />
+          {!hospitalPortal && <WalletConnectButton />}
         </div>
       </nav>
 
