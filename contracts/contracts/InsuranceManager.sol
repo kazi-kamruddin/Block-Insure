@@ -382,7 +382,16 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         _grantRole(ADMIN_ROLE, msg.sender);
         oracleModelVersion = keccak256("BLOCK_INSURE_FRAUD_MODEL_V1");
         oracleCoordinator = new OracleCoordinator(address(this));
-        policyEconomics = new PolicyEconomics(address(this));
+        policyEconomics = new PolicyEconomics(address(this), _premiumIntervalSeconds() != DEFAULT_PREMIUM_INTERVAL_SECONDS);
+    }
+
+    // Deployment profiles are immutable implementations, never administrator time switches.
+    function _premiumIntervalSeconds() internal pure virtual returns (uint256) {
+        return DEFAULT_PREMIUM_INTERVAL_SECONDS;
+    }
+
+    function _gracePeriodSeconds() internal pure virtual returns (uint256) {
+        return DEFAULT_GRACE_PERIOD_SECONDS;
     }
 
     function configureClaimAdjudicator(address adjudicator) external onlyRole(ADMIN_ROLE) {
@@ -651,7 +660,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
             isActive: true,
             status: PolicyStatus.ACTIVE,
             premiumAmount: selectedPackage.premiumAmount,
-            premiumInterval: DEFAULT_PREMIUM_INTERVAL_SECONDS,
+            premiumInterval: _premiumIntervalSeconds(),
             nextPremiumDueDate: nextPremiumDueDate,
             gracePeriodEnd: gracePeriodEnd,
             lastPaidTimestamp: block.timestamp,
@@ -1305,7 +1314,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     }
 
     function _nextDueDate(uint256 fromTimestamp, uint256 endDate) internal pure returns (uint256) {
-        uint256 nextDueDate = fromTimestamp + DEFAULT_PREMIUM_INTERVAL_SECONDS;
+        uint256 nextDueDate = fromTimestamp + _premiumIntervalSeconds();
 
         if (nextDueDate > endDate) {
             return endDate;
@@ -1315,7 +1324,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     }
 
     function _gracePeriodEnd(uint256 nextPremiumDueDate, uint256 endDate) internal pure returns (uint256) {
-        uint256 graceEnd = nextPremiumDueDate + DEFAULT_GRACE_PERIOD_SECONDS;
+        uint256 graceEnd = nextPremiumDueDate + _gracePeriodSeconds();
 
         if (graceEnd > endDate) {
             return endDate;

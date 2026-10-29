@@ -1,5 +1,14 @@
 const { test, expect } = require("@playwright/test");
 
+test("built release metadata exposes only the allowlisted public deployment configuration", async ({ request }) => {
+  const response = await request.get("/release-config.json");
+  expect(response.ok()).toBe(true);
+  const body = await response.json();
+  expect(Object.keys(body).sort()).toEqual(["schema", "chainId", "apiOrigin", "managerAddress", "economicsAddress", "evidenceRegistryAddress", "benefitsAddress"].sort());
+  expect(body.schema).toBe("block-insure-public-release-v1");
+  expect(Number.isSafeInteger(Number(body.chainId))).toBe(true);
+});
+
 const viewports = [
   { name: "minimum mobile", width: 320, height: 800 },
   { name: "mobile", width: 360, height: 800 },

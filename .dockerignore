@@ -2,6 +2,9 @@
 .gitignore
 **/.env
 **/.env.*
+**/*.env
+**/*.env.*
+!**/*.env.example
 !**/.env.example
 !**/.env.oracle2.example
 **/node_modules
@@ -16,6 +19,8 @@ test-results
 .hardhat-appdata
 .hardhat-localappdata
 backEnd/.local-keys
+backEnd/test
+oracle/test
 oracle/.oracle-state
 backEnd/datasets/hybrid-v1/raw
 backEnd/datasets/hybrid-v1/processed

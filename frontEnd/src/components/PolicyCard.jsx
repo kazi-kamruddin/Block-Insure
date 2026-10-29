@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import PolicyTermsPanel from "./PolicyTermsPanel";
+import PaymentScheduleNotice from "./PaymentScheduleNotice";
 import { getPublicPolicyDocumentUrl } from "../services/api";
 
 export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }) {
@@ -14,6 +15,7 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
 
       <p>Type: {policyPackage.policyType}</p>
       <p>Premium: {policyPackage.premiumAmountEth} ETH</p>
+      <PaymentScheduleNotice schedule={policyPackage.policyTerms?.paymentSchedule} />
       {riskQuote ? (
         <div className="risk-premium-summary">
           <p>Risk multiplier: {riskQuote.multiplier}x</p>

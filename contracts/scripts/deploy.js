@@ -6,6 +6,7 @@ const { verifyModelArtifact } = require("../../backEnd/services/modelArtifactSer
 
 const networkName = hre.network.name;
 const isLocalNetwork = networkName === "localhost" || networkName === "hardhat";
+let publicProvider;
 
 function updateEnvValue(filePath, key, value) {
   if (!fs.existsSync(filePath)) {
@@ -151,7 +152,12 @@ async function main() {
     throw new Error("Missing ADMIN_PRIVATE_KEY in contracts/.env");
   }
 
-  const provider = hre.ethers.provider;
+  // Hardhat 2's automatic multiplier path can clamp gas to the older execution
+  // cap. Keep explicit public total-state-gas estimation outside that middleware.
+  const publicTransport = !isLocalNetwork ? new hre.ethers.FetchRequest(hre.network.config.url) : null;
+  if (publicTransport) publicTransport.timeout = 15000;
+  const provider = isLocalNetwork ? hre.ethers.provider : new hre.ethers.JsonRpcProvider(publicTransport);
+  if (!isLocalNetwork) publicProvider = provider;
   const adminWallet = new hre.ethers.Wallet(
     process.env.ADMIN_PRIVATE_KEY,
     provider
@@ -161,6 +167,16 @@ async function main() {
   );
 
   const adminBalance = await provider.getBalance(adminWallet.address);
+  const chainId = (await provider.getNetwork()).chainId;
+  const expectedChainId = networkName === "sepolia" ? 11155111n : networkName === "baseSepolia" ? 84532n : chainId;
+  if (chainId !== expectedChainId) throw new Error("Selected deployment RPC has the wrong chain");
+  const deployContract = async (factory, ...args) => {
+    if (isLocalNetwork) return factory.deploy(...args);
+    const quote = await require("../../scripts/deploymentGas").estimateDeploymentGas({ provider, chainId,
+      transaction: await factory.getDeployTransaction(...args), from: adminWallet.address });
+    console.log("Read-only public deployment estimate:", String(quote.estimatedGas), quote.accounting);
+    return factory.deploy(...args, { gasLimit: quote.gasLimit });
+  };
 
   console.log("Deploying InsuranceManager with admin wallet:");
   console.log("Admin address:", adminWallet.address);
@@ -173,12 +189,14 @@ async function main() {
     );
   }
 
+  const calendarProfile = process.env.CALENDAR_PROFILE || "QUARTERLY";
+  if (!["QUARTERLY", "ACCELERATED_TESTNET"].includes(calendarProfile)) throw new Error("Unknown CALENDAR_PROFILE");
   const InsuranceManager = await hre.ethers.getContractFactory(
-    "InsuranceManager",
+    calendarProfile === "ACCELERATED_TESTNET" ? "AcceleratedInsuranceManager" : "InsuranceManager",
     adminWallet
   );
 
-  const insuranceManager = await InsuranceManager.deploy();
+  const insuranceManager = await deployContract(InsuranceManager);
 
   await insuranceManager.waitForDeployment();
 
@@ -193,7 +211,7 @@ async function main() {
     "HospitalVerificationRegistry",
     adminWallet
   );
-  const hospitalVerificationRegistry = await HospitalVerificationRegistry.deploy(
+  const hospitalVerificationRegistry = await deployContract(HospitalVerificationRegistry,
     contractAddress,
     adminWallet.address
   );
@@ -215,7 +233,7 @@ async function main() {
     "BankIdentityRegistry",
     adminWallet
   );
-  const bankIdentityRegistry = await BankIdentityRegistry.deploy(
+  const bankIdentityRegistry = await deployContract(BankIdentityRegistry,
     contractAddress,
     adminWallet.address
   );
@@ -239,7 +257,7 @@ async function main() {
     "ClaimAdjudicator",
     adminWallet
   );
-  const claimAdjudicator = await ClaimAdjudicator.deploy(contractAddress);
+  const claimAdjudicator = await deployContract(ClaimAdjudicator, contractAddress);
   await claimAdjudicator.waitForDeployment();
   const adjudicatorAddress = await claimAdjudicator.getAddress();
   await (await insuranceManager.configureClaimAdjudicator(adjudicatorAddress)).wait();
@@ -251,7 +269,7 @@ async function main() {
     "EvidenceRegistry",
     adminWallet
   );
-  const evidenceRegistry = await EvidenceRegistry.deploy(contractAddress);
+  const evidenceRegistry = await deployContract(EvidenceRegistry, contractAddress);
   await evidenceRegistry.waitForDeployment();
   const evidenceRegistryAddress = await evidenceRegistry.getAddress();
   console.log("EvidenceRegistry deployed to:", evidenceRegistryAddress);
@@ -264,7 +282,7 @@ async function main() {
   );
 
   const tx = await insuranceManager.createPolicyPackage(
-    "Health Basic",
+    calendarProfile === "ACCELERATED_TESTNET" ? "Health Basic — Accelerated Testnet Demo" : "Health Basic",
     "HEALTH",
     premiumAmount,
     coverageAmount,
@@ -290,7 +308,7 @@ async function main() {
     "PolicyBenefitsManager",
     adminWallet
   );
-  const benefitsManager = await PolicyBenefitsManager.deploy(
+  const benefitsManager = await deployContract(PolicyBenefitsManager,
     contractAddress
   );
   await benefitsManager.waitForDeployment();
@@ -345,7 +363,7 @@ async function main() {
     "ProtocolDeploymentRegistry",
     adminWallet
   );
-  const deploymentRegistry = await ProtocolDeploymentRegistry.deploy(
+  const deploymentRegistry = await deployContract(ProtocolDeploymentRegistry,
     hre.ethers.id("BLOCK_INSURE_COMPLETION_PHASE2_V3"),
     hre.ethers.keccak256(hre.ethers.toUtf8Bytes(migrationManifest))
   );
@@ -377,6 +395,7 @@ async function main() {
     schemaVersion: 1,
     network: networkName,
     chainId: network.chainId.toString(),
+    calendarProfile,
     deployedAt: new Date().toISOString(),
     modelIdentityHash: protocolArtifact.modelIdentityHash,
     protocolModel: protocolArtifact.modelVersion,
@@ -433,7 +452,7 @@ async function main() {
   console.log("BANK_IDENTITY_REGISTRY_ADDRESS =", bankIdentityRegistryAddress);
 }
 
-main().catch((error) => {
-  console.error(error);
+main().catch(() => {
+  console.error("Deployment failed. Check private network/funding/total-gas configuration and retain existing addresses/receipts before retrying.");
   process.exitCode = 1;
-});
+}).finally(() => publicProvider?.destroy());

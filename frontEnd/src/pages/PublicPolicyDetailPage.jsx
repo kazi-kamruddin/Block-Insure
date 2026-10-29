@@ -6,6 +6,7 @@ import {
   getPublicPolicyPackage,
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
+import PaymentScheduleNotice from "../components/PaymentScheduleNotice";
 import "../styles/pages/PublicPolicyPages.css";
 
 function readableList(values = []) {
@@ -54,6 +55,7 @@ export default function PublicPolicyDetailPage() {
           <code>{document.documentHash}</code>
         </div>
       </header>
+      <PaymentScheduleNotice schedule={terms?.paymentSchedule} />
 
       <section className="policy-document-section">
         <h2>Policy Schedule</h2>

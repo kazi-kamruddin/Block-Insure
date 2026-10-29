@@ -148,7 +148,7 @@ const createMandate = async ({ walletAddress, accountReference, policyId, validF
     await notifyWallet(bank.walletAddress, {
       type: "EFT_MANDATE_REQUESTED",
       title: `New EFT mandate for policy #${policyId}`,
-      message: `Review the quarterly standing instruction from account •••• ${account.lastFour}.`,
+      message: `Review the scheduled standing instruction from account •••• ${account.lastFour}.`,
       policyId: String(policyId),
       status: mandate.status,
       link: "/bank/dashboard",
@@ -186,7 +186,7 @@ const approveMandate = async ({ bankId, bankWallet, mandateId }) => {
   await notifyWallet(mandate.ownerWalletAddress, {
     type: "EFT_MANDATE_APPROVED",
     title: `EFT mandate approved for policy #${mandate.policyId}`,
-    message: `Quarterly automatic debits begin on ${mandate.nextDebitAt.toISOString().slice(0, 10)}. EFT debits do not require OTP.`,
+    message: `Scheduled automatic debits begin on ${mandate.nextDebitAt.toISOString()}. EFT debits do not require OTP.`,
     policyId: mandate.policyId,
     status: mandate.status,
     link: "/user/banking",
@@ -296,20 +296,24 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
       mandate.amountMinor = shared.amountMinor;
       await mandate.save();
       const daysUntilDue = getReminderLeadDays(mandate.nextDebitAt, now);
-      if (!mandate.lastReminderAt && isReminderWindow(mandate.nextDebitAt, now)) {
+      const shortCalendar = Number(shared.policy.premiumInterval) < 86400;
+      const secondsUntilDue = (mandate.nextDebitAt.getTime() - now.getTime()) / 1000;
+      const reminderWindow = shortCalendar ? secondsUntilDue > 0 && secondsUntilDue <= 480 : isReminderWindow(mandate.nextDebitAt, now);
+      if (!mandate.lastReminderAt && reminderWindow) {
         await notifyWallet(mandate.ownerWalletAddress, {
           type: "PREMIUM_DUE_REMINDER",
-          title: `Automatic premium debit in ${daysUntilDue} days`,
+          title: `Automatic premium debit in ${shortCalendar ? `${Math.ceil(secondsUntilDue / 60)} minutes` : `${daysUntilDue} days`}`,
           message: `${(mandate.amountMinor / 100).toFixed(2)} BDT will be debited for policy #${mandate.policyId}.`,
           policyId: mandate.policyId, status: "SCHEDULED", link: "/user/banking",
-          dedupeKey: `eft-reminder:${mandate.mandateId}:${mandate.nextDebitAt.toISOString().slice(0, 10)}`,
+          dedupeKey: `eft-reminder:${mandate.mandateId}:${mandate.nextDebitAt.toISOString()}`,
         });
         mandate.lastReminderAt = now;
         await mandate.save();
         result.reminders += 1;
       }
       if (mandate.nextDebitAt > now || mandate.validFrom > now || !shared.payableNow) continue;
-      const retryCutoff = new Date(now.getTime() - EFT_RETRY_INTERVAL_MS);
+      const retryInterval = Math.min(EFT_RETRY_INTERVAL_MS, Number(shared.policy.premiumInterval || 36000) * 100);
+      const retryCutoff = new Date(now.getTime() - retryInterval);
       const claimedMandate = await EftMandate.findOneAndUpdate(
         {
           _id: mandate._id,
@@ -343,6 +347,7 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
       });
       claimedMandate.lastTransactionReference = transfer.transactionId;
       if (transfer.status === "PAID") {
+        claimedMandate.lastAttemptAt = null;
         claimedMandate.lastDebitedAt = now;
         claimedMandate.lastReminderAt = null;
         const updatedPolicy = await getReadOnlyContract().getPolicy(claimedMandate.policyId);
@@ -368,7 +373,7 @@ const runBankAutomation = async ({ bankId = "", referenceDate = new Date() } = {
 
 const requestManualPaymentOtp = async ({ walletAddress, accountReference, policyId }) => {
   const [, quote] = await Promise.all([loadOwnedAccount(walletAddress, accountReference), loadOwnedPolicy(walletAddress, policyId)]);
-  if (!quote.payableNow) throw createError("Next installment opens 30 days before its due date.", 409);
+  if (!quote.payableNow) throw createError(`Next installment opens at ${quote.opensAt.toISOString()} under the issued payment calendar.`, 409);
   const mode = deliveryMode();
   let email = "";
   if (mode === "brevo") {
@@ -444,7 +449,7 @@ const startBankPaymentScheduler = () => {
   if (scheduler || process.env.NODE_ENV === "test") return;
   scheduler = setInterval(() => {
     runBankAutomation().catch((error) => console.warn("Bank payment scheduler failed:", error.message));
-  }, 15 * 60 * 1000);
+  }, 30 * 1000);
   scheduler.unref();
   reconciliationScheduler = setInterval(() => {
     getBankSigner().then(reconcilePendingSettlements).catch(() => console.warn("Bank settlement reconciliation will retry; unresolved balances remain reserved."));

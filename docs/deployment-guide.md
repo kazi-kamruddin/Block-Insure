@@ -1,7 +1,7 @@
 # Deployment Guide
 
 The current release uses `BLOCK_INSURE_COMPLETION_PHASE2_V3` and packaged
-`xgboost-protocol-v3.json`. It requires a fresh compatible contract set and separate
+`xgboost-protocol-v4.json`. It requires a fresh compatible contract set and separate
 application database; no proxy upgrade or automatic historical-data migration is
 provided. Preserve old environment files, evidence, indexes and manifests.
 Review access now includes bounded preparation and operator activation. Run the
@@ -9,6 +9,19 @@ evidence-access and anchor reconcilers with coordinated operator signing; preser
 their MongoDB state and encrypted signing configuration across restarts. Death and
 maturity publication is disabled; the retained cancellation refund uses a separate
 vault. See [workflow boundaries](evidence-review-and-recovery.md).
+
+Build and installation verification use Node 24.16.0. See
+[the release campaign](release-verification.md) for current source-bound checks,
+image probes and the distinction between preview and full runtime readiness.
+
+Choose the immutable `CALENDAR_PROFILE` before bootstrap: `QUARTERLY` or the
+separately labelled `ACCELERATED_TESTNET` payment demo. The network examples select
+the latter. Its periods/advance/grace are 10/8/2 minutes; it is not real-world
+pricing or a timing switch for existing policies. Read back the actual schedule
+and selected implementation. See [payment profiles](financial-and-provider-workflows.md).
+Nginx and Caddy pins are 1.30.6 and 2.11.7. Self-hosted worker readiness bases are
+`https://<PUBLIC_HOST>/oracle-one` and `/oracle-two`; their read-only health servers
+are proxied without publishing container ports or administration endpoints.
 
 This guide covers the self-hosted container topology. For local setup, see
 [local development](local-development.md). A hosted preview can instead use

@@ -33,7 +33,10 @@ async function openReview(browser, claimId) {
     const status = admin.page.locator(".admin-claim-sidebar p strong").first();
     await expect.poll(async () => { await admin.page.getByRole("button", { name: "Refresh Claim" }).click(); return (await status.textContent()).trim(); }, { timeout: 90000, intervals: [1000, 3000] }).toBe("ORACLE_FAILED");
     await admin.page.getByRole("button", { name: "Send to Manual Review" }).click();
-    await expect(status).toHaveText("MANUAL_REVIEW");
+    // Wait for the signed transaction, API audit confirmation and claim refresh.
+    // Their completion can exceed the default text assertion timeout under load.
+    await expect(admin.page.locator(".success-text")).toContainText("Claim sent to manual review successfully.", { timeout: 60000 });
+    await expect(status).toHaveText("MANUAL_REVIEW", { timeout: 60000 });
   } finally { await closeActor(admin); }
 }
 const claimIdFrom = async (page) => {

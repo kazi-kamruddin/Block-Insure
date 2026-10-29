@@ -7,6 +7,11 @@
           "internalType": "address",
           "name": "managerAddress",
           "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "acceleratedTestnet",
+          "type": "bool"
         }
       ],
       "stateMutability": "nonpayable",
@@ -385,6 +390,19 @@
           "internalType": "uint256",
           "name": "claimantResponsibility",
           "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "calendarProfile",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
         }
       ],
       "stateMutability": "view",
@@ -839,6 +857,34 @@
           "internalType": "bytes32[]",
           "name": "excluded",
           "type": "bytes32[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getPaymentSchedule",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "profileId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "intervalSeconds",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "advanceWindowSeconds",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gracePeriodSeconds",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",

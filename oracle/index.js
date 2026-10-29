@@ -716,6 +716,7 @@ const pollOracleRequests = async () => {
 };
 
 const startOracle = async () => {
+  const runtimeNetwork = await provider.getNetwork();
   coordinatorAddress = await manager.oracleCoordinator();
   coordinator = new ethers.Contract(
     coordinatorAddress,
@@ -734,6 +735,7 @@ const startOracle = async () => {
   if (!(await manager.hasRole(oracleRole, oracleWallet.address))) {
     throw new Error("Configured wallet does not have ORACLE_ROLE");
   }
+  serviceState.deployment = { chainId: String(runtimeNetwork.chainId), managerAddress: CONTRACT_ADDRESS.toLowerCase(), coordinatorAddress: coordinatorAddress.toLowerCase() };
   await loadPersistedCursor();
   await pollOracleRequests();
   serviceState.initialized = true;
@@ -755,6 +757,7 @@ const sanitizedHealth = () => ({
   status: workerReady() ? "ready" : serviceState.initialized ? "degraded" : "starting",
   oracleInstanceId: ORACLE_INSTANCE_ID,
   workerEnabled: ORACLE_WORKER_ENABLED,
+  deployment: serviceState.deployment || null,
   oracleWallet: oracleWallet?.address || "",
   registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
   cursorMode: ORACLE_CURSOR_MODE,

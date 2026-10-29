@@ -76,6 +76,7 @@ const requiredTemplateKeys = () => [
   "ORACLE_PRIVATE_KEY_2",
   "BACKEND_API_URL",
   "MOCK_HOSPITAL_API_URL",
+  "OTP_DELIVERY_MODE", "BREVO_API_KEY", "BREVO_SENDER_EMAIL",
 ];
 
 const verifyReleaseFiles = (failures) => {
@@ -101,6 +102,9 @@ const verifyProductionEnvironment = (environment) => {
 
   if (environment.NODE_ENV !== "production") {
     failures.push("NODE_ENV must be production");
+  }
+  if (environment.OTP_DELIVERY_MODE !== "brevo" || !String(environment.BREVO_API_KEY || "").trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(environment.BREVO_SENDER_EMAIL || "")) {
+    failures.push("Full release requires Brevo-mode email with a configured private key and sender; delivery must still be accepted separately");
   }
   if (!/^https:\/\//i.test(environment.PUBLIC_APP_URL || "")) {
     failures.push("PUBLIC_APP_URL must use HTTPS");

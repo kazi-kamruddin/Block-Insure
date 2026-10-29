@@ -7,6 +7,7 @@ services:
       dockerfile: deploy/backend.Dockerfile
     environment:
       NODE_ENV: production
+      BLOCKCHAIN_RUNTIME_ENABLED: "true"
       PORT: "5000"
       TRUST_PROXY: ${TRUST_PROXY}
       FORCE_PUBLIC_DNS: ${FORCE_PUBLIC_DNS:-false}
@@ -28,6 +29,10 @@ services:
       PINATA_API_KEY: ${PINATA_API_KEY:-}
       PINATA_SECRET: ${PINATA_SECRET:-}
       PINATA_TIMEOUT_MS: ${PINATA_TIMEOUT_MS:-30000}
+      OTP_DELIVERY_MODE: ${OTP_DELIVERY_MODE:-brevo}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL:-}
+      BREVO_SENDER_NAME: ${BREVO_SENDER_NAME:-Block-Insure}
       VITE_CONTRACT_ADDRESS: ${VITE_CONTRACT_ADDRESS}
       POLICY_BENEFITS_ADDRESS: ${POLICY_BENEFITS_ADDRESS}
       POLICY_BENEFITS_DEPLOYMENT_BLOCK: ${POLICY_BENEFITS_DEPLOYMENT_BLOCK}
@@ -78,6 +83,9 @@ services:
     environment:
       NODE_ENV: production
       ORACLE_INSTANCE_ID: "1"
+      PORT: "5101"
+      ORACLE_WORKER_ENABLED: "true"
+      ORACLE_CURSOR_MODE: file
       ORACLE_REGISTRY_SNAPSHOT: primary
       ORACLE_CURSOR_FILE: /state/cursor-1.json
       RPC_URL: ${RPC_URL}
@@ -107,6 +115,9 @@ services:
     environment:
       NODE_ENV: production
       ORACLE_INSTANCE_ID: "2"
+      PORT: "5102"
+      ORACLE_WORKER_ENABLED: "true"
+      ORACLE_CURSOR_MODE: file
       ORACLE_REGISTRY_SNAPSHOT: oracle2
       ORACLE_CURSOR_FILE: /state/cursor-2.json
       RPC_URL: ${RPC_URL}
@@ -159,7 +170,7 @@ services:
     restart: unless-stopped
 
   gateway:
-    image: caddy:2.10-alpine
+    image: caddy:2.11.7-alpine
     environment:
       PUBLIC_HOST: ${PUBLIC_HOST}
       TLS_EMAIL: ${TLS_EMAIL}

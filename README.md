@@ -27,6 +27,11 @@ and bind their hash to the issued policy. See
 [financial and provider workflows](docs/financial-and-provider-workflows.md) for
 the supported rules, trust boundaries and new-deployment requirements.
 
+A separately deployed **accelerated testnet payment demo** uses 10-minute periods,
+an 8-minute advance window and 2-minute collection grace. The quarterly product
+remains available and tested. Purchase documents and payment views show the actual
+immutable profile; claim and review deadlines are unchanged.
+
 Reviewers receive one batch authorization for the fixed evidence set and can
 subsequently decrypt while the claimant is offline. Appeal registration and ordered
 evidence anchoring recover interrupted operations. Death and maturity products are
@@ -115,9 +120,17 @@ guide. It includes hospital login without a wallet, issued terms, coordinated
 payments, claim processing and recovery of persisted gateway transactions.
 
 Historical research artifacts retain their original source scope. The
-[reviewed source transition](docs/research-source-transition-v3.json) records
+[reviewed source transition](docs/research-source-transition-v4.json) records
 changed runtime bindings without rewriting historical results. A passing repository
 check does not revalidate those measurements for the current release.
+
+The bounded final campaign is `npm run test:release`, with an explicitly selected
+disposable loopback MongoDB. It records the candidate source, staged checks,
+recovery outcomes and current local measurements. `npm run test:release:images`
+checks the locally built release images with temporary synthetic installation
+resources. See [release verification and acceptance](docs/release-verification.md),
+[static-analysis interpretation](docs/release-static-review.md) and
+[the current authority map](docs/current-system-architecture.md).
 
 ## Deployment and configuration
 
@@ -131,6 +144,14 @@ provider tokens, and real `.env` files out of Git and frontend `VITE_*` values.
 Hosted services need their own configuration; local environment edits do not
 configure hosting platforms. A hosted off-chain preview cannot complete
 blockchain transactions until its shared chain and services are configured.
+
+The Node deployment recipes target 24.16.0. `deploy:testnet` validates a separately
+selected bootstrap file without sending transactions by default; `--probe` reads
+the target and `--apply` explicitly deploys to a fresh output directory. Full
+configuration/readiness checks and actual-user acceptance follow deployment.
+`preflight:hosted:full` checks compatible code/wiring and active worker readiness;
+the original preview preflight deliberately permits dormant workers. A passing
+local campaign or preview is not proof of public-testnet or hosted acceptance.
 
 ## Scope
 

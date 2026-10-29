@@ -2,6 +2,14 @@
   tls {$TLS_EMAIL}
   encode zstd gzip
 
+  handle_path /oracle-one/* {
+    reverse_proxy oracle-one:5101
+  }
+
+  handle_path /oracle-two/* {
+    reverse_proxy oracle-two:5102
+  }
+
   handle /api/* {
     reverse_proxy backend:5000
   }

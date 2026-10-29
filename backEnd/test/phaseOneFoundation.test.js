@@ -62,7 +62,7 @@ test("custom configured rules drive the document and deductible/share estimate w
   assert.equal(evaluatePolicyEligibility({ ...input, claimType: "custom_medical" }).eligible, false);
   const document = buildPolicyDocument({ policyPackage: { name: "Critical Accident Name Does Not Define Rules", packageId: "7", policyType: "HEALTH",
     premiumAmountWei: ethers.parseEther("0.01").toString(), premiumAmountEth: "0.01", coverageAmountEth: "1", durationDays: "365",
-    requiredDocumentType: "HOSPITAL_BILL", policyTerms: terms, deploymentScope: "synthetic-deployment", issueHash: ethers.id("issue") } });
+    requiredDocumentType: "HOSPITAL_BILL", policyTerms: { ...terms, paymentSchedule: require("../services/paymentScheduleService").formatPaymentSchedule({ profileId: ethers.id("QUARTERLY"), intervalSeconds: 90 * 86400, advanceWindowSeconds: 30 * 86400, gracePeriodSeconds: 7 * 86400 }) }, deploymentScope: "synthetic-deployment", issueHash: ethers.id("issue") } });
   assert.match(document.markdown, /Initial waiting period: 2 days/);
   assert.match(document.markdown, /Insurer share after deductible: 65%/);
   assert.match(document.markdown, /CUSTOM_MEDICAL/);

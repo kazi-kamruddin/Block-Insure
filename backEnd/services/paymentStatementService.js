@@ -189,7 +189,7 @@ const buildPaymentStatement = async ({
         ...payment,
         settledByGatewayWallet: bankPayment.gatewayWallet || "",
         paymentMethod: isEft ? "BANK_EFT" : "BANK_MANUAL_OTP",
-        paymentMethodLabel: isEft ? "Quarterly bank EFT" : "Manual bank payment (OTP)",
+        paymentMethodLabel: isEft ? "Scheduled bank EFT" : "Manual bank payment (OTP)",
         bankTransactionId: bankPayment.transactionId,
         simulatedBdtStatus: bankPayment.status === "PAID" ? "SETTLED" : "RESERVED_PENDING_RECONCILIATION",
         amountBdt: (Number(bankPayment.amountMinor) / 100).toFixed(2),
@@ -226,7 +226,7 @@ const buildPaymentStatement = async ({
       amountWei: policy.installment.amountWei,
       amountEth: policy.installment.amountEth,
       paymentMethod: mandate ? "BANK_EFT" : "NOT_CONFIGURED",
-      paymentMethodLabel: mandate ? "Quarterly bank EFT" : "Manual wallet payment",
+      paymentMethodLabel: mandate ? "Scheduled bank EFT" : "Manual wallet payment",
       status: "SCHEDULED",
       mandateId: mandate?.mandateId || "",
     });})

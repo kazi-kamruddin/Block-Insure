@@ -92,12 +92,14 @@ function syntheticPdfEvidenceFile() {
   return { name: `demo-evidence-${Date.now()}.pdf`, mimeType: "application/pdf", buffer: Buffer.from(pdf) };
 }
 
-async function advanceToInstallment(session, policyId, daysBeforeDue = 30) {
+async function advanceToInstallment(session, policyId, daysBeforeDue) {
   const { Contract } = require("../../backEnd/node_modules/ethers");
   expect((await session.provider.getNetwork()).chainId).toBe(31337n);
   const manager = new Contract(process.env.CONTRACT_ADDRESS || process.env.VITE_CONTRACT_ADDRESS, require("../../backEnd/abi/InsuranceManager.json").abi, session.provider);
   const policy = await manager.getPolicy(policyId);
-  const target = Number(policy.nextPremiumDueDate) - daysBeforeDue * 86400;
+  const economics = new Contract(await manager.policyEconomics(), require("../../backEnd/abi/PolicyEconomics.json").abi, session.provider);
+  const quote = await economics.getInstallmentQuote(policyId, policy.nextPremiumDueDate);
+  const target = daysBeforeDue === undefined ? Number(quote.opensAt) : Number(policy.nextPremiumDueDate) - daysBeforeDue * 86400;
   const current = await session.provider.getBlock("latest");
   if (target > Number(current.timestamp)) {
     await session.provider.send("evm_setNextBlockTimestamp", [target]);

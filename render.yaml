@@ -23,7 +23,7 @@ services:
         - render.yaml
     envVars:
       - key: NODE_VERSION
-        value: "20.19.0"
+        value: "24.16.0"
       - key: NODE_ENV
         value: production
       - key: BLOCKCHAIN_RUNTIME_ENABLED
@@ -81,7 +81,7 @@ services:
         - render.yaml
     envVars:
       - key: NODE_VERSION
-        value: "20.19.0"
+        value: "24.16.0"
       - key: NODE_ENV
         value: production
       - key: ORACLE_INSTANCE_ID
@@ -121,7 +121,7 @@ services:
         - render.yaml
     envVars:
       - key: NODE_VERSION
-        value: "20.19.0"
+        value: "24.16.0"
       - key: NODE_ENV
         value: production
       - key: ORACLE_INSTANCE_ID

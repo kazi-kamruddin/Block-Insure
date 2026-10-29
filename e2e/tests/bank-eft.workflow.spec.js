@@ -4,7 +4,7 @@ const { closeActor, createActorContext } = require("../support/walletBridge");
 
 const dateOnly = (date) => date.toISOString().slice(0, 10);
 
-test.describe("@workflow quarterly bank EFT", () => {
+test.describe("@workflow scheduled bank EFT", () => {
   test.describe.configure({ mode: "serial" });
 
   test("policyholder mandate, bank approval, automatic debit, and manual OTP payment", async ({ browser }) => {
@@ -82,7 +82,7 @@ test.describe("@workflow quarterly bank EFT", () => {
     try {
       await loginActor(paymentSession.page, paymentSession.actor);
       await paymentSession.page.goto("/user/banking");
-      await expect(paymentSession.page.getByText("Quarterly EFT", { exact: true }).first()).toBeVisible();
+      await expect(paymentSession.page.getByText("Scheduled EFT", { exact: true }).first()).toBeVisible();
       await paymentSession.page.getByLabel("Source account").selectOption({ index: 1 });
       await paymentSession.page.locator(".banking-form select").nth(1).selectOption(policyId);
       await advanceToInstallment(paymentSession, policyId);
@@ -97,7 +97,7 @@ test.describe("@workflow quarterly bank EFT", () => {
       await paymentSession.page.getByRole("button", { name: "Confirm manual payment" }).click();
       await expect(paymentSession.page.getByText("Manual OTP", { exact: true }).first()).toBeVisible({ timeout: 60_000 });
       await paymentSession.page.goto("/user/payments");
-      await expect(paymentSession.page.getByText("Quarterly bank EFT", { exact: true }).first()).toBeVisible();
+      await expect(paymentSession.page.getByText("Scheduled bank EFT", { exact: true }).first()).toBeVisible();
       await expect(paymentSession.page.getByText("Manual bank payment (OTP)", { exact: true }).first()).toBeVisible();
     } finally {
       await closeActor(paymentSession);

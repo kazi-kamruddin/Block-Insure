@@ -74,6 +74,15 @@ test("explicit evidence stays hash-bound and existing snapshots cannot be overwr
   } finally { f.cleanup(); }
 });
 
+test("release snapshot verification detects newly added source files", () => {
+  const f = fixture();
+  try {
+    snapshot(["--output", "verification-results/before.json"], f.options);
+    f.write("backEnd/services/new-runtime.js", "module.exports = {};\n");
+    assert.throws(() => snapshot(["--check", "verification-results/before.json"], f.options), /source set changed/);
+  } finally { f.cleanup(); }
+});
+
 test("snapshot argument errors are rejected before inspecting the repository", () => {
   const options = { runGit() { throw new Error("Git must not be called"); } };
   for (const args of [["--outpt", "value"], ["--output"], ["--output", "a", "--output", "b"], ["unexpected"],

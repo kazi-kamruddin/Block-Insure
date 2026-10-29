@@ -19,8 +19,9 @@ interface IPolicyEconomicsManager {
 contract PolicyEconomics {
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint16 private constant BPS = 10_000;
-    uint256 private constant PREMIUM_INTERVAL = 90 days;
-    uint256 private constant ADVANCE_WINDOW = 30 days;
+    uint256 private immutable PREMIUM_INTERVAL;
+    uint256 private immutable ADVANCE_WINDOW;
+    uint256 private immutable GRACE_PERIOD;
 
     struct InstallmentQuote {
         uint256 installmentId;
@@ -152,9 +153,27 @@ contract PolicyEconomics {
         _;
     }
 
-    constructor(address managerAddress) {
+    constructor(address managerAddress, bool acceleratedTestnet) {
         require(managerAddress != address(0), "Invalid manager");
+        require(!acceleratedTestnet || block.chainid == 31337 || block.chainid == 11155111 || block.chainid == 84532, "Test networks only");
         manager = managerAddress;
+        PREMIUM_INTERVAL = acceleratedTestnet ? 10 minutes : 90 days;
+        ADVANCE_WINDOW = acceleratedTestnet ? 8 minutes : 30 days;
+        GRACE_PERIOD = acceleratedTestnet ? 2 minutes : 7 days;
+    }
+
+    function calendarProfile() public view returns (bytes32) {
+        return PREMIUM_INTERVAL == 90 days ? keccak256("QUARTERLY") : keccak256("ACCELERATED_TESTNET");
+    }
+
+    function _premiumIntervalSeconds() internal view returns (uint256) { return PREMIUM_INTERVAL; }
+    function _advanceWindowSeconds() internal view returns (uint256) { return ADVANCE_WINDOW; }
+    function _gracePeriodSeconds() internal view returns (uint256) { return GRACE_PERIOD; }
+
+    function getPaymentSchedule() external view returns (
+        bytes32 profileId, uint256 intervalSeconds, uint256 advanceWindowSeconds, uint256 gracePeriodSeconds
+    ) {
+        return (calendarProfile(), _premiumIntervalSeconds(), _advanceWindowSeconds(), _gracePeriodSeconds());
     }
 
     function fundTreasury(bytes32 fundingReference) external payable {
@@ -219,15 +238,16 @@ contract PolicyEconomics {
         PolicyTerms memory terms = policyTerms[policyId];
         if (terms.holder == address(0) || coverageTerminated[policyId] ||
             paidThrough >= terms.endsAt || block.timestamp >= terms.endsAt) return q;
-        uint256 period = (paidThrough - terms.startsAt) / PREMIUM_INTERVAL;
-        q.reinstatement = block.timestamp > paidThrough + 7 days;
-        if (q.reinstatement) period = (block.timestamp - terms.startsAt) / PREMIUM_INTERVAL;
+        uint256 interval = _premiumIntervalSeconds();
+        uint256 period = (paidThrough - terms.startsAt) / interval;
+        q.reinstatement = block.timestamp > paidThrough + _gracePeriodSeconds();
+        if (q.reinstatement) period = (block.timestamp - terms.startsAt) / interval;
         q.installmentId = period + 1;
-        q.dueAt = terms.startsAt + period * PREMIUM_INTERVAL;
-        q.endsAt = q.dueAt + PREMIUM_INTERVAL;
+        q.dueAt = terms.startsAt + period * interval;
+        q.endsAt = q.dueAt + interval;
         if (q.endsAt > terms.endsAt) q.endsAt = terms.endsAt;
-        q.amountWei = (terms.premiumWei * (q.endsAt - q.dueAt) + PREMIUM_INTERVAL - 1) / PREMIUM_INTERVAL;
-        q.opensAt = q.dueAt - ADVANCE_WINDOW;
+        q.amountWei = (terms.premiumWei * (q.endsAt - q.dueAt) + interval - 1) / interval;
+        q.opensAt = q.dueAt - _advanceWindowSeconds();
         q.payableNow = block.timestamp >= q.opensAt;
     }
 

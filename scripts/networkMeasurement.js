@@ -5,12 +5,15 @@ function normalizeReceipt(receipt, transaction, item, block) {
   if (actualPrice == null) throw new Error("Actual execution gas price unavailable");
   const gas = BigInt(receipt.gasUsed), price = BigInt(actualPrice);
   const l1Fee = receipt.l1Fee == null ? null : BigInt(receipt.l1Fee);
-  const executionFeeWei = gas * price;
+  const receiptGasFeeWei = gas * price;
   const submitted = item.submittedAt ? Date.parse(item.submittedAt) : NaN;
   return { operation: item.operation, transactionHash: transaction.hash, successful: BigInt(receipt.status) === 1n,
     blockNumber: Number(BigInt(receipt.blockNumber)), contractAddress: receipt.contractAddress || null,
-    gasUsed: gas.toString(), effectiveGasPriceWei: price.toString(), executionFeeWei: executionFeeWei.toString(),
-    l1DataFeeWei: l1Fee?.toString() ?? null, executionPlusKnownDataFeeWei: l1Fee == null ? null : (executionFeeWei + l1Fee).toString(),
+    gasUsed: gas.toString(), gasMeaning: "Receipt-charged gas; may include execution and state creation under the selected fork",
+    executionGasUsed: receipt.executionGasUsed == null ? null : String(BigInt(receipt.executionGasUsed)),
+    stateGasUsed: receipt.stateGasUsed == null ? null : String(BigInt(receipt.stateGasUsed)),
+    effectiveGasPriceWei: price.toString(), receiptGasFeeWei: receiptGasFeeWei.toString(),
+    l1DataFeeWei: l1Fee?.toString() ?? null, receiptGasPlusKnownDataFeeWei: l1Fee == null ? null : (receiptGasFeeWei + l1Fee).toString(),
     blockTimestamp: new Date(Number(BigInt(block.timestamp)) * 1000).toISOString(),
     observedSubmissionToBlockMs: Number.isFinite(submitted) ? Number(BigInt(block.timestamp)) * 1000 - submitted : null,
     timingMeaning: "Optional user-recorded submission to block timestamp; not finality, server latency or RPC receipt retrieval time" };
@@ -44,9 +47,9 @@ async function main() {
       if (!block || canonical?.hash !== receipt.blockHash) throw new Error("Receipt block is no longer canonical");
       rows.push(normalizeReceipt(receipt, transaction, item, block));
     }
-    const report = { schema: "block-insure-network-measurement-v1", measuredAt: new Date().toISOString(), chainId: String(network.chainId),
+    const report = { schema: "block-insure-network-measurement-v2", measuredAt: new Date().toISOString(), chainId: String(network.chainId),
       manifestSha256: crypto.createHash("sha256").update(manifestBytes).digest("hex"), deploymentModelIdentity: manifest.modelIdentityHash || null,
-      rows, limitations: "Testnet observations, not mainnet price estimates. Missing L1 data fee is unknown, never zero. executionPlusKnownDataFee is not universally all-in (operator/other chain fees may apply). Rows are not an additive lifecycle; no finality assertion." };
+      rows, limitations: "Testnet observations, not mainnet price estimates. Receipt gas is not assumed to be execution-only; explicit execution/state splits remain unknown unless provided by the RPC. Missing L1 data fee is unknown, never zero. receiptGasPlusKnownDataFee is not universally all-in (operator/other chain fees may apply). Record fork/accounting differences before comparing networks. Rows are not an additive lifecycle; no finality assertion." };
     fs.mkdirSync(path.dirname(output), { recursive: true }); fs.writeFileSync(output, JSON.stringify(report, null, 2) + "\n", { flag: "wx" });
     const columns = Object.keys(rows[0]);
     const quote = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;

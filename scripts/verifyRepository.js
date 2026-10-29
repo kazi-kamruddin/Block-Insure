@@ -160,7 +160,7 @@ const verifyResearchArtifacts = (failures) => {
   );
   const expectedManifest = buildResearchManifest({ writeOutput: false });
   const comparison = compareResearchManifests(researchManifest, expectedManifest);
-  const transitionPath = "docs/research-source-transition-v3.json";
+  const transitionPath = "docs/research-source-transition-v4.json";
   comparison.historicalTransition = !comparison.matches && fs.existsSync(path.join(PROJECT_ROOT, transitionPath))
     && verifySourceTransition(researchManifest, expectedManifest, readJson(transitionPath),
       sha256File("backEnd/evaluation-results/research-manifest-v4.json"));
@@ -236,7 +236,7 @@ if (require.main === module) {
     const result = run();
     console.log(`[Repository verification] ${result.checks} check groups passed on ${result.node}.`);
     if (result.researchSnapshot.historicalTransition) {
-      console.log("Historical research artifacts are preserved; exact source changes match docs/research-source-transition-v3.json. Historical measurements have NOT been revalidated for this runtime.");
+      console.log("Historical research artifacts are preserved; exact source changes match docs/research-source-transition-v4.json. Historical measurements have NOT been revalidated for this runtime.");
     } else if (result.researchSnapshot.metadataToolingChanges.length) {
       console.log("Research provenance retains historical release/verification-tool hashes; runtime and study inputs still match.");
     }

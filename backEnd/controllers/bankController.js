@@ -109,7 +109,7 @@ const getMyBankProfile = async (req, res, next) => {
       summary: { accounts, activeAccounts, mandates, pendingMandates, transactions, totalBalanceMinor, totalBalance: formatMoney(totalBalanceMinor) },
       capabilities: {
         viewOwnedAccounts: true, reviewMandates: true, scheduledDebits: true, manualPaymentOtp: true,
-        note: "Quarterly EFT approval, reminders, automatic debits, confirmations, and OTP-protected manual transfers are active.",
+        note: "Scheduled EFT approval, reminders, automatic debits, confirmations, and OTP-protected manual transfers are active.",
       },
     });
   } catch (error) { next(error); }

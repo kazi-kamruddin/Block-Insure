@@ -4,6 +4,7 @@ const { getDeploymentScope } = require("./deploymentScopeService");
 const Publication = require("../models/PolicyRulePublication");
 const Acceptance = require("../models/PolicyTermsAcceptance");
 const { POLICY_RULES } = require("../config/policyRules");
+const { readPaymentSchedule } = require("./paymentScheduleService");
 
 const known = [...new Set([...Object.values(POLICY_RULES).flatMap((rules) => [...rules.coveredClaimTypes, ...rules.excludedClaimTypes]), "HEALTH", "DIAGNOSTIC"])];
 const formatTerms = (raw, { allowed = [], excluded = [], labels = {} } = {}) => {
@@ -49,7 +50,8 @@ const getConfiguredTerms = async (contract, packageId) => {
   if (pkg.requiredDocumentType !== "HOSPITAL_BILL" || raw.minimumDocumentCommitments !== 1n || raw.requiredDocumentsRoot !== expectedDocumentRoot) return null;
   if (!allowed.some((hash) => !excluded.includes(hash)) || raw.insurerShareBps === 0n) return null;
   const maximumClaimWei = raw.maximumClaimWei === 0n || raw.maximumClaimWei > pkg.coverageAmount ? pkg.coverageAmount : raw.maximumClaimWei;
-  return formatTerms({ ...raw.toObject(), maximumClaimWei }, { allowed, excluded, labels: await readRuleLabels(packageId, version, raw.policyRuleVersion) });
+  return { ...formatTerms({ ...raw.toObject(), maximumClaimWei }, { allowed, excluded, labels: await readRuleLabels(packageId, version, raw.policyRuleVersion) }),
+    paymentSchedule: await readPaymentSchedule(economics) };
 };
 
 const getIssuedTerms = async (contract, policyId) => {
@@ -63,6 +65,7 @@ const getIssuedTerms = async (contract, policyId) => {
   }));
   terms.remainingCoverageWei = String(await economics.remainingCoverage(policyId));
   terms.coverageLimitWei = String(raw.coverageLimitWei);
+  terms.paymentSchedule = await readPaymentSchedule(economics);
   return terms;
 };
 

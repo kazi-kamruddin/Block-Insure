@@ -71,7 +71,13 @@
     "research:phase34": "npm --prefix backEnd run research:phase34",
     "research:all": "npm --prefix backEnd run research:artifacts && npm --prefix contracts run test:stateful && npm --prefix contracts run test:mutations && npm --prefix backEnd run research:manifest",
     "research:paper-evidence": "node scripts/generatePaperEvidence.js",
-    "verify:sync": "node scripts/verifySynchronization.js"
+    "verify:sync": "node scripts/verifySynchronization.js",
+    "test:release": "node scripts/runReleaseVerification.js",
+    "preflight:hosted:full": "node scripts/hostedPreflight.js --full",
+    "deploy:verify": "node scripts/deploymentReadback.js",
+    "deploy:testnet": "node scripts/deployTestnet.js",
+    "test:release:images": "node scripts/verifyReleaseImages.js",
+    "analyze:release": "node scripts/runReleaseStaticAnalysis.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"

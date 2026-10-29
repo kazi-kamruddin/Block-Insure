@@ -30,7 +30,7 @@ Snapshot output is local and refuses to overwrite an existing record.
 
 Historical research records retain their original hashes. The repository check
 validates those records and compares current runtime, model, dataset and study
-inputs. The [reviewed source transition](research-source-transition-v3.json) binds
+inputs. The [reviewed source transition](research-source-transition-v4.json) binds
 the exact accepted differences from the historical manifest; any additional
 unreviewed difference fails verification. This preserves provenance and does not
 revalidate old measurements for the new runtime. Changes to source-snapshot and

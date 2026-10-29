@@ -151,6 +151,10 @@ async function main() {
     await run("Phase one settlement recovery", path.join(root, "backEnd/test/phaseOneSettlement.integration.js"), [], root, { NODE_ENV: "test" });
     return;
   }
+  if (process.env.RELEASE_READBACK_ONLY === "true") {
+    await run("Deployment readback", path.join(root, "scripts/deploymentReadback.js"), ["--manifest", path.join(output, "localhost-31337.json"), "--local", "--output", path.join(process.env.RELEASE_MEASUREMENTS_DIR, "deployment-readback.json")]);
+    return;
+  }
   if (process.env.PHASE_TWO_RECOVERY_ONLY === "true") {
     await run("Evidence lifecycle recovery", path.join(root, "backEnd/test/phaseTwoRecovery.integration.js"), [], root, { NODE_ENV: "test" });
     return;
@@ -165,6 +169,21 @@ async function main() {
   await waitFor(async () => (await (await fetch("http://localhost:5000/health/ready")).json()).status === "ready", "Backend");
   await waitFor(async () => (await fetch("http://localhost:5173")).ok, "Frontend");
   for (const instance of [1, 2]) await waitFor(async () => (await fetch(`http://localhost:${5100 + instance}/health/ready`)).ok, `Oracle ${instance}`);
+  if (process.env.RELEASE_MEASUREMENTS_DIR) {
+    const { ethers } = require("../backEnd/node_modules/ethers");
+    const rpc = new ethers.JsonRpcProvider(environment.RPC_URL);
+    try {
+      const checked = await require("./deploymentReadback").verifyDeployment({ manifest: deployment, provider: rpc, local: true });
+      const [frontend, backend, oracleOne, oracleTwo, frontendConfiguration] = await Promise.all([
+        fetch("http://localhost:5173").then(async (r) => ({ body: await r.text() })),
+        ...["http://localhost:5000/health/ready", "http://localhost:5101/health/ready", "http://localhost:5102/health/ready", "http://localhost:5173/release-config.json"].map((url) => fetch(url).then(async (r) => ({ body: await r.json() }))),
+      ]);
+      require("./hostedPreflight").validateResponses({ frontend, backend, oracleOne, oracleTwo, frontendConfiguration }, { full: true,
+        chainId: checked.chainId, modelIdentity: checked.modelIdentityHash, oracleWallets: checked.oracleWallets, components: checked.components,
+        frontendOrigin: "http://localhost:5173", backendOrigin: "http://localhost:5000" });
+      fs.writeFileSync(path.join(process.env.RELEASE_MEASUREMENTS_DIR, "runtime-readiness.json"), JSON.stringify({ passed: true, scope: "Local actual service/build identity readback; not public hosted acceptance", deployment: checked }, null, 2) + "\n", { flag: "wx" });
+    } finally { rpc.destroy(); }
+  }
   // Exercise the durability boundary that a post-finality restart cannot test:
   // terminate worker 1 after its mined commitment, before either reveal.
   const protocolRestart = shadowRestart ? (async () => {
@@ -196,7 +215,12 @@ async function main() {
   console.log(`[Stabilization] Stage evidence: ${path.relative(root, output)}`);
   const browserReports = (name) => ({ E2E_HEADED: "false", PLAYWRIGHT_HTML_OUTPUT_DIR: path.join(output, name, "report"),
     PLAYWRIGHT_OUTPUT_DIR: path.join(output, name, "artifacts"), PLAYWRIGHT_JSON_OUTPUT_NAME: path.join(output, name, "results.json") });
-  await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/cancellation-refund.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, browserReports("browser"));
+  let browserFailure;
+  try {
+    await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/cancellation-refund.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, browserReports("browser"));
+  } catch (error) { browserFailure = error; }
+  if (process.env.RELEASE_MEASUREMENTS_DIR) await run("Receipt capture", path.join(root, "scripts/captureReleaseChain.js"), [path.join(output, "localhost-31337.json"), process.env.RELEASE_MEASUREMENTS_DIR]);
+  if (browserFailure) throw browserFailure;
   if (process.env.PHASE_ONE_SETTLEMENT_TESTS === "true") await run("Phase one settlement recovery", path.join(root, "backEnd/test/phaseOneSettlement.integration.js"), [], root, { NODE_ENV: "test" });
   if (protocolRestart) await protocolRestart;
   if (showcase) await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", "e2e/tests/showcase-coverage.spec.js", "--workers=1"], root, browserReports("showcase"));

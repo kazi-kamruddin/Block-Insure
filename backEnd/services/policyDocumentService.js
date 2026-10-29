@@ -1,14 +1,19 @@
 const { ethers } = require("ethers");
+const { durationLabel } = require("./paymentScheduleService");
 
 const list = (values) => values.length ? values.join(", ") : "None";
 const buildPolicyDocument = ({ policyPackage }) => {
   const terms = policyPackage.policyTerms;
   if (!terms?.authoritative) throw new Error("Published contract terms are required for an application policy document");
-  const documentVersion = `medical-rules.${terms.version}-schedule.2`;
-  const periods = Math.ceil(Number(policyPackage.durationDays) / 90);
-  const finalDays = Number(policyPackage.durationDays) % 90 || 90;
+  const schedule = terms.paymentSchedule;
+  if (!schedule?.intervalSeconds) throw new Error("Published payment schedule is required");
+  const documentVersion = `medical-rules.${terms.version}-schedule.3-${schedule.profile}`;
+  const termSeconds = Number(policyPackage.durationDays) * 86400;
+  const periods = Math.ceil(termSeconds / schedule.intervalSeconds);
+  const finalSeconds = termSeconds % schedule.intervalSeconds || schedule.intervalSeconds;
+  const interval = BigInt(schedule.intervalSeconds);
   const finalWei = periods === 1 ? BigInt(policyPackage.premiumAmountWei) :
-    (BigInt(policyPackage.premiumAmountWei) * BigInt(finalDays) + 89n) / 90n;
+    (BigInt(policyPackage.premiumAmountWei) * BigInt(finalSeconds) + interval - 1n) / interval;
   const markdown = `# ${policyPackage.name} — Issued Medical Coverage Terms
 
 Document version: ${documentVersion}
@@ -38,12 +43,14 @@ A claim whose calculated liability exceeds remaining aggregate coverage is rejec
 
 ## Fixed installment schedule
 
+${schedule.label}. ${schedule.notice}
+
 - First installment at purchase: ${policyPackage.premiumAmountEth} test ETH
-- Calendar periods are anchored to purchase, every 90 days: ${periods} periods for this term
-- Last period: ${finalDays} days; charge ${ethers.formatEther(finalWei)} test ETH (a subsequent short final period is prorated, rounded up in wei)
-- Only the next unpaid period can be paid, starting 30 days before its due date; no bulk prepayment
+- Calendar periods are anchored to purchase, every ${schedule.intervalLabel}: ${periods} periods for this term
+- Last period: ${durationLabel(finalSeconds)}; charge ${ethers.formatEther(finalWei)} test ETH (a subsequent short final period is prorated, rounded up in wei)
+- Only the next unpaid period can be paid, starting ${schedule.advanceWindowLabel} before its due date; no bulk prepayment
 - Early payment keeps the original calendar dates
-- Seven-day collection grace does not extend medical coverage past the unpaid due date
+- Collection grace of ${schedule.gracePeriodLabel} does not extend medical coverage past the unpaid due date
 - Reinstatement charges the current calendar period at its scheduled price, excludes the missed interval and applies the reinstatement wait; skipped periods are not arrears
 - No premium collection after the term is fully paid or expired
 

@@ -105,7 +105,7 @@ test.describe("@smoke role workspaces", () => {
       await expect(
         session.page.getByRole("navigation", { name: "Bank navigation" })
       ).toBeVisible();
-      await expect(session.page.getByText("Quarterly bank automation active")).toBeVisible();
+      await expect(session.page.getByText("Scheduled bank automation active")).toBeVisible();
       await expect(session.page.getByText("BANK-001", { exact: true })).toBeVisible();
       const accountRows = session.page.locator(".bank-accounts-card tbody tr");
       await expect(accountRows).toHaveCount(3);

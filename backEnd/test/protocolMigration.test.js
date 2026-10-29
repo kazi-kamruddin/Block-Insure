@@ -66,11 +66,14 @@ test("mined protocol log metadata must match the pinned decision and result hash
 test("measurement preserves actual gas/fee units and never invents missing L2 fee or finality", () => {
   const receipt = { gasUsed: "0x5208", effectiveGasPrice: "0x2", status: "0x1", blockNumber: "0x10" };
   const row = normalizeReceipt(receipt, { hash: "synthetic-tx" }, { operation: "test" }, { timestamp: "0x100" });
-  assert.equal(row.gasUsed, "21000"); assert.equal(row.executionFeeWei, "42000");
-  assert.equal(row.l1DataFeeWei, null); assert.equal(row.executionPlusKnownDataFeeWei, null);
+  assert.equal(row.gasUsed, "21000"); assert.equal(row.receiptGasFeeWei, "42000");
+  assert.equal(row.l1DataFeeWei, null); assert.equal(row.receiptGasPlusKnownDataFeeWei, null);
+  assert.equal(row.executionGasUsed, null); assert.equal(row.stateGasUsed, null);
+  const split = normalizeReceipt({ ...receipt, executionGasUsed: "0x2328", stateGasUsed: "0x2ee0" }, { hash: "tx" }, { operation: "test" }, { timestamp: "0x100" });
+  assert.equal(split.executionGasUsed, "9000"); assert.equal(split.stateGasUsed, "12000");
   assert.equal(row.observedSubmissionToBlockMs, null);
   assert.throws(() => normalizeReceipt({ ...receipt, effectiveGasPrice: undefined }, { hash: "tx" }, { operation: "test" }, { timestamp: "0x100" }), /price unavailable/);
-  assert.equal(normalizeReceipt({ ...receipt, l1Fee: "0x10" }, { hash: "tx" }, { operation: "test" }, { timestamp: "0x100" }).executionPlusKnownDataFeeWei, "42016");
+  assert.equal(normalizeReceipt({ ...receipt, l1Fee: "0x10" }, { hash: "tx" }, { operation: "test" }, { timestamp: "0x100" }).receiptGasPlusKnownDataFeeWei, "42016");
 });
 test("public deployment guard refuses known local signers and wrong chains without changing local development", () => {
   const { assertDeploymentSigner } = require("../../scripts/deploymentNetworkSafety");

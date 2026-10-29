@@ -4,6 +4,29 @@ These rules remain the financial/provider foundation of the current release.
 It requires a **new deployment**;
 it is not a migration of existing policies or an instruction to reset a database.
 
+## Immutable payment profiles
+
+The ordinary `InsuranceManager` retains quarterly periods (90 days), a 30-day
+advance window and seven-day collection grace. A separate
+`AcceleratedInsuranceManager` is available only on local chain 31337, Sepolia
+11155111 and Base Sepolia 84532. It uses **10-minute periods, an 8-minute advance
+window and 2-minute collection grace**. A new policy's next manual payment opens
+after two minutes; automatic EFT collects at due time. If EFT pays installment 2
+at minute 10, manual installment 3 opens at minute 12.
+
+This is an explicitly labelled testnet demonstration calendar, not realistic
+insurance frequency or pricing. Claim, access-preparation and review deadlines
+are unchanged. The profile is fixed at deployment and cannot change existing
+policies. It is included in the manifest, public package name, accepted document,
+policy view and banking view. The API reads exact values from the economics
+module and refuses unknown or inconsistent profiles. Collection polls every
+30 seconds; successful attempts reset their retry throttle for the next period.
+
+Select `CALENDAR_PROFILE=QUARTERLY` or `ACCELERATED_TESTNET` explicitly for a new
+deployment. Use the same selected profile for comparisons across networks; label
+all results. Two profiles require separate deployments/data scopes. Older
+quarterly descriptions below apply to that profile only.
+
 ## Hospital staff and source records
 
 An administrator signs in with SIWE and opens **Administration → Hospital Staff**.
@@ -64,10 +87,11 @@ codes, claim deadline, deductible, share and maximum claim come from the
 configured contract rules. Existing policies use their immutable issued snapshot,
 paid coverage intervals and remaining aggregate coverage.
 
-One primary `HOSPITAL_BILL` commitment is supported in this phase. Unsupported
-document configurations are not offered for application purchase. Additional
-encrypted evidence belongs to the subsequent evidence-bundle work. Plaintext
-authenticity is not established by the declared document type or commitment count.
+One primary `HOSPITAL_BILL` commitment is required by the contract. The application
+also supports up to four encrypted supporting PDF/JPEG/PNG files in its versioned
+evidence bundle. Unsupported primary-document configurations are not offered for
+purchase. Plaintext authenticity is not established by the declared document type
+or commitment count. See [evidence and review](evidence-review-and-recovery.md).
 Pre-existing-condition underwriting is outside this product's implemented scope.
 
 `purchasePolicyWithTerms(packageId, expectedIssueHash, documentHash)` checks the
@@ -165,7 +189,9 @@ request, claim/registry/model versions, result and salt. Copying another eligibl
 worker's commitment and reveal cannot supply the second confirmation. Result
 digests still permit two independent workers to agree on the same assessment.
 
-The current package is `xgboost-protocol-v3.json`; trained XGBoost weights and
+The current package is `xgboost-protocol-v4.json`; its operational source binding
+adds public worker deployment-health identity while preserving v3's evaluator.
+Old v1/v2/v3 wrappers are preserved. Trained XGBoost weights and
 threshold remain unchanged. The old v1/v2 artifacts and NB artifacts are retained as
 historical evidence. A new contract/worker release must be deployed together.
 Do not attach the new commitment encoder to an older coordinator or treat a
