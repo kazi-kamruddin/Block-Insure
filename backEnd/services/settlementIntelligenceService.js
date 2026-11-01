@@ -103,10 +103,10 @@ const normalizeSettlement = (rawSettlement) => ({
 });
 
 const getSettlementQuote = async (contract, economics, claim) => {
-  const [rawSettlement, terms] = await Promise.all([
-    contract.calculateSettlement(claim.claimId),
-    economics.getPolicyTerms(claim.policyId),
-  ]);
+  const bigintValues = (data) => Object.fromEntries(Object.entries(data).map(([key, value]) => [key, typeof value === "string" && /^\d+$/.test(value) ? BigInt(value) : value]));
+  const [rawSettlement, terms] = claim._settlement && claim._terms
+    ? [bigintValues(claim._settlement), bigintValues(claim._terms)]
+    : await Promise.all([contract.calculateSettlement(claim.claimId), economics.getPolicyTerms(claim.policyId)]);
   const settlement = normalizeSettlement(rawSettlement);
   const params = {
     deductibleRateBps: terms.deductibleRateBps,
@@ -163,27 +163,11 @@ const formatPolicy = (policy) => ({
 });
 
 const getAllClaims = async (contract) => {
-  const nextClaimId = await contract.claimCounter();
-  const totalClaims = Number(nextClaimId) - 1;
-  const claims = [];
-
-  for (let claimId = 1; claimId <= totalClaims; claimId += 1) {
-    claims.push(await contract.getClaim(claimId));
-  }
-
-  return claims;
+  return require("./chainReadProjectionService").readEntities("claim");
 };
 
 const getAllPolicies = async (contract) => {
-  const nextPolicyId = await contract.policyCounter();
-  const totalPolicies = Number(nextPolicyId) - 1;
-  const policies = [];
-
-  for (let policyId = 1; policyId <= totalPolicies; policyId += 1) {
-    policies.push(await contract.getPolicy(policyId));
-  }
-
-  return policies;
+  return require("./chainReadProjectionService").readEntities("policy");
 };
 
 const buildStatusBreakdown = (claims) => {
@@ -285,7 +269,7 @@ const buildReserveIntelligence = async () => {
   const settlementRecords = await Promise.all(
     settledClaims.map(async (claim) => {
       try {
-        return await contract.getSettlementRecord(claim.claimId);
+        return claim._settledAmount ? { amount: BigInt(claim._settledAmount) } : await contract.getSettlementRecord(claim.claimId);
       } catch (_) {
         return null;
       }

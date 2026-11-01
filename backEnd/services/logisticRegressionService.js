@@ -4,8 +4,13 @@ const sigmoid = (value) => {
   return exponent / (1 + exponent);
 };
 
-const vectorize = (featureNames, features) =>
-  featureNames.map((name) => Number(Boolean(features?.[name])));
+const vectorize = (featureNames, features, inputEncoding = "binary") =>
+  featureNames.map((name) => {
+    if (inputEncoding === "binary") return Number(Boolean(features?.[name]));
+    const value = Number(features?.[name]);
+    if (!Number.isFinite(value)) throw new Error(`Non-finite continuous feature: ${name}`);
+    return value;
+  });
 
 const trainLogisticRegression = ({
   rows,
@@ -14,9 +19,12 @@ const trainLogisticRegression = ({
   iterations = 1200,
   learningRate = 0.08,
   l2 = 0.002,
+  inputEncoding = "binary",
 }) => {
   if (!rows.length) throw new Error("Logistic regression requires training rows");
   if (!featureNames.length) throw new Error("Logistic regression requires features");
+  if (!["binary", "continuous"].includes(inputEncoding)) throw new Error("Unsupported logistic input encoding");
+  const vectors = rows.map((row) => vectorize(featureNames, row.features, inputEncoding));
   const positives = rows.filter((row) => row.actualFraud).length;
   const negatives = rows.length - positives;
   const positiveWeight = classWeighted && positives > 0
@@ -32,8 +40,9 @@ const trainLogisticRegression = ({
     const gradients = Array(featureNames.length).fill(0);
     let interceptGradient = 0;
     let totalWeight = 0;
-    for (const row of rows) {
-      const vector = vectorize(featureNames, row.features);
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex];
+      const vector = vectors[rowIndex];
       const probability = sigmoid(
         intercept + vector.reduce((sum, value, index) => sum + value * weights[index], 0)
       );
@@ -54,6 +63,7 @@ const trainLogisticRegression = ({
 
   return {
     algorithm: classWeighted ? "ClassWeightedLogisticRegression" : "LogisticRegression",
+    inputEncoding,
     featureNames: [...featureNames],
     weights,
     intercept,
@@ -65,7 +75,7 @@ const trainLogisticRegression = ({
 };
 
 const predictLogisticRegression = (model, features) => {
-  const vector = vectorize(model.featureNames, features);
+  const vector = vectorize(model.featureNames, features, model.inputEncoding);
   const logit = model.intercept + vector.reduce(
     (sum, value, index) => sum + value * model.weights[index],
     0

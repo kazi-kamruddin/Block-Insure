@@ -68,11 +68,11 @@ const HospitalDashboardPage = lazy(
   () => import("./pages/HospitalDashboardPage")
 );
 const HospitalRecordsPage = lazy(() => import("./pages/HospitalRecordsPage"));
-const HospitalClaimRequestsPage = lazy(
-  () => import("./pages/HospitalClaimRequestsPage")
-);
+const HospitalLoginPage = lazy(() => import("./pages/HospitalLoginPage"));
+const AdminHospitalStaffPage = lazy(() => import("./pages/AdminHospitalStaffPage"));
 const BankDashboardPage = lazy(() => import("./pages/BankDashboardPage"));
 const BankingPage = lazy(() => import("./pages/BankingPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 
 import "./App.css";
 import "./styles/modern-system.css";
@@ -112,6 +112,7 @@ export default function App() {
                 <Route path="user" element={<UserLayout />}>
                   <Route index element={<Navigate to="/user/dashboard" replace />} />
                   <Route path="dashboard" element={<UserDashboardPage />} />
+                  <Route path="profile" element={<ProfilePage />} />
                   <Route path="policies" element={<MyPoliciesPage />} />
                   <Route path="policies/buy" element={<PolicyListPage />} />
                   <Route path="payments" element={<PaymentHistoryPage />} />
@@ -128,6 +129,7 @@ export default function App() {
                   <Route path="dashboard" element={<AdminDashboardPage />} />
                   <Route path="policy-packages" element={<AdminPolicyPackagesPage />} />
                   <Route path="benefits" element={<AdminBenefitsPage />} />
+                  <Route path="hospital-staff" element={<AdminHospitalStaffPage />} />
                   <Route
                     path="policy-packages/new"
                     element={<AdminCreatePolicyPackagePage />}
@@ -144,7 +146,7 @@ export default function App() {
                 <Route path="auditor" element={<AuditorLayout />}>
                   <Route index element={<Navigate to="/auditor/dashboard" replace />} />
                   <Route path="dashboard" element={<AuditorDashboardPage />} />
-                  <Route path="healthcare-registry" element={<HealthcareRegistryPage />} />
+                  <Route path="healthcare-registry" element={<Navigate to="/auditor/votes" replace />} />
                   <Route path="claims" element={<AuditorClaimLookupPage />} />
                   <Route path="claims/:id/history" element={<AuditorClaimHistoryPage />} />
                   <Route path="votes" element={<AuditorVoteQueuePage />} />
@@ -153,11 +155,12 @@ export default function App() {
                   <Route path="verify-document" element={<AuditorDocumentVerificationPage />} />
                 </Route>
 
+                <Route path="hospital/login" element={<HospitalLoginPage />} />
                 <Route path="hospital" element={<HospitalLayout />}>
                   <Route index element={<Navigate to="/hospital/dashboard" replace />} />
                   <Route path="dashboard" element={<HospitalDashboardPage />} />
                   <Route path="records" element={<HospitalRecordsPage />} />
-                  <Route path="claims" element={<HospitalClaimRequestsPage />} />
+                  <Route path="claims" element={<Navigate to="/hospital/records" replace />} />
                 </Route>
 
                 <Route path="bank" element={<BankLayout />}>

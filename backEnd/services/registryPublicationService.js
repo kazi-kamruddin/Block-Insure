@@ -47,6 +47,15 @@ const publishPendingRegistry = () => {
       await Secondary.bulkWrite(records.map(({ _id, __v, ...record }) => ({ updateOne: {
         filter: { invoiceHash: record.invoiceHash }, update: { $set: record }, upsert: true,
       } })));
+      // Secondary is a derived replica, not an independent source of records.
+      // Reconcile only rows observed before this reconciliation, with revision
+      // checks so a concurrent secondary write is never silently deleted.
+      const primaryHashes = new Set(records.map((record) => record.invoiceHash));
+      const stale = (await Secondary.find().select("_id invoiceHash updatedAt").lean())
+        .filter((record) => !primaryHashes.has(record.invoiceHash));
+      if (stale.length) await Secondary.bulkWrite(stale.map((record) => ({ deleteOne: {
+        filter: { _id: record._id, updatedAt: record.updatedAt },
+      } })));
       const other = buildMerkleTree(await Secondary.find().lean());
       if (other.rootHash !== tree.rootHash) throw new Error("Worker registries differ; publication withheld");
       for (let offset = 0; offset < records.length; offset += 250) {

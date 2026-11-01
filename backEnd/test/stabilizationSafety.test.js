@@ -17,7 +17,29 @@ test("appeals reject off-chain corrections not reflected in the authoritative cl
 test("runtime feature extraction ignores evaluation labels and synthetic mutation markers", () => {
   const record = { billAmount: "0.1", expectedBillMin: "0.01", expectedBillMax: "1", recordStatus: "VALID", invoiceStatus: "VALID", licenseStatus: "ACTIVE" };
   const extract = (input) => extractRuntimeFeatures({ record: input, comparison: {} });
-  assert.deepEqual(extract(record), extract({ ...record, fraudLabel: "FRAUD", actualFraud: true, fraudSignals: { inflatedAmount: true, dateMismatch: true, usedInvoice: true, blacklistedHospital: true } }));
+  assert.deepEqual(extract(record), extract({ ...record, fraudLabel: "FRAUD", actualFraud: true, previousClaimCount: 100, providerVelocityAnomaly: true, claimantVelocityAnomaly: true, nearDuplicateAdvisory: true, isMissingOrNoisy: true, dataQuality: "NOISY", fraudSignals: { inflatedAmount: true, dateMismatch: true, usedInvoice: true, blacklistedHospital: true } }));
+  assert.equal(extract({ ...record, observableHistory: { previousClaimCount: 3, providerVelocityAnomaly: true } }).provider_velocity_anomaly, true);
+});
+
+test("both workers bind preserved observable history to the same canonical Merkle leaf", () => {
+  const backend = require("../services/merkleRegistryService");
+  const oracle = require("../../oracle/merkleProof");
+  const record = { hospitalId: "HOSP-001", patientHash: "example", observableHistory: { previousClaimCount: 3, providerVelocityAnomaly: true, claimantVelocityAnomaly: false } };
+  assert.deepEqual(backend.getCanonicalRecordPayload(record), oracle.getCanonicalRecordPayload(record));
+  const leaf = oracle.hashCanonicalRecord(record);
+  assert.notEqual(leaf, oracle.hashCanonicalRecord({ ...record, observableHistory: { ...record.observableHistory, previousClaimCount: 0 } }));
+});
+
+test("profiles reject privilege fields and return only public contact fields", async () => {
+  const controller = require("../controllers/userController");
+  let status;
+  const res = { status: (code) => { status = code; return res; }, json: (body) => body };
+  await controller.registerUser({ user: { walletAddress: `0x${"1".repeat(40)}` }, body: { name: "Demo", role: "ADMIN" } }, res, (error) => { throw error; });
+  assert.equal(status, 400);
+  await controller.registerUser({ user: { walletAddress: `0x${"1".repeat(40)}` }, body: null }, res, (error) => { throw error; });
+  assert.equal(status, 400);
+  await controller.registerUser({ user: { walletAddress: `0x${"1".repeat(40)}` }, body: { email: "invalid" } }, res, (error) => { throw error; });
+  assert.equal(status, 400);
 });
 
 test("different patients at the same provider are not fuzzy duplicate claims", () => {

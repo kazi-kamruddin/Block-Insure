@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import ClaimStatusBadge from "../components/ClaimStatusBadge";
 import EvidenceField from "../components/EvidenceField";
+import EvidenceChainPanel from "../components/EvidenceChainPanel";
+import ReviewAccessPanel from "../components/ReviewAccessPanel";
 import OracleComparisonPanel from "../components/OracleComparisonPanel";
 import PolicyEligibilityResult from "../components/PolicyEligibilityResult";
 import TransactionLink from "../components/TransactionLink";
@@ -11,6 +13,7 @@ import {
   getClaimById,
   getClaimVoteSummary,
   getOracleResults,
+  getReviewAccess,
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import { getWalletContract, parseTransactionError } from "../services/contractService";
@@ -57,6 +60,10 @@ function getLatestOracleLog(logs) {
 }
 
 function getBayesianFraudPercent(log) {
+  if (log?.responseData?.assessment?.model === "XGBoost") {
+    const score = log.responseData.assessment.score;
+    return Number.isFinite(score) ? Math.round(score * 100) : null;
+  }
   return (
     log?.responseData?.hospitalVerification?.riskAssessment?.fraudProbabilityPercent ??
     log?.hospitalVerification?.riskAssessment?.fraudProbabilityPercent ??
@@ -134,6 +141,7 @@ export default function AuditorVotingPage() {
   const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const latestOracleLog = getLatestOracleLog(oracleLogs);
   const voteSummary = extractVoteSummary(voteData);
+  const accessQuery = useQuery({ queryKey: ["reviewAccess", claimId, walletAddress], queryFn: () => getReviewAccess(claimId), refetchInterval: 3000, retry: false, enabled: Boolean(claimId) });
   const bayesianFraudPercent = getBayesianFraudPercent(latestOracleLog);
   const voteRule = getClaimActionRule({
     action: CLAIM_ACTIONS.AUDITOR_VOTE,
@@ -143,7 +151,7 @@ export default function AuditorVotingPage() {
     auditorVotingFinalized: Boolean(voteSummary?.finalized),
   });
   const isReviewable = voteRule.allowed || voteRule.reason === "Already voted";
-  const canVote = voteRule.allowed && voteSummary && !isVoting;
+  const canVote = voteRule.allowed && voteSummary && !isVoting && accessQuery.data?.preparation?.state === "ACTIVE";
 
   async function refreshAll() {
     await refetchClaim();
@@ -215,6 +223,7 @@ export default function AuditorVotingPage() {
 
       <div className="auditor-vote-workspace">
         <div className="auditor-vote-analysis">
+      {claim && <><ReviewAccessPanel claimId={claimId} onChange={refreshAll} /><EvidenceChainPanel evidenceChain={claimData?.evidenceChain} /></>}
       {claim ? (
         <div className="card">
           <h3>Claim #{formatValue(claim.claimId || claimId)}</h3>
@@ -230,7 +239,7 @@ export default function AuditorVotingPage() {
               <small> Higher means the deterministic submission checks passed.</small>
             </p>
             <p>
-              Bayesian fraud probability:{" "}
+              Recorded model risk score:{" "}
               {bayesianFraudPercent === null
                 ? "-"
                 : `${formatValue(bayesianFraudPercent)}%`}
@@ -248,7 +257,9 @@ export default function AuditorVotingPage() {
       <div className={`card voting-readiness ${canVote ? "is-open" : ""}`}>
         <h3>Voting Readiness</h3>
         <p>
-          {voteRule.reason ||
+          {voteRule.allowed && accessQuery.data?.preparation?.state !== "ACTIVE"
+            ? "Voting waits for activation of the assigned reviewers' access to the sealed evidence set. See evidence preparation above."
+            : voteRule.reason ||
             getVotingHint({ isReviewable, statusName, voteSummary, isVoting })}
         </p>
       </div>

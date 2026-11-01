@@ -79,5 +79,8 @@ oracleLogSchema.index(
     partialFilterExpression: { submittedTxHash: { $gt: "" } },
   }
 );
+// Current-deployment monitoring reads a bounded, newest-first window.
+oracleLogSchema.index({ "responseData.deployment.coordinatorAddress": 1,
+  "responseData.deployment.chainId": 1, createdAt: -1 });
 
 module.exports = mongoose.model("OracleLog", oracleLogSchema);

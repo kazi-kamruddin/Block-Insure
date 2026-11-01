@@ -34,10 +34,16 @@ const sortRecordsForTree = (records) => {
 };
 
 const getCanonicalRecordPayload = (record) => ({
+  ...(record.identityVersion === 2 ? { identityVersion: 2 } : {}),
   hospitalId: record.hospitalId,
   hospitalName: record.hospitalName,
   licenseStatus: record.licenseStatus,
   patientHash: record.patientHash,
+  ...(record.observableHistory ? { observableHistory: {
+    previousClaimCount: Number(record.observableHistory.previousClaimCount || 0),
+    providerVelocityAnomaly: record.observableHistory.providerVelocityAnomaly === true,
+    claimantVelocityAnomaly: record.observableHistory.claimantVelocityAnomaly === true,
+  } } : {}),
   ...(record.authorizedClaimants?.length ? { authorizedClaimants: [...record.authorizedClaimants].map((wallet) => wallet.toLowerCase()).sort() } : {}),
   treatmentType: record.treatmentType,
   diagnosisCode: record.diagnosisCode,
@@ -181,7 +187,7 @@ const getRegistryRecordsForMerkle = async (registrySnapshot = "primary") => {
 
   return RegistryModel.find()
     .select(
-      "hospitalId hospitalName licenseStatus patientHash authorizedClaimants treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel datasetProfile baseDataOrigin claimSetting providerPotentialFraud providerLabelType scenarioInjected scenarioType scenarioVersion sourceClaimAmountUsd sourceProcedureCode amountNormalizationVersion amountNormalizationDivisor previousClaimCount providerVelocityAnomaly claimantVelocityAnomaly nearDuplicateAdvisory isMissingOrNoisy dataQuality recurringLegitimate fraudSignals"
+      "identityVersion hospitalId hospitalName licenseStatus patientHash observableHistory authorizedClaimants treatmentType diagnosisCode admissionDate dischargeDate invoiceDate billAmount expectedBillMin expectedBillMax invoiceNumber invoiceHash invoiceStatus recordStatus fraudLabel datasetProfile baseDataOrigin claimSetting providerPotentialFraud providerLabelType scenarioInjected scenarioType scenarioVersion sourceClaimAmountUsd sourceProcedureCode amountNormalizationVersion amountNormalizationDivisor previousClaimCount providerVelocityAnomaly claimantVelocityAnomaly nearDuplicateAdvisory isMissingOrNoisy dataQuality recurringLegitimate fraudSignals"
     )
     .lean();
 };

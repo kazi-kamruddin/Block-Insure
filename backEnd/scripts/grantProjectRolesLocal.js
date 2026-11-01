@@ -158,11 +158,6 @@ async function main() {
       InsuranceManagerArtifact.abi,
       adminWallet
     );
-    const hospitalVerificationRegistry = new ethers.Contract(
-      requireEnv("HOSPITAL_VERIFICATION_REGISTRY_ADDRESS"),
-      HospitalVerificationRegistryArtifact.abi,
-      adminWallet
-    );
     const bankIdentityRegistry = new ethers.Contract(
       requireEnv("BANK_IDENTITY_REGISTRY_ADDRESS"),
       BankIdentityRegistryArtifact.abi,
@@ -246,13 +241,7 @@ async function main() {
       );
     }
 
-    for (const hospital of HOSPITAL_NETWORK) {
-      await registerHospitalIfMissing(
-        hospitalVerificationRegistry,
-        hospital,
-        nonceState
-      );
-    }
+    // Staff source access is provisioned through the authenticated staff API.
     for (const bank of BANK_NETWORK) {
       await registerBankIfMissing(bankIdentityRegistry, bank, nonceState);
     }

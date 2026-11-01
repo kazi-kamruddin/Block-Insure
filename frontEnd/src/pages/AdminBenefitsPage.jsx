@@ -19,11 +19,11 @@ import "../styles/pages/AdminBenefitsPage.css";
 const DEFAULT_TERMS = {
   packageId: "",
   version: "1",
-  deathBenefitEnabled: true,
-  deathBenefitPercent: "100",
+  deathBenefitEnabled: false,
+  deathBenefitPercent: "0",
   surrenderEnabled: true,
   surrenderValuePercent: "50",
-  minimumSurrenderInstallments: "6",
+  minimumSurrenderInstallments: "2",
   maturityEnabled: false,
   maturityBonusPercent: "0",
 };
@@ -126,8 +126,8 @@ export default function AdminBenefitsPage() {
     <section className="page-container page-admin-benefits">
       <h2>Policy Benefits Administration</h2>
       <p className="muted-text">
-        Publish immutable rule versions and review death, surrender, and maturity
-        requests. Publishing requires a version greater than the current on-chain version.
+        Publish immutable cancellation-refund rules and review refund requests.
+        Death and maturity products are disabled. Publishing requires a version greater than the current on-chain version.
       </p>
 
       <form className="card form-grid" onSubmit={handlePublish}>
@@ -147,34 +147,22 @@ export default function AdminBenefitsPage() {
           New version
           <input type="number" min="1" value={terms.version} onChange={(event) => updateTerms("version", event.target.value)} required />
         </label>
-        <label className="checkbox-label">
-          <input type="checkbox" checked={terms.deathBenefitEnabled} onChange={(event) => updateTerms("deathBenefitEnabled", event.target.checked)} />
-          Enable death benefit
-        </label>
-        <label>
-          Death benefit (% of coverage)
-          <input type="number" min="0" max="100" value={terms.deathBenefitPercent} onChange={(event) => updateTerms("deathBenefitPercent", event.target.value)} required />
-        </label>
+
+
         <label className="checkbox-label">
           <input type="checkbox" checked={terms.surrenderEnabled} onChange={(event) => updateTerms("surrenderEnabled", event.target.checked)} />
-          Enable surrender value
+          Enable cancellation refund
         </label>
         <label>
-          Surrender value (% of premiums)
-          <input type="number" min="0" max="100" value={terms.surrenderValuePercent} onChange={(event) => updateTerms("surrenderValuePercent", event.target.value)} required />
+          Cancellation refund (% of premiums)
+          <input type="number" min="0" max="50" value={terms.surrenderValuePercent} onChange={(event) => updateTerms("surrenderValuePercent", event.target.value)} required />
         </label>
         <label>
           Minimum paid installments
-          <input type="number" min="0" value={terms.minimumSurrenderInstallments} onChange={(event) => updateTerms("minimumSurrenderInstallments", event.target.value)} required />
+          <input type="number" min="2" max="2" value={terms.minimumSurrenderInstallments} onChange={(event) => updateTerms("minimumSurrenderInstallments", event.target.value)} required />
         </label>
-        <label className="checkbox-label">
-          <input type="checkbox" checked={terms.maturityEnabled} onChange={(event) => updateTerms("maturityEnabled", event.target.checked)} />
-          Enable maturity benefit
-        </label>
-        <label>
-          Maturity bonus (% of premiums)
-          <input type="number" min="0" max="100" value={terms.maturityBonusPercent} onChange={(event) => updateTerms("maturityBonusPercent", event.target.value)} required />
-        </label>
+
+
         <button type="submit" disabled={actingId === "terms"}>
           {actingId === "terms" ? "Publishing..." : "Publish New Version"}
         </button>
@@ -183,7 +171,7 @@ export default function AdminBenefitsPage() {
       {error ? <p className="error-text">{error}</p> : null}
       {transactionHash ? <p>Transaction: <TransactionLink txHash={transactionHash} /></p> : null}
 
-      <h3>Benefit Requests</h3>
+      <h3>Cancellation Refund Requests</h3>
       <div className="card-row">
         {requests.map((request) => (
           <article className="card" key={request.requestId}>

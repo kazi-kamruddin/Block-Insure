@@ -20,10 +20,12 @@ const {
 } = require("../services/preTransformService");
 const {
   appendEvidenceEvent,
+  createSignedTreeHead,
   getEvidenceReceipt,
 } = require("../services/evidenceTransparencyService");
 
 const SCHEME_VERSION = "RECRYPT-RS-0.15+A256GCM";
+const bundles = require("../services/evidenceBundleService");
 
 const formatDocumentRecord = (fileRecord) => ({
   id: fileRecord._id,
@@ -70,7 +72,8 @@ const isAssignedReviewer = async (fileRecord, user) => {
   const contract = getReadOnlyContract();
   const adjudicator = await getClaimAdjudicator(contract);
   const version = Number(await contract.claimVersion(fileRecord.claimId));
-  return adjudicator.isAssigned(fileRecord.claimId, version, user.walletAddress);
+  const bundle = await bundles.getBundle(fileRecord.claimId, version);
+  return Boolean(bundle?.documentIds.includes(String(fileRecord._id))) && adjudicator.isAssigned(fileRecord.claimId, version, user.walletAddress);
 };
 
 const assertSensitiveDocumentAccess = async (fileRecord, user) => {
@@ -173,6 +176,7 @@ const getEncryptionPublicKey = async (req, res, next) => {
     res.status(200).json({
       success: true,
       key: {
+        deploymentScope: await bundles.assertEvidenceDeployment(),
         schemeVersion: SCHEME_VERSION,
         version: user?.encryptionKeyVersion || 0,
         registered: Boolean(user?.encryptionPublicKey && !user?.encryptionKeyRevokedAt),
@@ -249,6 +253,9 @@ const uploadDocument = async (req, res, next) => {
     if (req.file.buffer.subarray(0, 8).toString("utf8") !== "BINSENC2") {
       return res.status(400).json({ success: false, message: "Encrypted evidence header is invalid" });
     }
+    if (req.file.buffer.length <= 36 || req.file.buffer.length > bundles.MAX_FILE_BYTES + 36 || !["application/pdf", "image/jpeg", "image/png"].includes(originalMimeType)) {
+      return res.status(413).json({ success: false, message: "Use nonempty PDF/JPEG/PNG evidence up to 8 MiB per original file" });
+    }
     if (encryptionAlgorithm !== "AES-256-GCM" || !keyCapsule || !associatedData) {
       return res.status(400).json({ success: false, message: "PRE envelope fields are incomplete" });
     }
@@ -278,6 +285,9 @@ const uploadDocument = async (req, res, next) => {
     }
 
     let attempt = null;
+    if (aad.deploymentScope !== await bundles.assertEvidenceDeployment()) {
+      return res.status(409).json({ success: false, message: "Evidence is bound to another deployment" });
+    }
     if (attemptId) {
       if (String(aad.claimId) !== `attempt:${attemptId}` || Number(aad.claimVersion) !== 1) {
         return res.status(409).json({ success: false, message: "Envelope must bind the authorized submission attempt" });
@@ -285,23 +295,59 @@ const uploadDocument = async (req, res, next) => {
       if (!/^[a-f\d]{24}$/i.test(attemptId)) {
         return res.status(400).json({ success: false, message: "Claim submission attempt id is invalid" });
       }
+      const slot = Number(aad.fileSlot || 0);
+      if (!Number.isSafeInteger(slot) || slot < 0 || slot >= bundles.MAX_FILES ||
+          documentType !== (slot === 0 ? "HOSPITAL_BILL" : "SUPPORTING_DOCUMENT")) {
+        return res.status(422).json({ success: false, message: "Invalid primary/supporting evidence slot" });
+      }
+      if (!["application/pdf", "image/jpeg", "image/png"].includes(originalMimeType) ||
+          req.file.buffer.length > bundles.MAX_FILE_BYTES + 36) {
+        return res.status(413).json({ success: false, message: "Use PDF/JPEG/PNG evidence up to 8 MiB per original file" });
+      }
+      const scope = await bundles.assertEvidenceDeployment();
+      const owned = await ClaimSubmissionAttempt.findOne({ _id: attemptId, walletAddress: req.user.walletAddress, deploymentScope: scope });
+      if (!owned || owned.sealedAt || slot >= owned.expectedEvidenceCount) {
+        return res.status(409).json({ success: false, message: "Attempt is sealed, unavailable or has no such selected file slot" });
+      }
+      const existing = await File.findOne({ attemptId, uploadSlot: slot });
+      if (existing) {
+        if (existing.sha256Hash !== calculateSHA256(req.file.buffer)) return res.status(409).json({ success: false, message: "This slot already contains another encrypted file; resume the stored attempt" });
+        await recoverAttemptUploads(owned);
+        return res.status(200).json({ success: true, document: formatDocumentRecord(existing) });
+      }
       attempt = await ClaimSubmissionAttempt.findOneAndUpdate(
         {
           _id: attemptId,
           walletAddress: req.user.walletAddress,
           expiresAt: { $gt: new Date() },
-          status: "AUTHORIZED",
+          deploymentScope: scope,
+          sealedAt: null,
+          $or: [{ status: { $in: ["AUTHORIZED", "UPLOADED"] } }, { status: "UPLOADING", uploadLeaseUntil: { $lt: new Date() } }],
         },
-        { $set: { status: "UPLOADING", failureReason: "" } },
+        { $set: { status: "UPLOADING", failureReason: "", uploadLeaseUntil: new Date(Date.now() + 120000) } },
         { returnDocument: "after" }
       );
       if (!attempt) {
         return res.status(409).json({ success: false, message: "Claim attempt is unavailable or expired" });
       }
       activeAttempt = attempt;
+      const uploaded = await File.find({ attemptId }).select("encryptedBytes").lean();
+      if (uploaded.reduce((sum, file) => sum + file.encryptedBytes, req.file.buffer.length) > bundles.MAX_TOTAL_BYTES + bundles.MAX_FILES * 36) {
+        throw bundles.fail("Evidence bundle exceeds 20 MiB of original files", 413);
+      }
     }
     if (claimId) {
-      await assertClaimBelongsToWallet(claimId, req.user.walletAddress);
+      const claim = await assertClaimBelongsToWallet(claimId, req.user.walletAddress);
+      const contract = getReadOnlyContract();
+      const nextVersion = Number(await contract.claimVersion(claimId)) + 1;
+      const draft = await require("../models/AppealSubmissionAttempt").findOne({ deploymentScope: await bundles.assertEvidenceDeployment(), claimId,
+        claimVersion: nextVersion, ownerWallet: req.user.walletAddress, status: "DRAFT" });
+      if (Number(claim.status) !== 8 || Number(aad.claimVersion) !== nextVersion || documentType !== "APPEAL_DOCUMENT" || !draft) {
+        return res.status(409).json({ success: false, message: "Prepare the rejected claim's appeal draft before uploading its version-bound attachment" });
+      }
+      if (await File.exists({ claimId, claimVersion: nextVersion, documentType: "APPEAL_DOCUMENT" })) {
+        return res.status(409).json({ success: false, message: "This appeal already has a stored attachment. Resume the saved draft rather than uploading again." });
+      }
       if (String(aad.claimId) !== claimId) {
         return res.status(409).json({ success: false, message: "Envelope is bound to another claim" });
       }
@@ -310,6 +356,10 @@ const uploadDocument = async (req, res, next) => {
     const sha256Hash = calculateSHA256(req.file.buffer);
     uploadedCid = await uploadToPinata(req.file.buffer, req.file.originalname, req.file.mimetype);
     let fileRecord = await File.create({
+      deploymentScope: attempt?.deploymentScope || await bundles.assertEvidenceDeployment(),
+      attemptId,
+      uploadSlot: Number(aad.fileSlot || 0),
+      encryptedBytes: req.file.buffer.length,
       claimId,
       claimVersion: Number(aad.claimVersion),
       envelopeClaimId: String(aad.claimId),
@@ -346,12 +396,13 @@ const uploadDocument = async (req, res, next) => {
       });
       fileRecord.evidenceEventIndex = event.treeIndex;
       await fileRecord.save();
+      await require("../models/AppealSubmissionAttempt").updateOne({ deploymentScope: fileRecord.deploymentScope, claimId,
+        claimVersion: fileRecord.claimVersion, ownerWallet: req.user.walletAddress, status: "DRAFT" }, { $set: {
+        "payload.additionalDocumentHash": sha256Hash, "payload.additionalDocumentCID": uploadedCid,
+      } });
     }
     if (attempt) {
-      await ClaimSubmissionAttempt.updateOne(
-        { _id: attempt._id, status: "UPLOADING" },
-        { $set: { documentId: fileRecord._id.toString(), status: "UPLOADED" } }
-      );
+      await recoverAttemptUploads(attempt);
     }
     res.status(201).json({ success: true, message: "Document uploaded successfully", document: formatDocumentRecord(fileRecord) });
   } catch (error) {
@@ -361,11 +412,22 @@ const uploadDocument = async (req, res, next) => {
         { $set: { status: "AUTHORIZED", failureReason: error.message } }
       ).catch(() => {});
     }
-    if (createdFileRecord) await File.deleteOne({ _id: createdFileRecord._id }).catch(() => {});
-    if (uploadedCid) await unpinFromPinata(uploadedCid).catch(() => {});
+    // A stored file may outlive a lost acknowledgement. Keep it recoverable by
+    // its immutable attempt/slot rather than deleting possibly committed work.
+    if (uploadedCid && !createdFileRecord && !await File.exists({ ipfsCID: uploadedCid })) await unpinFromPinata(uploadedCid).catch(() => {});
     next(error);
   }
 };
+
+async function recoverAttemptUploads(attempt) {
+  const files = await File.find({ attemptId: String(attempt._id) }).sort({ uploadSlot: 1 });
+  const complete = files.length === attempt.expectedEvidenceCount && files.every((file, index) => file.uploadSlot === index);
+  await ClaimSubmissionAttempt.updateOne({ _id: attempt._id, sealedAt: null, status: { $in: ["AUTHORIZED", "UPLOADING", "UPLOADED"] } }, { $set: {
+    documentIds: files.map((file) => String(file._id)), documentId: files.find((file) => file.uploadSlot === 0)?._id.toString() || "",
+    encryptedBytes: files.reduce((sum, file) => sum + file.encryptedBytes, 0), uploadLeaseUntil: null,
+    status: complete ? "UPLOADED" : "AUTHORIZED",
+  } });
+}
 
 const verifyDocument = async (req, res, next) => {
   try {
@@ -400,6 +462,10 @@ const getDecryptionKey = async (req, res, next) => {
       }).select("+transformKey");
       if (!grant) {
         return res.status(403).json({ success: false, message: "No active cryptographic delegation exists" });
+      }
+      const bundle = await bundles.getBundle(fileRecord.claimId, currentClaimVersion);
+      if (!bundle || grant.manifestHash !== bundle.manifestHash) {
+        return res.status(403).json({ success: false, message: "Delegation does not authorize the current sealed evidence set" });
       }
       const granteeIdentity = await User.findOne({
         walletAddress: req.user.walletAddress,
@@ -448,66 +514,9 @@ const getDecryptionKey = async (req, res, next) => {
   }
 };
 
-const grantEvidenceAccess = async (req, res, next) => {
-  try {
-    const fileRecord = await File.findById(req.params.id);
-    if (!fileRecord) return res.status(404).json({ success: false, message: "Document record not found" });
-    if (fileRecord.uploaderWallet !== req.user.walletAddress.toLowerCase()) {
-      return res.status(403).json({ success: false, message: "Only the evidence owner can delegate access" });
-    }
-    const granteeWallet = String(req.body.granteeWallet || "").toLowerCase();
-    const contract = getReadOnlyContract();
-    const adjudicator = await getClaimAdjudicator(contract);
-    const currentClaimVersion = Number(await contract.claimVersion(fileRecord.claimId));
-    if (!(await adjudicator.isAssigned(fileRecord.claimId, currentClaimVersion, granteeWallet))) {
-      return res.status(403).json({ success: false, message: "Grantee is not assigned to this review" });
-    }
-    deserializeCryptoObject(req.body.transformKey);
-    const grantee = await User.findOne({ walletAddress: granteeWallet })
-      .select("+encryptionPublicKey +encryptionSigningPublicKey encryptionKeyVersion encryptionKeyRevokedAt")
-      .lean();
-    if (!grantee?.encryptionKeyVersion || grantee.encryptionKeyRevokedAt) {
-      return res.status(409).json({ success: false, message: "Grantee encryption identity is unavailable" });
-    }
-    await getActiveOnChainIdentity(
-      granteeWallet,
-      grantee.encryptionPublicKey,
-      grantee.encryptionSigningPublicKey
-    );
-    await EvidenceGrant.findOneAndUpdate(
-      { documentId: fileRecord._id, granteeWallet, claimVersion: currentClaimVersion },
-      {
-        ownerWallet: req.user.walletAddress,
-        claimId: fileRecord.claimId,
-        claimVersion: currentClaimVersion,
-        transformKey: req.body.transformKey,
-        granteeKeyVersion: grantee.encryptionKeyVersion,
-        revokedAt: null,
-      },
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    );
-    await appendEvidenceEvent({
-      eventType: "ACCESS_GRANTED",
-      claimId: fileRecord.claimId,
-      claimVersion: currentClaimVersion,
-      documentId: fileRecord._id,
-      actorWallet: req.user.walletAddress,
-      granteeWallet,
-      granteeKeyVersion: grantee.encryptionKeyVersion,
-    });
-    await EvidenceAccessLog.create({
-      documentId: fileRecord._id,
-      claimId: fileRecord.claimId,
-      actorWallet: req.user.walletAddress,
-      actorRole: req.user.role,
-      action: "GRANT",
-      userAgent: req.get("user-agent") || "",
-    });
-    res.status(200).json({ success: true, message: "Evidence access delegated" });
-  } catch (error) {
-    next(error);
-  }
-};
+const grantEvidenceAccess = async (_req, res) => res.status(410).json({
+  success: false, message: "Use batch authorization for the assigned panel and sealed evidence set",
+});
 
 const revokeEvidenceAccess = async (req, res, next) => {
   try {
@@ -532,6 +541,8 @@ const revokeEvidenceAccess = async (req, res, next) => {
       { returnDocument: "after" }
     );
     if (!grant) return res.status(404).json({ success: false, message: "Active delegation not found" });
+    await require("../models/ReviewAccessBatch").updateOne({ deploymentScope: grant.deploymentScope,
+      claimId: fileRecord.claimId, claimVersion: grant.claimVersion }, { $set: { status: "STALE" } });
     await appendEvidenceEvent({
       eventType: "ACCESS_REVOKED",
       claimId: fileRecord.claimId,
@@ -583,9 +594,10 @@ const attachClaimIdToDocument = async (req, res, next) => {
       return res.status(409).json({ success: false, message: "Evidence claim version or policy mismatch" });
     }
     const linkedDocument = await finalizeEvidence({ file: fileRecord, claim, version, attempt, actorWallet: req.user.walletAddress });
+    await bundles.finalizeAttemptBundle({ attempt, claim, version: 1, actorWallet: req.user.walletAddress });
     await ClaimSubmissionAttempt.updateOne(
       { _id: attempt._id },
-      { $set: { claimId, status: "COMPLETED", completedAt: new Date() } }
+      { $set: { claimId, status: "COMPLETED", completedAt: new Date(), expiresAt: null } }
     );
     await notifyAdmins({
       actorWallet: req.user.walletAddress,
@@ -613,6 +625,7 @@ const getReceipt = async (req, res, next) => {
     ) {
       return res.status(409).json({ success: false, message: "Evidence event is not logged yet" });
     }
+    await createSignedTreeHead();
     res.status(200).json({ success: true, receipt: await getEvidenceReceipt(fileRecord.evidenceEventIndex) });
   } catch (error) {
     next(error);

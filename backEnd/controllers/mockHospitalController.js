@@ -15,6 +15,7 @@ const {
   hashAppealCommitment,
 } = require("../services/appealCommitmentService");
 const Appeal = require("../models/Appeal");
+const Hospital = require("../models/Hospital");
 
 const DATE_TOLERANCE_DAYS = 30;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -649,7 +650,9 @@ const verifyHospitalRecord = async (req, res, next) => {
 
     if (claimId && Number.isInteger(requestedClaimVersion) && requestedClaimVersion > 1) {
       const activeAppeal = await Appeal.findOne({
+        deploymentScope: await require("../services/deploymentScopeService").getDeploymentScope(),
         claimId,
+        claimVersion: requestedClaimVersion,
         status: { $in: ["UNDER_REVIEW", "APPROVED"] },
       }).lean();
 
@@ -688,11 +691,7 @@ const verifyHospitalRecord = async (req, res, next) => {
         ].some(Boolean)
       ) {
         hospitalId = activeAppeal.proposedHospitalId || hospitalId;
-        invoiceHash = activeAppeal.proposedInvoiceNumber
-          ? ethers.keccak256(
-              ethers.toUtf8Bytes(activeAppeal.proposedInvoiceNumber.trim())
-            )
-          : invoiceHash;
+        invoiceHash = authoritativeClaim.invoiceHash;
         claimType = activeAppeal.proposedClaimType || claimType;
         claimAmountEth =
           activeAppeal.proposedClaimAmountEth || claimAmountEth;
@@ -805,10 +804,15 @@ const verifyHospitalRecord = async (req, res, next) => {
       runtimeRegistryRecordCount,
       duplicateIntelligence,
     });
-    if (
+    let xgboostRequest = false;
+    if (modelVersion) {
+      try { xgboostRequest = require("../../oracle/runtimeProtocol").resolveRequestModel(modelVersion).kind === "xgboost"; }
+      catch { return res.status(409).json({ success: false, verified: false, message: "Unsupported request model identity" }); }
+    }
+    if (!xgboostRequest && (
       (modelVersion && normalizeHash(modelVersion) !== normalizeHash(riskAssessment.modelIdentityHash)) ||
       (modelArtifactHash && normalizeHash(modelArtifactHash) !== normalizeHash(riskAssessment.artifactHash))
-    ) {
+    )) {
       return res.status(409).json({
         success: false,
         verified: false,
@@ -835,7 +839,8 @@ const verifyHospitalRecord = async (req, res, next) => {
       });
     }
 
-    const comparisonVerified = comparison.blockingFailureCount === 0;
+    const contractedHospital = Boolean(await Hospital.exists({ hospitalId: record.hospitalId, networkStatus: "CONTRACTED" }));
+    const comparisonVerified = contractedHospital && comparison.blockingFailureCount === 0;
     const verified =
       comparisonVerified &&
       riskAssessment.recommendation === "AUTO_VERIFY_RECOMMENDED";
@@ -870,12 +875,13 @@ const verifyHospitalRecord = async (req, res, next) => {
           : `Registry verification failed: ${failureSummary || record.fraudLabel}`,
       comparison,
       duplicateIntelligence,
-      riskAssessment,
+      riskAssessment: { ...riskAssessment, authority: xgboostRequest ? "LEGACY_COMPARISON_ONLY" : "HISTORICAL_NB_PROTOCOL" },
       merkleProof,
       query: verificationQuery,
       registrySnapshot,
       boundaryNote: BOUNDARY_NOTE,
       appealCommitment,
+      contractedHospital,
       recordCommitment: {
         hospitalId: record.hospitalId,
         invoiceHash: record.invoiceHash,

@@ -1,4 +1,6 @@
-const { ethers } = require("ethers");
+// Shared by worker-only and API-only installs. Resolve from the subsystem that
+// owns the dependency, without a global NODE_PATH or a second API dependency tree.
+const { ethers } = require(require.resolve("ethers", { paths: [__dirname, require("node:path").resolve(__dirname, "../backEnd")] }));
 
 const codeHash = (value) => ethers.keccak256(ethers.toUtf8Bytes(value));
 
@@ -49,11 +51,14 @@ const buildSalt = ({ privateKey, requestId, oracleAddress }) =>
     )
   );
 
-const buildCommitment = (request, verified, resultHash, salt) =>
+const buildCommitment = (request, verified, resultHash, salt, domain) =>
   ethers.keccak256(
     ethers.AbiCoder.defaultAbiCoder().encode(
-      ["uint256", "uint64", "uint64", "bool", "bytes32", "bytes32", "bytes32"],
+      ["uint256", "address", "address", "uint256", "uint64", "uint64", "bool", "bytes32", "bytes32", "bytes32"],
       [
+        domain.chainId,
+        domain.coordinatorAddress,
+        domain.oracleAddress,
         request.requestId,
         request.claimVersion,
         request.registryVersion,

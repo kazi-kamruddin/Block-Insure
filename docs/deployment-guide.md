@@ -1,5 +1,36 @@
 # Deployment Guide
 
+The current release uses `BLOCK_INSURE_COMPLETION_PHASE2_V3` and packaged
+`xgboost-protocol-v4.json`. It requires a fresh compatible contract set and separate
+application database; no proxy upgrade or automatic historical-data migration is
+provided. Preserve old environment files, evidence, indexes and manifests.
+Review access now includes bounded preparation and operator activation. Run the
+evidence-access and anchor reconcilers with coordinated operator signing; preserve
+their MongoDB state and encrypted signing configuration across restarts. Death and
+maturity publication is disabled; the retained cancellation refund uses a separate
+vault. See [workflow boundaries](evidence-review-and-recovery.md).
+
+Build and installation verification use Node 24.16.0. See
+[the release campaign](release-verification.md) for current source-bound checks,
+image probes and the distinction between preview and full runtime readiness.
+
+Choose the immutable `CALENDAR_PROFILE` before bootstrap: `QUARTERLY` or the
+separately labelled `ACCELERATED_TESTNET` payment demo. The network examples select
+the latter. Its periods/advance/grace are 10/8/2 minutes; it is not real-world
+pricing or a timing switch for existing policies. Read back the actual schedule
+and selected implementation. See [payment profiles](financial-and-provider-workflows.md).
+Nginx and Caddy pins are 1.30.6 and 2.11.7. Self-hosted worker readiness bases are
+`https://<PUBLIC_HOST>/oracle-one` and `/oracle-two`; their read-only health servers
+are proxied without publishing container ports or administration endpoints.
+
+This guide covers the self-hosted container topology. For local setup, see
+[local development](local-development.md). A hosted preview can instead use
+[the Vercel/Render configuration](free-tier-staging-deployment.md).
+
+Keep the selected chain, deployed contracts, model identity, roles, registry
+commitments, API and both Oracle workers consistent. Restarting services does
+not migrate an existing on-chain model default or restore a lost local chain.
+
 ## Deployment boundary
 
 Block-Insure is a research prototype. Deploy it with synthetic or consented test
@@ -25,7 +56,8 @@ The provided Compose file does not create insecure local replacements for them.
 - A Sepolia HTTPS/WSS RPC endpoint.
 - A Pinata project/JWT used only by this deployment.
 - Distinct funded testnet wallets for the deployer/admin, bank, evidence signer,
-  two oracles, claim officer, four auditors, five hospitals, and demo users.
+  two oracles, claim officer, four auditors, and demo users. Hospital staff use
+  administrator-provisioned credentials and require no blockchain wallet.
 
 Never use Hardhat's public development keys on a public network. Keep private
 keys in the deployment host's secret store and rotate them after a demonstration
@@ -73,8 +105,8 @@ Use the deployment receipt blocks for `CONTRACT_DEPLOYMENT_BLOCK`,
 `VITE_CONTRACT_DEPLOYMENT_BLOCK`, `ORACLE_START_BLOCK`, and the corresponding
 policy-benefits block variables.
 
-Grant the two oracle wallets, claim officer, four auditors, five hospital
-wallets, and bank wallet only after confirming every address out of band. The
+Grant the two oracle wallets, claim officer, four auditors and bank wallet
+only after confirming every address out of band. The
 role bootstrap is idempotent, but a public-network run must use the explicit
 wallet values in `deploy/production.env`; local fallback identities are forbidden
 by the release checker.
@@ -94,8 +126,17 @@ slides. Use independent random secrets of at least 32 characters for
 `JWT_SECRET`, `BANK_OTP_SECRET`, and `ORACLE_API_KEY`.
 
 Set all contract addresses, deployment blocks, external URLs, and actor wallets.
-`BANK_PRIVATE_KEY` must control `BANK_WALLET_ADDRESS`. The five hospital wallets
-and three demo-account owners are comma-separated in their declared order.
+`BANK_PRIVATE_KEY` must control `BANK_WALLET_ADDRESS` and be funded for test-ETH
+settlement and gas. The three demo-account owners are comma-separated in their
+declared order. Hospital-wallet variables are optional historical metadata;
+provision actual staff through Administration after launch.
+
+This release changes installment/payment entry points and Oracle commitment
+encoding. Deploy the contracts and workers together to a new environment, with
+the correct positive manager creation block. Do not activate it over an older
+coordinator or database without an explicit migration. The legacy hospital
+registry is marked inactive in the deployment directory. See
+[financial and provider workflows](financial-and-provider-workflows.md).
 
 For the thesis deployment, `ENABLE_SIMULATED_HOSPITAL_API=true` exposes the
 clearly labelled hybrid/synthetic registry endpoints. Set it to `false` when
@@ -158,8 +199,10 @@ before sharing the URL.
 
 ## Rollback and recovery
 
-- Application rollback: deploy the previous source revision with the same
-  contract addresses and persistent volumes.
+- Application rollback: use only a source revision compatible with the deployed
+  protocol, model dispatch and stored evidence schema. An older release cannot
+  simply reuse these contract addresses and persistent volumes. Preserve the
+  matching archived stack for its own deployment.
 - Oracle recovery: retain each oracle volume; cursor identity prevents reuse
   against a different chain or coordinator.
 - Contract rollback: contracts are not upgradeable. Deploy a new protocol set,

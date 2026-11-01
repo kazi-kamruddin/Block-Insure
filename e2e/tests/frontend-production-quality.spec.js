@@ -1,6 +1,16 @@
 const { test, expect } = require("@playwright/test");
 
+test("built release metadata exposes only the allowlisted public deployment configuration", async ({ request }) => {
+  const response = await request.get("/release-config.json");
+  expect(response.ok()).toBe(true);
+  const body = await response.json();
+  expect(Object.keys(body).sort()).toEqual(["schema", "chainId", "apiOrigin", "managerAddress", "economicsAddress", "evidenceRegistryAddress", "benefitsAddress"].sort());
+  expect(body.schema).toBe("block-insure-public-release-v1");
+  expect(Number.isSafeInteger(Number(body.chainId))).toBe(true);
+});
+
 const viewports = [
+  { name: "minimum mobile", width: 320, height: 800 },
   { name: "mobile", width: 360, height: 800 },
   { name: "tablet", width: 768, height: 1024 },
   { name: "laptop", width: 1366, height: 768 },
@@ -47,6 +57,8 @@ test.describe("@frontend-production public quality", () => {
     test(`${viewport.name} landing page is responsive and free of browser failures`, async ({ browser }, testInfo) => {
       const page = await browser.newPage({ viewport });
       const failures = monitorPage(page);
+      const pdfRequests = [];
+      page.on("request", (request) => { if (/pdf-preview|pdf\.worker/.test(request.url())) pdfRequests.push(request.url()); });
       const startedAt = Date.now();
       await page.goto("/", { waitUntil: "networkidle" });
       const durationMs = Date.now() - startedAt;
@@ -54,7 +66,7 @@ test.describe("@frontend-production public quality", () => {
       await expect(page.getByRole("heading", {
         name: "Insurance decisions that leave an evidence trail.",
       })).toBeVisible();
-      await expect(page.getByLabel("Local protocol status")).toContainText("Hardhat 31337");
+      await expect(page.getByLabel("Configured network")).toContainText("Hardhat 31337");
       await expect(page.getByRole("link", { name: "Block-Insure home" }).first()).toBeVisible();
       await expectAccessibleDocument(page);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
@@ -63,6 +75,7 @@ test.describe("@frontend-production public quality", () => {
       )).toBe("clip");
       expect(durationMs).toBeLessThan(5_000);
       expect(failures).toEqual([]);
+      expect(pdfRequests, "PDF rendering must stay out of the initial homepage load").toEqual([]);
 
       await testInfo.attach(`${viewport.name}-metrics.json`, {
         body: Buffer.from(JSON.stringify({ viewport, durationMs }, null, 2)),

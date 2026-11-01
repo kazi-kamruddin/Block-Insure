@@ -291,6 +291,11 @@ export default function ThesisResultsDashboardPage() {
   return (
     <section className="page-container page-thesis-results">
       <h2>Thesis Results Dashboard</h2>
+      <p className="muted">
+        Recorded research results and current chain activity are separate evidence.
+        Historical classification metrics do not validate the revised observable-only runtime;
+        its predictive performance requires a fresh evaluation. Local measurements are not deployed L1/L2 fees.
+      </p>
 
       <button type="button" onClick={refreshAll} disabled={anyLoading}>
         {anyLoading ? "Refreshing..." : "Refresh Results"}

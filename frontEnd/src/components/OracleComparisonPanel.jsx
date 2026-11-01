@@ -35,6 +35,10 @@ function extractHospitalVerification(log) {
 }
 
 function extractRiskAssessment(log) {
+  const active = log?.responseData?.assessment;
+  if (active?.model === "XGBoost") return { modelVersion: log.responseData.modelIdentity?.modelVersion,
+    model: "XGBoost", riskLevel: active.riskLevel,
+    fraudProbabilityPercent: Number.isFinite(active.score) ? Math.round(active.score * 100) : null };
   return (
     log?.responseData?.hospitalVerification?.riskAssessment ||
     log?.hospitalVerification?.riskAssessment ||
@@ -243,11 +247,11 @@ function OracleLogCard({ log }) {
         <div className="oracle-risk-model">
           <div className="oracle-risk-model-header">
             <div>
-              <h4>Bayesian Risk Model</h4>
+              <h4>{riskAssessment.model === "XGBoost" ? "XGBoost routing assessment" : "Historical Bayesian assessment"}</h4>
               <p>{formatValue(riskAssessment.modelVersion)}</p>
             </div>
             <span className={`oracle-risk-score is-${String(riskAssessment.riskLevel || "low").toLowerCase()}`}>
-              {formatValue(riskAssessment.fraudProbabilityPercent)}% fraud probability
+              {riskAssessment.fraudProbabilityPercent == null ? "Score unavailable" : `${formatValue(riskAssessment.fraudProbabilityPercent)}% constructed-action risk score`}
             </span>
           </div>
           {riskDrivers.length ? (

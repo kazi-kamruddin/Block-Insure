@@ -1,3 +1,4 @@
+const { attestTestAccess } = require("./helpers/reviewPreparation");
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
@@ -142,6 +143,7 @@ describe("Phase 6 - protocol state-machine invariants", function () {
 
       if (!oracleApproved) {
         await fixture.manager.sendToManualReview(claimId);
+    await attestTestAccess(fixture, claimId);
         const assigned = await assignedAuditors(fixture, claimId);
         if (state % 2 === 0) {
           for (const auditor of assigned.slice(0, 3)) {
@@ -186,6 +188,7 @@ describe("Phase 6 - protocol state-machine invariants", function () {
     const rejectedClaim = await submitClaim(fixture, "rejected-once", ethers.parseEther("0.05"));
     await decideWithOracle(fixture, rejectedClaim, false, "rejected-once");
     await fixture.manager.sendToManualReview(rejectedClaim);
+    await attestTestAccess(fixture, rejectedClaim);
     const assigned = await assignedAuditors(fixture, rejectedClaim);
     await fixture.manager.connect(assigned[0]).castVote(rejectedClaim, 2);
     await expect(
@@ -219,6 +222,7 @@ describe("Phase 6 - protocol state-machine invariants", function () {
     const reviewClaimId = await submitClaim(fixture, "adjudicator-access", ethers.parseEther("0.05"));
     await decideWithOracle(fixture, reviewClaimId, false, "adjudicator-access");
     await fixture.manager.sendToManualReview(reviewClaimId);
+    await attestTestAccess(fixture, reviewClaimId);
     await expect(
       fixture.manager.connect(fixture.other).finalizeManualReview(reviewClaimId, 1, true, 1)
     ).to.be.reverted;

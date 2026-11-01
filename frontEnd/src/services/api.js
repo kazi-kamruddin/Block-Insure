@@ -1,4 +1,5 @@
 import axios from "axios";
+import { hospitalApi } from "./hospitalApi";
 import { ethers } from "ethers";
 
 import {
@@ -16,6 +17,10 @@ export const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
 });
+
+export async function getProtocolMonitoring() {
+  return (await api.get("/api/oracle/monitoring")).data;
+}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("blockinsure_jwt");
@@ -66,6 +71,20 @@ export async function loginWithWallet(walletAddress, message, signature) {
 export async function getCurrentUser() {
   const response = await api.get("/api/users/me");
   return response.data;
+}
+
+export async function getClaimAdvisory(claimId) {
+  return (await api.get(`/api/claims/${claimId}/advisory`)).data;
+}
+
+export async function saveProfile(profile) {
+  return (await api.post("/api/users/register", profile)).data;
+}
+export async function requestEmailVerification() {
+  return (await api.post("/api/users/email-verification")).data;
+}
+export async function confirmEmailVerification(payload) {
+  return (await api.post("/api/users/email-verification/confirm", payload)).data;
 }
 
 export async function getPolicyPackages(params = {}) {
@@ -470,6 +489,11 @@ export async function authorizeClaimSubmission(policyId, facts = {}) {
   return response.data;
 }
 
+export async function previewInvoiceEligibility(hospitalId, invoiceHash, invoiceNumber) {
+  const response = await api.post("/api/claims/invoice-eligibility", { hospitalId, invoiceHash, invoiceNumber });
+  return response.data;
+}
+
 export async function resetMyClaimSubmissionLimit() {
   const response = await api.delete("/api/claims/submission-limit/me");
   return response.data;
@@ -506,9 +530,10 @@ export async function reconcilePendingClaimSubmissions() {
 
   for (const item of pending) {
     try {
-      await recordClaimSubmissionTransaction(item.attemptId, item.transactionHash);
-      await reconcileClaimSubmission(item.attemptId);
-      reconciled += 1;
+      if (item.transactionHash) await recordClaimSubmissionTransaction(item.attemptId, item.transactionHash);
+      const result = await reconcileClaimSubmission(item.attemptId);
+      if (result.pending) remaining.push(item);
+      else reconciled += 1;
     } catch {
       remaining.push(item);
     }
@@ -517,6 +542,17 @@ export async function reconcilePendingClaimSubmissions() {
   localStorage.setItem(pendingKey, JSON.stringify(remaining));
   return { reconciled, remaining: remaining.length };
 }
+
+export const getClaimSubmissionAttempt = async (id) => (await api.get(`/api/claims/submission-attempts/${id}`)).data;
+export const sealClaimSubmissionAttempt = async (id) => (await api.post(`/api/claims/submission-attempts/${id}/seal`)).data;
+export const getReviewAccess = async (id) => (await api.get(`/api/claims/${id}/review-access`)).data;
+export const authorizeReviewAccess = async (id, payload) => (await api.post(`/api/claims/${id}/review-access`, payload)).data;
+export const resumeReviewAccess = async (id) => (await api.post(`/api/claims/${id}/review-access/resume`)).data;
+export const prepareAppealAttempt = async (payload) => (await api.post("/api/appeals/attempts", payload)).data;
+export const readyAppealAttempt = async (id, payload) => (await api.post(`/api/appeals/attempts/${id}/ready`, payload)).data;
+export const recordAppealTransaction = async (id, transactionHash) => (await api.patch(`/api/appeals/attempts/${id}/transaction`, { transactionHash })).data;
+export const reconcileAppealAttempt = async (id) => (await api.post(`/api/appeals/attempts/${id}/reconcile`)).data;
+export const getPendingAppealAttempts = async (claimId) => (await api.get("/api/appeals/attempts", { params: { claimId } })).data;
 
 export async function getClaimDocumentHash(claimId, documentId = "") {
   const response = await api.get(`/api/claims/${claimId}/document-hash`, {
@@ -682,10 +718,6 @@ export async function reconcilePendingAdminTransactions() {
 }
 
 export async function requestOracleVerification(claimId) {
-  const hospitalResult = await getHospitalClaimVerification(claimId);
-  if (!hospitalResult.verification) {
-    throw new Error("The contracted hospital must verify this claim before insurer processing.");
-  }
   const contract = await getWalletContract();
   return executeAdminWalletAction(
     "REQUEST_ORACLE_VERIFICATION",
@@ -735,22 +767,22 @@ export async function getNetworkHospitals() {
 }
 
 export async function getMyHospitalProfile() {
-  const response = await api.get("/api/hospitals/me");
+  const response = await hospitalApi.get("/api/hospitals/me");
   return response.data;
 }
 
 export async function getMyHospitalRecords(params = {}) {
-  const response = await api.get("/api/hospitals/records", { params });
+  const response = await hospitalApi.get("/api/hospitals/records", { params });
   return response.data;
 }
 
 export async function createMyHospitalRecord(record) {
-  const response = await api.post("/api/hospitals/records", record);
+  const response = await hospitalApi.post("/api/hospitals/records", record);
   return response.data;
 }
 
 export async function updateMyHospitalRecord(recordId, updates) {
-  const response = await api.patch(`/api/hospitals/records/${recordId}`, updates);
+  const response = await hospitalApi.patch(`/api/hospitals/records/${recordId}`, updates);
   return response.data;
 }
 

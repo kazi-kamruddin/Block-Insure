@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { api } from "../services/api";
 import { useWallet } from "../context/useWallet";
+import PaymentScheduleNotice from "../components/PaymentScheduleNotice";
 import {
   cancelEftMandate, confirmManualBankPayment, createEftMandate,
   getMyBankingAccounts, getMyBankingTransactions, getMyEftMandates,
@@ -31,19 +33,22 @@ export default function BankingPage() {
   const accountsQuery = useQuery({ queryKey: ["myBankingAccounts", walletAddress], queryFn: getMyBankingAccounts });
   const policiesQuery = useQuery({ queryKey: ["bankingPolicies", walletAddress], queryFn: () => getMyPolicies({ limit: 100 }) });
   const mandatesQuery = useQuery({ queryKey: ["myEftMandates", walletAddress], queryFn: getMyEftMandates });
-  const transactionsQuery = useQuery({ queryKey: ["myBankingTransactions", walletAddress], queryFn: getMyBankingTransactions });
+  const transactionsQuery = useQuery({ queryKey: ["myBankingTransactions", walletAddress], queryFn: getMyBankingTransactions, refetchInterval: (query) => query.state.data?.transactions?.some((item) => item.status === "PROCESSING") ? 3000 : false });
 
   const accounts = accountsQuery.data?.accounts || [];
   const policies = useMemo(() => (policiesQuery.data?.policies || []).filter((policy) => ["ACTIVE", "GRACE_PERIOD"].includes(policy.status?.label)), [policiesQuery.data]);
   const mandates = mandatesQuery.data?.mandates || [];
   const transactions = transactionsQuery.data?.transactions || [];
   const selectedPolicy = policies.find((policy) => policy.policyId === policyId);
+  const gatewayQuery = useQuery({ queryKey: ["gatewayReadiness", walletAddress, policyId], queryFn: async () => (await api.get("/api/banks/user/gateway-readiness", { params: { policyId } })).data, enabled: Boolean(policyId), refetchInterval: 30000 });
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ["myBankingAccounts"] }),
     queryClient.invalidateQueries({ queryKey: ["myEftMandates"] }),
     queryClient.invalidateQueries({ queryKey: ["myBankingTransactions"] }),
     queryClient.invalidateQueries({ queryKey: ["myPayments"] }),
+    queryClient.invalidateQueries({ queryKey: ["bankingPolicies"] }),
+    queryClient.invalidateQueries({ queryKey: ["myPolicies"] }),
   ]);
 
   const mandateMutation = useMutation({
@@ -77,12 +82,17 @@ export default function BankingPage() {
     <header className="banking-hero">
       <span className="dashboard-eyebrow">Policyholder banking</span>
       <h2>Premium payments and standing EFT instructions</h2>
-      <p>Quarterly EFT runs automatically after bank approval and never asks for OTP. OTP is required only when you initiate a manual bank payment.</p>
+      <p>Scheduled EFT runs automatically after bank approval and never asks for OTP. OTP is required only when you initiate a manual bank payment.</p>
+      <p>BDT balances and conversion are simulated at 100,000 BDT per test ETH. A funded gateway supplies the test ETH and gas; this does not debit a real bank account. All methods pay the same installment under its issued payment calendar.</p>
     </header>
 
+    {gatewayQuery.data && <p role="status">Gateway: {gatewayQuery.data.gateway.message} Balance: {gatewayQuery.data.gateway.balanceEth} test ETH.</p>}
+    {gatewayQuery.error && <p role="alert">Gateway check: {messageOf(gatewayQuery.error)}</p>}
+    {selectedPolicy && <p>Next shared installment #{selectedPolicy.installment?.installmentId}: {selectedPolicy.installment?.amountEth} test ETH. The OTP locks this installment and amount.</p>}
+    <PaymentScheduleNotice schedule={selectedPolicy?.policyTerms?.paymentSchedule} />
     <div className="banking-grid">
       <form className="card banking-form" onSubmit={submitMandate}>
-        <h3>Set up quarterly EFT</h3>
+        <h3>Set up scheduled EFT</h3>
         <label>Source account<select required value={accountReference} onChange={(event) => setAccountReference(event.target.value)}>
           <option value="">Choose an account</option>{accounts.map((account) => <option key={account.accountReference} value={account.accountReference}>{account.maskedAccount} — {account.balance} BDT</option>)}
         </select></label>
@@ -92,17 +102,17 @@ export default function BankingPage() {
           if (policy?.nextPremiumDueDate && Number(policy.nextPremiumDueDate) > 0) setValidFrom(dateInput(Number(policy.nextPremiumDueDate) * 1000));
         }}><option value="">Choose a policy</option>{policies.map((policy) => <option key={policy.policyId} value={policy.policyId}>#{policy.policyId} {policy.packageName} — {policy.premiumAmountEth} ETH</option>)}</select></label>
         <div className="banking-date-grid"><label>Start date<input type="date" required value={validFrom} onChange={(event) => setValidFrom(event.target.value)} /></label><label>End date<input type="date" required value={validUntil} onChange={(event) => setValidUntil(event.target.value)} /></label></div>
-        <div className="eft-summary"><span>Destination</span><strong>Block-Insure premium treasury</strong><span>Frequency</span><strong>Every 90 days</strong><span>Premium</span><strong>{selectedPolicy?.premiumAmountEth || "—"} ETH / bank BDT equivalent</strong></div>
+        <div className="eft-summary"><span>Destination</span><strong>Block-Insure premium treasury</strong><span>Frequency</span><strong>{selectedPolicy?.policyTerms?.paymentSchedule?.intervalLabel ? `Every ${selectedPolicy.policyTerms.paymentSchedule.intervalLabel}` : "Select a policy"}</strong><span>Premium</span><strong>{selectedPolicy?.premiumAmountEth || "—"} ETH / bank BDT equivalent</strong></div>
         <button type="submit" disabled={mandateMutation.isPending || !accounts.length}>{mandateMutation.isPending ? "Submitting..." : "Send mandate to bank"}</button>
         <button type="button" className="button-secondary" disabled={!accountReference || !policyId || otpRequestMutation.isPending} onClick={requestOtp}>{otpRequestMutation.isPending ? "Issuing OTP..." : "Make a manual bank payment"}</button>
-        {otpState ? <div className="otp-box"><p>OTP expires at {new Date(otpState.expiresAt).toLocaleTimeString()}. {otpState.demoOtp ? "Demo mode prefilled the issued OTP." : "Enter the OTP delivered by the bank."}</p><input aria-label="Bank payment OTP" inputMode="numeric" maxLength="6" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /><button type="button" disabled={otp.length !== 6 || otpConfirmMutation.isPending} onClick={() => otpConfirmMutation.mutate({ challengeId: otpState.challengeId, otp })}>{otpConfirmMutation.isPending ? "Confirming..." : "Confirm manual payment"}</button></div> : null}
+        {otpState ? <div className="otp-box"><aside aria-label={otpState.deliveryMode === "brevo" ? "Email payment code" : "Simulated bank inbox"} role="status"><h3>{otpState.deliveryMode === "brevo" ? "Email payment code" : "Simulated bank inbox"}</h3><p>{otpState.deliveryMode === "brevo" ? otpState.deliveryMessage : "No SMS or email was sent. This preview displays the bank's demo message."}</p>{otpState.demoOtp && <p>Your payment code: <strong>{otpState.demoOtp}</strong> (prefilled for this demo).</p>}</aside><p>OTP expires at {new Date(otpState.expiresAt).toLocaleTimeString()}.</p><input aria-label="Bank payment OTP" inputMode="numeric" autoComplete="one-time-code" maxLength="6" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /><button type="button" disabled={otp.length !== 6 || otpConfirmMutation.isPending} onClick={() => otpConfirmMutation.mutate({ challengeId: otpState.challengeId, otp })}>{otpConfirmMutation.isPending ? "Confirming..." : "Confirm manual payment"}</button></div> : null}
       </form>
 
       <section className="card"><h3>My bank accounts</h3>{accounts.length ? accounts.map((account) => <article className="bank-account-row" key={account.accountReference}><div><strong>{account.maskedAccount}</strong><small>{account.accountHolderName}</small></div><strong>{account.balance} {account.currency}</strong></article>) : <p>No simulated bank account is linked to this wallet.</p>}</section>
     </div>
 
-    <section className="card"><h3>Standing instructions</h3>{mandates.length ? <div className="table-wrap"><table><thead><tr><th>Policy</th><th>Account</th><th>Amount</th><th>Next debit</th><th>Status</th><th>Action</th></tr></thead><tbody>{mandates.map((mandate) => <tr key={mandate.mandateId}><td>#{mandate.policyId}</td><td>{mandate.accountReference}</td><td>{mandate.amount} {mandate.currency}</td><td>{mandate.nextDebitAt ? new Date(mandate.nextDebitAt).toLocaleDateString() : "After bank approval"}</td><td>{mandate.status.replaceAll("_", " ")}</td><td>{["ACTIVE", "PENDING_BANK_APPROVAL"].includes(mandate.status) ? <button type="button" className="button-link" onClick={() => cancelMutation.mutate(mandate.mandateId)}>Cancel</button> : "—"}</td></tr>)}</tbody></table></div> : <p>No EFT mandates yet.</p>}</section>
+    <section className="card"><h3>Standing instructions</h3>{mandates.length ? <div className="table-wrap"><table><thead><tr><th>Policy</th><th>Account</th><th>Amount</th><th>Next debit</th><th>Status</th><th>Action</th></tr></thead><tbody>{mandates.map((mandate) => <tr key={mandate.mandateId}><td>#{mandate.policyId}</td><td>{mandate.accountReference}</td><td>{mandate.amount} {mandate.currency}</td><td>{mandate.nextDebitAt ? new Date(mandate.nextDebitAt).toLocaleString() : "After bank approval"}</td><td>{mandate.status.replaceAll("_", " ")}</td><td>{["ACTIVE", "PENDING_BANK_APPROVAL"].includes(mandate.status) ? <button type="button" className="button-link" onClick={() => cancelMutation.mutate(mandate.mandateId)}>Cancel</button> : "—"}</td></tr>)}</tbody></table></div> : <p>No EFT mandates yet.</p>}</section>
 
-    <section className="card"><h3>Bank transfer activity</h3>{transactions.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>Policy</th><th>Method</th><th>Amount</th><th>Status</th><th>Reference</th></tr></thead><tbody>{transactions.map((item) => <tr key={item.transactionId}><td>{new Date(item.completedAt || item.dueAt).toLocaleString()}</td><td>#{item.policyId}</td><td>{item.type === "EFT" ? "Quarterly EFT" : "Manual OTP"}</td><td>{item.amount} {item.currency}</td><td>{item.status}</td><td><small>{item.transactionId}</small></td></tr>)}</tbody></table></div> : <p>No bank transfers have been processed.</p>}</section>
+    <section className="card"><h3>Bank transfer activity</h3>{transactions.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>Policy</th><th>Method</th><th>Amount</th><th>Status</th><th>Reference</th></tr></thead><tbody>{transactions.map((item) => <tr key={item.transactionId}><td>{new Date(item.completedAt || item.dueAt).toLocaleString()}</td><td>#{item.policyId}</td><td>{item.type === "EFT" ? "Scheduled EFT" : "Manual OTP"}</td><td>{item.amount} {item.currency}</td><td>{item.status}</td><td><small>{item.transactionId}</small></td></tr>)}</tbody></table></div> : <p>No bank transfers have been processed.</p>}</section>
   </section>;
 }

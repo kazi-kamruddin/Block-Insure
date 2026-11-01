@@ -1,5 +1,6 @@
 import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
+import { readHospitalSession } from "../services/hospitalApi";
 
 export default function RoleWorkspaceLayout({
   expectedRole,
@@ -17,7 +18,7 @@ export default function RoleWorkspaceLayout({
   }
 
   if (!isConnected) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={readHospitalSession() ? "/hospital/dashboard" : "/"} replace />;
   }
 
   if (role !== expectedRole) {

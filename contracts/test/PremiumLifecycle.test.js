@@ -90,7 +90,7 @@ describe("InsuranceManager - Premium Lifecycle", function () {
     await time.increaseTo(beforePayment.nextPremiumDueDate - 1n);
 
     await expect(
-      insuranceManager.connect(user).payPremium(1, { value: premium })
+      insuranceManager.connect(user).payPremium(1, 2, { value: premium })
     )
       .to.emit(insuranceManager, "PremiumPaid")
       .withArgs(1, user.address, premium, anyValue, anyValue, 2, premium * 2n);
@@ -229,11 +229,11 @@ describe("InsuranceManager - Premium Lifecycle", function () {
     await time.increaseTo(policy.gracePeriodEnd + 1n);
 
     await expect(
-      insuranceManager.connect(user).payPremium(1, { value: premium })
+      insuranceManager.connect(user).payPremium(1, 2, { value: premium })
     ).to.be.reverted;
 
     await expect(
-      insuranceManager.connect(user).reinstatePolicy(1, { value: premium })
+      insuranceManager.connect(user).reinstatePolicy(1, 2, { value: premium })
     )
       .to.emit(insuranceManager, "PremiumPaid")
       .withArgs(1, user.address, premium, anyValue, anyValue, 2, premium * 2n);
@@ -251,11 +251,11 @@ describe("InsuranceManager - Premium Lifecycle", function () {
     const { insuranceManager, user, otherUser, premium } = await deployFixture();
 
     await expect(
-      insuranceManager.connect(otherUser).payPremium(1, { value: premium })
+      insuranceManager.connect(otherUser).payPremium(1, 2, { value: premium })
     ).to.be.reverted;
 
     await expect(
-      insuranceManager.connect(user).payPremium(1, { value: premium / 2n })
+      insuranceManager.connect(user).payPremium(1, 2, { value: premium / 2n })
     ).to.be.reverted;
   });
 });

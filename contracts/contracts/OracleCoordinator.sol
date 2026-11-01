@@ -248,13 +248,8 @@ contract OracleCoordinator {
         require(queryHash != bytes32(0), "Query hash required");
         require(claimVersion > 0, "Claim version required");
         require(modelVersion != bytes32(0), "Model version required");
-        if (hospitalVerificationRegistry != address(0)) {
-            require(
-                IHospitalVerificationGate(hospitalVerificationRegistry)
-                    .isClaimVerificationComplete(claimId, claimVersion),
-                "Hospital verification required"
-            );
-        }
+        // Source membership, patient authorization and committed record integrity
+        // are checked by the workers. Hospital staff do not attest to each claim.
 
         requestId = requestCounter++;
         uint256 commitDeadline = block.number + commitWindowBlocks;
@@ -356,6 +351,9 @@ contract OracleCoordinator {
 
         bytes32 expectedCommitment = keccak256(
             abi.encode(
+                block.chainid,
+                address(this),
+                msg.sender,
                 requestId,
                 revealedClaimVersion,
                 revealedRegistryVersion,
@@ -413,12 +411,6 @@ contract OracleCoordinator {
         bytes32 resultHash,
         uint8 finalizationCode
     ) internal {
-        // A completed negative hospital assessment permits review, never silent
-        // automatic settlement even if both workers report a positive result.
-        if (verified && hospitalVerificationRegistry != address(0)) {
-            verified = IHospitalVerificationGate(hospitalVerificationRegistry)
-                .isClaimVerified(requestData.claimId, requestData.claimVersion);
-        }
         requestData.isFulfilled = true;
         requestData.verifiedResult = verified;
         requestData.resultHash = resultHash;

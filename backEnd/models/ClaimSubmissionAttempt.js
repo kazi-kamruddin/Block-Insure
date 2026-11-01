@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 
 const claimSubmissionAttemptSchema = new mongoose.Schema(
   {
+    deploymentScope: { type: String, default: "", index: true },
+    expectedEvidenceCount: { type: Number, default: 1, min: 1, max: 5 },
+    documentIds: { type: [String], default: [] },
+    encryptedBytes: { type: Number, default: 0 },
+    uploadLeaseUntil: { type: Date, default: null },
+    sealedAt: { type: Date, default: null },
+    startBlock: { type: Number, default: 0 },
     walletAddress: {
       type: String,
       required: true,
@@ -31,6 +38,7 @@ const claimSubmissionAttemptSchema = new mongoose.Schema(
       claimAmountWei: { type: String, default: "" },
       hospitalId: { type: String, default: "" },
       invoiceHash: { type: String, default: "" },
+      invoiceNumber: { type: String, default: "" },
       preExistingCondition: { type: Boolean, default: false },
       disclosedAtPurchase: { type: Boolean, default: false },
     },

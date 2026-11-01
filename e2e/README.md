@@ -8,15 +8,16 @@ assigned to the selected test actor.
 ## What is covered
 
 - Public landing page and backend health
-- SIWE wallet login for User, Admin, Bank, Hospital, and all four Auditors
+- SIWE wallet login for User, Admin, Bank and all four Auditors; separate hospital staff login
 - SIWE invalid-signature, wrong-wallet, wrong-chain, nonce-replay, logout, missing-token,
   and guest direct-navigation rejection
 - Role-specific navigation and cross-role redirect protection
 - Every top-level public and authenticated application route, with browser-error and
   HTTP 5xx monitoring
+- Every role's top-level routes at 1366px and 320px, with retained route screenshots
 - Admin role synchronization and policy-package pages
 - Auditor registry, voting queue, and document-verification pages
-- Hospital dashboard, record/invoice maintenance with persistence, claim attestation,
+- Hospital dashboard, scoped staff record/invoice maintenance with persistence, automatic publication,
   and restored Merkle-root verification
 - Bank dashboard, mandate approval/rejection, automatic quarterly EFT, manual OTP
   rejection/success, and policyholder cancellation
@@ -30,6 +31,9 @@ assigned to the selected test actor.
   concurrent confirmation, and replay
 - Full Recrypt evidence lifecycle: Auditor identity, owner grant, proxy transform,
   exact decrypted-byte/hash verification, access logging, and revocation
+- Opt-in Brevo-mode profile verification and premium payment through a local
+  provider stub, including hidden codes, wrong-code rejection, single use,
+  the shared resend limit, verified-email invalidation and delivery failure
 - Manual-review finality: concurrent rejection submissions and expired-review timeout
 
 The Oracle workers are not controlled through browser pages. The E2E preflight
@@ -143,9 +147,41 @@ npm run test:e2e:unfinished:rpc
 The focused `claims` command intentionally excludes the separately named
 appeal scenario, so the sequence above executes each unfinished scenario once.
 
+For the complete serial campaign with fresh temporary deployments between
+time-changing stages, start the existing local MongoDB container, then use:
+
+```powershell
+$env:E2E_MONGODB_URI='mongodb://127.0.0.1:27019/block_insure_e2e'
+$env:E2E_RPC_PROXY='true'
+npm run test:stabilization
+```
+
+This runner refuses an occupied chain port or a database outside loopback
+`block_insure_e2e`. It preserves saved environment/deployment files and uses
+the in-memory Pinata simulator. Each stage keeps its HTML report, JSON results,
+screenshots and failure artifacts under its own `tmp/stabilization-*/`
+directory. The parent `campaign.json` records completed and failed stages.
+The runner discovers an installed Chromium; record any executable override with
+the campaign results. It does not start or reconfigure Docker itself.
+
+To run only the provider-mode email journey:
+
+```powershell
+npm run test:stabilization -- e2e/tests/email-delivery.workflow.spec.js --brevo-stub
+```
+
+The test-only backend launcher substitutes an in-memory response at Brevo's
+fixed HTTP endpoint. Its private loopback mailbox holds synthetic codes in
+memory. It requires the isolated database and synthetic sender/API key; saved
+Brevo credentials are overridden only in the spawned test process. The test
+waits through the actual one-minute resend interval and checks a mined premium
+receipt. A separate provider-rejection case checks that no usable challenge or
+simulated fallback remains. These checks prove application behavior against a
+provider stub; real mailbox receipt remains a separate manual check.
+
 The appeal check is a headed multi-role workflow: original Oracle failure,
 four-Auditor manual-review snapshot and rejection, browser-side encrypted
-correction, version-2 Hospital attestation, Admin Oracle request, exact
+correction, fresh version-bound Admin Oracle request without hospital-wallet attestation, exact
 two-worker approval, allocation, claimant withdrawal, and final UI/API/MongoDB/
 contract/event reconciliation. The RPC check requires `E2E_RPC_PROXY=true` and
 proves `/health/ready` returns 503 during a paused loopback proxy while
@@ -203,3 +239,66 @@ bundled browser. Clear the variable to restore the default.
 - `support/actions.js` — shared login, date, and evidence helpers
 
 Add future scenarios as focused spec files instead of extending one giant test.
+
+## Completion Phase 1 verification
+
+Select an explicit **loopback disposable database**; the runner refuses Atlas.
+Do not use the saved application database or reset existing project data. The
+runner creates fresh local deployments serially and stops only its own services.
+It does not change saved `.env` files, standard deployment manifests, Docker
+resource settings, trained weights or historical research artifacts. The broader
+hybrid fixture still requires the separately prepared runtime dataset.
+
+```powershell
+$env:E2E_MONGODB_URI='mongodb://127.0.0.1:27019/block_insure_phase1_e2e'
+$env:E2E_DATABASE_NAME='block_insure_phase1_e2e'
+npm run test:phase1
+```
+
+An already installed compatible Chromium can be selected with
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`; otherwise the normal Playwright browser
+installation is used. On Windows the harness needs permission to stop the process
+trees it starts. Do not kill unrelated Node or Docker processes.
+
+Run one stage with `npm run test:phase1 -- foundation`, `payments`, `claims`,
+`email`, or `settlement`. Each stage gets a new local chain, preventing premium
+time travel from expiring a later claim fixture. Email uses a local Brevo-shaped
+provider stub and never sends external messages. Settlement tests exercise actual
+MongoDB, Hardhat, signed transactions, a fresh recovery process, competing wallet
+payment, gateway/account insufficiency and manual/EFT final-period coordination.
+
+Reports, synthetic screenshots and traces are stored beneath `tmp/stabilization-*`
+and stay ignored. A test failure is not a completion receipt. Phase 2 evidence
+bundle/access/appeal recovery and auxiliary-benefit decisions remain separately
+scoped; the Phase 1 command does not claim the full project is deployment-ready.
+
+## Integrated evidence and recovery verification
+
+The current release adds `npm run test:phase2`. Select an explicit loopback
+disposable database, with the existing MongoDB container already prepared:
+
+```powershell
+$env:E2E_MONGODB_URI='mongodb://127.0.0.1:27019/block_insure_phase2_e2e'
+$env:E2E_DATABASE_NAME='block_insure_phase2_e2e'
+npm run test:phase2
+```
+
+Run a bounded stage with `npm run test:phase2 -- foundation`, `recovery`, `evidence`, `claims`,
+`refund`, `funding`, `finality`, `payments`, or `email`. Each stage resets only the
+selected disposable database and deploys a new local chain, keeping time-travel
+fixtures separate. Existing Atlas and saved .env/standard manifest files are not
+rewritten. `funding` deliberately omits the test treasury top-up; `email` uses
+only a local Brevo-shaped stub. Operator setup is not a real public deployment.
+
+Evidence tests cover interrupted supporting upload/reload, fixed manifests, one
+batch of reviewer grants, revoked access and explicit resumption, claimant-offline
+actual PRE decryption/download, image preview, four-reviewer preparation, quorum
+withdrawal, preparation expiry and lost appeal registration. Recovery integration
+uses MongoDB/Hardhat and a fresh process for exact signed-transaction recovery,
+ordered predecessor anchoring and deployment isolation. The retired death/maturity
+and unlimited-immediate-premium script is replaced by the cancellation-refund test.
+
+Reports remain under ignored `tmp/stabilization-*`. Selected cases must actually
+pass before recording completion; prior failures and source-bound historical
+results are not substituted for the current release. Actual MetaMask/mailbox,
+production installation and public-testnet evidence remain later release checks.

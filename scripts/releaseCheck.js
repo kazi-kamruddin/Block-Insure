@@ -13,8 +13,6 @@ const FRONTEND_ADDRESS_KEYS = {
   VITE_CONTRACT_ADDRESS: "VITE_CONTRACT_ADDRESS",
   VITE_POLICY_BENEFITS_ADDRESS: "POLICY_BENEFITS_ADDRESS",
   VITE_EVIDENCE_REGISTRY_ADDRESS: "EVIDENCE_REGISTRY_ADDRESS",
-  VITE_HOSPITAL_VERIFICATION_REGISTRY_ADDRESS:
-    "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS",
   VITE_BANK_IDENTITY_REGISTRY_ADDRESS: "BANK_IDENTITY_REGISTRY_ADDRESS",
   VITE_PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS:
     "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS",
@@ -78,6 +76,7 @@ const requiredTemplateKeys = () => [
   "ORACLE_PRIVATE_KEY_2",
   "BACKEND_API_URL",
   "MOCK_HOSPITAL_API_URL",
+  "OTP_DELIVERY_MODE", "BREVO_API_KEY", "BREVO_SENDER_EMAIL",
 ];
 
 const verifyReleaseFiles = (failures) => {
@@ -103,6 +102,9 @@ const verifyProductionEnvironment = (environment) => {
 
   if (environment.NODE_ENV !== "production") {
     failures.push("NODE_ENV must be production");
+  }
+  if (environment.OTP_DELIVERY_MODE !== "brevo" || !String(environment.BREVO_API_KEY || "").trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(environment.BREVO_SENDER_EMAIL || "")) {
+    failures.push("Full release requires Brevo-mode email with a configured private key and sender; delivery must still be accepted separately");
   }
   if (!/^https:\/\//i.test(environment.PUBLIC_APP_URL || "")) {
     failures.push("PUBLIC_APP_URL must use HTTPS");
@@ -176,10 +178,9 @@ const verifyProductionEnvironment = (environment) => {
     environment.AUDITOR_WALLET_ADDRESS_3,
     environment.AUDITOR_WALLET_ADDRESS_4,
     environment.BANK_WALLET_ADDRESS,
-    ...String(environment.HOSPITAL_WALLET_ADDRESSES || "").split(","),
   ].map((value) => String(value || "").trim().toLowerCase());
   if (new Set(actorAddresses).size !== actorAddresses.length) {
-    failures.push("Claim officer, auditors, bank, and hospitals must use distinct wallets");
+    failures.push("Claim officer, auditors and bank must use distinct wallets");
   }
   const componentAddresses = Object.keys(FRONTEND_ADDRESS_KEYS).map((key) =>
     String(environment[key] || "").toLowerCase()

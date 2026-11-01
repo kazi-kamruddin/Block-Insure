@@ -104,9 +104,14 @@ test.describe("@smoke authentication and session security", () => {
       "/bank/dashboard",
     ]) {
       await page.goto(path);
-      await expect(page).toHaveURL(/\/$/);
+      await expect(page).toHaveURL(path.startsWith("/hospital/") ? /\/hospital\/login$/ : /\/$/);
       await page.reload();
-      await expect(page.getByRole("button", { name: /connect wallet/i }).first()).toBeVisible();
+      if (path.startsWith("/hospital/")) {
+        await expect(page.getByRole("heading", { name: "Hospital staff sign-in" })).toBeVisible();
+        await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+      } else {
+        await expect(page.getByRole("button", { name: /connect wallet/i }).first()).toBeVisible();
+      }
     }
   });
 });

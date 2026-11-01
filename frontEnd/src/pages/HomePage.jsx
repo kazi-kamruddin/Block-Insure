@@ -136,7 +136,7 @@ export default function HomePage() {
             <span>03</span>
             <h3>Explainable fraud scoring</h3>
             <p>
-              Bernoulli evidence factors expose fraud probability separately from
+              Explainable model risk scores are shown separately from
               verification confidence.
             </p>
           </article>
@@ -152,8 +152,8 @@ export default function HomePage() {
             <span>05</span>
             <h3>Independent review</h3>
             <p>
-              Auditor votes are weighted by reputation without granting
-              administrative authority.
+              Four assigned auditors decide by three approvals or two rejections.
+              Reputation is observational and does not change this quorum.
             </p>
           </article>
           <article>
@@ -223,7 +223,7 @@ export default function HomePage() {
           <h2>One identity. One workspace. Clear authority.</h2>
           <p>
             Connecting a wallet opens only the workspace assigned to that
-            identity. Administrative, policyholder, bank, hospital, and auditor
+            identity. Hospital staff sign in separately with provisioned credentials; other
             responsibilities remain deliberately separate.
           </p>
         </div>
@@ -257,8 +257,8 @@ export default function HomePage() {
             <span>Hospital</span>
             <h3>Own patient and invoice records</h3>
             <p>
-              Use a separate provider wallet and view only records belonging to
-              the contracted hospital identity.
+              Use a provisioned staff account to maintain records belonging to
+              your contracted hospital. No wallet or transaction is required.
             </p>
           </article>
           <article>

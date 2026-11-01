@@ -1,18 +1,18 @@
-# Free-tier staging deployment
+# Hosted preview deployment
 
-This guide prepares a **research/demo staging environment** with no paid
-runtime. It is not a mainnet or real-data deployment.
+This guide prepares a research/demo staging environment using Vercel, Render,
+Atlas and Pinata. Select service plans and limits appropriate to the deployment.
 
 ## Topology and boundaries
 
-| Component | Free host | Initial state |
+| Component | Host | Initial state |
 | --- | --- | --- |
-| React SPA | Vercel Hobby | Fully hosted |
-| Express API | Render free web service | Off-chain preview |
-| Oracle 1 | Render free web service | Hosted but worker disabled |
-| Oracle 2 | Render free web service | Hosted but worker disabled |
-| MongoDB | Atlas Free | Persistent synthetic staging database |
-| Evidence | Existing Pinata allowance | Encrypted synthetic files only |
+| React SPA | Vercel | Fully hosted |
+| Express API | Render | Off-chain preview |
+| Oracle 1 | Render | Hosted but worker disabled |
+| Oracle 2 | Render | Hosted but worker disabled |
+| MongoDB | Atlas | Persistent synthetic staging database |
+| Evidence | Pinata | Encrypted synthetic files only |
 | Blockchain | Sepolia later | Required for full hosted workflows |
 
 The hosted environment never connects to a Hardhat node on a developer PC.
@@ -59,19 +59,16 @@ Sepolia phase are listed in `deploy/vercel.env.example`.
 
 ## 3. Create the three Render services
 
-Use the same Render account as the other thesis projects. Before creating the
-Blueprint, open **Billing > Monthly Included Usage**: the 750 free instance
-hours are shared by every free web service in that workspace. This design stays
-within the allowance by letting all Block-Insure services sleep and waking them
-only for genuine work; do not keep existing projects or these services awake
-with permanent pingers.
+Review the hosting account's service limits before creating the Blueprint.
+Use separate configuration for the API and both workers. A liveness response
+does not establish that a disabled worker can process claims.
 
 1. In Render, select **New > Blueprint** and connect the same repository.
 2. Render reads the root `render.yaml` and proposes:
    - `block-insure-api`
    - `block-insure-oracle-one`
    - `block-insure-oracle-two`
-3. Keep every service on the **Free** plan.
+3. Select the intended service plan.
 4. Enter the following backend values when prompted:
 
 | Variable | Initial value |

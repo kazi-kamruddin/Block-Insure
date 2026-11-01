@@ -34,6 +34,12 @@ interface IInsurancePolicySource {
         uint256 installmentsPaid;
     }
 
+    struct PolicyPackage {
+        uint256 packageId; string name; string policyType; uint256 premiumAmount;
+        uint256 coverageAmount; uint256 durationDays; string requiredDocumentType; bool isActive;
+    }
+    function getPolicyPackage(uint256 packageId) external view returns (PolicyPackage memory);
+
     function getPolicy(uint256 policyId) external view returns (Policy memory);
     function getEffectivePolicyStatus(uint256 policyId) external view returns (PolicyStatus);
     function hasRole(bytes32 role, address account) external view returns (bool);
@@ -161,6 +167,9 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
     ) external onlyInsuranceAdmin {
         require(packageId > 0, "Invalid package");
         require(packageId < insuranceManager.packageCounter(), "Package does not exist");
+        require(!deathBenefitEnabled && !maturityEnabled, "Death and maturity products are not offered");
+        require(!surrenderEnabled || (minimumSurrenderInstallments == 2 && surrenderValueBps <= 5000 &&
+            insuranceManager.getPolicyPackage(packageId).durationDays > 90), "Refund requires two reachable installments and a maximum 50 percent rate");
         require(version > 0, "Version required");
         require(termsHash != bytes32(0), "Terms hash required");
         require(deathBenefitBps <= BPS_DENOMINATOR, "Invalid death benefit");
@@ -346,6 +355,21 @@ contract PolicyBenefitsManager is Pausable, ReentrancyGuard {
 
         benefitRequest.status = BenefitStatus.ALLOCATED;
         benefitRequest.allocatedAt = block.timestamp;
+
+        // At most three requests exist for a policy's current benefit types.
+        // Historical rejected requests remain inspectable. Release losing
+        // approvals atomically; otherwise their reserves would be stranded.
+        for (uint256 i = 0; i <= uint256(BenefitType.MATURITY); i++) {
+            uint256 competingId = requestByPolicyAndType[benefitRequest.policyId][BenefitType(i)];
+            if (competingId == 0 || competingId == requestId) continue;
+            BenefitRequest storage competing = benefitRequests[competingId];
+            if (competing.status != BenefitStatus.REQUESTED && competing.status != BenefitStatus.APPROVED) continue;
+            if (competing.status == BenefitStatus.APPROVED) totalReservedLiabilityWei -= competing.amount;
+            competing.status = BenefitStatus.REJECTED;
+            competing.resolvedAt = block.timestamp;
+            competing.decisionReasonHash = keccak256("SUPERSEDED_BY_TERMINAL_BENEFIT");
+            emit BenefitRejected(competingId, competing.decisionReasonHash);
+        }
 
         if (benefitRequest.benefitType == BenefitType.DEATH) {
             Beneficiary[] memory beneficiaries = beneficiariesByPolicy[benefitRequest.policyId];

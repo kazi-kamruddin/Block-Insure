@@ -13,6 +13,7 @@ const { ethers } = require("ethers");
 const InsuranceManagerArtifact = require("./abi/InsuranceManager.json");
 const OracleCoordinatorArtifact = require("./abi/OracleCoordinator.json");
 const { verifyRegistryProof } = require("./merkleProof");
+const { invoiceIdentity } = require("./recordIdentity");
 const { independentlyAssessRecord } = require("./independentAssessment");
 const triagePolicy = require("../backEnd/triage-policy.json");
 const {
@@ -23,7 +24,6 @@ const {
 const { loadCursorState, persistCursorState } = require("./cursorState");
 const { isWorkerReady } = require("./workerHealth");
 const {
-  assertRequestModelIdentity,
   loadAndVerifyModelArtifact,
 } = require("./modelArtifact");
 const { writeEvent } = require("../scripts/observability");
@@ -113,6 +113,10 @@ const simulatedNetworkDelayMs =
 const runtimeModelArtifact = loadAndVerifyModelArtifact(
   process.env.MODEL_ARTIFACT_PATH || undefined
 );
+const { resolveRequestModel, loadProtocolArtifact } = require("./runtimeProtocol");
+const { assessProtocol, unavailable: unavailableProtocol } = require("./protocolAssessment");
+// Legacy artifact is retained only for requests that already pin its identity.
+const activeProtocol = loadProtocolArtifact();
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const oracleWallet = ORACLE_WORKER_ENABLED
@@ -133,6 +137,57 @@ const processingRequests = new Set();
 let pollTimer = null;
 let startRetryTimer = null;
 let healthServer = null;
+let shadowTimer = null;
+const shadowEnabled = ORACLE_WORKER_ENABLED && process.env.ORACLE_SHADOW_ENABLED !== "false";
+const shadowState = { enabled: shadowEnabled, successfulReports: 0, lastSuccessAt: null, lastFailure: null };
+const { assessShadowPacket, signedMessage, hash: shadowHash, facts: shadowFacts, createShadowRunner } = require("./shadowAssessment");
+let shadowPolling = false;
+const runShadow = createShadowRunner({
+  onFailure: (code) => { shadowState.lastFailure = code; },
+  run: async (request) => {
+    const totalStart = performance.now();
+    const [claim, snapshot, network, requestBlock] = await Promise.all([manager.getClaim(request.claimId), coordinator.getRegistrySnapshot(request.registryVersion),
+      provider.getNetwork(), provider.getBlock(Number(request.requestBlock))]);
+    if (String(await manager.claimVersion(request.claimId)) !== String(request.claimVersion)) return;
+    const authoritative = { request, claim: shadowFacts({ ...claim.toObject(), claimAmountEth: ethers.formatEther(claim.claimAmount) }),
+      chainId: String(network.chainId), managerAddress: CONTRACT_ADDRESS, coordinatorAddress, snapshotTimestamp: String(snapshot.publishedAt), requestBlockHash: requestBlock.hash };
+    const authorize = async (action, digest = "") => {
+      const timestamp = Date.now();
+      return { requestId: String(request.requestId), oracleWallet: oracleWallet.address, oracleInstanceId: ORACLE_INSTANCE_ID, timestamp,
+        signature: await oracleWallet.signMessage(signedMessage({ action, requestId: request.requestId, wallet: oracleWallet.address,
+          timestamp, digest, chainId: network.chainId, coordinatorAddress })) };
+    };
+    const options = { headers: { "x-oracle-api-key": ORACLE_API_KEY }, timeout: 8000, maxContentLength: 16 * 1024 * 1024 };
+    const response = await backendHttp.post(`${BACKEND_API_URL}/api/oracle/shadow/context`, await authorize("CONTEXT"), options);
+    const scoringStart = performance.now();
+    const assessed = assessShadowPacket(response.data.data, authoritative);
+    const report = Object.fromEntries(["contextId", "result", "resultHash", "contextHash", "explanationHash"].map((key) => [key, assessed[key]]));
+    const memory = process.memoryUsage();
+    const metrics = { totalMs: performance.now() - totalStart, scoringMs: performance.now() - scoringStart, rssBytes: memory.rss, heapUsedBytes: memory.heapUsed };
+    const saved = await backendHttp.post(`${BACKEND_API_URL}/api/oracle/shadow/report`, {
+      ...await authorize("REPORT", shadowHash({ report, metrics })), report, metrics,
+    }, options);
+    if (!saved.data?.data?.accepted || saved.data.data.resultHash !== report.resultHash) throw new Error("Shadow report not accepted");
+    shadowState.successfulReports++; shadowState.lastSuccessAt = new Date().toISOString(); shadowState.lastFailure = null;
+  },
+});
+const pollShadows = async () => {
+  if (!shadowEnabled || !coordinator || shadowPolling) return;
+  shadowPolling = true;
+  try {
+    const next = Number(await coordinator.requestCounter()), requests = [];
+    // Bounded post-finality backfill; no unbounded block-zero scans. The most
+    // recent 64 requests are replayed idempotently after process restart.
+    for (let id = Math.max(1, next - 64); id < next; id++) {
+      const request = await coordinator.getRequest(id);
+      if (request.isFulfilled && await coordinator.eligibleForRequest(id, oracleWallet.address)) {
+        requests.push({ ...request.toObject(), shadowBlockHash: (await provider.getBlock(Number(request.requestBlock))).hash });
+      }
+    }
+    await runShadow(requests);
+  } catch { shadowState.lastFailure = "SHADOW_UNAVAILABLE"; }
+  finally { shadowPolling = false; }
+};
 const serviceState = {
   initialized: false,
   startedAt: new Date().toISOString(),
@@ -297,12 +352,13 @@ const validateAppealCommitment = async (request, claim, response) => {
   }
 
   const query = response.query || {};
-  const expectedInvoiceHash = payload.proposedInvoiceNumber
-    ? ethers.keccak256(ethers.toUtf8Bytes(payload.proposedInvoiceNumber))
-    : claim.invoiceHash;
+  const invoiceCandidates = payload.proposedInvoiceNumber
+    ? [ethers.id(payload.proposedInvoiceNumber.trim()), invoiceIdentity(claim.hospitalId, payload.proposedInvoiceNumber)]
+    : [claim.invoiceHash];
+  const expectedInvoiceHash = claim.invoiceHash;
   const expectedAmount = payload.proposedClaimAmountEth || ethers.formatEther(claim.claimAmount);
   if (ethers.parseEther(expectedAmount) !== claim.claimAmount ||
-      normalizeHash(expectedInvoiceHash) !== normalizeHash(claim.invoiceHash) ||
+      !invoiceCandidates.some((hash) => normalizeHash(hash) === normalizeHash(claim.invoiceHash)) ||
       (payload.proposedHospitalId && payload.proposedHospitalId !== claim.hospitalId) ||
       (payload.proposedClaimType && payload.proposedClaimType !== claim.claimType)) return false;
   if (
@@ -333,7 +389,7 @@ const validateAppealCommitment = async (request, claim, response) => {
     try {
       const event = manager.interface.parseLog(log);
       return (
-        event?.name === "ClaimAppealed" &&
+        normalizeHash(log.address) === normalizeHash(CONTRACT_ADDRESS) && event?.name === "ClaimAppealed" &&
         event.args.claimId.toString() === claim.claimId.toString() &&
         normalizeHash(event.args.appealReasonHash) === normalizeHash(computedHash)
       );
@@ -343,7 +399,7 @@ const validateAppealCommitment = async (request, claim, response) => {
   });
 };
 
-const classifyResponse = (request, claim, response, appealCommitmentValid) => {
+const classifyResponse = (request, claim, response, appealCommitmentValid, independentOverride) => {
   const usesAppealCorrection =
     Number(request.claimVersion) > 1 &&
     response.query?.source === "PENDING_APPEAL_CORRECTION";
@@ -364,12 +420,15 @@ const classifyResponse = (request, claim, response, appealCommitmentValid) => {
     normalizeHash(localRoot) !== "" &&
     normalizeHash(localRoot) === normalizeHash(request.registryRoot);
   const snapshotMatches = response.registrySnapshot === ORACLE_REGISTRY_SNAPSHOT;
+  const namespaceValid = proof?.canonicalRecord?.identityVersion !== 2 ||
+    normalizeHash(invoiceIdentity(proof.canonicalRecord.hospitalId, proof.canonicalRecord.invoiceNumber)) === normalizeHash(proof.canonicalRecord.invoiceHash);
   const recordMatchesClaim =
+    namespaceValid && response.contractedHospital === true &&
     proofValid &&
     normalizeHash(proof.canonicalRecord?.invoiceHash) === normalizeHash(evaluationClaim.invoiceHash) &&
     String(proof.canonicalRecord?.hospitalId || "") === String(evaluationClaim.hospitalId);
   const independent = recordMatchesClaim
-    ? independentlyAssessRecord({
+    ? independentOverride || independentlyAssessRecord({
         record: proof.canonicalRecord,
         claim: {
           claimantWallet: evaluationClaim.claimantWallet,
@@ -438,7 +497,6 @@ const handleOracleRequested = async (requestId, claimId) => {
 
   try {
     let request = await coordinator.getRequest(requestId);
-    assertRequestModelIdentity(request.modelVersion, runtimeModelArtifact);
     if (request.isFulfilled || (await coordinator.hasRevealed(requestId, oracleWallet.address))) {
       return true;
     }
@@ -446,7 +504,17 @@ const handleOracleRequested = async (requestId, claimId) => {
       console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Not eligible for request ${requestKey}`);
       return true;
     }
+    const selectedModel = resolveRequestModel(request.modelVersion);
     if (simulatedNetworkDelayMs > 0) await sleep(simulatedNetworkDelayMs);
+    const authorizeDecision = async (action, value) => {
+      const timestamp = Date.now(), network = await provider.getNetwork();
+      return { requestId: requestKey, oracleWallet: oracleWallet.address, oracleInstanceId: ORACLE_INSTANCE_ID, timestamp,
+        signature: await oracleWallet.signMessage(signedMessage({ action, requestId, wallet: oracleWallet.address, timestamp,
+          digest: value ? shadowHash(value) : "", chainId: network.chainId, coordinatorAddress })) };
+    };
+    const decisionOptions = { headers: { "x-oracle-api-key": ORACLE_API_KEY }, timeout: 15000 };
+    const pinnedDecision = selectedModel.kind === "xgboost" ? (await backendHttp.post(`${BACKEND_API_URL}/api/oracle/protocol/decision/read`,
+      await authorizeDecision("DECISION_READ"), decisionOptions)).data.data.assessment : null;
 
     const claim = await manager.getClaim(claimId);
     const queryData = {
@@ -461,7 +529,7 @@ const handleOracleRequested = async (requestId, claimId) => {
       registryVersion: request.registryVersion.toString(),
       registryRoot: request.registryRoot,
       modelVersion: request.modelVersion,
-      modelArtifactHash: runtimeModelArtifact.artifactHash,
+      modelArtifactHash: selectedModel.kind === "legacy-nb" ? runtimeModelArtifact.artifactHash : activeProtocol.modelIdentityHash,
     };
     const hospitalResponse = await backendHttp.get(MOCK_HOSPITAL_API_URL, {
       params: { ...queryData, registrySnapshot: ORACLE_REGISTRY_SNAPSHOT },
@@ -472,12 +540,42 @@ const handleOracleRequested = async (requestId, claimId) => {
       claim,
       hospitalResponse.data
     );
-    const assessment = classifyResponse(
+    let assessment = classifyResponse(
       request,
       claim,
       hospitalResponse.data,
-      appealCommitmentValid
+      appealCommitmentValid,
+      selectedModel.kind === "xgboost" ? { verified: true, riskLevel: "LOW" } : undefined
     );
+    if (selectedModel.kind === "xgboost") {
+      let routed;
+      if (assessment.verified) {
+        // Bound transient context/API failures before pinning a negative decision.
+        // Persistent unavailability still fails closed; no model fallback.
+        for (let attempt = 0; attempt < 3 && !routed; attempt++) try {
+          const [snapshot, network, requestBlock] = await Promise.all([coordinator.getRegistrySnapshot(request.registryVersion), provider.getNetwork(), provider.getBlock(Number(request.requestBlock))]);
+          const timestamp = Date.now();
+          const authorization = { requestId: requestKey, oracleWallet: oracleWallet.address, oracleInstanceId: ORACLE_INSTANCE_ID, timestamp,
+            signature: await oracleWallet.signMessage(signedMessage({ action: "CONTEXT", requestId, wallet: oracleWallet.address,
+              timestamp, chainId: network.chainId, coordinatorAddress })) };
+          const packet = await backendHttp.post(`${BACKEND_API_URL}/api/oracle/shadow/context`, authorization,
+            { headers: { "x-oracle-api-key": ORACLE_API_KEY }, timeout: 8000, maxContentLength: 16 * 1024 * 1024 });
+          routed = assessProtocol(packet.data.data, { request, claim: shadowFacts({ ...claim.toObject(), claimAmountEth: ethers.formatEther(claim.claimAmount) }),
+            chainId: String(network.chainId), managerAddress: CONTRACT_ADDRESS, coordinatorAddress,
+            snapshotTimestamp: String(snapshot.publishedAt), requestBlockHash: requestBlock.hash });
+        } catch {
+          if (attempt === 2) routed = unavailableProtocol();
+          else await sleep(750 * (attempt + 1));
+        }
+      } else routed = { verified: false, model: "XGBoost", authority: "INTEGRITY_GATE", score: null, riskLevel: "HIGH", verificationCode: assessment.verificationCode };
+      const saved = pinnedDecision || (await backendHttp.post(`${BACKEND_API_URL}/api/oracle/protocol/decision/save`, {
+        ...await authorizeDecision("DECISION_SAVE", routed), assessment: routed,
+        contextAuthorization: await authorizeDecision("CONTEXT"),
+      }, decisionOptions)).data.data.assessment;
+      if (!saved) throw new Error("Pinned protocol decision unavailable");
+      assessment = { ...assessment, ...saved, independentAssessment: undefined,
+        remarks: saved.verified ? "XGBoost and committed integrity checks permit automatic verification" : "Oracle verification requires manual adjudication; this is not a fraud verdict" };
+    }
     const resultHash = buildResultHash({
       request,
       verified: assessment.verified,
@@ -489,7 +587,11 @@ const handleOracleRequested = async (requestId, claimId) => {
       requestId,
       oracleAddress: oracleWallet.address,
     });
-    const commitment = buildCommitment(request, assessment.verified, resultHash, salt);
+    const commitment = buildCommitment(request, assessment.verified, resultHash, salt, {
+      chainId: (await provider.getNetwork()).chainId,
+      coordinatorAddress,
+      oracleAddress: oracleWallet.address,
+    });
     const existingCommitment = await coordinator.commitments(requestId, oracleWallet.address);
 
     if (existingCommitment === ethers.ZeroHash) {
@@ -519,14 +621,13 @@ const handleOracleRequested = async (requestId, claimId) => {
     await revealTx.wait();
 
     const oracleResponse = {
-      protocol: "exact-result-commit-reveal-v1",
+      protocol: "exact-result-commit-reveal-v2",
+      deployment: { coordinatorAddress: coordinatorAddress.toLowerCase(), chainId: String((await provider.getNetwork()).chainId) },
       modelIdentity: {
-        modelVersion: runtimeModelArtifact.modelVersion,
-        modelIdentityHash: runtimeModelArtifact.modelIdentityHash,
-        artifactHash: runtimeModelArtifact.artifactHash,
-        trainingDataHash: runtimeModelArtifact.trainingDataHash,
-        featureSchemaVersion: runtimeModelArtifact.featureSchemaVersion,
-        calibrationVersion: runtimeModelArtifact.calibration.version,
+        modelVersion: selectedModel.artifact.modelVersion,
+        modelIdentityHash: selectedModel.artifact.modelIdentityHash,
+        artifactHash: selectedModel.kind === "legacy-nb" ? runtimeModelArtifact.artifactHash : activeProtocol.bundleHash,
+        role: selectedModel.kind === "legacy-nb" ? "HISTORICAL_REQUEST" : "ORACLE_ROUTING",
       },
       requestId: requestKey,
       claimId: claimId.toString(),
@@ -615,6 +716,7 @@ const pollOracleRequests = async () => {
 };
 
 const startOracle = async () => {
+  const runtimeNetwork = await provider.getNetwork();
   coordinatorAddress = await manager.oracleCoordinator();
   coordinator = new ethers.Contract(
     coordinatorAddress,
@@ -627,16 +729,21 @@ const startOracle = async () => {
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Manager: ${CONTRACT_ADDRESS}`);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Coordinator: ${coordinatorAddress}`);
   console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Registry source: ${ORACLE_REGISTRY_SNAPSHOT}`);
-  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Frozen model: ${runtimeModelArtifact.modelIdentityHash}`);
+  console.log(`[Oracle ${ORACLE_INSTANCE_ID}] Packaged XGBoost identity: ${activeProtocol.modelIdentityHash}; each request selects its pinned evaluator`);
 
   const oracleRole = await manager.ORACLE_ROLE();
   if (!(await manager.hasRole(oracleRole, oracleWallet.address))) {
     throw new Error("Configured wallet does not have ORACLE_ROLE");
   }
+  serviceState.deployment = { chainId: String(runtimeNetwork.chainId), managerAddress: CONTRACT_ADDRESS.toLowerCase(), coordinatorAddress: coordinatorAddress.toLowerCase() };
   await loadPersistedCursor();
   await pollOracleRequests();
   serviceState.initialized = true;
   pollTimer = setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);
+  if (shadowEnabled) {
+    void pollShadows();
+    shadowTimer = setInterval(pollShadows, 10000);
+  }
 };
 
 const workerReady = () => isWorkerReady({
@@ -650,9 +757,13 @@ const sanitizedHealth = () => ({
   status: workerReady() ? "ready" : serviceState.initialized ? "degraded" : "starting",
   oracleInstanceId: ORACLE_INSTANCE_ID,
   workerEnabled: ORACLE_WORKER_ENABLED,
+  deployment: serviceState.deployment || null,
   oracleWallet: oracleWallet?.address || "",
   registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
   cursorMode: ORACLE_CURSOR_MODE,
+  shadow: shadowState,
+  protocolModel: { model: "XGBoost", identity: activeProtocol.modelIdentityHash, legacyRequestsSupported: true,
+    scope: "Packaged configuration; actual routing follows each on-chain request model identity" },
   nextScanBlock: nextOracleScanBlock,
   startedAt: serviceState.startedAt,
   lastPollAt: serviceState.lastPollAt,
@@ -715,6 +826,7 @@ const startWithRetry = async () => {
 };
 
 const shutdown = () => {
+  if (shadowTimer) clearInterval(shadowTimer);
   if (pollTimer) clearInterval(pollTimer);
   if (startRetryTimer) clearTimeout(startRetryTimer);
   healthServer?.close(() => process.exit(0));

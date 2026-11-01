@@ -6,9 +6,10 @@ reproducibility identity and the identities of the model, triage policy,
 datasets, compiler configuration, and contract bytecode.
 
 Files named `risk-model-*`, `threshold-*`, `roc-curve.csv`,
-`precision-recall-curve.csv`, and `baseline-comparison.csv` are retained only
-as legacy provenance. Runtime APIs and chart generation do not fall back to
-them.
+`precision-recall-curve.csv`, `baseline-comparison.csv`, and
+`evaluation-model-params.json` are local-only legacy provenance. Runtime APIs
+and chart generation do not fall back to them. Current evaluation artifacts
+remain versioned because the dashboards and integrity checks use them.
 
 Regenerate the authoritative offline artifacts with:
 

@@ -1,4 +1,5 @@
 require("dotenv").config();
+const OracleProtocolDecision = require("../models/OracleProtocolDecision");
 
 const dns = require("dns");
 const fs = require("fs");
@@ -10,8 +11,12 @@ const Appeal = require("../models/Appeal");
 const Bank = require("../models/Bank");
 const BankAccount = require("../models/BankAccount");
 const BankOtpChallenge = require("../models/BankOtpChallenge");
+const EmailChallenge = require("../models/EmailChallenge");
+const OtpDeliverySlot = require("../models/OtpDeliverySlot");
 const BankTransaction = require("../models/BankTransaction");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
+const ClaimAdvisoryAssessment = require("../models/ClaimAdvisoryAssessment");
+const OracleShadowAssessment = require("../models/OracleShadowAssessment");
 const EftMandate = require("../models/EftMandate");
 const EvidenceAccessLog = require("../models/EvidenceAccessLog");
 const EvidenceEvent = require("../models/EvidenceEvent");
@@ -19,6 +24,8 @@ const EvidenceGrant = require("../models/EvidenceGrant");
 const EvidenceTreeHead = require("../models/EvidenceTreeHead");
 const File = require("../models/File");
 const Hospital = require("../models/Hospital");
+const HospitalStaff = require("../models/HospitalStaff");
+const PolicyRulePublication = require("../models/PolicyRulePublication");
 const HospitalClaimVerification = require("../models/HospitalClaimVerification");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
@@ -34,6 +41,7 @@ const IndexedBlockchainEvent = require("../models/IndexedBlockchainEvent");
 const IndexerCheckpoint = require("../models/IndexerCheckpoint");
 const RegistryPublication = require("../models/RegistryPublication");
 const RegistrySnapshotChunk = require("../models/RegistrySnapshotChunk");
+const ChainReadSnapshot = require("../models/ChainReadSnapshot");
 const {
   buildSyntheticRecords,
 } = require("./seedMockData");
@@ -48,6 +56,9 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 }
 
 const collections = [
+  ["evidence database binding", { deleteMany: (query) => mongoose.connection.collection("evidence_deployment_binding").deleteMany(query) }],
+  ...["EvidenceBundle", "EvidenceLogLock", "EvidenceOperation", "ReviewAccessBatch", "AppealSubmissionAttempt"].map((name) => [name, require(`../models/${name}`)]),
+  ["chain read projections", ChainReadSnapshot],
   ["registry publication jobs", RegistryPublication],
   ["registry snapshot archives", RegistrySnapshotChunk],
   ["admin action logs", AdminActionLog],
@@ -55,11 +66,18 @@ const collections = [
   ["bank directory entries", Bank],
   ["bank accounts", BankAccount],
   ["bank OTP challenges", BankOtpChallenge],
+  ["email verification challenges", EmailChallenge],
+  ["OTP delivery limits", OtpDeliverySlot],
   ["bank transactions", BankTransaction],
   ["claim submission attempts", ClaimSubmissionAttempt],
+  ["claim advisory assessments", ClaimAdvisoryAssessment],
+  ["oracle shadow assessments", OracleShadowAssessment],
+  ["oracle protocol decisions", OracleProtocolDecision],
   ["documents", File],
   ["EFT mandates", EftMandate],
   ["hospital directory entries", Hospital],
+  ["hospital staff accounts", HospitalStaff],
+  ["package rule preimages", PolicyRulePublication],
   ["hospital claim verifications", HospitalClaimVerification],
   ["evidence access logs", EvidenceAccessLog],
   ["evidence events", EvidenceEvent],

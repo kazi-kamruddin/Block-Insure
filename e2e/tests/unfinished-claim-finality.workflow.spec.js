@@ -1,3 +1,4 @@
+const { prepareReviewerIdentities, authorizeReview } = require("../support/reviewPreparation");
 const { test, expect } = require("@playwright/test");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -18,41 +19,6 @@ function backendEnv(name) {
   const source = fs.readFileSync(path.resolve(__dirname, "../../backEnd/.env"), "utf8");
   const line = source.split(/\r?\n/).find((entry) => entry.startsWith(`${name}=`));
   return line?.slice(name.length + 1).trim() || "";
-}
-
-async function verifyMissingRecord(browser, claimId) {
-  const hospital = await createActorContext(browser, "hospital");
-  try {
-    await loginActor(hospital.page, hospital.actor);
-    await hospital.page.goto("/hospital/claims");
-    await hospital.page.getByRole("button", { name: new RegExp(`Claim #${claimId}`) }).click();
-    await expect(hospital.page.getByRole("heading", { name: "NOT FOUND" })).toBeVisible();
-    await hospital.page.getByRole("button", { name: "Verify against hospital record" }).click();
-    await expect(hospital.page.locator(".hospital-attestation-result")).toContainText(
-      "On-chain hospital attestation:",
-      { timeout: 60_000 }
-    );
-  } finally {
-    await closeActor(hospital);
-  }
-}
-
-async function verifyCorrectedAppealAsHospital(browser, claimId, correctedInvoice) {
-  const hospital = await createActorContext(browser, "hospital");
-  try {
-    await loginActor(hospital.page, hospital.actor);
-    await hospital.page.goto("/hospital/claims");
-    await hospital.page.getByRole("button", { name: new RegExp(`Claim #${claimId}`) }).click();
-    await expect(hospital.page.getByRole("heading", { name: "VERIFIED" })).toBeVisible();
-    await expect(hospital.page.getByText(new RegExp(`Matched source invoice:\\s*${correctedInvoice}`))).toBeVisible();
-    await hospital.page.getByRole("button", { name: "Verify against hospital record" }).click();
-    await expect(hospital.page.locator(".hospital-attestation-result")).toContainText(
-      "On-chain hospital attestation: VERIFIED",
-      { timeout: 60_000 }
-    );
-  } finally {
-    await closeActor(hospital);
-  }
 }
 
 async function requestAppealOracleAsAdmin(browser, claimId) {
@@ -125,7 +91,6 @@ async function createManualReview(browser) {
   );
   const claimId = (await success.textContent())?.match(/Claim #(\d+)/)?.[1];
   expect(claimId).toBeTruthy();
-  await verifyMissingRecord(browser, claimId);
 
   const admin = await createActorContext(browser, "admin");
   try {
@@ -145,6 +110,8 @@ async function createManualReview(browser) {
   } finally {
     await closeActor(admin);
   }
+  await prepareReviewerIdentities(browser);
+  await authorizeReview(user.page, claimId);
   return { user, claimId, correctedInvoice };
 }
 
@@ -166,7 +133,7 @@ test.describe("@unfinished manual-review finality", () => {
   test.describe.configure({ mode: "serial" });
 
   test("simultaneous rejection submissions fail safely and converge once", async ({ browser }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     const { user, claimId } = await createManualReview(browser);
     const auditors = await Promise.all([
       createActorContext(browser, "auditor1"),
@@ -220,7 +187,7 @@ test.describe("@unfinished manual-review finality", () => {
       const postFinal = await createActorContext(browser, "auditor3");
       try {
         await loginActor(postFinal.page, postFinal.actor);
-        await postFinal.page.goto(`/auditor/vote/${claimId}`);
+        await postFinal.page.goto(`/auditor/vote/${claimId}`, { waitUntil: "domcontentloaded" });
         await expect(postFinal.page.locator(".status-badge").filter({ hasText: "REJECTED" })).toBeVisible();
         await expect(
           postFinal.page.getByRole("button", { name: "Invalid Claim", exact: true })
@@ -235,7 +202,7 @@ test.describe("@unfinished manual-review finality", () => {
   });
 
   test("expired review rejects for insufficient quorum", async ({ browser }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     const { user, claimId } = await createManualReview(browser);
     try {
       const { manager, adjudicator } = await contractsFor(user);
@@ -297,7 +264,6 @@ test.describe("@unfinished manual-review finality", () => {
       await expect(user.page.locator(".appeal-status")).toContainText(appealReason);
       await expect(user.page.locator(".status-badge").filter({ hasText: "APPEALED" })).toBeVisible();
 
-      await verifyCorrectedAppealAsHospital(browser, claimId, correctedInvoice);
       await requestAppealOracleAsAdmin(browser, claimId);
 
       await expect
@@ -360,6 +326,11 @@ test.describe("@unfinished manual-review finality", () => {
         }).toArray();
         expect(oracleLogs).toHaveLength(2);
         expect(oracleLogs.every((log) => log.verified === true)).toBe(true);
+        await expect.poll(() => mongo.db.collection("oracleshadowassessments").countDocuments({ claimId: String(claimId), claimVersion: "2" }),
+          { timeout: 60000, intervals: [3000], message: "Corrected appeal must receive new version-bound shadow reports from both workers" }).toBe(2);
+        const shadows = await mongo.db.collection("oracleshadowassessments").find({ claimId: String(claimId), claimVersion: "2" }).toArray();
+        expect(new Set(shadows.map((report) => report.oracleWallet)).size).toBe(2);
+        expect(new Set(shadows.map((report) => `${report.contextId}:${report.resultHash}:${report.contextHash}`)).size).toBe(1);
         expect(
           oracleLogs.every(
             (log) =>

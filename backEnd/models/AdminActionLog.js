@@ -14,6 +14,8 @@ const adminActionLogSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    actorStaffId: { type: String, default: "", index: true },
+    actorHospitalId: { type: String, default: "", index: true },
     action: {
       type: String,
       required: true,

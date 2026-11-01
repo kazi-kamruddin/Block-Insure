@@ -1,13 +1,47 @@
 {
   "schemaVersion": 1,
-  "protocolVersion": "BLOCK_INSURE_V1",
+  "protocolVersion": "BLOCK_INSURE_COMPLETION_PHASE2_V3",
   "upgradeStrategy": "new deployments plus explicit migration; no proxy upgrade key",
   "stateExports": {
-    "InsuranceManager": ["policy packages", "policies", "claims", "claim versions", "settlement records", "registry snapshots"],
-    "PolicyEconomics": ["immutable term snapshots", "coverage accounts", "coverage intervals", "active exposure", "reserve configuration"],
-    "ClaimAdjudicator": ["manual review snapshots", "votes", "decisions", "payout allocations", "appeal rounds", "reputation observations"],
-    "EvidenceRegistry": ["encryption identities", "anchored tree heads", "trusted signer"],
-    "OracleCoordinator": ["registry history", "request snapshots", "commitments", "reveals", "final outcomes"]
+    "InsuranceManager": [
+      "policy packages",
+      "policies",
+      "claims",
+      "claim versions",
+      "settlement records",
+      "registry snapshots"
+    ],
+    "PolicyEconomics": [
+      "immutable term snapshots",
+      "coverage accounts",
+      "coverage intervals",
+      "active exposure",
+      "reserve configuration",
+      "issued document commitments",
+      "fixed calendar installment quotes"
+    ],
+    "ClaimAdjudicator": [
+      "manual review snapshots",
+      "votes",
+      "decisions",
+      "payout allocations",
+      "appeal rounds",
+      "reputation observations",
+      "access-preparation deadlines and evidence/grant commitments",
+      "one bounded preparation retry marker"
+    ],
+    "EvidenceRegistry": [
+      "encryption identities",
+      "anchored tree heads",
+      "trusted signer"
+    ],
+    "OracleCoordinator": [
+      "registry history",
+      "request snapshots",
+      "commitments",
+      "reveals",
+      "final outcomes"
+    ]
   },
   "eventCompatibilityRule": "Existing V1 event signatures and indexed field meanings are preserved; V2 adds new event names for incompatible payloads.",
   "migrationVerification": [
@@ -17,5 +51,14 @@
     "reconcile policy coverage and treasury liabilities",
     "verify claim, appeal, evidence, and registry histories",
     "open V2 only after independent export reconciliation"
-  ]
+  ],
+  "newDeploymentRequirements": [
+    "caller/chain/coordinator-bound Oracle commitment encoding",
+    "payable gateway settlement with expected installment ID",
+    "hospital staff access instead of per-claim hospital wallet gate",
+    "deployment identity includes manager creation-block hash",
+    "historical artifacts and data are preserved; no automatic migration"
+  ],
+  "databaseBoundary": "Fresh deployment-scoped application database; preserve historical data and indexes without automatic migration",
+  "productScope": "Medical coverage plus optional capped cancellation refund; no enabled death or maturity publication"
 }

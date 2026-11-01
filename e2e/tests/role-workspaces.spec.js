@@ -79,14 +79,14 @@ test.describe("@smoke role workspaces", () => {
       await expect(
         session.page.getByRole("navigation", { name: "Hospital navigation" })
       ).toBeVisible();
-      await expect(session.page.getByText("Independent hospital verification active")).toBeVisible();
+      await expect(session.page.getByText("Automatic registry publication active")).toBeVisible();
       await expect(session.page.getByText("HOSP-001", { exact: true })).toBeVisible();
       await expect(session.page.getByText("INV-HOSP-001-001", { exact: true })).toBeVisible();
 
       await session.page.goto("/hospital/records");
       await expect(session.page.getByRole("heading", { name: "Patient and Invoice Records" })).toBeVisible();
       await session.page.goto("/hospital/claims");
-      await expect(session.page.getByRole("heading", { name: "Claim Verification Requests" })).toBeVisible();
+      await expect(session.page.getByRole("heading", { name: "Patient and Invoice Records" })).toBeVisible();
 
       await session.page.goto("/admin/dashboard");
       await expect(session.page).toHaveURL(/\/hospital\/dashboard$/);
@@ -105,7 +105,7 @@ test.describe("@smoke role workspaces", () => {
       await expect(
         session.page.getByRole("navigation", { name: "Bank navigation" })
       ).toBeVisible();
-      await expect(session.page.getByText("Quarterly bank automation active")).toBeVisible();
+      await expect(session.page.getByText("Scheduled bank automation active")).toBeVisible();
       await expect(session.page.getByText("BANK-001", { exact: true })).toBeVisible();
       const accountRows = session.page.locator(".bank-accounts-card tbody tr");
       await expect(accountRows).toHaveCount(3);
@@ -128,10 +128,11 @@ test.describe("@smoke role workspaces", () => {
       await loginActor(session.page, session.actor);
 
       await session.page.goto("/auditor/healthcare-registry");
-      await expect(
-        session.page.getByRole("heading", { name: "Hybrid External Registry" })
-      ).toBeVisible();
-      await expect(session.page.getByText("Auditor registry view")).toBeVisible();
+      await expect(session.page).toHaveURL(/\/auditor\/votes$/);
+      const denied = await session.page.evaluate(async () => (await fetch("http://localhost:5000/mock/hospital/records", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` },
+      })).status);
+      expect(denied).toBe(403);
 
       await session.page.goto("/auditor/votes");
       await expect(session.page.getByRole("heading", { name: "Voting Queue" })).toBeVisible();

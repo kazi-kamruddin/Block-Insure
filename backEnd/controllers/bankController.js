@@ -1,4 +1,5 @@
 const Bank = require("../models/Bank");
+const { getDeploymentScope } = require("../services/deploymentScopeService");
 const BankAccount = require("../models/BankAccount");
 const BankTransaction = require("../models/BankTransaction");
 const EftMandate = require("../models/EftMandate");
@@ -67,6 +68,11 @@ const formatTransaction = (transaction) => ({
   amountMinor: transaction.amountMinor,
   amount: formatMoney(transaction.amountMinor),
   amountWei: transaction.amountWei,
+  installmentId: transaction.installmentId,
+  deploymentScope: transaction.deploymentScope,
+  stage: transaction.stage,
+  quoteRateMinorPerEth: transaction.quoteRateMinorPerEth,
+  simulatedFiat: true,
   currency: transaction.currency,
   dueAt: transaction.dueAt,
   completedAt: transaction.completedAt,
@@ -103,7 +109,7 @@ const getMyBankProfile = async (req, res, next) => {
       summary: { accounts, activeAccounts, mandates, pendingMandates, transactions, totalBalanceMinor, totalBalance: formatMoney(totalBalanceMinor) },
       capabilities: {
         viewOwnedAccounts: true, reviewMandates: true, scheduledDebits: true, manualPaymentOtp: true,
-        note: "Quarterly EFT approval, reminders, automatic debits, confirmations, and OTP-protected manual transfers are active.",
+        note: "Scheduled EFT approval, reminders, automatic debits, confirmations, and OTP-protected manual transfers are active.",
       },
     });
   } catch (error) { next(error); }
@@ -120,7 +126,7 @@ const getMyBankAccounts = async (req, res, next) => {
 const getMyBankMandates = async (req, res, next) => {
   try {
     const bank = await getBankIdentity(req.user);
-    const mandates = await EftMandate.find({ bankId: bank.bankId }).sort({ createdAt: -1 }).lean();
+    const mandates = await EftMandate.find({ bankId: bank.bankId, deploymentScope: await getDeploymentScope() }).sort({ createdAt: -1 }).lean();
     res.status(200).json({ success: true, count: mandates.length, mandates: mandates.map(formatMandate), executionEnabled: true });
   } catch (error) { next(error); }
 };
@@ -128,7 +134,7 @@ const getMyBankMandates = async (req, res, next) => {
 const getMyBankTransactions = async (req, res, next) => {
   try {
     const bank = await getBankIdentity(req.user);
-    const transactions = await BankTransaction.find({ bankId: bank.bankId }).sort({ createdAt: -1 }).limit(100).lean();
+    const transactions = await BankTransaction.find({ bankId: bank.bankId, deploymentScope: await getDeploymentScope() }).sort({ createdAt: -1 }).limit(100).lean();
     res.status(200).json({ success: true, count: transactions.length, transactions: transactions.map(formatTransaction) });
   } catch (error) { next(error); }
 };
@@ -166,14 +172,14 @@ const getMyUserAccounts = async (req, res, next) => {
 
 const getMyUserMandates = async (req, res, next) => {
   try {
-    const mandates = await EftMandate.find({ ownerWalletAddress: normalizeWallet(req.user.walletAddress) }).sort({ createdAt: -1 }).lean();
+    const mandates = await EftMandate.find({ ownerWalletAddress: normalizeWallet(req.user.walletAddress), deploymentScope: await getDeploymentScope() }).sort({ createdAt: -1 }).lean();
     res.status(200).json({ success: true, count: mandates.length, mandates: mandates.map(formatMandate) });
   } catch (error) { next(error); }
 };
 
 const getMyUserTransactions = async (req, res, next) => {
   try {
-    const transactions = await BankTransaction.find({ ownerWalletAddress: normalizeWallet(req.user.walletAddress) }).sort({ createdAt: -1 }).limit(100).lean();
+    const transactions = await BankTransaction.find({ ownerWalletAddress: normalizeWallet(req.user.walletAddress), deploymentScope: await getDeploymentScope() }).sort({ createdAt: -1 }).limit(100).lean();
     res.status(200).json({ success: true, count: transactions.length, transactions: transactions.map(formatTransaction) });
   } catch (error) { next(error); }
 };
@@ -202,9 +208,9 @@ const requestMyManualOtp = async (req, res, next) => {
 const confirmMyManualOtp = async (req, res, next) => {
   try {
     const transaction = await confirmManualPaymentOtp(withAuthenticatedWallet(req.body, req.user.walletAddress));
-    res.status(transaction.status === "PAID" ? 200 : 409).json({
-      success: transaction.status === "PAID",
-      message: transaction.status === "PAID" ? "Manual bank payment confirmed" : transaction.failureReason,
+    res.status(transaction.status === "PAID" ? 200 : transaction.status === "PROCESSING" ? 202 : 409).json({
+      success: transaction.status !== "FAILED",
+      message: transaction.status === "PAID" ? "Test ETH settlement confirmed; simulated BDT charged" : transaction.status === "PROCESSING" ? "Settlement pending. Check this operation in payment history; do not request a second debit." : transaction.failureReason,
       transaction: formatTransaction(transaction),
     });
   } catch (error) { next(error); }

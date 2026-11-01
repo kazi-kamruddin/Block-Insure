@@ -26,9 +26,10 @@ module.exports = defineConfig({
   expect: { timeout: 10_000 },
   reporter: [
     ["list"],
-    ["html", { outputFolder: "playwright-report-frontend", open: "never" }],
+    ...(process.env.PLAYWRIGHT_JSON_OUTPUT_NAME ? [["json", { outputFile: process.env.PLAYWRIGHT_JSON_OUTPUT_NAME }]] : []),
+    ["html", { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR || "playwright-report-frontend", open: "never" }],
   ],
-  outputDir: "test-results/frontend-production",
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || "test-results/frontend-production",
   webServer: {
     command: "npm --prefix frontEnd run preview -- --host 127.0.0.1 --port 4173 --strictPort",
     url: "http://127.0.0.1:4173",

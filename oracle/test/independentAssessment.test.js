@@ -57,7 +57,7 @@ test("oracle rejects proof-bound risk facts without trusting backend verdicts", 
 test("evaluation labels and injected markers do not determine runtime verification", () => {
   const assess = (input) => independentlyAssessRecord({ record: input, claim, modelArtifact, triagePolicy });
   const baseline = assess(record);
-  const changed = assess({ ...record, fraudLabel: "INFLATED_AMOUNT", fraudSignals: { inflatedAmount: true, dateMismatch: true, blacklistedHospital: true } });
+  const changed = assess({ ...record, fraudLabel: "INFLATED_AMOUNT", previousClaimCount: 100, providerVelocityAnomaly: true, claimantVelocityAnomaly: true, nearDuplicateAdvisory: true, isMissingOrNoisy: true, dataQuality: "NOISY", fraudSignals: { inflatedAmount: true, dateMismatch: true, blacklistedHospital: true } });
   assert.equal(changed.verified, baseline.verified);
   assert.deepEqual(changed.features, baseline.features);
   assert.equal(changed.fraudProbability, baseline.fraudProbability);

@@ -76,6 +76,8 @@ const calculateTrainingDataHash = (records) =>
         providerId: record.providerId || record.hospitalId,
         occurredAt: new Date(record.occurredAt || record.admissionDate).toISOString(),
         fraudLabel: record.fraudLabel,
+        ...(record.actualFraud !== undefined ? { actualFraud: Boolean(record.actualFraud) } : {}),
+        ...(record.controlledAttackTruth !== undefined ? { controlledAttackTruth: Boolean(record.controlledAttackTruth) } : {}),
         features: record.features || null,
       }))
     )

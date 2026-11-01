@@ -13,8 +13,8 @@ const hospitalSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     walletAddress: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
       index: true,

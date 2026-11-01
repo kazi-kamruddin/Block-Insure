@@ -6,6 +6,7 @@ import { confirmPremiumPayment, getMyPolicies } from "../services/api";
 import PaginationControls from "../components/PaginationControls";
 import TransactionLink from "../components/TransactionLink";
 import PolicyBenefitsPanel from "../components/PolicyBenefitsPanel";
+import PaymentScheduleNotice from "../components/PaymentScheduleNotice";
 import { useWallet } from "../context/useWallet";
 import { showToast } from "../services/toast";
 import {
@@ -14,7 +15,7 @@ import {
   reinstatePolicy,
 } from "../services/contractService";
 import "../styles/pages/MyPoliciesPage.css";
-import { formatDateOnly } from "../utils/dateFormat";
+import { formatDateOnly, formatDateTime } from "../utils/dateFormat";
 
 function extractPolicies(data) {
   if (Array.isArray(data)) return data;
@@ -69,11 +70,11 @@ export default function MyPoliciesPage() {
     setActingPolicyId(policy.policyId);
 
     try {
-      const premiumWei = BigInt(policy.premiumAmountWei || policy.premiumPaidWei || 0);
+      const premiumWei = BigInt(policy.installment?.amountWei || 0);
       const tx =
         actionType === "reinstate"
-          ? await reinstatePolicy(policy.policyId, premiumWei)
-          : await payPolicyPremium(policy.policyId, premiumWei);
+          ? await reinstatePolicy(policy.policyId, premiumWei, policy.installment.installmentId)
+          : await payPolicyPremium(policy.policyId, premiumWei, policy.installment.installmentId);
 
       await tx.wait();
       await confirmPremiumPayment(tx.hash).catch((confirmationError) => {
@@ -142,6 +143,7 @@ export default function MyPoliciesPage() {
               <div>
                 <span className="dashboard-eyebrow">Policy #{policy.policyId}</span>
                 <h3>{policy.packageName || `Package #${policy.packageId}`}</h3>
+                <PaymentScheduleNotice schedule={policy.policyTerms?.paymentSchedule} />
                 <p>{policy.policyType || "Insurance coverage"}</p>
               </div>
               <strong className="policy-state">
@@ -167,22 +169,23 @@ export default function MyPoliciesPage() {
             })()}
             <div className="policy-timeline">
               <div><span>Coverage began</span><strong>{formatDateOnly(policy.startDate)}</strong></div>
-              <div><span>Next premium due</span><strong>{formatDateOnly(policy.nextPremiumDueDate)}</strong></div>
-              <div><span>Grace deadline</span><strong>{formatDateOnly(policy.gracePeriodEnd)}</strong></div>
+              <div><span>Next premium due</span><strong>{formatDateTime(policy.nextPremiumDueDate)}</strong></div>
+              <div><span>Grace deadline</span><strong>{formatDateTime(policy.gracePeriodEnd)}</strong></div>
               <div><span>Coverage ends</span><strong>{formatDateOnly(policy.endDate)}</strong></div>
             </div>
+            <p>{policy.installment?.installmentId !== "0" ? `Next installment #${policy.installment?.installmentId}: ${policy.installment?.amountEth} test ETH. Opens ${formatDateTime(Number(policy.installment?.opensAt) * 1000)}. Dates remain anchored to purchase.` : "No further installment is collectible for this term."}</p>
             <div className="action-row">
               {["ACTIVE", "GRACE_PERIOD"].includes(policy.status?.label) ? <button
                 type="button"
                 onClick={() => runPremiumAction(policy, "pay")}
-                disabled={actingPolicyId === policy.policyId}
+                disabled={actingPolicyId === policy.policyId || !policy.installment?.payableNow}
               >
                 {actingPolicyId === policy.policyId ? "Confirming..." : "Pay Premium"}
               </button> : null}
               {policy.status?.label === "LAPSED" ? <button
                 type="button"
                 onClick={() => runPremiumAction(policy, "reinstate")}
-                disabled={actingPolicyId === policy.policyId}
+                disabled={actingPolicyId === policy.policyId || !policy.installment?.payableNow}
               >
                 Reinstate
               </button> : null}

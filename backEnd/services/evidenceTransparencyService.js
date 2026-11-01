@@ -194,12 +194,14 @@ const appendEvidenceEvent = async (event) => {
   throw new Error("Could not append evidence event");
 };
 
-const createSignedTreeHead = async () => {
+const createSignedTreeHeadUnlocked = async () => {
   const treeSize = await EvidenceEvent.countDocuments();
   if (treeSize === 0) throw new Error("Cannot sign an empty evidence tree");
   const leaves = await loadLeafHashes(treeSize);
   const rootHash = merkleTreeHash(leaves);
-  const previous = await EvidenceTreeHead.findOne().sort({ treeSize: -1 }).lean();
+  const existing = await EvidenceTreeHead.findOne({ treeSize });
+  if (existing) return existing;
+  const previous = await EvidenceTreeHead.findOne({ treeSize: { $lt: treeSize } }).sort({ treeSize: -1 }).lean();
   const privateKey = process.env.EVIDENCE_LOG_SIGNER_PRIVATE_KEY || process.env.ADMIN_PRIVATE_KEY;
   if (!privateKey) throw new Error("Evidence log signer is not configured");
   const signer = new ethers.Wallet(privateKey);
@@ -228,6 +230,18 @@ const createSignedTreeHead = async () => {
     },
     { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
   );
+};
+
+const createSignedTreeHead = async () => {
+  const Lock = require("../models/EvidenceLogLock");
+  const owner = require("node:crypto").randomUUID();
+  let lock;
+  try { lock = await Lock.findOneAndUpdate({ _id: "signed-head", $or: [{ expiresAt: { $lt: new Date() } }, { expiresAt: null }] },
+    { $set: { owner, expiresAt: new Date(Date.now() + 120000) } }, { upsert: true, returnDocument: "after" }); }
+  catch (error) { if (error.code !== 11000) throw error; }
+  if (!lock) throw Object.assign(new Error("Evidence signing is already in progress; retry shortly"), { statusCode: 409 });
+  try { return await createSignedTreeHeadUnlocked(); }
+  finally { await Lock.deleteOne({ _id: "signed-head", owner }); }
 };
 
 const getEvidenceReceipt = async (treeIndex) => {

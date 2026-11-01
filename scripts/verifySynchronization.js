@@ -59,6 +59,7 @@ function main() {
   );
   const modelArtifact = readJson("backEnd/model-params.json");
   const modelVerification = verifyModelArtifact(modelArtifact);
+  require("../oracle/runtimeProtocol").loadProtocolArtifact();
   assert(modelVerification.valid, `Frozen model artifact is invalid: ${modelVerification.errors.join("; ")}`, failures);
   assert(
     /^0x[a-fA-F0-9]{64}$/.test(modelArtifact.modelIdentityHash || ""),

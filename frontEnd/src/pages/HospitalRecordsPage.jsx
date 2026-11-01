@@ -61,7 +61,7 @@ export default function HospitalRecordsPage() {
         <div>
           <span className="dashboard-eyebrow">Hospital-owned data</span>
           <h2>Patient and Invoice Records</h2>
-          <p>Only this hospital wallet can add or maintain these source records.</p>
+          <p>Only authorized staff assigned to this hospital can maintain these source records.</p>
         </div>
       </div>
 
@@ -69,7 +69,7 @@ export default function HospitalRecordsPage() {
 
       <form className="card form-grid hospital-record-form" onSubmit={submit}>
         <h3>Create hospital record</h3>
-        <label>Patient reference<input value={form.patientReference} onChange={(e) => updateField("patientReference", e.target.value)} required /><small>The server stores a one-way hash, not the entered reference.</small></label>
+        <label>Patient reference<input value={form.patientReference} onChange={(e) => updateField("patientReference", e.target.value)} required /><small>Stored as a hospital-scoped hash. Equal local references at other hospitals are separate people.</small></label>
         <label>Invoice number<input value={form.invoiceNumber} onChange={(e) => updateField("invoiceNumber", e.target.value)} required /></label>
         <label>Authorized claimant wallets<input value={form.authorizedClaimants} onChange={(e) => updateField("authorizedClaimants", e.target.value)} required /><small>Hospital-confirmed policyholder or covered-dependent association; comma-separated addresses.</small></label>
         <label>Treatment type<input value={form.treatmentType} onChange={(e) => updateField("treatmentType", e.target.value)} required /></label>

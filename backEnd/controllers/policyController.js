@@ -6,7 +6,6 @@ const {
 const { quoteRiskAdjustedPremium } = require("../services/pricingService");
 const {
   evaluatePolicyEligibility,
-  getPolicyTerms,
   getRealisticClaimScenarios,
 } = require("../services/policyRuleService");
 const {
@@ -15,6 +14,8 @@ const {
   paginate,
   parsePagination,
 } = require("../services/contractQueryService");
+const { getConfiguredTerms, getIssuedTerms, getInstallment, getIssuedDocument } = require("../services/issuedPolicyTermsService");
+const { getDeploymentScope } = require("../services/deploymentScopeService");
 const PolicyTermsAcceptance = require("../models/PolicyTermsAcceptance");
 const { buildPolicyDocument } = require("../services/policyDocumentService");
 const {
@@ -36,7 +37,7 @@ const formatPolicyPackage = (policyPackage) => {
     durationDays: policyPackage.durationDays.toString(),
     requiredDocumentType: policyPackage.requiredDocumentType,
     isActive: policyPackage.isActive,
-    policyTerms: getPolicyTerms(policyPackage),
+    policyTerms: null,
   };
 };
 
@@ -63,16 +64,14 @@ const loadPublicPolicyPackage = async (contract, packageId) => {
   const formattedPackage = formatPolicyPackage(
     await contract.getPolicyPackage(packageId)
   );
-  let benefitTerms = null;
-
-  try {
-    benefitTerms = formatBenefitTerms(
-      await getReadOnlyBenefitsContract().getBenefitTerms(packageId)
-    );
-  } catch {
-    // A policy document remains available when the optional benefits deployment
-    // has not yet been configured.
-  }
+  const economics = await getPolicyEconomics(contract);
+  formattedPackage.policyTerms = await getConfiguredTerms(contract, packageId);
+  formattedPackage.issueHash = await economics.getPackageIssueHash(packageId);
+  formattedPackage.deploymentScope = await getDeploymentScope();
+  formattedPackage.purchaseAvailable = formattedPackage.isActive && Boolean(formattedPackage.policyTerms);
+  formattedPackage.isActive = formattedPackage.purchaseAvailable;
+  if (!formattedPackage.purchaseAvailable) return { ...formattedPackage, document: null, policyDocument: null, benefitTerms: null };
+  const benefitTerms = null; // Auxiliary enrollment is a separate product decision.
 
   const document = buildPolicyDocument({
     policyPackage: formattedPackage,
@@ -92,11 +91,15 @@ const loadPublicPolicyPackage = async (contract, packageId) => {
   };
 };
 
-const formatPolicy = (
+const formatPolicy = async (
   policy,
   effectiveStatus = policy.status,
   policyPackage = null
 ) => {
+  const contract = getReadOnlyContract();
+  const [issuedTerms, installment, issuedDocument] = await Promise.all([
+    getIssuedTerms(contract, policy.policyId), getInstallment(contract, policy), getIssuedDocument(contract, policy),
+  ]);
   const premiumAmount = policy.premiumAmount || 0n;
   const totalPremiumPaid = policy.totalPremiumPaid || policy.premiumPaid || 0n;
 
@@ -123,7 +126,7 @@ const formatPolicy = (
     totalPremiumPaidWei: totalPremiumPaid.toString(),
     totalPremiumPaidEth: ethers.formatEther(totalPremiumPaid),
     installmentsPaid: policy.installmentsPaid?.toString?.() || "0",
-    policyTerms: policyPackage ? getPolicyTerms(policyPackage) : null,
+    policyTerms: issuedTerms, installment, issuedDocument,
   };
 };
 
@@ -147,7 +150,7 @@ const resolveClaimAmountWei = (body) => {
   throw error;
 };
 
-const buildEligibilityInput = ({
+const buildEligibilityInput = async ({
   policy,
   policyPackage,
   body = {},
@@ -160,7 +163,8 @@ const buildEligibilityInput = ({
     : Math.floor(Date.parse(startDate) / 1000);
 
   return {
-    terms: getPolicyTerms(policyPackage),
+    terms: historical ? await getConfiguredTerms(getReadOnlyContract(), policyPackage.packageId) : await getIssuedTerms(getReadOnlyContract(), policy.policyId),
+    currentTimestamp: Number((await getReadOnlyContract().runner.getBlock("latest")).timestamp),
     policyStartDate: startDate,
     policyEndDate: historical
       ? body.policyEndDate || parsedStart + durationSeconds
@@ -204,24 +208,15 @@ const getActivePolicyPackages = async (req, res, next) => {
     const contract = getReadOnlyContract();
 
     const allPackageIds = await getActivePolicyPackageIds(contract);
-    const { items: packageIds, pagination } = paginate(
-      allPackageIds,
-      parsePagination(req.query)
-    );
-
-    const packages = await Promise.all(
-      packageIds.map(async (packageId) => {
-        const loaded = await loadPublicPolicyPackage(contract, packageId);
-        const { document, ...policyPackage } = loaded;
-        return policyPackage;
-      })
-    );
+    const loaded = await Promise.all(allPackageIds.map((packageId) => loadPublicPolicyPackage(contract, packageId)));
+    const available = loaded.filter((item) => item.isActive).map(({ document, ...item }) => item);
+    const { items: packages, pagination } = paginate(available, parsePagination(req.query));
 
     res.status(200).json({
       success: true,
       count: packages.length,
       pagination,
-      packages,
+      packages: packages.filter((item) => item.isActive),
     });
   } catch (error) {
     next(error);
@@ -303,12 +298,15 @@ const acceptPublicPolicyTerms = async (req, res, next) => {
 
     const acceptance = await PolicyTermsAcceptance.findOneAndUpdate(
       {
+        deploymentScope: loaded.deploymentScope,
         walletAddress: req.user.walletAddress.toLowerCase(),
         packageId: loaded.packageId,
         documentHash: loaded.document.documentHash.toLowerCase(),
       },
       {
         $setOnInsert: {
+          documentContent: loaded.document.markdown,
+          issueHash: loaded.issueHash,
           documentVersion: loaded.document.documentVersion,
           acceptedAt: new Date(),
         },
@@ -360,7 +358,7 @@ const getPolicyRuleCatalog = async (req, res, next) => {
     const packageIds = await getActivePolicyPackageIds(contract);
     const packages = await Promise.all(
       packageIds.map(async (packageId) =>
-        formatPolicyPackage(await contract.getPolicyPackage(packageId))
+        loadPublicPolicyPackage(contract, packageId)
       )
     );
 
@@ -388,7 +386,7 @@ const simulateHistoricalPolicyEligibility = async (req, res, next) => {
     const contract = getReadOnlyContract();
     const policyPackage = await contract.getPolicyPackage(req.params.packageId);
     const evaluation = evaluatePolicyEligibility(
-      buildEligibilityInput({
+      await buildEligibilityInput({
         policyPackage,
         body: req.body,
         historical: true,
@@ -467,7 +465,7 @@ const getPolicyById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      policy: formatPolicy(
+      policy: await formatPolicy(
         policy,
         effectiveStatus,
         await contract.getPolicyPackage(policy.packageId)
@@ -500,12 +498,12 @@ const previewPurchasedPolicyEligibility = async (req, res, next) => {
 
     const policyPackage = await contract.getPolicyPackage(policy.packageId);
     const evaluation = evaluatePolicyEligibility(
-      buildEligibilityInput({ policy, policyPackage, body: req.body })
+      await buildEligibilityInput({ policy, policyPackage, body: req.body })
     );
 
     res.status(200).json({
       success: true,
-      policy: formatPolicy(policy, policy.status, policyPackage),
+      policy: await formatPolicy(policy, policy.status, policyPackage),
       evaluation,
     });
   } catch (error) {

@@ -256,9 +256,8 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
       await expect(session.page.getByRole("heading", { name: "No vote-ready claims" })).toBeVisible();
 
       await session.page.goto("/auditor/healthcare-registry");
-      await expect(session.page.getByRole("heading", { name: "Hybrid External Registry" })).toBeVisible();
-      await expect(session.page.getByText("Auditor registry view")).toBeVisible();
-      await expect(session.page.getByText("Roots Match", { exact: true })).toBeVisible();
+      await expect(session.page).toHaveURL(/\/auditor\/votes$/);
+      await expect(session.page.getByRole("heading", { name: "Voting Queue" })).toBeVisible();
     } finally {
       await closeActor(session);
     }

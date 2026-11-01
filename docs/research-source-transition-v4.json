@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "releaseProtocol": "BLOCK_INSURE_COMPLETION_PHASE2_V3",
+  "reviewDate": "2026-10-29",
+  "historicalManifest": "backEnd/evaluation-results/research-manifest-v4.json",
+  "historicalManifestSha256": "f9be1fdd686180701037a662937c0b03f7a0fae30cac0c3b7fc2582d0d405f01",
+  "historicalReproducibilityHash": "7cc953d5982e95d41690b9aba85dd544de4e43e86f2cef0ddffadacde4a3680c",
+  "evidenceStatus": "HISTORICAL_NOT_REVALIDATED",
+  "limitation": "Exact reviewed source-binding transition only. Prior source-transition-v2 and historical research remain preserved. Old gas, mutation, reserve, latency and classification measurements do not validate this release.",
+  "changes": [
+    {
+      "path": [
+        "artifacts",
+        "protocolRouting",
+        "modelIdentityHash"
+      ],
+      "before": "0xf86d83cbf87ac192b77aaf5bf830d99f7f4b01daf04c9f905502d3161b3fda8a",
+      "after": "0xe722db3519fc3f2667c5ba1b8a18854b8a59357a925d37ecf38d5903ad9b6595",
+      "reason": "Protocol wrapper v4 binds new public worker deployment-health identity fields and the unchanged evaluator/weights/threshold; old v1/v2/v3 artifacts are preserved. No retraining or new classification claim."
+    },
+    {
+      "path": [
+        "contracts",
+        "BankIdentityRegistry",
+        "artifactSha256"
+      ],
+      "before": "c99fc28b2983d464d84c999b56e09fb6f99fdc8536217065ee517376f5e85295",
+      "after": "bd547418680130615332671dae145fe45c49185d427238ecd028cf1fb9a3c751",
+      "reason": "Retained prior source transition: Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "BankIdentityRegistry",
+        "deployedBytecodeBytes"
+      ],
+      "before": 2423,
+      "after": 2416,
+      "reason": "Retained prior source transition: Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "ClaimAdjudicator",
+        "artifactSha256"
+      ],
+      "before": "a266f97224d077689c55a028bfd5b333455f75803488ae1d80e2ad0cfe7c7b87",
+      "after": "f7df461b87b85317e210819a257f3baa8234e5e87428dd86c0b03bf16d0f03b4",
+      "reason": "Compiled bounded access preparation, immutable quorum, incomplete-evidence recovery and retained cancellation-refund semantics"
+    },
+    {
+      "path": [
+        "contracts",
+        "ClaimAdjudicator",
+        "deployedBytecodeBytes"
+      ],
+      "before": 10501,
+      "after": 13077,
+      "reason": "Compiled bounded access preparation, immutable quorum, incomplete-evidence recovery and retained cancellation-refund semantics"
+    },
+    {
+      "path": [
+        "contracts",
+        "InsuranceManager",
+        "artifactSha256"
+      ],
+      "before": "4dd26a5045fce6b24f23eb3b8453bcc9cce5b372e0819a77f4fece0a2fd86ba8",
+      "after": "8cc544f6311b7423449ddd121a156092b9001f136448d6045a6758e63c6cbb94",
+      "reason": "Quarterly runtime remains 24,447 bytes; constructor creates an immutable calendar-aware economics module, with a separately compiled accelerated testnet manager. Existing contracts/data remain untouched."
+    },
+    {
+      "path": [
+        "contracts",
+        "InsuranceManager",
+        "deployedBytecodeBytes"
+      ],
+      "before": 24320,
+      "after": 24447,
+      "reason": "Compiled bounded access preparation, immutable quorum, incomplete-evidence recovery and retained cancellation-refund semantics"
+    },
+    {
+      "path": [
+        "contracts",
+        "OracleCoordinator",
+        "artifactSha256"
+      ],
+      "before": "4b528b7d5b58c7cda6b66369ed93df23242825d268f39778a6569007079316dc",
+      "after": "bc961812dc40499e91088dbd8a93482c9f724d2cb0f6af6bded4f475bcc1ca62",
+      "reason": "Retained prior source transition: Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "OracleCoordinator",
+        "deployedBytecodeBytes"
+      ],
+      "before": 7878,
+      "after": 7429,
+      "reason": "Retained prior source transition: Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyBenefitsManager",
+        "artifactSha256"
+      ],
+      "before": "6f0ff0e5026b7523af0d05aa6327d884c480fa477a4af04b3184f8eb6361b78c",
+      "after": "e691710ac92bdce25e6bcb5e9f4e432fac09c6778998aecc2d6e9e2e443e19da",
+      "reason": "Compiled bounded access preparation, immutable quorum, incomplete-evidence recovery and retained cancellation-refund semantics"
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyBenefitsManager",
+        "deployedBytecodeBytes"
+      ],
+      "before": 10918,
+      "after": 11541,
+      "reason": "Compiled bounded access preparation, immutable quorum, incomplete-evidence recovery and retained cancellation-refund semantics"
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyEconomics",
+        "artifactSha256"
+      ],
+      "before": "a074e111def63057944fa0da4d032e5ce1eb199a94b412c0e2a2072e0f971757",
+      "after": "dface2a60183ba1340c33cce7713127740f517b13d0304a699901f7ecb21b2e2",
+      "reason": "Immutable quarterly or explicitly labelled accelerated testnet calendar, exact public schedule readback and consistent installment/reinstatement arithmetic; coverage/quorum/reserve authority preserved."
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyEconomics",
+        "deployedBytecodeBytes"
+      ],
+      "before": 10413,
+      "after": 13450,
+      "reason": "Calendar parameters are immutable and publicly readable; both profile runtime/initcode limits are tested without increasing manager size budget."
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/artifacts/xgboost-advisory-manifest.json"
+      ],
+      "before": "d0ddf20bba29053ec770217108b21ee79d5d663769ceb465a41b2a3ae249e3f6",
+      "after": "ccc476d1644586f4db28676d794b06148067e62715557ef5c5f2c4d6bdf78b60",
+      "reason": "Retained prior source transition: Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/services/merkleRegistryService.js"
+      ],
+      "before": "4eee02c246d69c6b9b92dec17793ce0e235a99e1e1cebbe2295e328c93729389",
+      "after": "4de67c6df10d06e037c687d43de1780ffad4187f4f43ed33a7a1e1ee0bf89870",
+      "reason": "Retained prior source transition: Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/test/phase8OperationalHardening.test.js"
+      ],
+      "before": "a4d1b64e83d02a7353276ee3894c5c03d9b1a9af3033ef9215f8b2809206917e",
+      "after": "98e17053e6c19a3a2fc353df3d2d37fd991e9c304b25681db5c86e6533e2d008",
+      "reason": "Retained prior source transition: Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "contracts/test/Phase6ProtocolStatefulInvariants.test.js"
+      ],
+      "before": "8ff2468b3d34786d1389b95bf87c09aecf492c5ad5aa757edc1dd19840520c59",
+      "after": "61f41755e16f1670666c2d7b16dd7e7d697279daaf7f270d19cc1397a3ee7b42",
+      "reason": "Reviewed version-aware hospital and appeal verification, source-bound protocol v3 packaging and manual-review preparation regression changes"
+    },
+    {
+      "path": [
+        "implementation",
+        "oracle/runtimeProtocol.js"
+      ],
+      "before": "c0b3fc99f6b2f0468652fa8b35641f073bf7ba7850c967792abdaf5a786e6dfe",
+      "after": "167f25dccd5cd228316c7990bb606d1c943a9be0456aac7fc0dcd9cd07dde9a3",
+      "reason": "Versioned v4 source binding for public worker deployment health; model inference, threshold and pinned-context semantics unchanged."
+    },
+    {
+      "path": [
+        "implementation",
+        "scripts/networkMeasurement.js"
+      ],
+      "before": "a8a886973c9673894c423848f325bece9d05c6e18f536c1af35a39e2a7dbacf5",
+      "after": "cde2a00c8278820708932d96bb20197a84be39277909814b99a9d2db45591950",
+      "reason": "Receipt schema v2 labels charged gas/fees without assuming execution-only accounting under Sepolia Glamsterdam; missing execution/state splits and L2 data fees remain unknown. No historical receipt or study was rewritten."
+    },
+    {
+      "path": [
+        "implementation",
+        "scripts/packageProtocolModel.js"
+      ],
+      "before": "b46b1ef1140bffc3bdfbae1b8f2e194b8d33bcba46c2f57d526a80347c2239c3",
+      "after": "16b303b3e2392cd38f42c91151ce913665db77e15d28a28b59a03671da929d94",
+      "reason": "Publish/check new wrapper v4 without overwriting preserved v1/v2/v3 packages or activating an on-chain default."
+    },
+    {
+      "path": [
+        "packages",
+        "root",
+        "packageJsonSha256"
+      ],
+      "before": "a9c111c86279f2dc7f9124b4dd48c4dfba7fcfa242a3712aa87ebafd6069164c",
+      "after": "6583fc8864b5a0b95ecc52e694651ab8dd8a1408692016bbe10e0ed6162b2744",
+      "reason": "Release verification/packaging command update; runtime model and historical measurements unchanged"
+    }
+  ],
+  "releaseWork": "Release verification, immutable testnet calendar and operational wrapper v4; adjudication directory remains completion V3. Historical measurements are not revalidated."
+}

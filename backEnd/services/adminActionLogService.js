@@ -34,6 +34,8 @@ const logAdminAction = async ({
     await AdminActionLog.create({
       actorWallet: req.user?.walletAddress || "",
       actorRole: req.user?.role || "",
+      actorStaffId: req.user?.staffId || "",
+      actorHospitalId: req.user?.hospitalId || "",
       action,
       targetType,
       targetId: targetId?.toString() || "",

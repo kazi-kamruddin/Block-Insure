@@ -7,7 +7,7 @@ const dotenv = require("../../backEnd/node_modules/dotenv");
 const jwt = require("../../backEnd/node_modules/jsonwebtoken");
 const mongoose = require("../../backEnd/node_modules/mongoose");
 
-const { loginActor } = require("../support/actions");
+const { loginActor, advanceToInstallment } = require("../support/actions");
 const { closeActor, createActorContext } = require("../support/walletBridge");
 const { getE2EConfig } = require("../support/environment");
 
@@ -20,14 +20,14 @@ function requireLocalMongoUri() {
   if (!["127.0.0.1", "localhost", "::1"].includes(parsed.hostname)) {
     throw new Error(`Refusing unfinished-boundary tests against non-local MongoDB host ${parsed.hostname}`);
   }
-  if (parsed.pathname.replace(/^\//, "") !== "block_insure_e2e") {
+  if (!/^block_insure_[a-z0-9_]*e2e$/.test(parsed.pathname.replace(/^\//, ""))) {
     throw new Error("Refusing unfinished-boundary tests outside block_insure_e2e");
   }
   return uri;
 }
 
 async function bearer(page) {
-  const token = await page.evaluate(() => localStorage.getItem("blockinsure_jwt"));
+  const token = await page.evaluate(() => sessionStorage.getItem("blockinsure_hospital_session") || localStorage.getItem("blockinsure_jwt"));
   expect(token, "SIWE login should persist a bearer token").toBeTruthy();
   return { Authorization: `Bearer ${token}` };
 }
@@ -100,7 +100,7 @@ test.describe("@unfinished live defensive and isolation boundaries", () => {
         `${getE2EConfig().apiUrl}/api/hospitals/records/${protectedRecord.id}`,
         { headers: await bearer(user.page), data: { invoiceStatus: "PAID" } }
       );
-      expect(wrongRolePatch.status()).toBe(403);
+      expect(wrongRolePatch.status()).toBe(401);
 
       const ownerRecordAfter = await owner.page.request.get(
         `${getE2EConfig().apiUrl}/api/hospitals/records/${protectedRecord.id}`,
@@ -132,6 +132,7 @@ test.describe("@unfinished live defensive and isolation boundaries", () => {
       await expect.poll(() => policySelect.locator("option").count()).toBeGreaterThan(1);
       await policySelect.selectOption({ index: (await policySelect.locator("option").count()) - 1 });
       const policyId = await policySelect.inputValue();
+      await advanceToInstallment(session, policyId);
 
       const expiredResponsePromise = session.page.waitForResponse(
         (response) => response.request().method() === "POST" && response.url().endsWith("/manual-payments/otp")
@@ -162,7 +163,7 @@ test.describe("@unfinished live defensive and isolation boundaries", () => {
         session.page.request.post(confirmUrl, { headers, data: payload }),
       ]);
       const statuses = confirmations.map((response) => response.status()).sort((a, b) => a - b);
-      expect(statuses[0]).toBe(200);
+      expect([200, 202]).toContain(statuses[0]);
       expect([404, 409]).toContain(statuses[1]);
 
       const replay = await session.page.request.post(confirmUrl, { headers, data: payload });

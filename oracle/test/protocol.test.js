@@ -64,8 +64,8 @@ test("different oracle secrets produce different commitments for the same result
   });
 
   assert.notEqual(
-    buildCommitment(request, false, resultHash, firstSalt),
-    buildCommitment(request, false, resultHash, secondSalt)
+    buildCommitment(request, false, resultHash, firstSalt, { chainId: 31337, coordinatorAddress: first.address, oracleAddress: first.address }),
+    buildCommitment(request, false, resultHash, secondSalt, { chainId: 31337, coordinatorAddress: first.address, oracleAddress: second.address })
   );
 });
 

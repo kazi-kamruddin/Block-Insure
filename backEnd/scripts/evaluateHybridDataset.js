@@ -16,7 +16,7 @@ const {
   calculateThresholdSensitivity,
   selectBestThreshold,
 } = require("../services/evaluationMetricsService");
-const { extractRecordFeatures } = require("../services/featureEngineeringService");
+const { extractObservableRecordFeatures: extractRecordFeatures } = require("../services/featureEngineeringService");
 const {
   atomicWriteFileSync,
   calculateReproducibilityHash,

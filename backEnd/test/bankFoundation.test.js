@@ -36,13 +36,19 @@ test("accepts BANK and the implemented EFT mandate lifecycle", () => {
 test("supports approved quarterly execution and OTP-only manual payments", () => {
   assert.equal(premiumWeiToMinor(10_000_000_000_000_000n), 100000);
   assert.deepEqual(BankTransaction.schema.path("type").enumValues, ["EFT", "MANUAL_OTP"]);
-  assert.deepEqual(BankOtpChallenge.schema.path("status").enumValues, ["PENDING", "USED", "EXPIRED", "LOCKED"]);
+  assert.deepEqual(BankOtpChallenge.schema.path("status").enumValues, ["PENDING", "USED", "EXPIRED", "LOCKED", "FAILED"]);
   assert.ok(EftMandate.schema.path("nextDebitAt"));
   const reference = new Date("2026-09-01T00:00:00.000Z");
   assert.equal(isReminderWindow("2026-09-16T00:00:00.000Z", reference), true);
   assert.equal(isReminderWindow("2026-09-21T00:00:00.000Z", reference), true);
   assert.equal(isReminderWindow("2026-09-15T00:00:00.000Z", reference), false);
   assert.equal(isReminderWindow("2026-09-22T00:00:00.000Z", reference), false);
+});
+
+test("payment OTP confirmation rejects malformed challenge selectors before database lookup", async () => {
+  const { confirmManualPaymentOtp } = require("../services/bankPaymentService");
+  await assert.rejects(confirmManualPaymentOtp({ walletAddress: "demo", challengeId: { $ne: null }, otp: "123456" }), (error) => error.statusCode === 422);
+  await assert.rejects(confirmManualPaymentOtp({ walletAddress: "demo", challengeId: "otp", otp: "x" }), (error) => error.statusCode === 422);
 });
 
 test("banking mutations cannot replace the authenticated wallet from request data", () => {

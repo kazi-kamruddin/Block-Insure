@@ -10,6 +10,7 @@ const {
   run: buildResearchManifest,
 } = require("../backEnd/scripts/generateResearchManifest");
 const { parseEnv, verifyTemplate } = require("./releaseCheck");
+const { verifySourceTransition } = require("./researchSourceTransition");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const readJson = (relativePath) =>
@@ -27,6 +28,21 @@ const validateNodeVersion = (version = process.versions.node) => {
     (major === 22 && minor >= 12) ||
     major === 24
   );
+};
+
+// Release bookkeeping is not an input to model evaluation. Keep its recorded
+// historical hashes intact while still comparing every runtime/study input.
+const RESEARCH_METADATA_TOOLS = ["scripts/prepareReleaseCandidate.js", "scripts/verifyRepository.js"];
+const compareResearchManifests = (recorded, current) => {
+  const basis = (manifest) => {
+    const value = researchManifestReproducibilityBasis(manifest);
+    return { ...value, implementation: Object.fromEntries(Object.entries(value.implementation || {})
+      .filter(([file]) => !RESEARCH_METADATA_TOOLS.includes(file))) };
+  };
+  return {
+    matches: calculateReproducibilityHash(basis(recorded)) === calculateReproducibilityHash(basis(current)),
+    metadataToolingChanges: RESEARCH_METADATA_TOOLS.filter((file) => recorded.implementation?.[file] !== current.implementation?.[file]),
+  };
 };
 
 const verifyPackageMetadata = (failures) => {
@@ -143,7 +159,14 @@ const verifyResearchArtifacts = (failures) => {
     failures
   );
   const expectedManifest = buildResearchManifest({ writeOutput: false });
-  assert(researchManifest.reproducibilityHash === expectedManifest.reproducibilityHash, "Research manifest is stale; regenerate research artifacts", failures);
+  const comparison = compareResearchManifests(researchManifest, expectedManifest);
+  const transitionPath = "docs/research-source-transition-v4.json";
+  comparison.historicalTransition = !comparison.matches && fs.existsSync(path.join(PROJECT_ROOT, transitionPath))
+    && verifySourceTransition(researchManifest, expectedManifest, readJson(transitionPath),
+      sha256File("backEnd/evaluation-results/research-manifest-v4.json"));
+  assert(comparison.matches || comparison.historicalTransition,
+    "Research bindings differ from both the historical manifest and its reviewed source transition; review without overwriting historical evidence", failures);
+  return comparison;
 };
 
 const verifyCharts = (failures) => {
@@ -200,22 +223,27 @@ const run = () => {
   verifyPackageMetadata(failures);
   verifyEnvironmentTemplates(failures);
   verifyDeploymentAssets(failures);
-  verifyResearchArtifacts(failures);
+  const researchSnapshot = verifyResearchArtifacts(failures);
   verifyCharts(failures);
   verifyCompiledContracts(failures);
   verifyTemporaryState(failures);
   if (failures.length) throw new Error(`Repository integrity verification failed:\n- ${failures.join("\n- ")}`);
-  return { checks: 7, node: process.version };
+  return { checks: 7, node: process.version, researchSnapshot };
 };
 
 if (require.main === module) {
   try {
     const result = run();
     console.log(`[Repository verification] ${result.checks} check groups passed on ${result.node}.`);
+    if (result.researchSnapshot.historicalTransition) {
+      console.log("Historical research artifacts are preserved; exact source changes match docs/research-source-transition-v4.json. Historical measurements have NOT been revalidated for this runtime.");
+    } else if (result.researchSnapshot.metadataToolingChanges.length) {
+      console.log("Research provenance retains historical release/verification-tool hashes; runtime and study inputs still match.");
+    }
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
   }
 }
 
-module.exports = { run, validateNodeVersion };
+module.exports = { run, validateNodeVersion, compareResearchManifests };

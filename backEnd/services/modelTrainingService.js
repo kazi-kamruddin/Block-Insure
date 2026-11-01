@@ -4,7 +4,7 @@ const {
 const {
   FEATURE_NAMES,
   FEATURE_SCHEMA_VERSION,
-  extractRecordFeatures,
+  extractObservableRecordFeatures,
 } = require("./featureEngineeringService");
 const {
   calculateTrainingDataHash,
@@ -15,13 +15,13 @@ const isFraudRecord = (record) =>
   record?.actualFraud ?? Boolean(record?.fraudLabel && record.fraudLabel !== "LEGITIMATE");
 
 const FACTOR_PREDICATES = Object.fromEntries(
-  FEATURE_NAMES.map((name) => [name, (record) => Boolean(extractRecordFeatures(record)[name])])
+  FEATURE_NAMES.map((name) => [name, (record) => Boolean(extractObservableRecordFeatures(record)[name])])
 );
 
 const trainModelParams = (records, metadata = {}) => {
   const rows = records.map((record) => ({
     actualFraud: isFraudRecord(record),
-    features: extractRecordFeatures(record),
+    features: extractObservableRecordFeatures(record),
   }));
   const model = trainBernoulliNaiveBayes({
     rows,
@@ -30,7 +30,8 @@ const trainModelParams = (records, metadata = {}) => {
   });
   const artifact = {
     artifactSchemaVersion: 3,
-    inferenceEngineVersion: "observable-runtime-v1",
+    inferenceEngineVersion: "observable-runtime-v2",
+    featureExtraction: "shared-proof-bound-observables-v1; reconstructed same-record claim unless paired context supplied",
     modelVersion: metadata.modelVersion || "bernoulli-fraud-v3",
     trainedAt: metadata.trainedAt || new Date().toISOString(),
     source: metadata.source || "Phase 5 synthetic registry",

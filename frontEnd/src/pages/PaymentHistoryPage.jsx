@@ -44,6 +44,7 @@ export default function PaymentHistoryPage() {
   });
   const statementQuery = useQuery({
     queryKey: ["paymentStatement", walletAddress, policyId, fiscalYear],
+    refetchInterval: (query) => query.state.data?.payments?.some((item) => item.simulatedBdtStatus === "RESERVED_PENDING_RECONCILIATION") ? 3000 : false,
     queryFn: () =>
       getMyPaymentStatement({
         ...(policyId ? { policyId } : {}),

@@ -15,7 +15,7 @@ const {
 } = require("./bernoulliNaiveBayesService");
 const {
   FEATURE_NAMES,
-  extractRecordFeatures,
+  extractObservableRecordFeatures: extractRecordFeatures,
 } = require("./featureEngineeringService");
 const { createRandom } = require("./syntheticRegistryService");
 

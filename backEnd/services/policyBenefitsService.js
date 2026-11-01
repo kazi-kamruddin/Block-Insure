@@ -94,6 +94,16 @@ const getPolicyBenefitsSnapshot = async (policy, walletAddress = "") => {
       )
   );
 
+  let withdrawalReceipt = null;
+  if (walletAddress && typeof contract.queryFilter === "function") {
+    const latest = await contract.runner.getBlockNumber();
+    const from = Math.max(Number(process.env.POLICY_BENEFITS_DEPLOYMENT_BLOCK || 0), latest - 4999, 0);
+    const events = await contract.queryFilter("BenefitWithdrawn", from, latest);
+    const event = events.filter((entry) => entry.args.account.toLowerCase() === walletAddress.toLowerCase()).at(-1);
+    if (event) withdrawalReceipt = { transactionHash: event.transactionHash, blockNumber: event.blockNumber,
+      amountWei: String(event.args.amount), amountEth: ethers.formatEther(event.args.amount), scope: "WALLET_TOTAL" };
+  }
+
   return {
     contractAddress: getBenefitsAddress(),
     acceptedTermsVersion: Number(acceptedVersion),
@@ -120,6 +130,7 @@ const getPolicyBenefitsSnapshot = async (policy, walletAddress = "") => {
       eth: ethers.formatEther(claimableAmount),
     },
     requests,
+    withdrawalReceipt,
   };
 };
 

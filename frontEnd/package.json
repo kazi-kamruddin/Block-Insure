@@ -5,6 +5,9 @@
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.13.0 <23 || >=24 <25"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -15,7 +18,9 @@
     "@ironcorelabs/recrypt-wasm-binding": "^0.7.2",
     "@tanstack/react-query": "^5.100.14",
     "axios": "^1.16.1",
+    "block-insure-local-workflow": "file:..",
     "ethers": "^6.16.0",
+    "pdfjs-dist": "6.4.299",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.15.1"

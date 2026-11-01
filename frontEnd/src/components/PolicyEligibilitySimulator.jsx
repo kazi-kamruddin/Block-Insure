@@ -186,28 +186,7 @@ export default function PolicyEligibilitySimulator({ packages }) {
               ))}
             </select>
           </label>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={form.preExistingCondition}
-              onChange={(event) =>
-                updateForm("preExistingCondition", event.target.checked)
-              }
-            />
-            Scenario involves a pre-existing condition
-          </label>
-          {form.preExistingCondition ? (
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={form.disclosedAtPurchase}
-                onChange={(event) =>
-                  updateForm("disclosedAtPurchase", event.target.checked)
-                }
-              />
-              Condition was disclosed at purchase
-            </label>
-          ) : null}
+          <p>Illustrative dates assume paid coverage. Pre-existing-condition underwriting is outside the implemented scope; issued policies use their actual coverage intervals.</p>
         </details>
 
         <button type="submit" disabled={isSimulating || !activePackageId}>

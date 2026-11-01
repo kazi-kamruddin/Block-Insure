@@ -6,7 +6,14 @@ const {
   buildPaymentStatement,
   buildStatementCsv,
   getFiscalYear,
-} = require("../services/paymentStatementService");
+} = require("./helpers/loadIsolatedModule")("services/paymentStatementService.js", {
+  "./contractQueryService": {
+    ...require("../services/contractQueryService"),
+    getPolicyIdsByWallet: async () => [1n],
+  },
+  "./indexedPremiumService": { readPremiumEvents: (contract, policyId) => contract.queryFilter(contract.filters.PremiumPaid(policyId)) },
+  "./issuedPolicyTermsService": { getInstallment: async (_contract, policy) => ({ installmentId: "3", dueAt: String(policy.nextPremiumDueDate), amountWei: "5000000000000000", amountEth: "0.005" }) },
+});
 
 const walletAddress = "0x0000000000000000000000000000000000000001";
 
@@ -88,6 +95,8 @@ test("builds a confirmed payment ledger and excludes payments outside the fiscal
   assert.equal(statement.payments[0].paymentMethod, "BLOCKCHAIN_WALLET");
   assert.equal(statement.summary.totalPaidEth, "0.01");
   assert.equal(statement.upcomingPayments[0].status, "SCHEDULED");
+  assert.equal(statement.upcomingPayments[0].amountEth, "0.005");
+  assert.equal(statement.upcomingPayments[0].installmentId, "3");
 });
 
 test("exports compact CSV statements and escaped printable certificates", () => {

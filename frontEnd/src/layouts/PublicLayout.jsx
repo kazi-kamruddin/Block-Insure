@@ -1,22 +1,24 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import Footer from "../components/Footer";
 import ThemeToggle from "../components/ThemeToggle";
 import WalletConnectButton from "../components/WalletConnectButton";
 import { useWallet } from "../context/useWallet";
+import { REQUIRED_CHAIN_ID, REQUIRED_NETWORK_NAME } from "../services/contractService";
 
 export default function PublicLayout() {
   const { isConnected, workspace } = useWallet();
+  const hospitalPortal = useLocation().pathname.startsWith("/hospital");
 
   return (
     <div className="app-shell relative isolate overflow-x-clip">
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
-      <div className="network-ribbon" aria-label="Local protocol status">
+      <div className="network-ribbon" aria-label="Configured network">
         <span className="network-ribbon-dot" aria-hidden="true" />
-        <span>Local protocol</span>
+        <span>Configured network</span>
         <span className="network-ribbon-divider" aria-hidden="true" />
-        <span>Hardhat 31337</span>
+        <span>{REQUIRED_CHAIN_ID === 31337 ? "Hardhat 31337" : `${REQUIRED_NETWORK_NAME} (${REQUIRED_CHAIN_ID})`}</span>
         <span className="network-ribbon-divider" aria-hidden="true" />
         <span>Encrypted evidence</span>
       </div>
@@ -36,6 +38,7 @@ export default function PublicLayout() {
 
         <div className="nav-links" aria-label="Product navigation">
           <Link to="/policies">Policies</Link>
+          <Link to="/hospital/login">Hospital portal</Link>
           {isConnected && workspace ? (
             <span className="portal-context">{workspace.label}</span>
           ) : (
@@ -49,7 +52,7 @@ export default function PublicLayout() {
 
         <div className="nav-actions">
           <ThemeToggle />
-          <WalletConnectButton />
+          {!hospitalPortal && <WalletConnectButton />}
         </div>
       </nav>
 

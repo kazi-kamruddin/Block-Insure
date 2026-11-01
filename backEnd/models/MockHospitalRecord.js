@@ -45,10 +45,15 @@ const mockHospitalRecordSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    identityVersion: { type: Number, enum: [1, 2], default: undefined },
+    sourceRevision: { type: Number, default: 0, min: 0 },
+    createdByStaffId: { type: String, default: "" },
+    modifiedByStaffId: { type: String, default: "" },
     claimantId: { type: String, trim: true, index: true, default: "" },
     publicationPending: { type: Boolean, default: false, index: true },
     authorizedClaimants: { type: [String], default: [], validate: (values) => values.length <= 10 && values.every((value) => /^0x[a-f0-9]{40}$/.test(value)) },
     familyId: { type: String, trim: true, index: true, default: "" },
+    observableHistory: { type: mongoose.Schema.Types.Mixed, default: undefined },
     providerId: { type: String, trim: true, index: true, default: "" },
     patientAgeBand: {
       type: String,
@@ -103,7 +108,6 @@ const mockHospitalRecordSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      unique: true,
       index: true,
     },
     invoiceHash: {
@@ -233,5 +237,7 @@ mockHospitalRecordSchema.index({
 });
 mockHospitalRecordSchema.index({ claimantId: 1, admissionDate: -1 });
 mockHospitalRecordSchema.index({ hospitalId: 1, admissionDate: -1 });
+
+mockHospitalRecordSchema.index({ hospitalId: 1, invoiceNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model("MockHospitalRecord", mockHospitalRecordSchema);

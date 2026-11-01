@@ -1,8 +1,8 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-10-16T03:17:21.410Z",
+  "generatedAt": "2026-10-27T02:19:35.374Z",
   "source": {
-    "gitCommit": "a809c536665f63ff6c7caf2cfe68d11392aa3bcc",
+    "gitCommit": "b661eadfab5eba5363e5f054538889978f37c7ed",
     "dirty": true,
     "branch": "postPreDefence"
   },
@@ -19,91 +19,151 @@
     "root": {
       "name": "block-insure-local-workflow",
       "version": "1.0.0",
-      "packageJsonSha256": "491f4bea49e2d1ac341df41dc053bc162d235f4d87048af9f194d0ab653c7bfe",
-      "packageLockSha256": "f5470a80ed2a0737f358929f96008fc41c0fb483cba675d1c2ec3802dd22b1ce"
+      "packageJsonSha256": "a9c111c86279f2dc7f9124b4dd48c4dfba7fcfa242a3712aa87ebafd6069164c",
+      "packageLockSha256": "cb7cc340dc707bc9b936dbdf38e1d988d435bd5aebeb23763feea56c56b8f740"
     },
     "backend": {
       "name": "backend",
       "version": "1.0.0",
-      "packageJsonSha256": "01cace33eb597cd11003d7b70d314efc40ad3e904e043dda19c1af0adf22797f",
-      "packageLockSha256": "9a51c01ac960f8079cefa704df23106ecef830442fe160bf5bd199db0796e8a2"
+      "packageJsonSha256": "a598501368a75da148c02808c9fae114dd23978a8c1c84236230bfda21bfaa27",
+      "packageLockSha256": "becedec0038de08aae5588246b8aa2ddc6508ce773b16f95014e4ae769dc8736"
     },
     "contracts": {
       "name": "contracts",
       "version": "1.0.0",
-      "packageJsonSha256": "fd86b19edd0613adba45b670712a73bafd87be4ae5c7d7d6756704e4891e7566",
+      "packageJsonSha256": "5ddafac6faae11134bcb21e8770d8c7faab482855f0905a81b0c15bb98b0619d",
       "packageLockSha256": "2e76185ac3fd2c77f1db14a4ad51fbc3474c260783e161fa44b4699044fa3105"
     },
     "frontend": {
       "name": "frontend",
       "version": "1.0.0",
-      "packageJsonSha256": "2fd28609e2a90eec92119ac8b1ec5ce1c2e68edb551a8b7600e72df2efd33e5b",
-      "packageLockSha256": "664b91d95822fa5a030bb840b3473a574425a3b89b7cef51e1eea2d9bdbad19f"
+      "packageJsonSha256": "c6b57b833f47136ba2ded18fa04d7c830c93827e5ae232f92e4b25f64829f395",
+      "packageLockSha256": "951affa6a7d3770296a6e9a93f36e51ecaf87db0828eae6bfeae735748adab5d"
     },
     "oracle": {
       "name": "oracle",
       "version": "1.0.0",
-      "packageJsonSha256": "7d14f6e3b551be4b80683dbdf2704528786c02c7c3ceb1d1ba33e68fdfcc0c9e",
-      "packageLockSha256": "cc3ed4fcb36ed515c3df8466dc5bfea38641252a3f05e1ca0dc9e90846cf3356"
+      "packageJsonSha256": "850233b550b9a213c00e9ebd15eaf1983f6c6b1bdfd3fc40066188066a165358",
+      "packageLockSha256": "8f8f74d24e1a22d85d7ca3dd8dedcfda9bfe7b8e0cb93dcd86a7ecc66b976300"
     }
   },
   "implementation": {
-    "backEnd/services/phase5EvaluationService.js": "9ab6d6998990f4c6831b271ebc59b382bf6830a047553e126dd0fe2904f93ee7",
+    "backEnd/services/phase5EvaluationService.js": "e8c953cf65a56055fd3a43a802c7bf931b2707c721f2ffb7e1443bbcb6762c66",
     "backEnd/services/triageEvaluationService.js": "5066e8aaab428eaceb04d1edba2dd669c7d3e423d88877ea30b62277c543fc2c",
     "backEnd/services/triagePolicyService.js": "93b1fef5209279c5521f33c6840456485aa68f47fbffea9c07208d3b9b50e663",
     "backEnd/services/reserveSimulationService.js": "74c890606ccb58225cfb6af7b878fea7536e26afc09f849a7a24134273aabaa1",
     "backEnd/services/evidenceBenchmarkService.js": "60d2f371096c8888fe860114a126cc5f2e0b594d41362858899677293dde0f15",
     "backEnd/services/researchArtifactService.js": "992a5780ab965e6ec4ef18acbd68eacfc9ee4e56730cf6207b5bd634c269f91b",
-    "backEnd/services/hybridDatasetAdapterService.js": "4c22b70f094f98473dfac9b77c6e646997178e1ded015d70ab9f2e5f14a560d7",
+    "backEnd/services/hybridDatasetAdapterService.js": "9bb59818a78cb4326ec9912c43fbd9374ae87fb94edae9ae652cf73058e0105d",
     "backEnd/services/hybridDatasetIntegrityService.js": "57fc82af7f7eb4a658eb623af1705465b6736eda3e52273c438d4159d9524350",
-    "backEnd/services/merkleRegistryService.js": "fda187cdbbcececadee140fd3c04d3d553dbbe6ee69345b8663d04f9d2c35573",
-    "backEnd/scripts/evaluatePhase5.js": "2d18c896b8bec5398f813ea2749c1c0fa838b1dcf4603415575338cfb3d359e7",
+    "backEnd/services/merkleRegistryService.js": "4eee02c246d69c6b9b92dec17793ce0e235a99e1e1cebbe2295e328c93729389",
+    "backEnd/services/featureEngineeringService.js": "c4d11607276130ce33b5e8928771f4f5b77b1cf7aa6bf93130f147d70e290c2e",
+    "backEnd/services/modelTrainingService.js": "b1f537cc37d6b82df6c34c12b3eda5332697ff46ff9bc2d6f9090f54d2c03a1a",
+    "backEnd/services/modelArtifactService.js": "9ebcedd5b7d793b601ab83dc1796be7812fa7e7e172284665450002fbcba13b8",
+    "backEnd/services/continuousFeatureService.js": "9d81cc13ed8c9980c784e9250822d3c16215cc9d42f135f7de77d36f6ba6247a",
+    "backEnd/services/operatingPointService.js": "1e107b19753470448c188672c35feb77555fc688fb450d90a73fb7c49a362e62",
+    "backEnd/services/historicalContextService.js": "f15dbe083f6f20f6e6a2a8d88b9341cd4f3f282fb83cc7007f5c9e37d0b2f387",
+    "backEnd/services/clusterUncertaintyService.js": "0d901215aa5ba49a82dad9d8ff1758d9322903fd6c09b2dc6dce0ff7d5c0417f",
+    "backEnd/services/indexedPremiumService.js": "a27deaa2212d5815b71b97b7b07c3f06e2cb4c2abb3d48e9ac4eef70c7a2b777",
+    "backEnd/services/otpDeliveryService.js": "6b2d7b3f4d7452c81b54d144cdde50d163113892bec61cc4e3dfc5d6b3ab593b",
+    "backEnd/services/emailVerificationService.js": "acafe3567b01db8ea9e725f56d15f59886ae2d509ce2e3f8b2841b33e085f8aa",
+    "backEnd/services/logisticRegressionService.js": "dd3144d2a39dfebfad1a0631d64e6adf69cc1e631cea64ad2de32d434754fdaf",
+    "backEnd/services/chainReadProjectionService.js": "685c758fef9f37969caa11f4bab9e56c35a187829b8462c6fbd29ca115aeb523",
+    "backEnd/scripts/evaluatePhase5.js": "c6656cb70e72ffb7aed9d9f928ee37ec32864038370ef57511b8eff6da560860",
     "backEnd/scripts/evaluateReserveAdequacy.js": "779efd5db5cf04b627a144c9b21cabd554b4d70999ca48cc0a8500f9e84d22c4",
     "backEnd/scripts/evaluateEvidenceLifecycle.js": "b89af0a18e020e28f77298186111a767dfb1099122a6069b8dc3108721a4a7c0",
-    "backEnd/scripts/freezeModelArtifact.js": "dc8841046098c45a6d56a28dcdbaf514ad5a0fdd5bc434cf1008267183fc2936",
-    "backEnd/scripts/freezeTriagePolicy.js": "9dab4bd54aee6877f14d3f9dbc9fc92cea7e0eeffe64137188fbc8b1b9e5669b",
+    "backEnd/scripts/freezeModelArtifact.js": "3294676f26ac873cea80d950b736db1e841db4f1eed3b56ae23a56188dfaf62d",
+    "backEnd/scripts/freezeTriagePolicy.js": "846818ff7754d7f58c3aedb076b032ca84309ff4338c87a697efa3d31511dd57",
     "backEnd/scripts/generateSyntheticDatasets.js": "77e9f5455f6d0fc569749f68693a00074b854942008250e3bc019819680c8dc6",
     "backEnd/scripts/generateEvaluationCharts.js": "fa922dd9aedd297b0be9ac1afd6642741d129bd729a7005952ebda97a630040c",
     "backEnd/scripts/generatePhase34Charts.js": "b4dfff7f0e2dcf4024e717f1d0cfb9224da217c191a9a33f1a2df8151808a372",
     "backEnd/scripts/generateChartManifest.js": "e963bdf148a7a1005609d28af1d188d18bf008c4c0adeb1350545356309a02fa",
-    "backEnd/scripts/generateResearchManifest.js": "e230eaa44d28e8aa1dd831c1155cdf6f319565126f0a5cbcbdd64da96f580db0",
-    "backEnd/scripts/buildHybridDataset.js": "6b6f1d526676b0077c138cf5780dfaf427ab7cd179ad528cec79f7f135b24ab6",
-    "backEnd/scripts/validateHybridDataset.js": "59465df4e22762b9b6b0744048fc69d15a02c025cbde4156ed45a4d563d22e7a",
-    "backEnd/scripts/evaluateHybridDataset.js": "981e01c696f4d08a31692ecffa352b152e372bcee3bf8f4952f8950652be14e2",
+    "backEnd/scripts/generateResearchManifest.js": "31dd2ce5d4c998420d48c09a7db777129c615653179e7b35b15a81a1ca5b9d38",
+    "backEnd/scripts/buildHybridDataset.js": "b4eaa6a6e8bc327ad1248a556f5a48c3ee1c5dd33f75f271062cf1878c78a58c",
+    "backEnd/scripts/validateHybridDataset.js": "36a24961539d61967e11f721d11fe1a8496e3c557a9097bd0b142b14078231eb",
+    "backEnd/scripts/evaluateHybridDataset.js": "e709a66a2ee64d7c8163d825ebaa8fdef58996d3661b20f371adb70224888e2c",
+    "backEnd/scripts/evaluateObservablePipeline.js": "fc2b6793be0a318d8e62a91366f8e48743fdaef3a40bb38f156d23dd71ec577b",
+    "backEnd/scripts/runPrototypeStudy.js": "d76eeff574ac47879c25e7effa2d3e8d5693f0e124fa5bc3ecc4810107d2a708",
+    "backEnd/scripts/runAdvancedStudy.js": "82e5a36d2c7a7f3db74ddc5f1ce131cdd58558692fb984cc730c4d1602d3a8ab",
+    "backEnd/research/advanced-plan.json": "b0d39e96c5e4b63588bfece38ae5cbd1ee2286e9cec40d152a5dcc2ef7b39a1b",
+    "backEnd/research/requirements.txt": "184c48d4f292742c141e02a858e6c820229fa9aa6bb8b63c4a58ba76dacc8bbf",
+    "backEnd/research/context.js": "95842cfa612bf6c3220ee63d12b3b9cd3fb368f8591e9c60f256bcbaf1654a33",
+    "backEnd/research/export.js": "324fd2cbaf7db83d2fb4be47653c0bab742a226e613753ebac0ebb1e2fca680b",
+    "backEnd/research/components.py": "b51f3038b5b0795c7771f492054510e4757d37ed22bbf98ceed419f3bbde478b",
+    "backEnd/research/run.py": "1c19e9c9a9635a9a5ac9f0ab424ea04e8c2fcace66e141c663a94d7bec3ca270",
+    "backEnd/research/infer.py": "bf58aaf5fa8ba34609e65ee5db09b61068ecb303fd06cefd7ae78657b0760669",
+    "backEnd/research/predict.js": "bbdba209eafd396466673372796877d86a960737570d784d278b582fab49785f",
+    "backEnd/scripts/runEngineeredStudy.js": "31027f29c5d876d4d997bc90f9e0d3184c11180b5dedcf6b21345b6ff8793fb7",
+    "backEnd/research/engineering-plan-v2.json": "780a6f766ba0e3707c80d65cb4fea18ab0ddafed86d387920f4dec6fa2cdab7d",
+    "backEnd/research/scenariosV2.js": "a615c34d92ceab17db135f9041a6e6d015d2fa5fa14535b1ccf814f45c0ab7d0",
+    "backEnd/research/exportV2.js": "91d1e6d6cd08731d4a6ba2b148181d78cae2f68f84f28dbefed5cb635fbf1ad7",
+    "backEnd/research/runV2.py": "5401605b341ae0395684e450be38a5557f4fd746b51bb3329daaf8693662ebc7",
+    "backEnd/research/robust_components.py": "07d9adb31fab48f1b25a1e7836f4934a465142ce69969ce43dce952e2f930ab3",
+    "backEnd/research/auditV2.py": "195cd718777db2a9ba2d3e74d64957a6172cff2c7adcd947433a57dd3a67e232",
+    "backEnd/research/phase3-plan.json": "0d1c2033f2104a391f8fdd68f75f010e91d7b814cf7fcb84e15d4637f2a1556c",
+    "backEnd/research/runPhase3.py": "2ecae0714b62f7bfe7669165e0fde359ddab8aa9e0d6638fb08be168bcec23cb",
+    "backEnd/scripts/runAdvisoryStudy.js": "96b49f8dea15f174e7bd1b16195d7acec2232a347e94fa9ec23f3db3b5b8cf34",
+    "backEnd/scripts/scoreAdvisoryBatch.js": "dcc179fd05e2669d28d6f72d12809e290a6fa484de2b26179af34eff40abd92b",
+    "backEnd/services/xgboostAdvisoryService.js": "4b94faf6adcfbc9dface23bded9aa2d14773362f3315c7394e6809fad46a11cf",
+    "backEnd/services/advisoryContextService.js": "9bf331a2ec777a98e9ffdc528cbc1752f45a3c5c95e6b6e62ce5331daa3e3244",
+    "backEnd/controllers/advisoryController.js": "593f779914cd0c01120ce0abe5cfacfdf89178f3446a31b211dc162f5d61d335",
+    "backEnd/artifacts/xgboost-advisory-v1.json": "e83eab8c8df7c9996471c754d352d9201ffd30246184c72cd1943c612d2ab380",
+    "backEnd/artifacts/xgboost-advisory-manifest.json": "d0ddf20bba29053ec770217108b21ee79d5d663769ceb465a41b2a3ae249e3f6",
+    "oracle/xgboostAssessment.js": "6f1e260f1930582fe4200f3e78cb5f4998e3283b04ccd04b054e0584c062cae5",
+    "oracle/advisoryBundle.js": "76cf174df79ac9a2f16db5a185341154f46c5a1b3ccaf1dcd2e8a103b33360a7",
+    "oracle/shadowAssessment.js": "9fd73f543a9eef5141fa7d66193ad4faea0e8d5f941aa4e3f1b2579055f3ee2e",
+    "oracle/protocolAssessment.js": "279edc1d51bb3ac839b5a03c7f512f206e07a43368df82ac62a0efd6109c7bae",
+    "oracle/runtimeProtocol.js": "c0b3fc99f6b2f0468652fa8b35641f073bf7ba7850c967792abdaf5a786e6dfe",
+    "backEnd/artifacts/xgboost-protocol-v1.json": "bcee86a70bf5985cf8bb8d30d90884ea42ac34501239dd3543e2f111bda85576",
+    "backEnd/services/oracleDecisionService.js": "42d59002bd681fd608a389f891c8b2a9a1c429b98a3fac389f14493ffd8a03a6",
+    "backEnd/services/protocolMonitoringService.js": "5f981a7a398065074880dce319ae355f31656f7bbcc75a65a737b2bf7a7987d9",
+    "scripts/packageProtocolModel.js": "b46b1ef1140bffc3bdfbae1b8f2e194b8d33bcba46c2f57d526a80347c2239c3",
+    "scripts/migrateProtocolModel.js": "1e23cee78c83c47f8b1be07308dbc1bb1042ae3a9ac7e6c3a41955b1e05feea9",
+    "scripts/networkMeasurement.js": "a8a886973c9673894c423848f325bece9d05c6e18f536c1af35a39e2a7dbacf5",
+    "scripts/deploymentNetworkSafety.js": "ee35529548ddfba68e2f45f423946dd34c7227407d2339d74951e58ddeacf2d1",
+    "scripts/operatorArguments.js": "db1067b9f9476a67054ad2de01b1aa7f52b71473fdaf06a688609e1d42010369",
+    "backEnd/controllers/protocolMonitoringController.js": "3e27f3ec520236f0a892e85cde68216061c0fc6d202bb8f06b74f7cc603a4ef1",
+    "backEnd/controllers/oracleDecisionController.js": "c87b44a65a6f436a10047431f0ba078d147eaae5503f5e4b4c0fa7fae831c331",
+    "backEnd/models/OracleProtocolDecision.js": "ff36714259180b7b8b6a084542491657399d07e24b6cfa85a924ec0515c1d74f",
+    "backEnd/services/oracleShadowService.js": "48b7c31a51180242ac3eec0d071f6ce3eac79c3fe2057b0f6466a0ed69754b5a",
+    "backEnd/controllers/oracleShadowController.js": "8ed7909cd6efdd27d574b9f4872226fc69e8886c03fa50d9e135c95c959eb3c4",
+    "scripts/verifyDailyLifecycle.js": "c507ed6b96464d6d434da74b9fd96fe306c9e1c803e6484b152e75fd4a5c123a",
+    "scripts/prepareReleaseCandidate.js": "1882000aee342a5c7dae16e52ca06d3c0d778865b13dbe64419e2f9b690f84a3",
     "backEnd/scripts/benchmarkHybridRuntime.js": "2fc9d34e128c960cdbb1a551dd063c57b4cc44a12e237bfcc59883338ee8374f",
-    "oracle/independentAssessment.js": "da8eb0fb4510ba41e1cc4e92b9766ac900c042e168d1f5f51c8f228e1d132b24",
+    "oracle/independentAssessment.js": "9fb46d1b564543107f07d6aae888cad1be5b240654484796a9d72721390c4645",
+    "oracle/observableFeatures.js": "8a8066f60312aa4c3f67952392e153e2127282d9617749f1146956a829b242ab",
     "backEnd/test/phase6CapacityTriage.test.js": "d792002c9306650b61f0d4b3c94ad1ab7541dfb1c3815c6d2b299be724768947",
     "backEnd/test/phase7ReserveEvidence.test.js": "a5971ea0e016c053eec88e37e38ad5f1a4681cc30a685e669fb336765deaa777",
-    "backEnd/test/phase8OperationalHardening.test.js": "dd2e64bf5d313ffa44a11b2c3fb8a97f60c22b7f7474441d81757754298307ec",
-    "contracts/hardhat.config.js": "b6b0937cee5de666cfb029e6b57944cec4111fb99353a980bf8ca31f7da13513",
+    "backEnd/test/phase8OperationalHardening.test.js": "a4d1b64e83d02a7353276ee3894c5c03d9b1a9af3033ef9215f8b2809206917e",
+    "contracts/hardhat.config.js": "f38453d52d55ac76b081709930a587e1e15212014d43197d4e0a46e2c15ba042",
     "contracts/mutations/manifest.json": "6e5bd5d9e6f0346d684a7b22c00dfc39dcca60b6929b538eb9ab50444d2fa792",
-    "contracts/scripts/runMutationCampaign.js": "80d4883c3f7f7f861a9c4dbf970c44f35861bc158b9641363b239e6e0e242bf4",
+    "contracts/scripts/runMutationCampaign.js": "6766ba25213343c1557e3fbdefd645e3f96af74ef036e8d549f65f9c4ef24e0a",
     "contracts/test/invariants/protocol-invariants.json": "e01afb5460b5502850789a4a1655697ee3bf39c50b78caede5e32df08fcf35b1",
     "contracts/test/Phase6ProtocolStatefulInvariants.test.js": "8ff2468b3d34786d1389b95bf87c09aecf492c5ad5aa757edc1dd19840520c59",
-    "scripts/devAll.js": "bf002bd00abfcd441f7807228f0b43cc89dd8bc544341761c934df931feb0571",
+    "scripts/devAll.js": "7023902e698e0cd8cdabb27079957db653133da96e4fc1657c747fff3c7f41b1",
     "scripts/verifyRepository.js": "4a8e9f6905d02d31cd9ad5667104c12c96e742a0c594e6c0825d3a893353f886",
     "scripts/runVerification.js": "5d431ff5b088ffb63c77183c6a98409a58a6061828bbcad914778b6fcec74707"
   },
   "contracts": {
     "InsuranceManager": {
       "compiled": true,
-      "deployedBytecodeBytes": 24338,
-      "artifactSha256": "3d75d87e3863c63e55c0ca2da56d4bcdc04bc4cdb687872ac468226c66355296"
+      "deployedBytecodeBytes": 24320,
+      "artifactSha256": "4dd26a5045fce6b24f23eb3b8453bcc9cce5b372e0819a77f4fece0a2fd86ba8"
     },
     "OracleCoordinator": {
       "compiled": true,
-      "deployedBytecodeBytes": 7543,
-      "artifactSha256": "3756a95c2df466e7d50131c519766dc858c132bce6f7fd47b659a706bcf02fb6"
+      "deployedBytecodeBytes": 7878,
+      "artifactSha256": "4b528b7d5b58c7cda6b66369ed93df23242825d268f39778a6569007079316dc"
     },
     "ClaimAdjudicator": {
       "compiled": true,
-      "deployedBytecodeBytes": 10880,
-      "artifactSha256": "79ecade70419edf54919d08e81e2ad7ea196b45ae0ef34614aff93309328432d"
+      "deployedBytecodeBytes": 10501,
+      "artifactSha256": "a266f97224d077689c55a028bfd5b333455f75803488ae1d80e2ad0cfe7c7b87"
     },
     "PolicyEconomics": {
       "compiled": true,
-      "deployedBytecodeBytes": 9484,
-      "artifactSha256": "deb87fe82a16f25e95a40b9870c043b3eb617f49d55c939f03033b68b7b8c88a"
+      "deployedBytecodeBytes": 10413,
+      "artifactSha256": "a074e111def63057944fa0da4d032e5ce1eb199a94b412c0e2a2072e0f971757"
     },
     "EvidenceRegistry": {
       "compiled": true,
@@ -112,27 +172,58 @@
     },
     "PolicyBenefitsManager": {
       "compiled": true,
-      "deployedBytecodeBytes": 9981,
-      "artifactSha256": "543b0eab7e141ae5a6cc10ae22bd1825a781ac1537992b1d28e3bb521bc29ba7"
+      "deployedBytecodeBytes": 10918,
+      "artifactSha256": "6f0ff0e5026b7523af0d05aa6327d884c480fa477a4af04b3184f8eb6361b78c"
     },
     "ProtocolDeploymentRegistry": {
       "compiled": true,
       "deployedBytecodeBytes": 923,
       "artifactSha256": "0f421698bef3d5ecf51c9ea88d149d2505ccf46acba9e2296853bf6219292257"
+    },
+    "HospitalVerificationRegistry": {
+      "compiled": true,
+      "deployedBytecodeBytes": 3512,
+      "artifactSha256": "548b04c42723f7f8439032914bf8d91b8ee8a60b4ee474e6260957c6ffe6c2d4"
+    },
+    "BankIdentityRegistry": {
+      "compiled": true,
+      "deployedBytecodeBytes": 2423,
+      "artifactSha256": "c99fc28b2983d464d84c999b56e09fb6f99fdc8536217065ee517376f5e85295"
     }
   },
   "artifacts": {
+    "evidenceBoundary": {
+      "historicalEvaluationGeneratedAt": "2026-08-28T20:57:12.810Z",
+      "evaluatedModelArtifactHash": "f172016bc1c801b085e20180f7ab204205a1d783b2d8ac3f5d66e40dcb9abe86",
+      "currentRuntimeModelArtifactHash": "90f441840155ba32c17d14690dc0f530d3bc2f2bce469adc6ffb2a231710f9eb",
+      "currentRuntimeEvaluated": false,
+      "interpretation": "This inventory does not rerun experiments. The model/evaluation hash comparison here is for the retained historical NB artifact; current protocol routing is identified separately. Historical metrics do not validate a different implementation."
+    },
     "fraudModel": {
       "path": "backEnd/model-params.json",
-      "artifactHash": "f172016bc1c801b085e20180f7ab204205a1d783b2d8ac3f5d66e40dcb9abe86",
-      "modelIdentityHash": "0xf1ead0b09877c9a7894f109515f0776b3fba8d21e96c8b60963dc2eba8d4ebc1",
-      "fileSha256": "34ffd8361c7c63967eddff99a85f0f3b96becfcd30796fb2a6935548b7c13148"
+      "artifactHash": "90f441840155ba32c17d14690dc0f530d3bc2f2bce469adc6ffb2a231710f9eb",
+      "modelIdentityHash": "0x291d87466f849c14d63b382e58436fc235b31ad0ecd777a4ee82b376d70492af",
+      "fileSha256": "207621336349dc7de7df91f265b02139269fdf9b8589a4df1c32061c749b164f",
+      "authority": "HISTORICAL_REQUEST_AND_RESEARCH_COMPARISON"
+    },
+    "adminAdvisory": {
+      "path": "backEnd/artifacts/xgboost-advisory-v1.json",
+      "fileSha256": "e83eab8c8df7c9996471c754d352d9201ffd30246184c72cd1943c612d2ab380",
+      "authority": "ADMIN_ADVISORY_ONLY",
+      "protocolModelUnchanged": false,
+      "interpretation": "XGBoost remains the primary Admin advisory. A separately versioned protocol wrapper is the default for fresh deployments; existing chains require explicit migration and NB requests retain their evaluator. No predictive-superiority or natural-fraud accuracy claim."
+    },
+    "protocolRouting": {
+      "path": "backEnd/artifacts/xgboost-protocol-v1.json",
+      "fileSha256": "bcee86a70bf5985cf8bb8d30d90884ea42ac34501239dd3543e2f111bda85576",
+      "modelIdentityHash": "0xf86d83cbf87ac192b77aaf5bf830d99f7f4b01daf04c9f905502d3161b3fda8a",
+      "deploymentBoundary": "Source/default for fresh deployment; this inventory does not read or change any hosted default"
     },
     "triagePolicy": {
       "path": "backEnd/triage-policy.json",
-      "artifactHash": "2909efceb13e47db01b324ce2816f7e95d5d49b04b91ca89da8d298a522f4eac",
-      "policyIdentityHash": "0xe91d2d192c37b50e062a8f3204686e85cc3107601584563a14e7e89d23dead1c",
-      "fileSha256": "2eea456423da8085c781d3e74070141ec71c1e3d9142e24d0fa910eb0f440386"
+      "artifactHash": "7f3faaefdabdfd38714e3aec65c65d08359418157f675d6f3d88df514858b659",
+      "policyIdentityHash": "0x4d714944e7fcb73a16b5068c6c8e80cae48990367ccf7d9c2bef4db8f74c6dd0",
+      "fileSha256": "0cb01b4fd4d8a7acf352795a3ac35a3a462a862c42e5c1747ed6c7c78a8e542b"
     },
     "datasets": {
       "path": "backEnd/datasets/phase5/manifest.json",
@@ -298,7 +389,7 @@
       },
       "mutationCampaign": {
         "path": "contracts/mutation-results.json",
-        "executionFileSha256": "da5749db1dd61cdc3990d6bc3d165c06381c528c35afba873ce9bdc9fb1b657d",
+        "executionFileSha256": "49e178ed5063d9d04be80b137ebd11e9253da078979c684a04767a61526622c5",
         "summary": {
           "requested": 8,
           "valid": 8,
@@ -341,8 +432,11 @@
     "reserveAdequacy": "npm --prefix backEnd run evaluate:reserve",
     "evidenceLifecycle": "npm --prefix backEnd run evaluate:evidence",
     "hybridEvaluation": "npm --prefix backEnd run evaluate:hybrid",
+    "stagedObservableEvaluation": "npm --prefix backEnd run evaluate:observable",
+    "stagedAdvancedEvaluation": "npm --prefix backEnd run evaluate:advanced",
+    "engineeredActionEvaluation": "npm --prefix backEnd run evaluate:engineered",
     "hybridRuntimeBenchmark": "npm --prefix backEnd run benchmark:hybrid",
     "reproducePhasesThreeAndFour": "npm --prefix backEnd run research:phase34"
   },
-  "reproducibilityHash": "859691fa0a54d900cb0921b568522619381ee263fdfdb0985bad3ddf7eb0f781"
+  "reproducibilityHash": "7cc953d5982e95d41690b9aba85dd544de4e43e86f2cef0ddffadacde4a3680c"
 }

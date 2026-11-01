@@ -9,11 +9,21 @@ services:
     buildFilter:
       paths:
         - backEnd/**
+        - oracle/observableFeatures.js
+        - oracle/independentAssessment.js
+        - oracle/xgboostAssessment.js
+        - oracle/advisoryBundle.js
+        - oracle/shadowAssessment.js
+        - oracle/merkleProof.js
+        - oracle/runtimeProtocol.js
+        - oracle/protocolAssessment.js
+        - oracle/modelArtifact.js
+        - oracle/protocol.js
         - scripts/observability.js
         - render.yaml
     envVars:
       - key: NODE_VERSION
-        value: "20.19.0"
+        value: "24.16.0"
       - key: NODE_ENV
         value: production
       - key: BLOCKCHAIN_RUNTIME_ENABLED
@@ -62,11 +72,16 @@ services:
         - oracle/**
         - backEnd/model-params.json
         - backEnd/triage-policy.json
+        - backEnd/artifacts/**
+        - backEnd/services/advisoryContextService.js
+        - backEnd/services/continuousFeatureService.js
+        - backEnd/research/context.js
+        - backEnd/research/phase3-plan.json
         - scripts/observability.js
         - render.yaml
     envVars:
       - key: NODE_VERSION
-        value: "20.19.0"
+        value: "24.16.0"
       - key: NODE_ENV
         value: production
       - key: ORACLE_INSTANCE_ID
@@ -97,11 +112,16 @@ services:
         - oracle/**
         - backEnd/model-params.json
         - backEnd/triage-policy.json
+        - backEnd/artifacts/**
+        - backEnd/services/advisoryContextService.js
+        - backEnd/services/continuousFeatureService.js
+        - backEnd/research/context.js
+        - backEnd/research/phase3-plan.json
         - scripts/observability.js
         - render.yaml
     envVars:
       - key: NODE_VERSION
-        value: "20.19.0"
+        value: "24.16.0"
       - key: NODE_ENV
         value: production
       - key: ORACLE_INSTANCE_ID

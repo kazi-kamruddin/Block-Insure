@@ -1,3 +1,4 @@
+const { attestTestAccess } = require("./helpers/reviewPreparation");
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
@@ -86,6 +87,7 @@ describe("Phase 2 - Automatic adjudication", function () {
   async function openFailedReview(fixture, claimId) {
     await decideWithOracles(fixture, claimId, false, "failed");
     await fixture.manager.sendToManualReview(claimId);
+    await attestTestAccess(fixture, claimId);
     return fixture.adjudicator.getReview(claimId, await fixture.manager.claimVersion(claimId));
   }
 
@@ -200,6 +202,7 @@ describe("Phase 2 - Automatic adjudication", function () {
     ).to.be.reverted;
     await time.increase(101);
     await fixture.manager.connect(fixture.publicCaller).sendToManualReview(claimId);
+    await attestTestAccess(fixture, claimId);
     await fixture.manager.connect(fixture.auditors[0]).castVote(claimId, 1);
     await time.increase(101);
     await fixture.manager.connect(fixture.publicCaller).finalizeExpiredManualReview(claimId);
@@ -209,7 +212,7 @@ describe("Phase 2 - Automatic adjudication", function () {
     expect(await fixture.adjudicator.auditorReputation(fixture.auditors[0].address)).to.equal(0);
   });
 
-  it("appeals preserve the rejected decision and require a fresh hospital attestation", async function () {
+  it("appeals preserve the rejected decision and request a new version without hospital wallet attestation", async function () {
     const fixture = await deployFixture();
     const claimId = await submitClaim(fixture, "appeal");
     const review = await openFailedReview(fixture, claimId);
@@ -239,10 +242,6 @@ describe("Phase 2 - Automatic adjudication", function () {
       originalDecision.decisionHash
     );
     expect((await fixture.manager.getClaimDocuments(claimId)).length).to.equal(2);
-    await expect(fixture.manager.requestOracleVerification(claimId)).to.be.reverted;
-    await registry
-      .connect(fixture.publicCaller)
-      .submitHospitalVerification(claimId, true, hash("appeal-hospital-attestation"));
     await expect(fixture.manager.requestOracleVerification(claimId)).to.emit(
       fixture.manager,
       "OracleRequested"

@@ -16,6 +16,10 @@ router.post("/mandates/:mandateId/reject", authMiddleware, requireRole("BANK"), 
 router.post("/automation/run", authMiddleware, requireRole("BANK"), bankController.runMyBankAutomation);
 
 router.get("/user/accounts", authMiddleware, requireRole("USER"), bankController.getMyUserAccounts);
+router.get("/user/gateway-readiness", authMiddleware, requireRole("USER"), async (req, res, next) => {
+  try { res.json({ success: true, gateway: await require("../services/bankPaymentService").getGatewayReadiness({ walletAddress: req.user.walletAddress, policyId: req.query.policyId }) }); }
+  catch (error) { next(error); }
+});
 router.get("/user/mandates", authMiddleware, requireRole("USER"), bankController.getMyUserMandates);
 router.get("/user/transactions", authMiddleware, requireRole("USER"), bankController.getMyUserTransactions);
 router.post("/user/mandates", authMiddleware, requireRole("USER"), bankController.createMyMandate);

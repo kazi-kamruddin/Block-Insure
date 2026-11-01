@@ -143,6 +143,9 @@ const buildHealthPayload = async ({
         ? "Backend off-chain preview is ready"
         : "Backend is ready"
       : "Backend dependencies are unavailable",
+    deployment: !limited && isAddress(environment.VITE_CONTRACT_ADDRESS)
+      ? { managerAddress: environment.VITE_CONTRACT_ADDRESS.toLowerCase() }
+      : null,
     services: {
       database: databaseState,
       blockchainRpc: blockchain.blockchainRpc,

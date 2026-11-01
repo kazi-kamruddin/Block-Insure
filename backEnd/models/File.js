@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const fileSchema = new mongoose.Schema(
   {
+    deploymentScope: { type: String, default: "", index: true },
+    attemptId: { type: String, default: "", index: true },
+    uploadSlot: { type: Number, default: 0, min: 0, max: 4 },
+    encryptedBytes: { type: Number, default: 0 },
     claimId: {
       type: String,
       trim: true,
@@ -158,5 +162,8 @@ fileSchema.index(
     partialFilterExpression: { associatedDataHash: { $gt: "" } },
   }
 );
+fileSchema.index({ attemptId: 1, uploadSlot: 1 }, { unique: true, partialFilterExpression: { attemptId: { $gt: "" } } });
+fileSchema.index({ deploymentScope: 1, claimId: 1, claimVersion: 1 }, { unique: true, name: "one_appeal_attachment_per_version",
+  partialFilterExpression: { documentType: "APPEAL_DOCUMENT", claimId: { $gt: "" } } });
 
 module.exports = mongoose.model("File", fileSchema);

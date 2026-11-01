@@ -1,0 +1,20 @@
+{
+  "version": "xgboost-admin-manifest-v1",
+  "authority": "ADMIN_ADVISORY_ONLY",
+  "files": {
+    "backEnd/artifacts/xgboost-advisory-v1.json": "e83eab8c8df7c9996471c754d352d9201ffd30246184c72cd1943c612d2ab380",
+    "oracle/xgboostAssessment.js": "6f1e260f1930582fe4200f3e78cb5f4998e3283b04ccd04b054e0584c062cae5",
+    "oracle/observableFeatures.js": "8a8066f60312aa4c3f67952392e153e2127282d9617749f1146956a829b242ab",
+    "oracle/advisoryBundle.js": "76cf174df79ac9a2f16db5a185341154f46c5a1b3ccaf1dcd2e8a103b33360a7",
+    "oracle/shadowAssessment.js": "9fd73f543a9eef5141fa7d66193ad4faea0e8d5f941aa4e3f1b2579055f3ee2e",
+    "oracle/merkleProof.js": "00195d081d9cc0aa9b02ab40411b6a09243ed4802276ab020ace73a7c8e13a44",
+    "oracle/independentAssessment.js": "9fb46d1b564543107f07d6aae888cad1be5b240654484796a9d72721390c4645",
+    "backEnd/research/context.js": "95842cfa612bf6c3220ee63d12b3b9cd3fb368f8591e9c60f256bcbaf1654a33",
+    "backEnd/research/phase3-plan.json": "0d1c2033f2104a391f8fdd68f75f010e91d7b814cf7fcb84e15d4637f2a1556c",
+    "backEnd/services/continuousFeatureService.js": "9d81cc13ed8c9980c784e9250822d3c16215cc9d42f135f7de77d36f6ba6247a",
+    "backEnd/services/advisoryContextService.js": "9bf331a2ec777a98e9ffdc528cbc1752f45a3c5c95e6b6e62ce5331daa3e3244",
+    "backEnd/model-params.json": "207621336349dc7de7df91f265b02139269fdf9b8589a4df1c32061c749b164f",
+    "backEnd/triage-policy.json": "0cb01b4fd4d8a7acf352795a3ac35a3a462a862c42e5c1747ed6c7c78a8e542b"
+  },
+  "note": "Integrity/provenance checks, not a signature or an assertion of clinical truth"
+}

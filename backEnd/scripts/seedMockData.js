@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const dns = require("node:dns");
 const mongoose = require("mongoose");
+const { invoiceIdentity, patientIdentity } = require("../../oracle/recordIdentity");
 const { ethers } = require("ethers");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
 const MockHospitalRecordOracle2 = require("../models/MockHospitalRecordOracle2");
@@ -63,7 +64,7 @@ const buildSyntheticRecords = () => {
       syntheticSource: "phase-5-demo-preset-v1",
     };
   });
-  return records;
+  return records.map((record) => ({ ...record, identityVersion: 2, invoiceHash: invoiceIdentity(record.hospitalId, record.invoiceNumber), patientHash: patientIdentity(record.hospitalId, record.patientHash) }));
 };
 
 const buildOracle2Records = (records) => records.map((record, index) => index === 0

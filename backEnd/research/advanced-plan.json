@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "advanced-study-v1",
+  "recordedOn": "2026-10-24",
+  "scope": "Offline exploratory controlled-attack triage; never natural fraud probability or runtime promotion",
+  "priorExposure": "Existing source/scenario partition and prior test samples have been inspected. New sampling seeds do not create a confirmatory untouched study.",
+  "seeds": [71, 113, 197],
+  "sampleSize": 3000,
+  "threads": 1,
+  "maxTrees": 80,
+  "depthCandidates": [2, 3],
+  "conformalAlpha": 0.1,
+  "requestedReviewBudget": 0.6,
+  "bootstrapReplicates": 500,
+  "costWeights": {"missedAttack": 10, "unmutatedRoute": 1, "review": 0.25},
+  "split": "Inherited provider partitions, cross-partition patients purged before sampling; calibration providers divided into tuning, probability, conformal, policy groups with further patient purging",
+  "primaryQuestion": "Does the complete candidate reduce controlled-attack routing cost at a validation-selected review budget versus rules and retrained observable NB?",
+  "rivalExplanation": "Rules encode the detectable injected conditions; context adds no observable signal for concealed compromise, and complexity only adds false routes.",
+  "promotion": {
+    "automaticPromotion": false,
+    "decision": "HOLD unless independent evidence and runtime input commitments are available",
+    "necessaryChecks": ["No label/future/group leakage", "Mandatory rules never bypassed", "No higher mean controlled cost or lower mean recall than rules and NB", "Paired provider bootstrap cost difference upper bound below zero", "Conformal marginal coverage measured with assumptions disclosed", "OOD/abstention workload reported", "Reference/export routing parity", "Phase 3 authenticated history commitments and regressions not yet implemented"]
+  },
+  "componentPolicy": {
+    "graph": "Prior patient-provider graph only; no fabricated bank links or label-seeded suspicion propagation",
+    "temporal": "Date-resolution exponential Hawkes candidate fitted on training histories; exclude same-day events; no intraday claim",
+    "ood": "Regularized treatment-group covariance; diagnosis conditional only for groups with enough training support; explicit pooled fallback",
+    "explanations": "Native exact tree-path-dependent SHAP on raw margin, not calibrated-probability attribution",
+    "quantization": "Separate rounded export evaluated against reference; never silently substitute if routing differs"
+  }
+}

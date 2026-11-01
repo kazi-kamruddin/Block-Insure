@@ -8,7 +8,7 @@ node_modules/
 .env.*
 !.env.example
 !.env.oracle2.example
-deploy/production.env
+/deploy/*.env
 contracts/deployments/*.json
 
 # Build outputs
@@ -19,16 +19,43 @@ coverage/
 # Local exports, scratch work, and generated browser reports
 /tmp/
 /output/
+/docs/synthea_sample_data_csv_latest.zip
+/docs/synthea_sample_data_csv_latest/
+/docs/engineered/observable-*/
+/docs/engineered/advanced-*/
+/backEnd/research/.venv/
+__pycache__/
 /playwright-reports/
 /playwright-report-frontend/
-# Keep small dated verification summaries; exclude generated media and traces.
-/verification-results/**/*.png
-/verification-results/**/*.jpg
-/verification-results/**/*.jpeg
-/verification-results/**/*.webp
-/verification-results/**/*.mp4
-/verification-results/**/*.webm
-/verification-results/**/*.zip
+# Local verification history, source snapshots, and operator handoffs.
+/verification-results/
+/docs/advanced-engineering-v2.md
+/docs/advanced-ml-phase12.md
+/docs/full-system-e2e-test-report.md
+/docs/manual-metamask-rehearsal-2026-09-01.md
+/docs/manual-next-steps.md
+/docs/observable-pipeline-stabilization.md
+/docs/part1-stabilization.md
+/docs/phase-0-1-2-research-assurance.md
+/docs/phase-3-4-reserve-evidence-research.md
+/docs/phase-5-operational-hardening.md
+/docs/prototype-polish.md
+/docs/shadow-deployment-handoff.md
+/docs/shadow-release-assurance.md
+/docs/supervisor-showcase-guide.md
+/docs/ui-overhaul-and-e2e-report-2026-10-12.md
+/docs/xgboost-advisory-phase3.md
+/docs/xgboost-protocol-migration.md
+
+# Superseded evaluation exports; current runtime/dashboard artifacts stay tracked.
+/backEnd/evaluation-results/baseline-comparison.csv
+/backEnd/evaluation-results/evaluation-model-params.json
+/backEnd/evaluation-results/precision-recall-curve.csv
+/backEnd/evaluation-results/risk-model-records.csv
+/backEnd/evaluation-results/risk-model-summary.json
+/backEnd/evaluation-results/roc-curve.csv
+/backEnd/evaluation-results/threshold-selection-training.csv
+/backEnd/evaluation-results/threshold-sensitivity.csv
 
 # Large local hybrid healthcare source and generated row files
 backEnd/datasets/hybrid-v1/raw/*.csv
@@ -38,7 +65,17 @@ playwright-report/
 test-results/
 
 # Hardhat / Solidity
+/contracts/.mutation-workspace/
 artifacts/
+# Small portable model artifacts are required by the deployed advisory reader.
+!/backEnd/artifacts/
+/backEnd/artifacts/*
+!/backEnd/artifacts/xgboost-advisory-v1.json
+!/backEnd/artifacts/xgboost-advisory-manifest.json
+!/backEnd/artifacts/xgboost-protocol-v1.json
+!/backEnd/artifacts/xgboost-protocol-v2.json
+!/backEnd/artifacts/xgboost-protocol-v3.json
+!/backEnd/artifacts/xgboost-protocol-v4.json
 cache/
 typechain/
 typechain-types/

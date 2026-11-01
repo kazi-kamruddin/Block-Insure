@@ -456,14 +456,17 @@ const createOracleLog = async (req, res, next) => {
       });
     }
 
+    const validatedResponse = await require("../services/oracleDecisionService").validateProtocolLog({ contract, coordinator,
+      requestId, oracleWallet: verifiedOracleWallet, responseData, resultHash });
+
     let oracleLog;
     try {
       oracleLog = await OracleLog.create({
         requestId: requestId.toString(),
         claimId: claimId.toString(),
         oracleType,
-        queryData: responseData.queryData || queryData,
-        responseData,
+        queryData: validatedResponse.queryData || queryData,
+        responseData: validatedResponse,
         resultHash,
         verified,
         riskLevel,

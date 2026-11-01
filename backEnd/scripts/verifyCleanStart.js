@@ -13,6 +13,8 @@ const Appeal = require("../models/Appeal");
 const Bank = require("../models/Bank");
 const BankAccount = require("../models/BankAccount");
 const BankOtpChallenge = require("../models/BankOtpChallenge");
+const EmailChallenge = require("../models/EmailChallenge");
+const OtpDeliverySlot = require("../models/OtpDeliverySlot");
 const BankTransaction = require("../models/BankTransaction");
 const ClaimSubmissionAttempt = require("../models/ClaimSubmissionAttempt");
 const EvidenceAccessLog = require("../models/EvidenceAccessLog");
@@ -236,6 +238,8 @@ async function main() {
       ["EFT mandates", EftMandate],
       ["bank transactions", BankTransaction],
       ["bank OTP challenges", BankOtpChallenge],
+      ["email verification challenges", EmailChallenge],
+      ["OTP delivery limits", OtpDeliverySlot],
       ["claim submission attempts", ClaimSubmissionAttempt],
       ["documents", File],
       ["hospital claim verifications", HospitalClaimVerification],

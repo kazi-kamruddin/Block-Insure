@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const eftMandateSchema = new mongoose.Schema(
   {
     mandateId: { type: String, required: true, unique: true, trim: true },
+    deploymentScope: { type: String, index: true, default: "" },
     bankId: { type: String, required: true, uppercase: true, trim: true, index: true },
     accountReference: { type: String, required: true, uppercase: true, trim: true },
     policyId: { type: String, required: true, trim: true, index: true },
@@ -31,6 +32,7 @@ const eftMandateSchema = new mongoose.Schema(
     lastAttemptAt: { type: Date, default: null },
     lastTransactionReference: { type: String, trim: true, default: "" },
     debitCount: { type: Number, min: 0, default: 0 },
+    settledTransferReferences: { type: [String], default: [] },
   },
   { timestamps: true }
 );

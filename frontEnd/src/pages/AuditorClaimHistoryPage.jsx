@@ -83,7 +83,7 @@ const EVENT_META = {
   AuditorVoteCast: {
     actor: "Auditor",
     tone: "auditor",
-    summary: "An auditor submitted a weighted vote.",
+    summary: "An assigned auditor submitted a quorum vote.",
   },
   SettlementCalculated: {
     actor: "Admin",

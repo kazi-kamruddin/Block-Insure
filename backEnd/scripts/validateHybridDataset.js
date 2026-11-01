@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const MockHospitalRecord = require("../models/MockHospitalRecord");
-const { extractRecordFeatures, FEATURE_NAMES } = require("../services/featureEngineeringService");
+const { extractObservableRecordFeatures: extractRecordFeatures, FEATURE_NAMES } = require("../services/featureEngineeringService");
 const { buildMerkleTree } = require("../services/merkleRegistryService");
 const { hashInvoiceNumber } = require("../services/hybridDatasetAdapterService");
 const { verifyHybridArtifacts } = require("../services/hybridDatasetIntegrityService");

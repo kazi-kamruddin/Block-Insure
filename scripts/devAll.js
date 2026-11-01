@@ -4,6 +4,7 @@ const http = require("node:http");
 const path = require("node:path");
 const readline = require("node:readline");
 const { writeEvent } = require("./observability");
+const { readLocalDeployment } = require("./localDeploymentConfig");
 
 const projectRoot = path.resolve(__dirname, "..");
 const npmCli = process.env.npm_execpath || path.join(
@@ -14,8 +15,8 @@ const npmCli = process.env.npm_execpath || path.join(
   "npm-cli.js"
 );
 const children = [];
-const bootstrap = process.argv.includes("--bootstrap");
 const hybrid = process.argv.includes("--hybrid");
+const reset = process.argv.includes("--reset");
 let shuttingDown = false;
 
 function prefixStream(stream, label, output) {
@@ -81,6 +82,9 @@ function runCommand(directory, args) {
 }
 
 function readEnvValue(relativePath, key) {
+  if (process.env[key]) return process.env[key];
+  const generated = readLocalDeployment(projectRoot);
+  if (generated[key]) return generated[key];
   const content = fs.readFileSync(path.join(projectRoot, relativePath), "utf8");
   const prefix = `${key}=`;
   const line = content
@@ -144,12 +148,28 @@ async function verifyLocalDeployment() {
   if (code === "0x" || code === "0x0") {
     throw new Error(`No deployed InsuranceManager exists at ${managerAddress}`);
   }
+  const { Interface } = require("../backEnd/node_modules/ethers");
+  const abi = new Interface(["function oracleModelVersion() view returns (bytes32)"]);
+  const identity = await jsonRpc("eth_call", [{ to: managerAddress, data: abi.encodeFunctionData("oracleModelVersion") }, "latest"]);
+  const protocol = require("../oracle/runtimeProtocol");
+  if (String(identity).toLowerCase() !== protocol.loadProtocolArtifact().modelIdentityHash.toLowerCase()) {
+    // A valid historical deployment can resume without silently publishing a
+    // new model. Unknown identities still fail closed.
+    if (protocol.resolveRequestModel(identity).kind === "legacy-nb") {
+      console.warn("[Launcher] Existing deployment uses legacy NB; explicit model migration is required for new XGBoost requests.");
+      return;
+    }
+    throw new Error("The running chain uses a different model identity. Review and publish the current model through the administrator, or explicitly reset a disposable deployment. No configuration was changed.");
+  }
 }
 
 function stopAll(signal = "SIGTERM") {
   shuttingDown = true;
   for (const child of children) {
-    if (!child.killed) child.kill(signal);
+    if (child.exitCode !== null || child.killed) continue;
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" });
+    } else child.kill(signal);
   }
 }
 
@@ -185,15 +205,13 @@ async function main() {
   });
   if (preflight.status !== 0) process.exit(preflight.status || 1);
 
-  let deploymentReady = false;
   try {
     await verifyLocalDeployment();
-    deploymentReady = true;
   } catch (initialError) {
-    if (!bootstrap) {
+    if (!reset) {
       throw new Error(
         `A ready local deployment was not found (${initialError.message}). ` +
-          "Run `npm run dev:bootstrap` for a one-command local chain, deployment, and application startup."
+          "Start the existing chain with `npm run dev:chain`. Hardhat state is in-memory; if it was lost, use `npm run dev:bootstrap` for an explicit destructive reset of a disposable database."
       );
     }
     try {
@@ -205,7 +223,7 @@ async function main() {
     }
   }
 
-  if (bootstrap && (hybrid || !deploymentReady)) {
+  if (reset) {
     try {
       await jsonRpc("eth_chainId");
     } catch {
@@ -228,6 +246,11 @@ async function main() {
   }
   console.log("[Launcher] Reusing the verified local deployment on port 8545.");
 
+  // Load generated addresses once for all child processes. Explicit isolated
+  // test overrides take precedence; secrets remain in their existing stores.
+  const localConfig = readLocalDeployment(projectRoot);
+  for (const [key, value] of Object.entries(localConfig)) process.env[key] ??= value;
+
   console.log("[Launcher] Chain is ready. Starting application services...");
   const backendRpcUrl = process.env.E2E_BACKEND_RPC_URL;
   if (backendRpcUrl) {
@@ -238,20 +261,28 @@ async function main() {
     startService("RPC Proxy", ".", ["run", "dev:rpc-proxy"]);
     await waitForHttp(`${backendRpcUrl}/__control/status`, '"paused":false');
   }
-  startService("Backend", "backEnd", ["run", "dev"], {
+  startService("Backend", "backEnd", ["start"], {
     ...process.env,
     ...(backendRpcUrl ? { RPC_URL: backendRpcUrl } : {}),
   });
   startService("Frontend", "frontEnd", ["run", "dev"]);
-  startService("Oracle 1", "oracle", ["run", "dev"]);
-  startService("Oracle 2", "oracle", ["run", "dev:oracle2"]);
   const backendPort = readEnvValue("backEnd/.env", "PORT") || "5000";
+  // Backend-backed cursors are loaded during Oracle initialization. Starting
+  // workers before the API listens can consume their entire readiness window
+  // waiting for the first retry, even though the API becomes healthy promptly.
+  await waitForHttp(`http://127.0.0.1:${backendPort}/health/ready`, '"status":"ready"');
+  startService("Oracle 1", "oracle", ["run", "dev"], { ...process.env,
+    PORT: process.env.ORACLE_ONE_HEALTH_PORT || "5101", ORACLE_INSTANCE_ID: "1", ORACLE_REGISTRY_SNAPSHOT: "primary" });
+  startService("Oracle 2", "oracle", ["run", "dev:oracle2"], { ...process.env,
+    PORT: process.env.ORACLE_TWO_HEALTH_PORT || "5102", ORACLE_INSTANCE_ID: "2", ORACLE_REGISTRY_SNAPSHOT: "oracle2" });
   await Promise.all([
     waitForHttp(
       `http://127.0.0.1:${backendPort}/health/ready`,
       '"status":"ready"'
     ),
     waitForHttp("http://localhost:5173", "Block-Insure"),
+    waitForHttp(`http://127.0.0.1:${process.env.ORACLE_ONE_HEALTH_PORT || "5101"}/health/ready`, '"workerEnabled":true'),
+    waitForHttp(`http://127.0.0.1:${process.env.ORACLE_TWO_HEALTH_PORT || "5102"}/health/ready`, '"workerEnabled":true'),
   ]);
   console.log("[Launcher] Chain/deployment verified and application services are ready. Press Ctrl+C to stop them together.");
 }

@@ -20,6 +20,7 @@ const {
   startEvidenceAnchorScheduler,
   stopEvidenceAnchorScheduler,
 } = require("./services/evidenceAnchorService");
+const { startReviewAccessScheduler, stopReviewAccessScheduler } = require("./services/reviewAccessService");
 const {
   startBankPaymentScheduler,
   stopBankPaymentScheduler,
@@ -184,6 +185,7 @@ app.use("/api/audit", require("./routes/auditRoutes"));
 app.use("/api/oracle", require("./routes/oracleRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/hospitals", require("./routes/hospitalRoutes"));
+app.use("/api/hospital-staff", require("./routes/hospitalStaffRoutes"));
 app.use("/api/banks", require("./routes/bankRoutes"));
 app.use("/api/indexer", require("./routes/indexerRoutes"));
 app.use(
@@ -277,6 +279,7 @@ const startServer = async () => {
     if (runtimeConfig.blockchainRuntimeEnabled) {
       await startBlockchainIndexer();
       startEvidenceAnchorScheduler();
+      startReviewAccessScheduler();
       await startBlockchainEventListener();
       startBankPaymentScheduler();
       startRegistryPublisher();
@@ -290,6 +293,7 @@ const startServer = async () => {
     if (runtimeConfig.blockchainRuntimeEnabled) {
       stopBlockchainIndexer();
       stopEvidenceAnchorScheduler();
+      stopReviewAccessScheduler();
       stopBankPaymentScheduler();
       stopRegistryPublisher();
       await stopBlockchainEventListener().catch(() => undefined);
@@ -313,6 +317,7 @@ const shutdownServer = async (signal) => {
       await stopBlockchainEventListener();
       stopBlockchainIndexer();
       stopEvidenceAnchorScheduler();
+      stopReviewAccessScheduler();
       stopBankPaymentScheduler();
       stopRegistryPublisher();
     }

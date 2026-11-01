@@ -6,6 +6,7 @@ const { verifyModelArtifact } = require("../../backEnd/services/modelArtifactSer
 
 const networkName = hre.network.name;
 const isLocalNetwork = networkName === "localhost" || networkName === "hardhat";
+let publicProvider;
 
 function updateEnvValue(filePath, key, value) {
   if (!fs.existsSync(filePath)) {
@@ -151,13 +152,31 @@ async function main() {
     throw new Error("Missing ADMIN_PRIVATE_KEY in contracts/.env");
   }
 
-  const provider = hre.ethers.provider;
+  // Hardhat 2's automatic multiplier path can clamp gas to the older execution
+  // cap. Keep explicit public total-state-gas estimation outside that middleware.
+  const publicTransport = !isLocalNetwork ? new hre.ethers.FetchRequest(hre.network.config.url) : null;
+  if (publicTransport) publicTransport.timeout = 15000;
+  const provider = isLocalNetwork ? hre.ethers.provider : new hre.ethers.JsonRpcProvider(publicTransport);
+  if (!isLocalNetwork) publicProvider = provider;
   const adminWallet = new hre.ethers.Wallet(
     process.env.ADMIN_PRIVATE_KEY,
     provider
   );
+  require("../../scripts/deploymentNetworkSafety").assertDeploymentSigner(
+    (await provider.getNetwork()).chainId, adminWallet.address, { local: isLocalNetwork }
+  );
 
   const adminBalance = await provider.getBalance(adminWallet.address);
+  const chainId = (await provider.getNetwork()).chainId;
+  const expectedChainId = networkName === "sepolia" ? 11155111n : networkName === "baseSepolia" ? 84532n : chainId;
+  if (chainId !== expectedChainId) throw new Error("Selected deployment RPC has the wrong chain");
+  const deployContract = async (factory, ...args) => {
+    if (isLocalNetwork) return factory.deploy(...args);
+    const quote = await require("../../scripts/deploymentGas").estimateDeploymentGas({ provider, chainId,
+      transaction: await factory.getDeployTransaction(...args), from: adminWallet.address });
+    console.log("Read-only public deployment estimate:", String(quote.estimatedGas), quote.accounting);
+    return factory.deploy(...args, { gasLimit: quote.gasLimit });
+  };
 
   console.log("Deploying InsuranceManager with admin wallet:");
   console.log("Admin address:", adminWallet.address);
@@ -170,12 +189,14 @@ async function main() {
     );
   }
 
+  const calendarProfile = process.env.CALENDAR_PROFILE || "QUARTERLY";
+  if (!["QUARTERLY", "ACCELERATED_TESTNET"].includes(calendarProfile)) throw new Error("Unknown CALENDAR_PROFILE");
   const InsuranceManager = await hre.ethers.getContractFactory(
-    "InsuranceManager",
+    calendarProfile === "ACCELERATED_TESTNET" ? "AcceleratedInsuranceManager" : "InsuranceManager",
     adminWallet
   );
 
-  const insuranceManager = await InsuranceManager.deploy();
+  const insuranceManager = await deployContract(InsuranceManager);
 
   await insuranceManager.waitForDeployment();
 
@@ -190,7 +211,7 @@ async function main() {
     "HospitalVerificationRegistry",
     adminWallet
   );
-  const hospitalVerificationRegistry = await HospitalVerificationRegistry.deploy(
+  const hospitalVerificationRegistry = await deployContract(HospitalVerificationRegistry,
     contractAddress,
     adminWallet.address
   );
@@ -202,11 +223,8 @@ async function main() {
     await insuranceManager.oracleCoordinator(),
     adminWallet
   );
-  await (
-    await oracleCoordinator.configureHospitalVerificationRegistry(
-      hospitalVerificationRegistryAddress
-    )
-  ).wait();
+  // The legacy registry is retained for archival ABI compatibility only.
+  // Hospital staff publication replaces per-claim wallet attestations.
   console.log(
     "HospitalVerificationRegistry deployed to:",
     hospitalVerificationRegistryAddress
@@ -215,7 +233,7 @@ async function main() {
     "BankIdentityRegistry",
     adminWallet
   );
-  const bankIdentityRegistry = await BankIdentityRegistry.deploy(
+  const bankIdentityRegistry = await deployContract(BankIdentityRegistry,
     contractAddress,
     adminWallet.address
   );
@@ -231,14 +249,15 @@ async function main() {
   if (!modelVerification.valid) {
     throw new Error(`Frozen model artifact is invalid: ${modelVerification.errors.join("; ")}`);
   }
-  await (await insuranceManager.updateOracleModelVersion(modelArtifact.modelIdentityHash)).wait();
-  console.log("Frozen fraud-model identity:", modelArtifact.modelIdentityHash);
+  const protocolArtifact = require("../../oracle/runtimeProtocol").loadProtocolArtifact();
+  await (await insuranceManager.updateOracleModelVersion(protocolArtifact.modelIdentityHash)).wait();
+  console.log("Frozen XGBoost protocol identity:", protocolArtifact.modelIdentityHash);
 
   const ClaimAdjudicator = await hre.ethers.getContractFactory(
     "ClaimAdjudicator",
     adminWallet
   );
-  const claimAdjudicator = await ClaimAdjudicator.deploy(contractAddress);
+  const claimAdjudicator = await deployContract(ClaimAdjudicator, contractAddress);
   await claimAdjudicator.waitForDeployment();
   const adjudicatorAddress = await claimAdjudicator.getAddress();
   await (await insuranceManager.configureClaimAdjudicator(adjudicatorAddress)).wait();
@@ -250,7 +269,7 @@ async function main() {
     "EvidenceRegistry",
     adminWallet
   );
-  const evidenceRegistry = await EvidenceRegistry.deploy(contractAddress);
+  const evidenceRegistry = await deployContract(EvidenceRegistry, contractAddress);
   await evidenceRegistry.waitForDeployment();
   const evidenceRegistryAddress = await evidenceRegistry.getAddress();
   console.log("EvidenceRegistry deployed to:", evidenceRegistryAddress);
@@ -263,7 +282,7 @@ async function main() {
   );
 
   const tx = await insuranceManager.createPolicyPackage(
-    "Health Basic",
+    calendarProfile === "ACCELERATED_TESTNET" ? "Health Basic — Accelerated Testnet Demo" : "Health Basic",
     "HEALTH",
     premiumAmount,
     coverageAmount,
@@ -273,13 +292,23 @@ async function main() {
 
   await tx.wait();
 
-  console.log("Health Basic policy package created");
+  const { buildRulePublication } = require("../../backEnd/services/packageRuleDefinitionService");
+  const issue = buildRulePublication(1, 1, {
+    waitingPeriodDays: 0, reinstatementWaitingPeriodDays: 0, claimDeadlineDays: 365,
+    minimumDocumentCommitments: 1, deductibleRateBps: 1000, deductibleCapEth: "0.02", insurerShareBps: 8000,
+    maximumClaimEth: hre.ethers.formatEther(coverageAmount),
+    allowedClaimTypes: ["HEALTH", "HOSPITALIZATION", "SURGERY", "EMERGENCY", "ACCIDENT", "CONSULTATION", "DIAGNOSTIC", "TRAUMA"],
+    excludedClaimTypes: ["COSMETIC"], requiredDocumentTypes: ["HOSPITAL_BILL"],
+  });
+  const issueEconomics = await hre.ethers.getContractAt("PolicyEconomics", economicsAddress, adminWallet);
+  await (await issueEconomics.publishPackageRules(1, issue.rules, issue.allowedServices, issue.excludedServices)).wait();
+  console.log("Health Basic package and enforceable issue rules published");
 
   const PolicyBenefitsManager = await hre.ethers.getContractFactory(
     "PolicyBenefitsManager",
     adminWallet
   );
-  const benefitsManager = await PolicyBenefitsManager.deploy(
+  const benefitsManager = await deployContract(PolicyBenefitsManager,
     contractAddress
   );
   await benefitsManager.waitForDeployment();
@@ -291,24 +320,24 @@ async function main() {
   const defaultTermsDocument = JSON.stringify({
     packageId: 1,
     version: 1,
-    deathBenefitEnabled: true,
+    deathBenefitEnabled: false,
     surrenderEnabled: true,
     maturityEnabled: false,
-    deathBenefitBps: 10000,
+    deathBenefitBps: 0,
     surrenderValueBps: 5000,
     maturityBonusBps: 0,
-    minimumSurrenderInstallments: 6,
+    minimumSurrenderInstallments: 2,
   });
   await (
     await benefitsManager.publishBenefitTerms(
       1,
-      true,
+      false,
       true,
       false,
-      10000,
+      0,
       5000,
       0,
-      6,
+      2,
       1,
       hre.ethers.keccak256(hre.ethers.toUtf8Bytes(defaultTermsDocument))
     )
@@ -334,28 +363,28 @@ async function main() {
     "ProtocolDeploymentRegistry",
     adminWallet
   );
-  const deploymentRegistry = await ProtocolDeploymentRegistry.deploy(
-    hre.ethers.id("BLOCK_INSURE_V1"),
+  const deploymentRegistry = await deployContract(ProtocolDeploymentRegistry,
+    hre.ethers.id("BLOCK_INSURE_COMPLETION_PHASE2_V3"),
     hre.ethers.keccak256(hre.ethers.toUtf8Bytes(migrationManifest))
   );
   await deploymentRegistry.waitForDeployment();
   const deploymentRegistryAddress = await deploymentRegistry.getAddress();
   for (const [name, address, interfaceVersion] of [
-    ["InsuranceManager", contractAddress, "IInsuranceManager/1"],
-    ["OracleCoordinator", await insuranceManager.oracleCoordinator(), "IOracleCoordinator/1"],
-    ["ClaimAdjudicator", adjudicatorAddress, "IClaimAdjudicator/1"],
-    ["PolicyEconomics", economicsAddress, "IPolicyEconomics/1"],
+      ["InsuranceManager", contractAddress, "IInsuranceManager/3"],
+    ["OracleCoordinator", await insuranceManager.oracleCoordinator(), "IOracleCoordinator/2"],
+      ["ClaimAdjudicator", adjudicatorAddress, "IClaimAdjudicator/2"],
+      ["PolicyEconomics", economicsAddress, "IPolicyEconomics/3"],
     ["EvidenceRegistry", evidenceRegistryAddress, "IEvidenceRegistry/1"],
-    ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/1"],
+    ["PolicyBenefitsManager", benefitsAddress, "IPolicyBenefitsManager/2"],
     ["HospitalVerificationRegistry", hospitalVerificationRegistryAddress, "IHospitalVerificationRegistry/1"],
-    ["BankIdentityRegistry", bankIdentityRegistryAddress, "IBankIdentityRegistry/1"],
+    ["BankIdentityRegistry", bankIdentityRegistryAddress, "IBankIdentityRegistry/2"],
   ]) {
     await (
       await deploymentRegistry.registerComponent(
         hre.ethers.id(name),
         address,
         hre.ethers.id(interfaceVersion),
-        true
+        name !== "HospitalVerificationRegistry"
       )
     ).wait();
   }
@@ -366,7 +395,10 @@ async function main() {
     schemaVersion: 1,
     network: networkName,
     chainId: network.chainId.toString(),
+    calendarProfile,
     deployedAt: new Date().toISOString(),
+    modelIdentityHash: protocolArtifact.modelIdentityHash,
+    protocolModel: protocolArtifact.modelVersion,
     deploymentBlock,
     benefitsDeploymentBlock,
     deployer: adminWallet.address,
@@ -420,7 +452,7 @@ async function main() {
   console.log("BANK_IDENTITY_REGISTRY_ADDRESS =", bankIdentityRegistryAddress);
 }
 
-main().catch((error) => {
-  console.error(error);
+main().catch(() => {
+  console.error("Deployment failed. Check private network/funding/total-gas configuration and retain existing addresses/receipts before retrying.");
   process.exitCode = 1;
-});
+}).finally(() => publicProvider?.destroy());

@@ -154,8 +154,20 @@ async function createActorContext(browser, actorName, contextOptions = {}) {
 }
 
 async function closeActor(actorSession) {
-  await actorSession.context.close();
-  actorSession.provider.destroy();
+  // Stop receipt/block polling before context shutdown waits for browser bindings
+  // and video finalization. A failed close must not leave an RPC provider alive.
+  try {
+    if (process.env.E2E_CAPTURE_SCREENSHOTS === "true" && !actorSession.page.isClosed()) {
+      const testInfo = require("@playwright/test").test.info();
+      await testInfo.attach(`${actorSession.actor.role}-final-page.png`, {
+        body: await actorSession.page.screenshot({ fullPage: true, animations: "disabled", timeout: 5000 }),
+        contentType: "image/png",
+      });
+    }
+  } finally {
+    try { actorSession.provider.destroy(); }
+    finally { await actorSession.context.close(); }
+  }
 }
 
 module.exports = { closeActor, createActorContext };

@@ -1,82 +1,69 @@
 const { ethers } = require("ethers");
+const { durationLabel } = require("./paymentScheduleService");
 
-const { getPolicyTerms } = require("./policyRuleService");
-
-const normalizeList = (values = []) =>
-  values.map((value) => String(value).replaceAll("_", " ")).join(", ");
-
-const formatBenefit = (enabled, enabledText) =>
-  enabled ? enabledText : "Not included in the current benefit schedule";
-
-const buildPolicyDocument = ({ policyPackage, benefitTerms = null }) => {
-  const healthTerms = getPolicyTerms(policyPackage);
-  const benefitVersion = benefitTerms?.configured ? Number(benefitTerms.version) : 0;
-  const documentVersion = `${healthTerms.version}-benefits.${benefitVersion}`;
-  const premiumInterval = "Recurring installment schedule shown in the issued policy";
-
-  const markdown = `# ${policyPackage.name} — Full Policy Terms
+const list = (values) => values.length ? values.join(", ") : "None";
+const buildPolicyDocument = ({ policyPackage }) => {
+  const terms = policyPackage.policyTerms;
+  if (!terms?.authoritative) throw new Error("Published contract terms are required for an application policy document");
+  const schedule = terms.paymentSchedule;
+  if (!schedule?.intervalSeconds) throw new Error("Published payment schedule is required");
+  const documentVersion = `medical-rules.${terms.version}-schedule.3-${schedule.profile}`;
+  const termSeconds = Number(policyPackage.durationDays) * 86400;
+  const periods = Math.ceil(termSeconds / schedule.intervalSeconds);
+  const finalSeconds = termSeconds % schedule.intervalSeconds || schedule.intervalSeconds;
+  const interval = BigInt(schedule.intervalSeconds);
+  const finalWei = periods === 1 ? BigInt(policyPackage.premiumAmountWei) :
+    (BigInt(policyPackage.premiumAmountWei) * BigInt(finalSeconds) + interval - 1n) / interval;
+  const markdown = `# ${policyPackage.name} — Issued Medical Coverage Terms
 
 Document version: ${documentVersion}
 Package ID: ${policyPackage.packageId}
-Policy type: ${policyPackage.policyType}
+Deployment: ${policyPackage.deploymentScope}
+Issue commitment: ${policyPackage.issueHash}
+Policy rule commitment: ${terms.policyRuleVersion}
+Settlement formula commitment: ${terms.settlementFormulaVersion}
 
-## Policy Schedule
+## Coverage and settlement
 
-- Premium: ${policyPackage.premiumAmountEth} ETH
-- Coverage limit: ${policyPackage.coverageAmountEth} ETH
-- Coverage duration: ${policyPackage.durationDays} days
-- Premium schedule: ${premiumInterval}
-- Required claim document: ${policyPackage.requiredDocumentType}
+- Policy type: ${policyPackage.policyType}
+- Term from purchase: ${policyPackage.durationDays} days
+- Aggregate insurer liability limit: ${policyPackage.coverageAmountEth} test ETH
+- Maximum submitted claim: ${ethers.formatEther(terms.maximumClaimWei)} test ETH
+- Initial waiting period: ${terms.waitingPeriodDays} days
+- Reinstatement waiting period: ${terms.reinstatementWaitingPeriodDays} days
+- Claim submission deadline: ${terms.claimDeadlineDays} days after the incident
+- Eligible service codes: ${list(terms.coveredClaimTypes)}
+- Excluded service codes: ${list(terms.excludedClaimTypes)}
+- Primary document required: ${policyPackage.requiredDocumentType} (one commitment; plaintext authenticity is checked separately)
+- Deductible: ${terms.deductibleRateBps / 100}% of the claim, capped at ${ethers.formatEther(terms.deductibleCapWei)} test ETH
+- Insurer share after deductible: ${terms.coinsuranceBps / 100}%
+- Formula: floor((claim - min(floor(claim × deductible basis points / 10000), deductible cap)) × insurer share basis points / 10000)
 
-## Eligibility and Waiting Periods
+A claim whose calculated liability exceeds remaining aggregate coverage is rejected; the contract does not silently reduce it. Eligibility also requires a paid coverage interval, hospital-record integrity, patient authorization and the applicable Oracle/review process. An estimate is not claim approval.
 
-- Rule profile: ${healthTerms.displayName} v${healthTerms.version}
-- Initial waiting period: ${healthTerms.waitingPeriodDays} days
-- Pre-existing-condition waiting period: ${healthTerms.preExistingConditionWaitingDays} days
-- Insurer share after applicable limits: ${healthTerms.coinsuranceBps / 100}%
-- Covered claim types: ${normalizeList(healthTerms.coveredClaimTypes)}
-- Exclusions: ${normalizeList(healthTerms.excludedClaimTypes)}
-- Required disclosures: ${normalizeList(healthTerms.requiredDisclosures) || "None"}
+## Fixed installment schedule
 
-## Additional Benefits
+${schedule.label}. ${schedule.notice}
 
-- Death benefit: ${formatBenefit(
-    benefitTerms?.deathBenefitEnabled,
-    `${benefitTerms?.deathBenefitPercent}% of coverage, subject to verification`
-  )}
-- Surrender value: ${formatBenefit(
-    benefitTerms?.surrenderEnabled,
-    `${benefitTerms?.surrenderValuePercent}% of eligible premiums after ${benefitTerms?.minimumSurrenderInstallments} installments`
-  )}
-- Maturity benefit: ${formatBenefit(
-    benefitTerms?.maturityEnabled,
-    `eligible premiums plus a ${benefitTerms?.maturityBonusPercent}% bonus`
-  )}
-- Published benefit commitment: ${benefitTerms?.termsHash || "Not configured"}
+- First installment at purchase: ${policyPackage.premiumAmountEth} test ETH
+- Calendar periods are anchored to purchase, every ${schedule.intervalLabel}: ${periods} periods for this term
+- Last period: ${durationLabel(finalSeconds)}; charge ${ethers.formatEther(finalWei)} test ETH (a subsequent short final period is prorated, rounded up in wei)
+- Only the next unpaid period can be paid, starting ${schedule.advanceWindowLabel} before its due date; no bulk prepayment
+- Early payment keeps the original calendar dates
+- Collection grace of ${schedule.gracePeriodLabel} does not extend medical coverage past the unpaid due date
+- Reinstatement charges the current calendar period at its scheduled price, excludes the missed interval and applies the reinstatement wait; skipped periods are not arrears
+- No premium collection after the term is fully paid or expired
 
-## Claims and Evidence
+Wallet payment, manual bank OTP and authorized automatic collection settle the same installment. The banking gateway illustrates a simulated BDT balance and fixed exchange quote; its funded gateway wallet supplies actual test ETH. It does not access or debit a real bank account. Native funds go to the medical manager, separately from the optional benefit vault.
 
-Claims must occur during active coverage and satisfy the applicable waiting period, coverage, disclosure, document, hospital-record, fraud-screening, and verification requirements. A preview or estimate is advisory and does not approve a claim.
+## Scope and acceptance
 
-## Surrender and Cancellation
+Pre-existing-condition underwriting is not implemented or promised. Death and maturity products are not offered in this release. An optional cancellation refund requires its own accepted schedule, at least two scheduled paid installments, cancellation, insurer review and a separately funded reserve. It is a fixed contractual refund, not a savings return. Paid incidents retain their original reporting deadline; this medical purchase does not include a later-changing refund schedule.
 
-A surrender estimate may be viewed without changing the policy. An actual surrender requires the configured minimum installments, policy cancellation, a benefit request, review, and sufficient allocated funds.
+The application records acceptance of this document and submits its hash with the expected offer commitment. The contract rejects changed offers and records the document hash with the issued policy. A low-level protocol purchase without this document has no application acceptance binding and is identified as such.
 
-## Digital Acceptance
-
-Purchasing this package requires the policyholder to accept this exact document version and cryptographic hash. The deployed contracts and the terms snapshotted for the issued policy remain authoritative.
-
-## Important Notice
-
-${healthTerms.notice}
+${terms.notice}
 `;
-
-  return {
-    documentVersion,
-    documentHash: ethers.keccak256(ethers.toUtf8Bytes(markdown)),
-    benefitVersion,
-    markdown,
-  };
+  return { documentVersion, documentHash: ethers.id(markdown), benefitVersion: 0, markdown };
 };
-
 module.exports = { buildPolicyDocument };
