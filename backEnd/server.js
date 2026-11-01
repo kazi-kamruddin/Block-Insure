@@ -41,6 +41,7 @@ if (process.env.FORCE_PUBLIC_DNS === "true") {
 const app = express();
 let httpServer = null;
 let shuttingDown = false;
+let startupComplete = false;
 
 /* --------------------------- Basic Config ------------------------------ */
 
@@ -133,13 +134,21 @@ app.get("/", (req, res) => {
   });
 });
 
-const healthPayload = async () => ({
-  ...(await buildHealthPayload({
+const healthPayload = async () => {
+  const payload = await buildHealthPayload({
     databaseConnected: mongoose.connection.readyState === 1,
-  })),
-  uptime: process.uptime(),
-  timestamp: new Date().toISOString(),
-});
+  });
+  return {
+    ...payload,
+    ...(!startupComplete ? {
+      success: false,
+      status: "starting",
+      message: "Backend startup is in progress; blockchain indexing may still be catching up",
+    } : {}),
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  };
+};
 
 app.get("/health/live", (req, res) => {
   res.set("Cache-Control", "no-store").status(200).json({
@@ -276,7 +285,11 @@ const closeHttpServer = () =>
 const startServer = async () => {
   try {
     await connectDatabase();
+    // Expose liveness before historical indexing. Hosted port detection must
+    // not wait for a public-chain catch-up; readiness stays false until done.
+    await listenForRequests();
     if (runtimeConfig.blockchainRuntimeEnabled) {
+      console.log("[Backend] Initializing blockchain services and catching up indexed history");
       await startBlockchainIndexer();
       startEvidenceAnchorScheduler();
       startReviewAccessScheduler();
@@ -287,9 +300,12 @@ const startServer = async () => {
       console.warn("[Backend] Blockchain runtime disabled; starting in off-chain preview mode");
     }
 
-    await listenForRequests();
+    startupComplete = true;
+    console.log("[Backend] Startup complete");
   } catch (error) {
+    startupComplete = false;
     console.error("Backend startup failed:", error.message);
+    await closeHttpServer().catch(() => undefined);
     if (runtimeConfig.blockchainRuntimeEnabled) {
       stopBlockchainIndexer();
       stopEvidenceAnchorScheduler();
