@@ -129,6 +129,7 @@ test("real MongoDB indexer replay repairs partial batches and scopes uniqueness"
   const provider = {
     getNetwork: async () => ({ chainId: 31337n }), getBlockNumber: async () => 2,
     getBlock: async (number) => ({ number, hash: `block-${number}`, parentHash: `block-${number - 1}` }),
+    send: async (_method, params) => ({ hash: `block-${Number(BigInt(params[0]))}` }),
     getLogs: async () => [1, 2].map((number) => ({ ...encoded, address, index: 0, transactionHash: `tx-${number}`, blockNumber: number, blockHash: `block-${number}` })),
   };
   let writes = 0, crash = true;

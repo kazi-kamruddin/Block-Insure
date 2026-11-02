@@ -210,3 +210,12 @@ before sharing the URL.
   procedure.
 - Secret exposure: stop services, rotate the affected credential or wallet, revoke
   obsolete roles, and rebuild the frontend if a public `VITE_*` value changed.
+
+
+### Historical indexing after a restart
+
+The indexer resumes from its deployment-scoped MongoDB checkpoint. It scans all missed contract event ranges, storing headers for event-bearing blocks and range endpoints rather than every empty block. A fresh endpoint hash check precedes checkpoint advancement; detected reorganizations rewind and replay the affected interval. Existing dense block records and checkpoints remain compatible and need no reset or migration.
+
+Measure catch-up by checkpoint block height, not the number of IndexedBlock documents: new markers are sparse. Initial readiness remains unavailable until startup initialization finishes. Runtime catch-up duration depends on missed range, event density and RPC limits. A free Render service can sleep without inbound requests; completed checkpoints persist in Atlas. Do not disable indexing, move the start block or clear Atlas as a speed workaround.
+
+Catch-up logs identify the fixed target and report checkpoint progress every ten ranges and at completion. With an RPC verified to accept that range, `INDEXER_CHUNK_SIZE=2000` reduces range-query overhead; the supported limit remains 2000 and the default remains 500. Confirm the provider supports this setting before using it. The checkpoint and current range endpoint are both rechecked before committing, and a missing checkpoint header fails without treating temporary RPC unavailability as a reorganization.

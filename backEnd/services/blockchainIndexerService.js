@@ -166,8 +166,9 @@ const rollbackReorgs = async (provider, context = null) => {
   await IndexedBlockchainEvent.deleteMany({ indexerId, blockNumber: { $gt: completed?.blockNumber ?? -1 } });
   let latest = await IndexedBlock.findOne({ indexerId }).sort({ blockNumber: -1 });
   while (latest) {
-    const canonical = await provider.getBlock(latest.blockNumber);
-    if (canonical?.hash === latest.blockHash) break;
+    const canonical = await provider.send("eth_getBlockByNumber", [ethers.toQuantity(latest.blockNumber), false]);
+    if (!canonical) throw new Error("Indexer checkpoint block is unavailable");
+    if (canonical.hash === latest.blockHash) break;
     await Promise.all([
       IndexedBlockchainEvent.deleteMany({ indexerId, blockNumber: { $gte: latest.blockNumber } }),
       IndexedBlock.deleteMany({ indexerId, blockNumber: { $gte: latest.blockNumber } }),
@@ -175,6 +176,12 @@ const rollbackReorgs = async (provider, context = null) => {
     latest = await IndexedBlock.findOne({ indexerId }).sort({ blockNumber: -1 });
   }
 
+  // With sparse markers, the fork may begin between the last canonical marker
+  // and the first invalid one. Replay that entire gap, not only marker heights.
+  await IndexedBlockchainEvent.deleteMany({
+    indexerId,
+    ...(latest ? { blockNumber: { $gt: latest.blockNumber } } : {}),
+  });
   if (!latest) {
     await IndexerCheckpoint.deleteOne({ indexerId });
     return null;
@@ -207,20 +214,39 @@ const runIndexingBatch = async () => {
 
   let indexedBlocks = 0;
   let indexedEvents = 0;
+  let previousCheckpoint = checkpoint;
+  let ranges = 0;
+  const reportCatchup = confirmedThrough - fromBlock + 1 > CHUNK_SIZE;
+  if (reportCatchup) console.info(`[Indexer] Catch-up ${fromBlock}..${confirmedThrough} (${confirmedThrough - fromBlock + 1} blocks; ranges of ${CHUNK_SIZE})`);
   for (; fromBlock <= confirmedThrough; fromBlock += CHUNK_SIZE) {
     const toBlock = Math.min(fromBlock + CHUNK_SIZE - 1, confirmedThrough);
-    const [logs, blocks] = await Promise.all([
-      provider.getLogs({
-        address: [...indexedSources.keys()],
-        fromBlock,
-        toBlock,
-      }),
-      Promise.all(
-        Array.from({ length: toBlock - fromBlock + 1 }, (_, offset) =>
-          provider.getBlock(fromBlock + offset)
-        )
-      ),
-    ]);
+    // Bind the range to one canonical endpoint before querying logs. A stored
+    // endpoint commits its entire ancestor range, including empty blocks, so
+    // we need not fetch/store every header just to recover after a restart.
+    const endpoint = await provider.getBlock(toBlock);
+    if (!endpoint) throw new Error("Confirmed block disappeared during indexing");
+    const logs = await provider.getLogs({
+      address: [...indexedSources.keys()],
+      fromBlock,
+      toBlock,
+    });
+    const eventBlockNumbers = [...new Set(logs.map((log) => log.blockNumber))];
+    if (eventBlockNumbers.some((number) => !Number.isSafeInteger(number) || number < fromBlock || number > toBlock)) {
+      throw new Error("Log outside requested indexing range");
+    }
+    const headers = new Map([[toBlock, endpoint]]);
+    const missing = eventBlockNumbers.filter((number) => number !== toBlock);
+    // Dense ranges must not create an unbounded RPC burst either.
+    for (let offset = 0; offset < missing.length; offset += 4) {
+      for (const block of await Promise.all(missing.slice(offset, offset + 4).map((number) => provider.getBlock(number)))) {
+        if (!block) throw new Error("Confirmed block disappeared during indexing");
+        headers.set(block.number, block);
+      }
+    }
+    if (logs.some((log) => headers.get(log.blockNumber)?.hash !== log.blockHash)) {
+      throw new Error("Log block hash changed during indexing");
+    }
+    const blocks = [...headers.values()];
 
     if (blocks.some((block) => !block)) throw new Error("Confirmed block disappeared during indexing");
     await IndexedBlock.bulkWrite(
@@ -278,17 +304,37 @@ const runIndexingBatch = async () => {
       indexedEvents += 1;
     }
 
-    const finalBlock = blocks[blocks.length - 1];
+    // A fork during reads/writes must not advance the durable checkpoint. Any
+    // partial suffix is discarded/replayed by rollbackReorgs on the next run.
+    // send bypasses ethers' short getBlock request cache: the two observations
+    // must be independent even when an empty range completes in <250 ms.
+    const [finalBlock, previousBlock] = await Promise.all([
+      provider.send("eth_getBlockByNumber", [ethers.toQuantity(toBlock), false]),
+      previousCheckpoint
+        ? provider.send("eth_getBlockByNumber", [ethers.toQuantity(previousCheckpoint.blockNumber), false])
+        : null,
+    ]);
+    if (!finalBlock || finalBlock.hash !== endpoint.hash) {
+      throw new Error("Chain changed during indexing range");
+    }
+    if (previousCheckpoint && (!previousBlock || previousBlock.hash !== previousCheckpoint.blockHash)) {
+      throw new Error("Previous checkpoint changed during indexing range");
+    }
     await IndexerCheckpoint.findOneAndUpdate(
       { indexerId },
       {
         contractAddress,
-        blockNumber: finalBlock.number,
+        blockNumber: toBlock,
         blockHash: finalBlock.hash,
       },
       { returnDocument: "after", upsert: true }
     );
-    indexedBlocks += blocks.length;
+    previousCheckpoint = { blockNumber: toBlock, blockHash: finalBlock.hash };
+    indexedBlocks += toBlock - fromBlock + 1;
+    ranges++;
+    if (reportCatchup && (ranges % 10 === 0 || toBlock === confirmedThrough)) {
+      console.info(`[Indexer] Checkpoint ${toBlock}/${confirmedThrough}; ${indexedBlocks} blocks scanned, ${indexedEvents} events indexed`);
+    }
   }
   return { indexedBlocks, indexedEvents };
 };
