@@ -220,7 +220,7 @@ export default function AdminCreatePolicyPackagePage() {
           Premium amount in ETH
           <input
             type="number"
-            step="0.001"
+            step="any"
             min="0"
             value={form.premiumAmountEth}
             onChange={(event) =>
@@ -234,7 +234,7 @@ export default function AdminCreatePolicyPackagePage() {
           Coverage amount in ETH
           <input
             type="number"
-            step="0.001"
+            step="any"
             min="0"
             value={form.coverageAmountEth}
             onChange={(event) =>
@@ -294,7 +294,7 @@ export default function AdminCreatePolicyPackagePage() {
 
         <label>
           Deductible cap (ETH)
-          <input type="number" min="0" step="0.001" value={form.deductibleCapEth} onChange={(event) => updateField("deductibleCapEth", event.target.value)} required />
+          <input type="number" min="0" step="any" value={form.deductibleCapEth} onChange={(event) => updateField("deductibleCapEth", event.target.value)} required />
         </label>
 
         <label>
@@ -304,7 +304,7 @@ export default function AdminCreatePolicyPackagePage() {
 
         <label>
           Maximum claim (ETH)
-          <input type="number" min="0.001" step="0.001" value={form.maximumClaimEth} onChange={(event) => updateField("maximumClaimEth", event.target.value)} required />
+          <input type="number" min="0.000000000000000001" step="any" value={form.maximumClaimEth} onChange={(event) => updateField("maximumClaimEth", event.target.value)} required />
         </label>
 
         <label>

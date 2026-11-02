@@ -77,7 +77,7 @@ export default function HospitalRecordsPage() {
         <label>Admission date<input type="date" value={form.admissionDate} onChange={(e) => updateField("admissionDate", e.target.value)} required /></label>
         <label>Discharge date<input type="date" value={form.dischargeDate} onChange={(e) => updateField("dischargeDate", e.target.value)} required /></label>
         <label>Invoice date<input type="date" value={form.invoiceDate} onChange={(e) => updateField("invoiceDate", e.target.value)} required /></label>
-        <label>Bill amount (ETH)<input type="number" min="0.001" step="0.001" value={form.billAmount} onChange={(e) => updateField("billAmount", e.target.value)} required /></label>
+        <label>Bill amount (ETH)<input type="number" min="0.000000000000000001" step="any" value={form.billAmount} onChange={(e) => updateField("billAmount", e.target.value)} required /></label>
         <button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? "Creating..." : "Create hospital record"}</button>
         <p className="muted-text">Record changes queue automatic publication. Oracle verification uses a confirmed immutable snapshot.</p>
       </form>

@@ -244,7 +244,7 @@ export default function AdminPolicyPackagesPage() {
                   Premium amount in ETH
                   <input
                     type="number"
-                    step="0.001"
+                    step="any"
                     min="0"
                     value={editForm.premiumAmountEth}
                     onChange={(event) =>
@@ -258,7 +258,7 @@ export default function AdminPolicyPackagesPage() {
                   Coverage amount in ETH
                   <input
                     type="number"
-                    step="0.001"
+                    step="any"
                     min="0"
                     value={editForm.coverageAmountEth}
                     onChange={(event) =>
