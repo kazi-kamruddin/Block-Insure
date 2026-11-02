@@ -219,3 +219,29 @@ The indexer resumes from its deployment-scoped MongoDB checkpoint. It scans all 
 Measure catch-up by checkpoint block height, not the number of IndexedBlock documents: new markers are sparse. Initial readiness remains unavailable until startup initialization finishes. Runtime catch-up duration depends on missed range, event density and RPC limits. A free Render service can sleep without inbound requests; completed checkpoints persist in Atlas. Do not disable indexing, move the start block or clear Atlas as a speed workaround.
 
 Catch-up logs identify the fixed target and report checkpoint progress every ten ranges and at completion. With an RPC verified to accept that range, `INDEXER_CHUNK_SIZE=2000` reduces range-query overhead; the supported limit remains 2000 and the default remains 500. Confirm the provider supports this setting before using it. The checkpoint and current range endpoint are both rechecked before committing, and a missing checkpoint header fails without treating temporary RPC unavailability as a reorganization.
+
+### Expired Oracle requests on hosted workers
+
+If a worker repeatedly fails `estimateGas` for `commitOracleResult`, inspect the
+decoded request ID, current block, recorded deadlines, fulfillment, eligibility
+and commitments. An expired commit cannot be repaired by increasing gas. A failed
+estimate itself sends no transaction.
+
+For an unfulfilled request past its reveal deadline, the existing Admin claim
+page offers **Resolve Oracle Timeout**. Confirm the correct network and claim,
+then resolve once and retain its receipt. Reconcile an uncertain response against
+the existing request before retrying. This is a paid testnet transaction that
+finalizes the timeout and permits the normal manual-review path; it does not
+retry or approve the expired Oracle request.
+
+The current worker advances its scan cursor only after successful event handling.
+An expired unfulfilled request can block that range until timeout resolution.
+After resolving, verify both cursors advance beyond the request block and recent
+polls recover. `ready` alone does not prove either worker reached chain head.
+Do not clear cursors, skip history, reset the database or redeploy contracts.
+
+Free hosting may sleep or restart during request windows; that is an availability
+limit. Preserve failures separately from successful fallback tests. The initial
+cause of a missed window requires timestamped logs. Worker source changes also
+affect the frozen protocol package identity, so operational recovery must not
+silently replace the evaluator pinned by existing requests.
