@@ -30,6 +30,7 @@ import {
 } from "../services/contractService";
 import { CLAIM_ACTIONS, getClaimActionRule } from "../services/claimActionRules";
 import { getClaimStatusName } from "../utils/claimStatus";
+import { describeOracleFinalization } from "../utils/oracleFinalization";
 import "../styles/pages/AdminClaimDetailPage.css";
 
 function extractClaim(data) {
@@ -145,6 +146,7 @@ async function getOracleQuorumStatus(claimId) {
     confirmations: Number(confirmations),
     required: Number(oracleRequest.requiredConfirmations),
     finalized: Boolean(oracleRequest.isFulfilled),
+    ...describeOracleFinalization(oracleRequest),
     commitDeadlineBlock: oracleRequest.commitDeadlineBlock.toString(),
     revealDeadlineBlock: oracleRequest.revealDeadlineBlock.toString(),
     registryVersion: oracleRequest.registryVersion.toString(),
@@ -561,10 +563,8 @@ export default function AdminClaimDetailPage() {
                 ))}
               </div>
 
-              <p className={oracleQuorumStatus.finalized ? "success-text" : "muted-text"}>
-                {oracleQuorumStatus.finalized
-                  ? "Oracle quorum reached."
-                  : "Awaiting additional oracle confirmation."}
+              <p className={oracleQuorumStatus.quorumReached ? "success-text" : "muted-text"}>
+                {oracleQuorumStatus.message}
               </p>
             </>
           ) : null}

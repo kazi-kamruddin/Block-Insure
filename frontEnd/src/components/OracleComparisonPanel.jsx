@@ -352,7 +352,7 @@ export default function OracleComparisonPanel({ log, logs, quorumSummary }) {
         </div>
       ) : (
         <p className="muted-text">
-          On-chain confirmations exist, but no per-oracle metadata log is available yet.
+          No per-oracle metadata log is available yet. See the recorded quorum outcome above.
         </p>
       )}
     </div>
