@@ -569,7 +569,7 @@ export default function ClaimDetailPage() {
                   <input
                     type="number"
                     min="0"
-                    step="0.001"
+                    step="any"
                     value={proposedClaimAmountEth}
                     onChange={(event) =>
                       setProposedClaimAmountEth(event.target.value)

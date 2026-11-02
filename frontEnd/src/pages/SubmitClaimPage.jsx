@@ -577,7 +577,7 @@ export default function SubmitClaimPage() {
           Claim amount in ETH
           <input
             type="number"
-            step="0.001"
+            step="any"
             min="0"
             value={claimAmount}
             disabled={Boolean(resumeAttempt)} onChange={(event) => setClaimAmount(event.target.value)}

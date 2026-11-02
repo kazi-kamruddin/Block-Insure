@@ -1,5 +1,84 @@
 const { test, expect } = require("@playwright/test");
 
+for (const scenario of [
+  { role: "USER", route: "/user/claims/new", fields: [["Claim amount in ETH", "0.00002"]] },
+  { role: "ADMIN", route: "/admin/policy-packages/new", fields: [
+    ["Premium amount in ETH", "0.000001"], ["Coverage amount in ETH", "0.0001"],
+    ["Deductible cap (ETH)", "0.000002"], ["Maximum claim (ETH)", "0.0001"],
+  ] },
+]) {
+  test(`compact amounts remain valid in ${scenario.route}`, async ({ page }) => {
+    // Native browser validation against the built UI; synthetic API session
+    // fixtures isolate this regression from wallet/RPC integration acceptance.
+    const walletAddress = "0x6575cbc8b95abc6ab6628e7aec176af5769580f9";
+    const user = { role: scenario.role, walletAddress };
+    await page.addInitScript(({ user }) => {
+      localStorage.setItem("blockinsure_wallet", user.walletAddress);
+      localStorage.setItem("blockinsure_user", JSON.stringify(user));
+      localStorage.setItem("blockinsure_jwt", "synthetic-ui-test");
+      window.ethereum = {
+        request: async ({ method }) => {
+          if (["eth_accounts", "eth_requestAccounts"].includes(method)) return [user.walletAddress];
+          if (method === "eth_chainId") return "0x7a69";
+          throw new Error("This UI fixture does not authorize wallet writes");
+        },
+        on() {}, removeListener() {},
+      };
+    }, { user });
+    await page.route("**/api/**", (route) => route.fulfill({ json: {
+      success: true, user, policies: [], hospitals: [], packages: [],
+      attempts: [], pendingAttempts: [], limit: { remaining: 5 },
+    } }));
+    await page.goto(scenario.route);
+    for (const [label, value] of scenario.fields) {
+      const input = page.getByLabel(label, { exact: true });
+      await input.fill(value);
+      expect(await input.evaluate((element) => element.validity.valid)).toBe(true);
+      await input.fill("-0.000001");
+      expect(await input.evaluate((element) => element.validity.valid)).toBe(false);
+    }
+  });
+}
+
+test("hospital form accepts compact ETH invoices and blocks zero or negative amounts", async ({ page }) => {
+  // UI regression against a real production build; API fixtures isolate native
+  // form validation. This is separate from hosted hospital/contract acceptance.
+  await page.addInitScript(() => sessionStorage.setItem("blockinsure_hospital_session", "synthetic-ui-test"));
+  let submitted;
+  await page.route("**/api/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/api/hospital-staff/session") return route.fulfill({ json: {
+      success: true, staff: { displayName: "Synthetic staff", hospitalId: "HOSP-001" },
+    } });
+    if (pathname === "/api/hospitals/records" && route.request().method() === "POST") {
+      submitted = route.request().postDataJSON();
+      return route.fulfill({ status: 201, json: { success: true, message: "Synthetic UI fixture accepted" } });
+    }
+    if (pathname === "/api/hospitals/records") return route.fulfill({ json: { success: true, records: [] } });
+    return route.fulfill({ json: { success: true, count: 0, packages: [] } });
+  });
+  await page.goto("/hospital/records");
+  await page.getByLabel(/Patient reference/).fill("SYNTHETIC-COMPACT");
+  await page.getByLabel("Invoice number", { exact: true }).fill("UI-COMPACT-001");
+  await page.getByLabel(/Authorized claimant wallets/).fill("0x6575cBC8B95aBc6aB6628e7AeC176aF5769580F9");
+  await page.getByLabel("Diagnosis code", { exact: true }).fill("GEN-001");
+  for (const label of ["Admission date", "Discharge date", "Invoice date"]) await page.getByLabel(label, { exact: true }).fill("2026-11-02");
+  const amount = page.getByLabel("Bill amount (ETH)", { exact: true });
+  for (const invalid of ["0", "-0.00002"]) {
+    await amount.fill(invalid);
+    await page.getByRole("button", { name: "Create hospital record", exact: true }).click();
+    expect(await amount.evaluate((input) => input.validity.valid)).toBe(false);
+    expect(submitted).toBeUndefined();
+  }
+  for (const valid of ["0.000000000000000001", "0.00002", "0.1"]) {
+    await amount.fill(valid);
+    expect(await amount.evaluate((input) => input.validity.valid)).toBe(true);
+  }
+  await amount.fill("0.00002");
+  await page.getByRole("button", { name: "Create hospital record", exact: true }).click();
+  await expect.poll(() => submitted?.billAmount).toBe("0.00002");
+});
+
 test("built release metadata exposes only the allowlisted public deployment configuration", async ({ request }) => {
   const response = await request.get("/release-config.json");
   expect(response.ok()).toBe(true);
