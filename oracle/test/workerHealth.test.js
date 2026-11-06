@@ -8,6 +8,7 @@ const healthy = {
   pollIntervalMs: 15_000,
   now,
   state: {
+    scanHead: 1000, nextScanBlock: 1000, headObservedAt: new Date(now).toISOString(),
     initialized: true,
     lastError: "",
     lastSuccessfulPollAt: new Date(now - 1_000).toISOString(),

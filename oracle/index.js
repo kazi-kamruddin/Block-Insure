@@ -23,6 +23,7 @@ const {
 } = require("./protocol");
 const { loadCursorState, persistCursorState } = require("./cursorState");
 const { isWorkerReady } = require("./workerHealth");
+const { createScanRecovery, requestDisposition } = require("./scanRecovery");
 const {
   loadAndVerifyModelArtifact,
 } = require("./modelArtifact");
@@ -113,10 +114,11 @@ const simulatedNetworkDelayMs =
 const runtimeModelArtifact = loadAndVerifyModelArtifact(
   process.env.MODEL_ARTIFACT_PATH || undefined
 );
-const { resolveRequestModel, loadProtocolArtifact } = require("./runtimeProtocol");
+const { resolveRequestModel, loadProtocolArtifact, loadOperationalRelease } = require("./runtimeProtocol");
 const { assessProtocol, unavailable: unavailableProtocol } = require("./protocolAssessment");
 // Legacy artifact is retained only for requests that already pin its identity.
 const activeProtocol = loadProtocolArtifact();
+const operationalRelease = loadOperationalRelease();
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const oracleWallet = ORACLE_WORKER_ENABLED
@@ -130,7 +132,7 @@ const manager = new ethers.Contract(
 let coordinator;
 let coordinatorAddress;
 let nextOracleScanBlock = ORACLE_START_BLOCK;
-let isPolling = false;
+let stopping = false;
 let cachedRegistryRoot = ethers.ZeroHash;
 let lastHeartbeatSentAt = 0;
 const processingRequests = new Set();
@@ -248,7 +250,7 @@ const loadPersistedCursor = async () => {
   }
 };
 
-const persistCursor = async () => {
+const persistCursor = async (nextBlock = nextOracleScanBlock) => {
   const network = await provider.getNetwork();
   if (ORACLE_CURSOR_MODE === "backend") {
     const timestamp = new Date().toISOString();
@@ -258,7 +260,7 @@ const persistCursor = async () => {
       oracleWallet.address.toLowerCase(),
       network.chainId.toString(),
       coordinatorAddress.toLowerCase(),
-      String(nextOracleScanBlock),
+      String(nextBlock),
       timestamp,
     ].join(":");
     const signature = await oracleWallet.signMessage(message);
@@ -269,7 +271,7 @@ const persistCursor = async () => {
         oracleInstanceId: ORACLE_INSTANCE_ID,
         chainId: network.chainId.toString(),
         contractAddress: coordinatorAddress,
-        nextBlock: nextOracleScanBlock,
+        nextBlock,
         timestamp,
         signature,
       },
@@ -282,7 +284,7 @@ const persistCursor = async () => {
     chainId: network.chainId.toString(),
     contractAddress: coordinatorAddress,
     oracleInstanceId: ORACLE_INSTANCE_ID,
-    nextBlock: nextOracleScanBlock,
+    nextBlock,
   });
 };
 
@@ -472,21 +474,17 @@ const classifyResponse = (request, claim, response, appealCommitmentValid, indep
 };
 
 const waitForRevealPhase = async (requestId) => {
-  for (;;) {
-    const request = await coordinator.getRequest(requestId);
-    if (request.isFulfilled || (await coordinator.hasRevealed(requestId, oracleWallet.address))) {
-      return request;
-    }
-    const blockNumber = await provider.getBlockNumber();
-    const allCommitted =
-      Number(await coordinator.commitmentCount(requestId)) ===
-      Number(request.expectedResponses);
-    if (allCommitted || blockNumber > Number(request.commitDeadlineBlock)) return request;
-    if (blockNumber > Number(request.revealDeadlineBlock)) {
-      throw new Error(`Request ${requestId} reveal window expired`);
-    }
-    await sleep(Math.min(ORACLE_POLL_INTERVAL_MS, 2000));
-  }
+  if (stopping) throw new Error("Oracle stopping");
+  const request = await coordinator.getRequest(requestId);
+  if (request.isFulfilled || await coordinator.hasRevealed(requestId, oracleWallet.address)) return request;
+  const blockNumber = await provider.getBlockNumber();
+  if (blockNumber > Number(request.revealDeadlineBlock)) return request;
+  if (blockNumber > Number(request.commitDeadlineBlock) ||
+      Number(await coordinator.commitmentCount(requestId)) === Number(request.expectedResponses)) return request;
+  // Retain this range for replay; do not hold a scan invocation throughout the commit window.
+  const pending = new Error("Oracle reveal phase pending");
+  pending.deferred = true;
+  throw pending;
 };
 
 const handleOracleRequested = async (requestId, claimId) => {
@@ -502,6 +500,14 @@ const handleOracleRequested = async (requestId, claimId) => {
     }
     if (!(await coordinator.eligibleForRequest(requestId, oracleWallet.address))) {
       console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Not eligible for request ${requestKey}`);
+      return true;
+    }
+    const disposition = requestDisposition({ request,
+      revealed: false, eligible: true,
+      committed: (await coordinator.commitments(requestId, oracleWallet.address)) !== ethers.ZeroHash,
+      block: await provider.getBlockNumber() });
+    if (disposition.startsWith("expired")) {
+      console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Request ${requestKey} ${disposition}; timeout/finalization required, not fulfilled`);
       return true;
     }
     const selectedModel = resolveRequestModel(request.modelVersion);
@@ -594,6 +600,14 @@ const handleOracleRequested = async (requestId, claimId) => {
     });
     const existingCommitment = await coordinator.commitments(requestId, oracleWallet.address);
 
+    const beforeSend = requestDisposition({ request: await coordinator.getRequest(requestId),
+      revealed: await coordinator.hasRevealed(requestId, oracleWallet.address), eligible: true,
+      committed: existingCommitment !== ethers.ZeroHash, block: await provider.getBlockNumber() });
+    if (beforeSend === "complete" || beforeSend.startsWith("expired")) {
+      if (beforeSend.startsWith("expired")) console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Request ${requestKey} ${beforeSend}; timeout/finalization required`);
+      return true;
+    }
+    if (stopping) throw new Error("Oracle stopping");
     if (existingCommitment === ethers.ZeroHash) {
       const commitTx = await retryTransaction("Commit", () =>
         coordinator.commitOracleResult(requestId, commitment)
@@ -605,7 +619,12 @@ const handleOracleRequested = async (requestId, claimId) => {
     }
 
     request = await waitForRevealPhase(requestId);
-    if (request.isFulfilled) return true;
+    if (request.isFulfilled || await coordinator.hasRevealed(requestId, oracleWallet.address)) return true;
+    if (await provider.getBlockNumber() > Number(request.revealDeadlineBlock)) {
+      console.warn(`[Oracle ${ORACLE_INSTANCE_ID}] Request ${requestKey} expired-reveal; timeout/finalization required`);
+      return true;
+    }
+    if (stopping) throw new Error("Oracle stopping");
 
     const revealTx = await retryTransaction("Reveal", () =>
       coordinator.revealOracleResult(
@@ -668,51 +687,42 @@ const handleOracleRequested = async (requestId, claimId) => {
   }
 };
 
-const pollOracleRequests = async () => {
-  if (isPolling) return;
-  isPolling = true;
-  serviceState.lastPollAt = new Date().toISOString();
-  try {
-    const latestBlock = await provider.getBlockNumber();
-    if (nextOracleScanBlock > latestBlock) {
-      await sendHeartbeat();
-      serviceState.lastSuccessfulPollAt = new Date().toISOString();
-      serviceState.lastError = "";
-      return;
-    }
-    const endBlock = Math.min(
-      latestBlock,
-      nextOracleScanBlock + ORACLE_EVENT_QUERY_CHUNK_SIZE - 1
-    );
-    const [requestEvents, registryEvents] = await Promise.all([
-      coordinator.queryFilter(
-        coordinator.filters.OracleRequested(),
-        nextOracleScanBlock,
-        endBlock
-      ),
-      coordinator.queryFilter(
-        coordinator.filters.RegistrySnapshotPublished(),
-        nextOracleScanBlock,
-        endBlock
-      ),
+const positiveConfig = (key, fallback, maximum) => {
+  const value = Number(process.env[key] || fallback);
+  if (!Number.isSafeInteger(value) || value < 1 || value > maximum) throw new Error(`${key} is outside its supported bounds`);
+  return value;
+};
+const maxReadyLag = positiveConfig("ORACLE_READY_MAX_LAG_BLOCKS", 150, 150);
+const scan = createScanRecovery({
+  getHead: () => provider.getBlockNumber(), getNext: () => nextOracleScanBlock,
+  onHead: head => { serviceState.scanHead = head; serviceState.headObservedAt = new Date().toISOString(); },
+  readRange: async (from, to) => {
+    const [events, registry] = await Promise.all([
+      coordinator.queryFilter(coordinator.filters.OracleRequested(), from, to),
+      coordinator.queryFilter(coordinator.filters.RegistrySnapshotPublished(), from, to),
     ]);
-    const latestRegistryEvent = registryEvents.at(-1);
-    if (latestRegistryEvent) cachedRegistryRoot = latestRegistryEvent.args.root;
-
-    for (const event of requestEvents) {
-      await handleOracleRequested(event.args.requestId, event.args.claimId);
-    }
-    nextOracleScanBlock = endBlock + 1;
-    await persistCursor();
-    await sendHeartbeat();
+    if (registry.length) cachedRegistryRoot = registry.at(-1).args.root;
+    return events;
+  },
+  processEvent: event => handleOracleRequested(event.args.requestId, event.args.claimId),
+  persist: persistCursor,
+  advance: next => { nextOracleScanBlock = next; serviceState.nextScanBlock = next; },
+  heartbeat: () => sendHeartbeat(), stopped: () => stopping,
+  chunkSize: ORACLE_EVENT_QUERY_CHUNK_SIZE, pollMs: ORACLE_POLL_INTERVAL_MS,
+  maxRanges: positiveConfig("ORACLE_CATCHUP_MAX_RANGES", 10, 50),
+  budgetMs: positiveConfig("ORACLE_CATCHUP_BUDGET_MS", 5000, 30000),
+});
+const pollOracleRequests = async () => {
+  serviceState.lastPollAt = new Date().toISOString();
+  const result = await scan();
+  if (result.error) {
+    serviceState.lastError = "Oracle scan failed; retry scheduled";
+    console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Scan failed; retry in ${result.delayMs}ms`);
+  } else if (!result.stopped && !result.overlap) {
     serviceState.lastSuccessfulPollAt = new Date().toISOString();
     serviceState.lastError = "";
-  } catch (error) {
-    serviceState.lastError = error.message;
-    console.error(`[Oracle ${ORACLE_INSTANCE_ID}] Polling failed:`, error.message);
-  } finally {
-    isPolling = false;
   }
+  if (!stopping) pollTimer = setTimeout(pollOracleRequests, result.delayMs);
 };
 
 const startOracle = async () => {
@@ -737,9 +747,9 @@ const startOracle = async () => {
   }
   serviceState.deployment = { chainId: String(runtimeNetwork.chainId), managerAddress: CONTRACT_ADDRESS.toLowerCase(), coordinatorAddress: coordinatorAddress.toLowerCase() };
   await loadPersistedCursor();
-  await pollOracleRequests();
+  serviceState.nextScanBlock = nextOracleScanBlock;
   serviceState.initialized = true;
-  pollTimer = setInterval(pollOracleRequests, ORACLE_POLL_INTERVAL_MS);
+  await pollOracleRequests();
   if (shadowEnabled) {
     void pollShadows();
     shadowTimer = setInterval(pollShadows, 10000);
@@ -750,6 +760,7 @@ const workerReady = () => isWorkerReady({
   enabled: ORACLE_WORKER_ENABLED,
   state: serviceState,
   pollIntervalMs: ORACLE_POLL_INTERVAL_MS,
+  maxLagBlocks: maxReadyLag,
 });
 
 const sanitizedHealth = () => ({
@@ -762,9 +773,14 @@ const sanitizedHealth = () => ({
   registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
   cursorMode: ORACLE_CURSOR_MODE,
   shadow: shadowState,
+  operationalRelease: { release: operationalRelease.release, runtimeIdentityHash: operationalRelease.runtimeIdentityHash, compatibleModelIdentityHash: operationalRelease.compatibleModelIdentityHash },
   protocolModel: { model: "XGBoost", identity: activeProtocol.modelIdentityHash, legacyRequestsSupported: true,
     scope: "Packaged configuration; actual routing follows each on-chain request model identity" },
   nextScanBlock: nextOracleScanBlock,
+  scanHead: serviceState.scanHead ?? null,
+  scanLagBlocks: Number.isSafeInteger(serviceState.scanHead) ? Math.max(0, serviceState.scanHead - nextOracleScanBlock + 1) : null,
+  headObservedAt: serviceState.headObservedAt || null,
+  readinessMaxLagBlocks: maxReadyLag,
   startedAt: serviceState.startedAt,
   lastPollAt: serviceState.lastPollAt,
   lastSuccessfulPollAt: serviceState.lastSuccessfulPollAt,
@@ -826,8 +842,9 @@ const startWithRetry = async () => {
 };
 
 const shutdown = () => {
+  stopping = true;
   if (shadowTimer) clearInterval(shadowTimer);
-  if (pollTimer) clearInterval(pollTimer);
+  if (pollTimer) clearTimeout(pollTimer);
   if (startRetryTimer) clearTimeout(startRetryTimer);
   healthServer?.close(() => process.exit(0));
   if (!healthServer) process.exit(0);

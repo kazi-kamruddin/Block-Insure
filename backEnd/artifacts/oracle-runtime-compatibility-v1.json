@@ -1,0 +1,13 @@
+{
+  "schema": "oracle-runtime-compatibility-v1",
+  "release": "oracle-backlog-recovery-v1",
+  "compatibleModelIdentityHash": "0xe722db3519fc3f2667c5ba1b8a18854b8a59357a925d37ecf38d5903ad9b6595",
+  "frozenProfileSha256": "3799e45de1e9be95aa728cb33308eab163b0b685a1542779a503a2c494a93ff9",
+  "files": {
+    "oracle/index.js": "7ca0baffa0f9ba5532abdfe6ef4c15c26dd991564f8b85dd870df9b2d20a6bc4",
+    "oracle/runtimeProtocol.js": "d09e5ce172bad4fd4c94ea239a1381531145a43900c72f97247d92b5d7335a9a",
+    "oracle/scanRecovery.js": "4f5b65736004f56be16950e7e5019400ae026101fd45f07ebf5906fd5c8fcc29",
+    "oracle/workerHealth.js": "a13def0498218680ec43af589db130dc78a54b9f8fea16a82a8d65f11239e6c3"
+  },
+  "runtimeIdentityHash": "0xf0763fe568ee33478e746ad40342fdcef7e4e62fbea1099101262d88129d01b6"
+}

@@ -26,6 +26,7 @@ const {
 } = require("../services/policyRuleService");
 const {
   claimMatchesSubmittedFacts,
+  resolveSubmittedClaim,
 } = require("../services/claimSubmissionIntegrityService");
 
 const createError = (message, statusCode = 400) => {
@@ -719,38 +720,15 @@ const reconcileClaimSubmission = async (req, res, next) => {
       throw createError("Claim transaction reverted", 409);
     }
 
-    let claimId = "";
-
-    const transaction = await contract.runner.getTransaction(attempt.transactionHash);
-    if (!transaction || transaction.from.toLowerCase() !== req.user.walletAddress.toLowerCase()
-      || transaction.to?.toLowerCase() !== (await contract.getAddress()).toLowerCase()) throw createError("Submission signer or target does not match", 403);
-
-    for (const log of receipt.logs) {
-      try {
-        if (log.address.toLowerCase() !== (await contract.getAddress()).toLowerCase()) continue;
-        const parsedLog = contract.interface.parseLog(log);
-
-        if (parsedLog?.name === "ClaimSubmitted") {
-          claimId = parsedLog.args.claimId.toString();
-          break;
-        }
-      } catch {
-        // Ignore unrelated logs.
-      }
-    }
-
-    if (!claimId) {
-      throw createError("Confirmed transaction did not submit a claim", 409);
-    }
-
-    const [claim, fileRecord] = await Promise.all([
-      contract.getClaim(claimId),
-      File.findById(attempt.documentId),
-    ]);
+    const fileRecord = await File.findById(attempt.documentId);
 
     if (!fileRecord) {
       throw createError("Attempt document record is missing", 409);
     }
+
+    const { claimId, claim } = await resolveSubmittedClaim({
+      contract, receipt, walletAddress: req.user.walletAddress, attempt, file: fileRecord,
+    });
 
     if (
       claim.claimantWallet.toLowerCase() !== req.user.walletAddress.toLowerCase() ||

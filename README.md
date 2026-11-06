@@ -8,6 +8,11 @@ hospital-registry verification, two Oracle workers, and explainable risk scoring
 The project uses simulated banking and healthcare records for development and
 evaluation. It is not a production insurance service or a clinical fraud detector.
 
+Oracle restart recovery uses bounded historical scanning and a separately verified
+operational release while preserving the frozen request-pinned evaluator. See
+[Oracle recovery and compatibility](docs/oracle-backlog-recovery.md) for local
+verification, configuration and the remaining hosted publication check.
+
 ## Features
 
 - Policy purchase, premium payments, standing bank instructions, and statements.
