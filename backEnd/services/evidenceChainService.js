@@ -150,7 +150,7 @@ const getEvidenceChainForClaim = async (claimId) => {
       claimId: "",
       documentCount: 0,
       headHash: "",
-      verified: true,
+      verified: false,
       documents: [],
     };
   }
@@ -195,7 +195,7 @@ const getEvidenceChainForClaim = async (claimId) => {
     documentCount: documents.length,
     headHash: headDocument?.evidenceChainHash || "",
     genesisHash: GENESIS_EVIDENCE_HASH,
-    verified: documents.every((document) => document.chainLinkVerified),
+    verified: documents.length > 0 && documents.every((document) => document.chainLinkVerified),
     documents,
   };
 };

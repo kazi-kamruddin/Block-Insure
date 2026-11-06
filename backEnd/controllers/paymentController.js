@@ -159,13 +159,6 @@ const confirmPremiumPayment = async (req, res, next) => {
     if (Number(receipt.status) !== 1) {
       throw createError("Payment transaction did not succeed", 409);
     }
-    if (String(transaction.to || "").toLowerCase() !== getContractAddress().toLowerCase()) {
-      throw createError("Transaction was not sent to the insurance contract", 409);
-    }
-    if (transaction.from.toLowerCase() !== req.user.walletAddress.toLowerCase()) {
-      throw createError("Payment transaction belongs to another wallet", 403);
-    }
-
     const parsedPayments = receipt.logs.flatMap((log) => {
       if (log.address.toLowerCase() !== getContractAddress().toLowerCase()) return [];
       try {
@@ -177,10 +170,9 @@ const confirmPremiumPayment = async (req, res, next) => {
         return [];
       }
     });
-    const match = parsedPayments.find(
-      ({ parsed }) =>
-        parsed.args.payer.toLowerCase() === req.user.walletAddress.toLowerCase()
-    );
+    const matches = parsedPayments.filter(({ parsed }) => parsed.args.payer.toLowerCase() === req.user.walletAddress.toLowerCase());
+    if (matches.length > 1) throw createError("Transaction contains multiple wallet premium payments; confirmation is ambiguous", 409);
+    const match = matches[0];
     if (!match) {
       throw createError("Transaction does not contain a premium payment", 409);
     }

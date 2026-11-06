@@ -1,0 +1,19 @@
+{
+  "schema": "oracle-runtime-compatibility-v2",
+  "release": "oracle-appeal-proof-v2",
+  "compatibleModelIdentityHashes": [
+    "0x291d87466f849c14d63b382e58436fc235b31ad0ecd777a4ee82b376d70492af",
+    "0xe722db3519fc3f2667c5ba1b8a18854b8a59357a925d37ecf38d5903ad9b6595",
+    "0x5fe2760cc2306065c60287b80df97ca66ba1da54ce3647389672e9bc5ea58e4a"
+  ],
+  "frozenProfileSha256": "3799e45de1e9be95aa728cb33308eab163b0b685a1542779a503a2c494a93ff9",
+  "activeProfileSha256": "d991ea6af77aa6f914424303def310f2ba4a75d47caf4bc42bd200f14a8c7edf",
+  "files": {
+    "oracle/index.js": "f1ff0cf8c16e9eb70278e3369c9a30d8370f69d5e1de84cb36d9374d8de271ab",
+    "oracle/runtimeProtocol.js": "e1fc44267cdce7bb29d734b0cfbb37040e1b06aa6109800d5acc7cd9ae4789bd",
+    "oracle/scanRecovery.js": "4f5b65736004f56be16950e7e5019400ae026101fd45f07ebf5906fd5c8fcc29",
+    "oracle/workerHealth.js": "a13def0498218680ec43af589db130dc78a54b9f8fea16a82a8d65f11239e6c3",
+    "oracle/appealValidation.js": "dacedc0e03c6a6bdc74fc38f8cd6f3a6b114ff948254b3154d8f0b24514cdf6d"
+  },
+  "runtimeIdentityHash": "0xfbc9911a6b580c43d8b7626e353f24a4beef3ad16b0dc4d74a30d4c83263754d"
+}

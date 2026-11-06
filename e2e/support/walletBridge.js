@@ -89,11 +89,13 @@ async function createActorContext(browser, actorName, contextOptions = {}) {
     baseURL: environment.appUrl,
     ...contextOptions,
   });
+  let transactionRelay = null;
 
   await context.exposeBinding(
     "__blockInsureWalletRequest",
-    async (_source, payload) =>
-      dispatchWalletRequest({ provider, wallet, chainId: environment.chainId }, payload)
+    async (_source, payload) => payload?.method === "eth_sendTransaction" && transactionRelay
+      ? transactionRelay(normalizeTransaction(payload.params[0]))
+      : dispatchWalletRequest({ provider, wallet, chainId: environment.chainId }, payload)
   );
 
   await context.addInitScript(
@@ -150,7 +152,7 @@ async function createActorContext(browser, actorName, contextOptions = {}) {
   );
 
   const page = await context.newPage();
-  return { actor, context, page, provider, wallet };
+  return { actor, context, page, provider, wallet, setTransactionRelay: relay => { transactionRelay = relay; } };
 }
 
 async function closeActor(actorSession) {

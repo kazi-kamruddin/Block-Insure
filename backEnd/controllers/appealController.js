@@ -77,12 +77,6 @@ const verifyAppealTransaction = async (
   if (!receipt || !transaction || Number(receipt.status) !== 1) {
     throw createError("Appeal transaction is not confirmed", 409);
   }
-  if (
-    transaction.to?.toLowerCase() !== String(contract.target).toLowerCase() ||
-    transaction.from.toLowerCase() !== walletAddress.toLowerCase()
-  ) {
-    throw createError("Appeal transaction signer or destination is invalid", 403);
-  }
   const matched = receipt.logs.some((log) => {
     try {
       const parsed = contract.interface.parseLog(log);
@@ -90,6 +84,7 @@ const verifyAppealTransaction = async (
         log.address.toLowerCase() === String(contract.target).toLowerCase() &&
         parsed?.name === "ClaimAppealed" &&
         parsed.args.claimId.toString() === claimId &&
+        parsed.args.claimant.toLowerCase() === walletAddress.toLowerCase() &&
         String(parsed.args.appealReasonHash).toLowerCase() ===
           appealReasonHash.toLowerCase()
       );

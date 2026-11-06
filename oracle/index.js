@@ -339,66 +339,13 @@ const saveOracleLog = async (payload) => {
   }
 };
 
+const appealValidators = require("./appealValidation").createAppealValidators({
+  crypto, ethers, provider, manager, CONTRACT_ADDRESS, invoiceIdentity, normalizeHash,
+});
 const validateAppealCommitment = async (request, claim, response) => {
-  if (Number(request.claimVersion) <= 1) return true;
-  const commitment = response.appealCommitment;
-  const payload = commitment?.payload;
-  if (!payload || payload.schema !== "BLOCK_INSURE_APPEAL_V1") return false;
-
-  const computedHash = `0x${crypto
-    .createHash("sha256")
-    .update(JSON.stringify(payload), "utf8")
-    .digest("hex")}`;
-  if (normalizeHash(computedHash) !== normalizeHash(commitment.appealReasonHash)) {
-    return false;
-  }
-
-  const query = response.query || {};
-  const invoiceCandidates = payload.proposedInvoiceNumber
-    ? [ethers.id(payload.proposedInvoiceNumber.trim()), invoiceIdentity(claim.hospitalId, payload.proposedInvoiceNumber)]
-    : [claim.invoiceHash];
-  const expectedInvoiceHash = claim.invoiceHash;
-  const expectedAmount = payload.proposedClaimAmountEth || ethers.formatEther(claim.claimAmount);
-  if (ethers.parseEther(expectedAmount) !== claim.claimAmount ||
-      !invoiceCandidates.some((hash) => normalizeHash(hash) === normalizeHash(claim.invoiceHash)) ||
-      (payload.proposedHospitalId && payload.proposedHospitalId !== claim.hospitalId) ||
-      (payload.proposedClaimType && payload.proposedClaimType !== claim.claimType)) return false;
-  if (
-    String(payload.claimId) !== claim.claimId.toString() ||
-    String(query.claimId) !== claim.claimId.toString() ||
-    normalizeHash(query.invoiceHash) !== normalizeHash(expectedInvoiceHash) ||
-    String(query.hospitalId) !== String(payload.proposedHospitalId || claim.hospitalId) ||
-    String(query.claimType) !== String(payload.proposedClaimType || claim.claimType) ||
-    String(query.claimAmountEth) !== String(expectedAmount)
-  ) {
-    return false;
-  }
-
-  const [receipt, transaction] = await Promise.all([
-    provider.getTransactionReceipt(commitment.transactionHash),
-    provider.getTransaction(commitment.transactionHash),
-  ]);
-  if (
-    !receipt ||
-    !transaction ||
-    Number(receipt.status) !== 1 ||
-    normalizeHash(transaction.to) !== normalizeHash(CONTRACT_ADDRESS) ||
-    normalizeHash(transaction.from) !== normalizeHash(claim.claimantWallet)
-  ) {
-    return false;
-  }
-  return receipt.logs.some((log) => {
-    try {
-      const event = manager.interface.parseLog(log);
-      return (
-        normalizeHash(log.address) === normalizeHash(CONTRACT_ADDRESS) && event?.name === "ClaimAppealed" &&
-        event.args.claimId.toString() === claim.claimId.toString() &&
-        normalizeHash(event.args.appealReasonHash) === normalizeHash(computedHash)
-      );
-    } catch {
-      return false;
-    }
-  });
+  const selected = resolveRequestModel(request.modelVersion);
+  return (selected.artifact.appealProofVersion === "trusted-appeal-events-v2"
+    ? appealValidators.eventBound : appealValidators.legacy)(request, claim, response);
 };
 
 const classifyResponse = (request, claim, response, appealCommitmentValid, independentOverride) => {
@@ -535,7 +482,7 @@ const handleOracleRequested = async (requestId, claimId) => {
       registryVersion: request.registryVersion.toString(),
       registryRoot: request.registryRoot,
       modelVersion: request.modelVersion,
-      modelArtifactHash: selectedModel.kind === "legacy-nb" ? runtimeModelArtifact.artifactHash : activeProtocol.modelIdentityHash,
+      modelArtifactHash: selectedModel.kind === "legacy-nb" ? runtimeModelArtifact.artifactHash : selectedModel.artifact.modelIdentityHash,
     };
     const hospitalResponse = await backendHttp.get(MOCK_HOSPITAL_API_URL, {
       params: { ...queryData, registrySnapshot: ORACLE_REGISTRY_SNAPSHOT },
@@ -645,7 +592,7 @@ const handleOracleRequested = async (requestId, claimId) => {
       modelIdentity: {
         modelVersion: selectedModel.artifact.modelVersion,
         modelIdentityHash: selectedModel.artifact.modelIdentityHash,
-        artifactHash: selectedModel.kind === "legacy-nb" ? runtimeModelArtifact.artifactHash : activeProtocol.bundleHash,
+        artifactHash: selectedModel.kind === "legacy-nb" ? runtimeModelArtifact.artifactHash : selectedModel.artifact.bundleHash,
         role: selectedModel.kind === "legacy-nb" ? "HISTORICAL_REQUEST" : "ORACLE_ROUTING",
       },
       requestId: requestKey,
@@ -773,7 +720,7 @@ const sanitizedHealth = () => ({
   registrySnapshot: ORACLE_REGISTRY_SNAPSHOT,
   cursorMode: ORACLE_CURSOR_MODE,
   shadow: shadowState,
-  operationalRelease: { release: operationalRelease.release, runtimeIdentityHash: operationalRelease.runtimeIdentityHash, compatibleModelIdentityHash: operationalRelease.compatibleModelIdentityHash },
+  operationalRelease: { release: operationalRelease.release, runtimeIdentityHash: operationalRelease.runtimeIdentityHash, compatibleModelIdentityHashes: operationalRelease.compatibleModelIdentityHashes },
   protocolModel: { model: "XGBoost", identity: activeProtocol.modelIdentityHash, legacyRequestsSupported: true,
     scope: "Packaged configuration; actual routing follows each on-chain request model identity" },
   nextScanBlock: nextOracleScanBlock,

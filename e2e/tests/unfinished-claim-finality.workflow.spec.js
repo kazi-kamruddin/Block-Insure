@@ -223,9 +223,10 @@ test.describe("@unfinished manual-review finality", () => {
     }
   });
 
-  test("rejected claim completes an encrypted corrected appeal through both Oracles and settlement", async ({ browser }) => {
+  test("rejected claim completes an encrypted corrected appeal through both Oracles and settlement", async ({ browser }, testInfo) => {
     test.setTimeout(300_000);
     const { user, claimId, correctedInvoice } = await createManualReview(browser);
+    let sponsored;
     try {
       for (const actorName of ["auditor1", "auditor2"]) {
         const auditor = await createActorContext(browser, actorName);
@@ -248,6 +249,7 @@ test.describe("@unfinished manual-review finality", () => {
 
       await user.page.goto(`/user/claims/${claimId}`);
       await expect(user.page.locator(".status-badge").filter({ hasText: "REJECTED" })).toBeVisible();
+      if (process.env.E2E_SPONSORED_APPEAL === "true") sponsored = await require("../support/sponsoredWallet").enableLocalSponsoredWallet(user);
       const appealReason = `Corrected registry invoice for appeal ${claimId}`;
       await user.page.getByLabel("Appeal category").selectOption("DOCUMENT_ERROR");
       await user.page.getByLabel("Appeal reason").fill(appealReason);
@@ -344,6 +346,14 @@ test.describe("@unfinished manual-review finality", () => {
 
       const appealReceipt = await user.provider.getTransactionReceipt(appeal.transactionHash);
       expect(appealReceipt?.status).toBe(1);
+      if (sponsored) {
+        const outer = await user.provider.getTransaction(appeal.transactionHash);
+        expect(outer.from.toLowerCase()).toBe(sponsored.relayerAddress.toLowerCase());
+        expect(outer.to.toLowerCase()).toBe(user.wallet.address.toLowerCase());
+        expect(outer.to.toLowerCase()).not.toBe(manager.target.toLowerCase());
+        await testInfo.attach("sponsored-appeal-transport", { body: JSON.stringify({ transactionHash: outer.hash,
+          category: "real local nested calls with synthetic delegated wallet; not MetaMask acceptance", outerFrom: outer.from, outerTo: outer.to }), contentType: "application/json" });
+      }
       const eventNames = appealReceipt.logs.flatMap((log) => {
         try {
           return [manager.interface.parseLog(log)?.name].filter(Boolean);
@@ -359,7 +369,8 @@ test.describe("@unfinished manual-review finality", () => {
       });
       expect(Number((await manager.getClaim(claimId)).status)).toBe(9);
     } finally {
-      await closeActor(user);
+      try { await sponsored?.restore(); }
+      finally { await closeActor(user); }
     }
   });
 });

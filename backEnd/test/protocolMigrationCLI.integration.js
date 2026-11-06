@@ -64,6 +64,16 @@ test("isolated CLI migration enforces expected identity and signer authority acr
     const promote = migrate(["--apply", "--expect", active.legacyModelIdentityHash]);
     assert.equal(promote.status, 0); assert.equal(JSON.parse(promote.stdout).to, active.modelIdentityHash);
     assert.equal(JSON.parse(promote.stdout).transactionSent, true);
+    const historical = require("../../oracle/runtimeProtocol").loadHistoricalProtocolArtifact();
+    const managerInterface = new (require("ethers").Interface)(require("../abi/InsuranceManager.json").abi);
+    await rpc("eth_sendTransaction", [{ from: wallet(0).address, to: deployment.components.InsuranceManager,
+      data: managerInterface.encodeFunctionData("updateOracleModelVersion", [historical.modelIdentityHash]) }]);
+    const fromV4 = migrate(); assert.equal(fromV4.status, 0);
+    assert.equal(JSON.parse(fromV4.stdout).from, historical.modelIdentityHash);
+    assert.equal(JSON.parse(fromV4.stdout).transactionSent, false);
+    const promotedV4 = migrate(["--apply", "--expect", historical.modelIdentityHash]);
+    assert.equal(promotedV4.status, 0); assert.equal(JSON.parse(promotedV4.stdout).to, active.modelIdentityHash);
+    assert.equal(JSON.parse(promotedV4.stdout).transactionSent, true);
     const nonce = await rpc("eth_getTransactionCount", [wallet(0).address, "latest"]);
     assert.notEqual(migrate(["--rollback", "--apply", "--expect", active.legacyModelIdentityHash]).status, 0);
     assert.notEqual(migrate(["--rollbak", "--apply", "--expect", active.modelIdentityHash]).status, 0);
@@ -73,11 +83,15 @@ test("isolated CLI migration enforces expected identity and signer authority acr
     assert.equal(await rpc("eth_getTransactionCount", [wallet(1).address, "latest"]), "0x0");
     const after = migrate(); assert.equal(after.status, 0); assert.equal(JSON.parse(after.stdout).from, active.modelIdentityHash);
     assert.deepEqual(hashes(), before);
-    fs.writeFileSync(path.join(root, "tmp/protocol-cli-final.json"), JSON.stringify({ passed: true,
+    const evidenceDirectory = path.resolve(process.env.PROTOCOL_CLI_EVIDENCE_DIR || path.join(root, "tmp"));
+    assert.ok(evidenceDirectory.startsWith(root + path.sep));
+    fs.mkdirSync(evidenceDirectory, { recursive: true });
+    fs.writeFileSync(path.join(evidenceDirectory, "protocol-cli-final.json"), JSON.stringify({ passed: true,
       modelIdentity: active.modelIdentityHash, dryRunSentNothing: true, authorizedRollback: true, authorizedPromotion: true,
       staleExpectationRejected: true, unauthorizedSignerRejected: true, rejectedCallsSentNothing: true,
       defaultUnchangedAfterRejectedCalls: true, savedEnvironmentsAndManifestUnchanged: true,
       misspelledRollbackRejected: true, missingExpectedValueRejected: true, existingMeasurementsPreserved: true,
+      historicalV4DryRunSentNothing: true, historicalV4PromotedWithExpectedIdentity: true,
       readOnlyReceiptMeasurement: measurement,
       scope: "Explicit isolated chain 31337; no MongoDB, public deployment, hosted activation or Git writes" }, null, 2));
   } finally {

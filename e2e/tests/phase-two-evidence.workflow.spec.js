@@ -81,6 +81,16 @@ test.describe("@workflow phase two evidence and review recovery", () => {
       const files = await mongo.db.collection("files").find({ claimId }).sort({ uploadSlot: 1 }).toArray();
       expect(files).toHaveLength(2); expect(new Set(files.map((file) => file.associatedDataHash)).size).toBe(2);
       expect(await mongo.db.collection("claimsubmissionattempts").countDocuments({ claimId })).toBe(1);
+      await user.page.goto(`/user/claims/${claimId}`);
+      const ownerFiles = user.page.locator(".evidence-chain-item");
+      await expect(ownerFiles).toHaveCount(2);
+      for (const [index, original] of [primary, supporting].entries()) {
+        const downloaded = user.page.waitForEvent("download");
+        await ownerFiles.nth(index).getByRole("button", { name: "Download decrypted" }).click();
+        const download = await downloaded;
+        expect(fs.readFileSync(await download.path()).equals(original.buffer)).toBe(true);
+      }
+      await testInfo.attach("owner-decryption-verified", { body: "Both original plaintext files matched after browser decryption", contentType: "text/plain" });
       await openReview(browser, claimId);
       const { manager, adjudicator } = await chain(user);
       expect((await adjudicator.getReview(claimId, 1)).deadline).toBe(0n);

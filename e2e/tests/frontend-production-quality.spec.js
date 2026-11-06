@@ -242,3 +242,29 @@ test.describe("@frontend-production public quality", () => {
     expect(failures).toEqual([]);
   });
 });
+for (const legacyVerified of [false, true]) {
+  test(`empty evidence is awaiting linkage even when verified=${legacyVerified}`, async ({ page }) => {
+    const user = { role: "USER", walletAddress: "0x6575cbc8b95abc6ab6628e7aec176af5769580f9" };
+    await page.addInitScript(({ user }) => {
+      localStorage.setItem("blockinsure_wallet", user.walletAddress);
+      localStorage.setItem("blockinsure_user", JSON.stringify(user));
+      localStorage.setItem("blockinsure_jwt", "synthetic-ui-test");
+      window.ethereum = { request: async ({ method }) => {
+        if (["eth_accounts", "eth_requestAccounts"].includes(method)) return [user.walletAddress];
+        if (method === "eth_chainId") return "0x7a69";
+        throw Error("UI fixture forbids wallet operations");
+      }, on() {}, removeListener() {} };
+    }, { user });
+    await page.route("**/api/**", route => route.fulfill({ json: {
+      success: true, user, logs: [], appeal: null,
+      claim: { claimId: "4", policyId: "3", claimantWallet: user.walletAddress, claimAmountEth: "0.00002", claimType: "HOSPITALIZATION", hospitalId: "HOSP-001", status: { code: 9, label: "SETTLED" } },
+      evidenceChain: { documentCount: 0, documents: [], headHash: "", verified: legacyVerified },
+    } }));
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto("/user/claims/4");
+    const panel = page.locator(".evidence-chain-panel");
+    await expect(panel.locator(".evidence-chain-status")).toHaveText("Awaiting evidence linkage");
+    await expect(panel.locator(".is-verified")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  });
+}

@@ -58,3 +58,17 @@ test("malformed inference scores or recommendations cannot authorize automatic v
     assert.throws(() => assessProtocol(f.packet, f.authoritative, loaded), /Invalid protocol inference/);
   }
 });
+
+test("v4 and v5 preserve exact frozen inference while binding different protocol identities", () => {
+  const f = fixture();
+  const assess = artifact => {
+    const authoritative = { ...f.authoritative, request: { ...f.authoritative.request, modelVersion: artifact.modelIdentityHash } };
+    const bound = binding({ ...authoritative, bundleHash: f.loaded.bundleHash, manifestHash: f.loaded.manifestHash });
+    return assessProtocol({ ...f.packet, binding: bound, contextId: hash(bound) }, authoritative);
+  };
+  const historical = assess(require("../runtimeProtocol").loadHistoricalProtocolArtifact());
+  const current = assess(loadProtocolArtifact());
+  assert.equal(current.score, historical.score);
+  assert.deepEqual(current.assessment.result, historical.assessment.result);
+  assert.notEqual(current.verificationCode, historical.verificationCode);
+});

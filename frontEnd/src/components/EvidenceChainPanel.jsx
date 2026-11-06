@@ -24,6 +24,7 @@ export default function EvidenceChainPanel({
   delegationPending = "",
 }) {
   const documents = evidenceChain?.documents || [];
+  const hasEvidence = documents.length > 0 && Number(evidenceChain?.documentCount) > 0;
   const [receiptError, setReceiptError] = useState("");
 
   async function downloadReceipt(documentId) {
@@ -66,10 +67,10 @@ export default function EvidenceChainPanel({
         </div>
         <span
           className={`evidence-chain-status ${
-            evidenceChain.verified ? "is-verified" : "is-broken"
+            !hasEvidence ? "" : evidenceChain.verified ? "is-verified" : "is-broken"
           }`}
         >
-          {evidenceChain.verified ? "Verified" : "Broken"}
+          {!hasEvidence ? "Awaiting evidence linkage" : evidenceChain.verified ? "Verified" : "Broken"}
         </span>
       </div>
 
