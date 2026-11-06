@@ -1,4 +1,6 @@
+const { trustedEvents, verifyWalletExecution } = require("../services/transactionExecutionService");
 const { ethers } = require("ethers");
+const benefitEventInterface = new ethers.Interface(require("../abi/PolicyBenefitsManager.json").abi);
 const { getReadOnlyContract } = require("../services/contractService");
 const { getIssuedTerms, getIssuedDocument } = require("../services/issuedPolicyTermsService");
 const { getPolicyTerms } = require("../services/policyRuleService");
@@ -159,20 +161,14 @@ const getConfirmedBenefitsTransaction = async (req, expectedFunction) => {
   if (Number(receipt.status) !== 1) {
     throw createError("Benefit transaction reverted", 409);
   }
-  if (
-    transaction.to?.toLowerCase() !== getBenefitsAddress().toLowerCase() ||
-    transaction.from.toLowerCase() !== req.user.walletAddress.toLowerCase()
-  ) {
-    throw createError("Transaction sender or target does not match this request", 403);
-  }
-
-  const parsed = contract.interface.parseTransaction({
-    data: transaction.data,
-    value: transaction.value,
-  });
-  if (parsed?.name !== expectedFunction) {
-    throw createError(`Transaction does not execute ${expectedFunction}`, 409);
-  }
+  const expectedId = String(req.params.requestId || req.params.packageId || "");
+  const { parsed } = await verifyWalletExecution({ contract, transaction, transactionHash,
+    walletAddress: req.user.walletAddress, method: expectedFunction,
+    matches: args => String(args[0]) === expectedId });
+  const eventName = { publishBenefitTerms: "BenefitTermsPublished", approveBenefit: "BenefitApproved",
+    rejectBenefit: "BenefitRejected", settleBenefit: "BenefitAllocated" }[expectedFunction];
+  const events = trustedEvents({ target: contract.target, interface: benefitEventInterface }, receipt, eventName, args => String(args.requestId ?? args.packageId) === expectedId);
+  if (events.length !== 1) throw createError("Transaction does not uniquely prove the expected benefit operation", 409);
 
   return { parsed, receipt, transactionHash };
 };

@@ -4,10 +4,10 @@ const { summarize } = require("../services/protocolMonitoringService");
 const { normalizeReceipt } = require("../../scripts/networkMeasurement");
 const fixture = require("./helpers/shadowFixture");
 const { assessProtocol } = require("../../oracle/protocolAssessment");
-const { loadProtocolArtifact } = require("../../oracle/runtimeProtocol");
+const { loadProtocolArtifact, loadHistoricalProtocolArtifact } = require("../../oracle/runtimeProtocol");
 
-test("durable protocol decisions survive retries and never replace the first commitment assessment", async () => {
-  const f = fixture(), active = loadProtocolArtifact(); f.authoritative.request.modelVersion = active.modelIdentityHash;
+for (const profileLoader of [loadProtocolArtifact, loadHistoricalProtocolArtifact]) test(`durable ${profileLoader().modelVersion} decisions survive retries and never replace the first commitment assessment`, async () => {
+  const f = fixture(), active = profileLoader(); f.authoritative.request.modelVersion = active.modelIdentityHash;
   const rows = new Map(), provider = { getBlock: async () => ({ hash: "canonical" }), destroy() {} };
   const bound = require("../../oracle/shadowAssessment").binding({ ...f.authoritative, bundleHash: f.loaded.bundleHash, manifestHash: f.loaded.manifestHash });
   const packet = { ...f.packet, binding: bound, contextId: require("../../oracle/shadowAssessment").hash(bound) };

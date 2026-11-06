@@ -13,6 +13,11 @@ operational release while preserving the frozen request-pinned evaluator. See
 [Oracle recovery and compatibility](docs/oracle-backlog-recovery.md) for local
 verification, configuration and the remaining hosted publication check.
 
+Protocol v5 adds version-bound appeal proof for direct and relayed transactions
+while retaining frozen XGBoost inference and historical request validators. See
+[sponsored appeal compatibility](docs/sponsored-appeal-compatibility.md) for local
+evidence and the separate rollout/default-activation procedure.
+
 ## Features
 
 - Policy purchase, premium payments, standing bank instructions, and statements.
@@ -42,6 +47,11 @@ subsequently decrypt while the claimant is offline. Appeal registration and orde
 evidence anchoring recover interrupted operations. Death and maturity products are
 disabled in this release. See [evidence, review and recovery](docs/evidence-review-and-recovery.md)
 for lifecycle rules and privacy limits.
+
+The [transaction/evidence stabilization report](docs/transaction-evidence-stabilization.md)
+records locally verified confirmation fixes and remaining hosted checks. The
+[existing-claim recovery procedure](docs/claim-four-evidence-recovery.md) preserves
+the original submission and ciphertext; live recovery has not been performed.
 
 Model scores support claim routing; they do not establish fraud or bypass
 eligibility, auditor quorum, reserves, or payout-withdrawal rules. Fresh

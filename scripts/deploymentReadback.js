@@ -54,7 +54,8 @@ async function verifyDeployment({ manifest, provider, local = false }) {
   for (const name of ["OracleCoordinator", "ClaimAdjudicator", "PolicyEconomics", "EvidenceRegistry"]) if ((await contracts[name].manager()).toLowerCase() !== components.InsuranceManager.toLowerCase()) throw new Error(`Manager owner mismatch: ${name}`);
   if ((await contracts.PolicyBenefitsManager.insuranceManager()).toLowerCase() !== components.InsuranceManager.toLowerCase() ||
     (await contracts.PolicyEconomics.benefitsManager()).toLowerCase() !== components.PolicyBenefitsManager.toLowerCase()) throw new Error("Refund module wiring mismatch");
-  const model = JSON.parse(fs.readFileSync(path.join(root, "backEnd/artifacts/xgboost-protocol-v4.json"))).modelIdentityHash;
+  // Historical manifests remain valid; unknown identities do not.
+  const model = require("../oracle/runtimeProtocol").resolveRequestModel(manifest.modelIdentityHash).artifact.modelIdentityHash;
   if (await manager.oracleModelVersion() !== model || manifest.modelIdentityHash !== model) throw new Error("Model identity mismatch");
   const oracles = Array.from(await contracts.OracleCoordinator.getActiveOracles());
   const auditors = Array.from(await contracts.ClaimAdjudicator.getActiveAuditors());

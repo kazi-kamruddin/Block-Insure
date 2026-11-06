@@ -13,14 +13,16 @@ const original = fs.readFileSync(require.resolve('./fixtures/protocol-v4-index.t
 const patched = fs.readFileSync(require.resolve('../index'), 'utf8');
 const section = (source, start, end) => source.slice(source.indexOf(start), source.indexOf(end));
 const plain = value => JSON.parse(JSON.stringify(value, (_, v) => typeof v === 'bigint' ? String(v) : v));
-test('archived source matches frozen hash; decision-bearing source sections are unchanged', () => {
- const frozen = runtime.loadProtocolArtifact();
+test('archived source and legacy appeal validator remain exact; inference classifier is unchanged', () => {
+ const frozen = runtime.loadHistoricalProtocolArtifact();
  assert.equal(crypto.createHash('sha256').update(original).digest('hex'), frozen.sourceHashes['oracle/index.js']);
- assert.equal(section(original, 'const validateAppealCommitment =', 'const waitForRevealPhase ='), section(patched, 'const validateAppealCommitment =', 'const waitForRevealPhase ='));
- assert.equal(section(original, '    const selectedModel =', '    if (existingCommitment ==='), section(patched, '    const selectedModel =', '    const beforeSend ='));
+ const validators = fs.readFileSync(require.resolve('../appealValidation'), 'utf8');
+ assert.equal(section(original, 'const validateAppealCommitment =', 'const classifyResponse =').trim(), section(validators, 'const validateAppealCommitment =', 'const validateAppealCommitmentV5 =').trim());
+ assert.equal(section(original, 'const classifyResponse =', 'const waitForRevealPhase ='), section(patched, 'const classifyResponse =', 'const waitForRevealPhase ='));
+ assert.equal(section(original, '    const selectedModel =', '    if (existingCommitment ===').replaceAll('activeProtocol.modelIdentityHash', 'selectedModel.artifact.modelIdentityHash'), section(patched, '    const selectedModel =', '    const beforeSend ='));
 });
 async function run(source, f, scenario, instance) {
- const profile = runtime.loadProtocolArtifact();
+ const profile = runtime.loadHistoricalProtocolArtifact();
  const request = { ...f.authoritative.request, modelVersion: profile.modelIdentityHash, queryHash: ethers.id('query'), commitDeadlineBlock: 100, revealDeadlineBlock: 200, expectedResponses: 2, isFulfilled: false };
  if(scenario === 'invalid-appeal' || scenario === 'valid-appeal') request.claimVersion = '2';
  const claim = { ...f.authoritative.claim, claimId: 1n, policyId: 1n, claimAmount: ethers.parseEther(f.authoritative.claim.claimAmountEth), toObject() { return { ...f.authoritative.claim, claimAmount: this.claimAmount }; } };
@@ -57,6 +59,7 @@ async function run(source, f, scenario, instance) {
   triagePolicy:require('../../backEnd/triage-policy.json'),verifyRegistryProof,invoiceIdentity,independentlyAssessRecord,normalizeHash:v=>String(v||'').toLowerCase(),
   assessProtocol,unavailableProtocol:unavailable,shadowFacts:require('../shadowAssessment').facts,shadowHash:hash,signedMessage:require('../shadowAssessment').signedMessage,
   ...protocol,requestDisposition,retryTransaction:async(_,fn)=>fn(),saveOracleLog:async()=>{},sendHeartbeat:async()=>{},console:{log:()=>{},warn:()=>{}} };
+ c.appealValidators = require('../appealValidation').createAppealValidators(c);
  vm.createContext(c);
  const helpers=section(source,'const validateAppealCommitment =','const handleOracleRequested =');
  const handler=section(source,'const handleOracleRequested =',source===original?'const pollOracleRequests =':'const positiveConfig =');

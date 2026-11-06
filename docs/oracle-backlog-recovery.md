@@ -1,5 +1,10 @@
 # Oracle backlog recovery and operational compatibility
 
+Current follow-up: [sponsored appeal compatibility](sponsored-appeal-compatibility.md)
+adds protocol v5 with unchanged inference and historical v4/NB dispatch. The v1
+release details below are historical; the new active release is v2. Base activation
+still requires rollout/readback and an explicitly authorized default-change transaction.
+
 **Local verdict: READY FOR PUBLICATION REVIEW.** Compatibility and recovery tests pass; hosted activation and throughput are not yet verified. No public deployment, funds, chain configuration, model training or Git publication was performed.
 
 ## What changed

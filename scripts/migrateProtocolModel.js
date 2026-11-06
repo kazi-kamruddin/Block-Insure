@@ -3,7 +3,7 @@
 const fs = require("node:fs"), path = require("node:path");
 require("../backEnd/node_modules/dotenv").config({ path: path.resolve(__dirname, "../backEnd/.env"), quiet: true });
 const { ethers } = require("../backEnd/node_modules/ethers");
-const { loadProtocolArtifact } = require("../oracle/runtimeProtocol");
+const { loadProtocolArtifact, resolveRequestModel } = require("../oracle/runtimeProtocol");
 async function main() {
   const args = require("./operatorArguments").parseOperatorArguments(process.argv.slice(2), {
     values: ["--manifest", "--expect"], switches: ["--apply", "--rollback"], required: ["--manifest"],
@@ -22,7 +22,7 @@ async function main() {
     const active = loadProtocolArtifact(), target = args["--rollback"] ? active.legacyModelIdentityHash : active.modelIdentityHash;
     const manager = new ethers.Contract(address, require("../backEnd/abi/InsuranceManager.json").abi, provider);
     const current = await manager.oracleModelVersion();
-    if (![active.modelIdentityHash, active.legacyModelIdentityHash].some((id) => id.toLowerCase() === current.toLowerCase())) throw new Error("Current identity is unknown; no migration attempted");
+    resolveRequestModel(current); // Known historical v4 is a valid migration source; unknown identities fail closed.
     const summary = { chainId: String(manifest.chainId), manager: address, from: current, to: target,
       existingRequests: "Retain pinned model; deploy version-dispatch workers before changing the default", transactionSent: false };
     if (args["--apply"]) {

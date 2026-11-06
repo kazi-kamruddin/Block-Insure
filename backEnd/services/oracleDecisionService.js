@@ -1,6 +1,6 @@
 const { authorizedRequest, getPacket } = require("./oracleShadowService");
 const { hash } = require("../../oracle/shadowAssessment");
-const { loadProtocolArtifact } = require("../../oracle/runtimeProtocol");
+const { resolveRequestModel } = require("../../oracle/runtimeProtocol");
 const { assessProtocol, unavailable } = require("../../oracle/protocolAssessment");
 const fail = () => Object.assign(new Error("Protocol decision is invalid or unavailable"), { statusCode: 409 });
 async function decision(input, save = false) {
@@ -8,8 +8,8 @@ async function decision(input, save = false) {
   if (save && (!input?.assessment || Array.isArray(input.assessment) || JSON.stringify(input.assessment).length > 20000)) throw fail();
   const auth = await authorizedRequest(input, save ? "DECISION_SAVE" : "DECISION_READ", save ? hash(input.assessment) : "");
   try {
-    const a = auth.authoritative, active = loadProtocolArtifact();
-    if (String(a.request.modelVersion).toLowerCase() !== active.modelIdentityHash.toLowerCase()) throw fail();
+    const a = auth.authoritative, selected = resolveRequestModel(a.request.modelVersion), active = selected.artifact;
+    if (selected.kind !== "xgboost") throw fail();
     const identity = { requestId: String(a.request.requestId), claimVersion: String(a.request.claimVersion), modelIdentity: active.modelIdentityHash,
       requestBlockHash: a.requestBlockHash.toLowerCase(), coordinatorAddress: a.coordinatorAddress.toLowerCase(), chainId: a.chainId, oracleWallet: auth.wallet };
     const _id = hash(identity), Model = require("../models/OracleProtocolDecision");
@@ -41,8 +41,8 @@ async function decision(input, save = false) {
 // Called only after the controller verifies the mined reveal transaction.
 // Do not let caller-supplied log metadata manufacture monitoring scores/scope.
 async function validateProtocolLog({ contract, coordinator, requestId, oracleWallet, responseData, resultHash }) {
-  const request = await coordinator.getRequest(requestId), active = loadProtocolArtifact();
-  if (String(request.modelVersion).toLowerCase() !== active.modelIdentityHash.toLowerCase()) return {
+  const request = await coordinator.getRequest(requestId), selected = resolveRequestModel(request.modelVersion), active = selected.artifact;
+  if (selected.kind !== "xgboost") return {
     ...responseData, modelIdentity: { ...responseData.modelIdentity, role: "HISTORICAL_REQUEST" },
   };
   const provider = contract.runner.provider, [network, block, coordinatorAddress] = await Promise.all([

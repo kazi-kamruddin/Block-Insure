@@ -1,3 +1,4 @@
+const { trustedEvents, verifyWalletExecution } = require("../services/transactionExecutionService");
 const { ethers } = require("ethers");
 const {
   getAdminContract,
@@ -22,14 +23,16 @@ const { getConfiguredTerms } = require("../services/issuedPolicyTermsService");
 
 const CONFIRMABLE_ADMIN_ACTIONS = {
   REQUEST_ORACLE_VERIFICATION: {
+    method: "requestOracleVerification",
     event: "OracleRequested",
     status: "ORACLE_PENDING",
   },
   SEND_CLAIM_TO_MANUAL_REVIEW: {
+    method: "sendToManualReview",
     event: "ClaimSentToManualReview",
     status: "MANUAL_REVIEW",
   },
-  RESOLVE_ORACLE_TIMEOUT: { event: "OracleTimedOut", status: "ORACLE_FAILED" },
+  RESOLVE_ORACLE_TIMEOUT: { method: "resolveTimedOutRequest", event: "OracleTimedOut", status: "ORACLE_FAILED" },
 };
 
 /* ----------------------------- Status Map ------------------------------ */
@@ -954,29 +957,8 @@ const confirmAdminClaimTransaction = async (req, res, next) => {
       throw createError("A valid transactionHash is required", 400);
     }
 
-    const previousConfirmation = await AdminActionLog.findOne({
-      action,
-      transactionHash,
-    }).lean();
-
-    if (previousConfirmation) {
-      const contract = getReadOnlyContract();
-      const claim = await contract.getClaim(claimId);
-
-      return res.status(200).json({
-        success: true,
-        idempotent: true,
-        message: "Admin transaction was already confirmed",
-        transactionHash,
-        claim: formatClaim(claim),
-      });
-    }
-
     const contract = getReadOnlyContract();
-    const expectedTarget =
-      action === "RESOLVE_ORACLE_TIMEOUT"
-        ? await (await getOracleCoordinator(contract)).getAddress()
-        : String(contract.target);
+    const executionContract = action === "RESOLVE_ORACLE_TIMEOUT" ? await getOracleCoordinator(contract) : contract;
     const [receipt, transaction] = await Promise.all([
       contract.runner.getTransactionReceipt(transactionHash),
       contract.runner.getTransaction(transactionHash),
@@ -994,63 +976,34 @@ const confirmAdminClaimTransaction = async (req, res, next) => {
       throw createError("Admin transaction reverted", 409);
     }
 
-    if (
-      transaction.to?.toLowerCase() !== expectedTarget.toLowerCase()
-    ) {
-      throw createError("Transaction does not target the expected contract", 409);
-    }
-
-    if (
-      transaction.from.toLowerCase() !== req.user.walletAddress.toLowerCase()
-    ) {
-      throw createError(
-        "Transaction signer does not match the authenticated admin wallet",
-        403
-      );
-    }
-
-    let confirmedEvent = null;
-
-    for (const log of receipt.logs) {
-      try {
-        const parsedLog = contract.interface.parseLog(log);
-        const eventClaimId = parsedLog?.args?.claimId?.toString();
-
-        if (
-          parsedLog?.name === actionConfig.event &&
-          eventClaimId === claimId
-        ) {
-          confirmedEvent = {
-            name: parsedLog.name,
-            claimId: eventClaimId,
-          };
-          break;
-        }
-      } catch {
-        // Ignore unrelated logs.
-      }
-    }
-
-    if (!confirmedEvent) {
-      throw createError(
-        `Transaction does not contain ${actionConfig.event} for claim #${claimId}`,
-        409
-      );
-    }
-
+    const events = trustedEvents(contract, receipt, actionConfig.event, args => String(args.claimId) === claimId);
+    if (events.length !== 1) throw createError(`Transaction does not uniquely contain ${actionConfig.event} for claim #${claimId}`, 409);
+    const sentBy = action === "SEND_CLAIM_TO_MANUAL_REVIEW" ? events[0].event.args.sentBy : null;
+    if (sentBy && sentBy.toLowerCase() !== req.user.walletAddress.toLowerCase())
+      throw createError("Manual review event belongs to another actor", 403);
+    const execution = sentBy ? { actor: sentBy.toLowerCase(), proof: "TRUSTED_ACTOR_EVENT" } :
+      await verifyWalletExecution({ contract: executionContract, transaction, transactionHash,
+        walletAddress: req.user.walletAddress, method: actionConfig.method,
+        matches: args => String(args[0]) === claimId });
+    const confirmedEvent = { name: actionConfig.event, claimId };
+    // Revalidate proof even on retries: another Admin or claim must not borrow a prior audit row.
+    const previousConfirmation = await AdminActionLog.findOne({ action, transactionHash }).lean();
+    if (previousConfirmation && (previousConfirmation.targetId !== claimId ||
+        previousConfirmation.actorWallet !== req.user.walletAddress.toLowerCase()))
+      throw createError("Confirmation is already bound to another actor or claim", 409);
     const claim = await contract.getClaim(claimId);
 
-    if (actionConfig.status) {
+    if (actionConfig.status && !previousConfirmation) {
       await notifyClaimStatusChange({
         claim,
-        status: actionConfig.status,
+        status: CLAIM_STATUS[Number(claim.status)] || actionConfig.status,
         transactionHash,
         source: `wallet-admin-${action.toLowerCase()}`,
         message: `Claim #${claimId} was updated by admin ${req.user.walletAddress}.`,
       });
     }
 
-    await logAdminAction({
+    if (!previousConfirmation) await logAdminAction({
       req,
       action,
       targetType: "CLAIM",
@@ -1059,16 +1012,18 @@ const confirmAdminClaimTransaction = async (req, res, next) => {
       receipt,
       metadata: {
         confirmedEvent,
-        onChainActor: transaction.from,
+        onChainActor: execution.actor,
         executionMode: "ADMIN_BROWSER_WALLET",
+        executionProof: execution.proof,
       },
     });
 
     res.status(200).json({
       success: true,
       message: "Admin wallet transaction confirmed and audited",
+      idempotent: Boolean(previousConfirmation),
       transactionHash,
-      onChainActor: transaction.from,
+      onChainActor: execution.actor,
       claim: formatClaim(claim),
     });
   } catch (error) {

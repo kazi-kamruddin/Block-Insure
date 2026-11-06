@@ -155,11 +155,11 @@ async function verifyLocalDeployment() {
   if (String(identity).toLowerCase() !== protocol.loadProtocolArtifact().modelIdentityHash.toLowerCase()) {
     // A valid historical deployment can resume without silently publishing a
     // new model. Unknown identities still fail closed.
-    if (protocol.resolveRequestModel(identity).kind === "legacy-nb") {
-      console.warn("[Launcher] Existing deployment uses legacy NB; explicit model migration is required for new XGBoost requests.");
-      return;
-    }
-    throw new Error("The running chain uses a different model identity. Review and publish the current model through the administrator, or explicitly reset a disposable deployment. No configuration was changed.");
+    let historical;
+    try { historical = protocol.resolveRequestModel(identity); }
+    catch { throw new Error("The running chain uses a different model identity. No configuration was changed."); }
+    console.warn(`[Launcher] Existing deployment uses ${historical.artifact.modelVersion}; explicit protocol migration is required for the new appeal proof. No configuration was changed.`);
+    return;
   }
 }
 
