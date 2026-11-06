@@ -41,7 +41,7 @@ test("publication mirrors both collections and preserves pinned historical proof
   let count = 0;
   const publisher = load("services/registryPublicationService.js", {
     "./contractService": {
-      getAdminContract: () => ({ runner: { provider: {} } }),
+      getAdminContract: () => ({ runner: { provider: { getTransactionReceipt: async () => ({ status: 1 }) } } }),
       getOracleCoordinator: async () => ({ publishRegistrySnapshot: async () => ({ hash: `0x${String(++count).padStart(64, "0")}`, wait: async () => ({ status: 1 }) }) }),
     },
   });
@@ -78,7 +78,7 @@ test("publication resumes an already mined transaction without sending it twice"
   let calls = 0;
   let confirmed = false;
   const dependencies = { "./contractService": {
-    getAdminContract: () => ({ runner: { provider: { getTransactionReceipt: async () => confirmed ? { status: 1 } : null } } }),
+    getAdminContract: () => ({ runner: { provider: { getTransactionReceipt: async () => { if (!confirmed) throw new Error("lost receipt response"); return { status: 1 }; } } } }),
     getOracleCoordinator: async () => ({ publishRegistrySnapshot: async () => { calls++; return { hash: `0x${"a".repeat(64)}`, wait: async () => { throw new Error("lost receipt response"); } }; } }),
   } };
   const publisher = load("services/registryPublicationService.js", dependencies);

@@ -67,7 +67,13 @@ const publishPendingRegistry = () => {
       const tx = await coordinator.publishRegistrySnapshot(tree.rootHash, tree.leafCount, ethers.id(tree.treeVersion));
       job.transactionHash = tx.hash;
       await job.save(); // Persist before waiting; restart reconciles this receipt.
-      await tx.wait();
+      // Ethers' transaction subscriber runs an asynchronous receipt poll outside
+      // this try/catch; an RPC rejection there can become an unhandled rejection.
+      // Poll once inside our boundary instead. The persisted hash is reconciled
+      // by the next publisher tick when mining or the RPC is still pending.
+      const receipt = await manager.runner.provider.getTransactionReceipt(tx.hash);
+      if (!receipt) return job;
+      if (Number(receipt.status) !== 1) throw new Error("Registry publication reverted; reconcile the stored receipt");
       job.status = "PUBLISHED";
       job.lastError = "";
       await job.save();
