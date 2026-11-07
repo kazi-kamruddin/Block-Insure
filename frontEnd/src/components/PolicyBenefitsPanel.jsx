@@ -10,21 +10,27 @@ import "../styles/components/PolicyBenefitsPanel.css";
 export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
   const [acting, setActing] = useState(false);
   const [error, setError] = useState("");
-  const { data, error: loadError, refetch } = useQuery({ queryKey: ["policyBenefits", policy.policyId], queryFn: () => getPolicyBenefits(policy.policyId), retry: false, refetchInterval: 5000 });
+  const [expanded, setExpanded] = useState(false);
+  const { data, error: loadError, refetch } = useQuery({ queryKey: ["policyBenefits", policy.policyId], queryFn: () => getPolicyBenefits(policy.policyId), retry: false, refetchInterval: expanded ? 5000 : false });
+  const handleToggle = (event) => {
+    const open = event.currentTarget.open;
+    setExpanded(open);
+    if (open) refetch();
+  };
   async function run(action, message) {
     setActing(true); setError("");
     try { await (await action()).wait(); showToast(message); await refetch(); await onPolicyChanged?.(); }
     catch (failure) { setError(parseTransactionError(failure)); }
     finally { setActing(false); }
   }
-  if (loadError) return <details className="policy-benefits-panel"><summary>Cancellation refund</summary><p role="alert">Refund schedule is unavailable. Retry after service recovery.</p><button type="button" onClick={() => refetch()}>Retry refund schedule</button></details>;
+  if (loadError) return <details className="policy-benefits-panel" onToggle={handleToggle}><summary>Cancellation refund</summary><p role="alert">Refund schedule is unavailable. Retry after service recovery.</p><button type="button" onClick={() => refetch()}>Retry refund schedule</button></details>;
   if (!data) return <p role="status">Loading cancellation refund schedule…</p>;
   const { terms, projections, requests } = data;
   const latest = requests.filter((request) => request.benefitType.label === "SURRENDER").at(-1);
   const eligible = Number(policy.installmentsPaid || 0) >= terms.minimumSurrenderInstallments;
   const status = policy.status?.label;
   const retryable = !latest || latest.status.label === "REJECTED";
-  return <details className="policy-benefits-panel min-w-0 break-words"><summary>Cancellation refund</summary>
+  return <details className="policy-benefits-panel min-w-0 break-words" onToggle={handleToggle}><summary>Cancellation refund</summary>
     {!terms.configured || !terms.surrenderEnabled ? <p>This policy does not offer a cancellation refund.</p> : <>
       <p>Optional refund: {terms.surrenderValuePercent}% of premiums actually paid after at least {terms.minimumSurrenderInstallments} installments, cancellation and insurer review. Estimated amount: {projections.surrender.eth} test ETH.</p>
       <p>This is a fixed contractual refund, not a savings return or an actuarial calculation of unused premium. It uses a separately funded reserve. Resolve pending medical claims before refund allocation; existing allocated withdrawals remain payable.</p>

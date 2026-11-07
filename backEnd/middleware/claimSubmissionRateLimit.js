@@ -23,6 +23,18 @@ const claimSubmissionRateLimit = rateLimit({
   },
 });
 
+// Evidence uploads have a separate bounded resource budget. One authorized
+// claim supports five files; consuming the claim-attempt budget per file would
+// reject a single maximum-size evidence set before it can be sealed.
+const claimDocumentUploadRateLimit = rateLimit({
+  windowMs: Number(process.env.CLAIM_SUBMISSION_RATE_WINDOW_MS || 15 * 60 * 1000),
+  limit: Number(process.env.CLAIM_DOCUMENT_UPLOAD_RATE_LIMIT || 25),
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: claimSubmissionKey,
+  message: { success: false, message: "Too many evidence upload requests. Try again later; uploaded files remain preserved." },
+});
+
 const buildAuthLimiter = ({ windowEnv, limitEnv, defaultLimit, message }) =>
   rateLimit({
     windowMs: Number(process.env[windowEnv] || 15 * 60 * 1000),
@@ -51,6 +63,7 @@ const walletLoginRateLimit = buildAuthLimiter({
 
 module.exports = claimSubmissionRateLimit;
 module.exports.claimSubmissionKey = claimSubmissionKey;
+module.exports.claimDocumentUploadRateLimit = claimDocumentUploadRateLimit;
 module.exports.resetClaimSubmissionRateLimit = (req, _res, next) => {
   if (isDevelopmentClaimResetEnabled()) {
     claimSubmissionRateLimit.resetKey(claimSubmissionKey(req));

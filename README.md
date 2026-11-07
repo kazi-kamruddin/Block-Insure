@@ -48,10 +48,11 @@ evidence anchoring recover interrupted operations. Death and maturity products a
 disabled in this release. See [evidence, review and recovery](docs/evidence-review-and-recovery.md)
 for lifecycle rules and privacy limits.
 
-The [transaction/evidence stabilization report](docs/transaction-evidence-stabilization.md)
-records locally verified confirmation fixes and remaining hosted checks. The
-[existing-claim recovery procedure](docs/claim-four-evidence-recovery.md) preserves
-the original submission and ciphertext; live recovery has not been performed.
+The [current acceptance report](docs/comprehensive-acceptance-2026-11-07.md)
+records hosted and isolated local checks, scoped corrections and remaining limits.
+The [earlier transaction/evidence report](docs/transaction-evidence-stabilization.md)
+retains its original evidence. The [existing-claim recovery procedure](docs/claim-four-evidence-recovery.md)
+has now been verified for the original hosted claim without replacing its ciphertext.
 
 Model scores support claim routing; they do not establish fraud or bypass
 eligibility, auditor quorum, reserves, or payout-withdrawal rules. Fresh

@@ -92,11 +92,11 @@ const loadPublicPolicyPackage = async (contract, packageId) => {
 };
 
 const formatPolicy = async (
+  contract,
   policy,
   effectiveStatus = policy.status,
   policyPackage = null
 ) => {
-  const contract = getReadOnlyContract();
   const [issuedTerms, installment, issuedDocument] = await Promise.all([
     getIssuedTerms(contract, policy.policyId), getInstallment(contract, policy), getIssuedDocument(contract, policy),
   ]);
@@ -406,8 +406,10 @@ const simulateHistoricalPolicyEligibility = async (req, res, next) => {
 /* -------------------------- Purchased Policies -------------------------- */
 
 const getMyPolicies = async (req, res, next) => {
+  let provider;
   try {
     const contract = getReadOnlyContract();
+    provider = contract.runner.provider;
 
     const allPolicyIds = await getPolicyIdsByWallet(
       contract,
@@ -425,7 +427,7 @@ const getMyPolicies = async (req, res, next) => {
           contract.getEffectivePolicyStatus(policyId),
         ]);
         const policyPackage = await contract.getPolicyPackage(policy.packageId);
-        return formatPolicy(policy, effectiveStatus, policyPackage);
+        return formatPolicy(contract, policy, effectiveStatus, policyPackage);
       })
     );
 
@@ -437,12 +439,16 @@ const getMyPolicies = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  } finally {
+    provider?.destroy?.();
   }
 };
 
 const getPolicyById = async (req, res, next) => {
+  let provider;
   try {
     const contract = getReadOnlyContract();
+    provider = contract.runner.provider;
 
     const [policy, effectiveStatus] = await Promise.all([
       contract.getPolicy(req.params.policyId),
@@ -466,6 +472,7 @@ const getPolicyById = async (req, res, next) => {
     res.status(200).json({
       success: true,
       policy: await formatPolicy(
+        contract,
         policy,
         effectiveStatus,
         await contract.getPolicyPackage(policy.packageId)
@@ -481,6 +488,8 @@ const getPolicyById = async (req, res, next) => {
       });
   } catch (error) {
     next(error);
+  } finally {
+    provider?.destroy?.();
   }
 };
 
@@ -503,7 +512,7 @@ const previewPurchasedPolicyEligibility = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      policy: await formatPolicy(policy, policy.status, policyPackage),
+      policy: await formatPolicy(contract, policy, policy.status, policyPackage),
       evaluation,
     });
   } catch (error) {

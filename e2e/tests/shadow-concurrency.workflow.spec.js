@@ -54,7 +54,15 @@ test("@workflow simultaneous claimant submissions retain separate evidence and s
     const documents = await mongo.db.collection("files").find({ claimId: { $in: ids } }).toArray();
     expect(documents).toHaveLength(2);
     expect(new Set(documents.map((d) => d.claimId)).size).toBe(2);
-    const read = async (id) => (await (await admin.context.request.get(`http://localhost:5000/api/claims/${id}/advisory`, { headers: await headers(admin) })).json()).advisory;
+    const read = async (id) => {
+      // A pooled socket may close between polls. Retry only one ECONNRESET on
+      // this idempotent GET; HTTP failures and scenario deadlines still fail.
+      const response = await admin.context.request.get(`http://localhost:5000/api/claims/${id}/advisory`, {
+        headers: await headers(admin), maxRetries: 1,
+      });
+      expect(response.status(), await response.text()).toBe(200);
+      return (await response.json()).advisory;
+    };
     const assessed = await Promise.all(ids.map(read));
     expect(assessed.every((a) => a.status === "AVAILABLE")).toBe(true);
     expect(new Set(assessed.map((a) => a.assessmentId)).size).toBe(2);

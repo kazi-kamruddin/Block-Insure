@@ -86,18 +86,22 @@ const getActivePolicyPackageIds = async (contract) => {
 };
 
 const getPolicyIdsByWallet = async (contract, walletAddress) => {
-  return indexedWalletIds("PolicyPurchased", walletAddress, "policyId");
+  return indexedWalletIds(contract, "PolicyPurchased", walletAddress, "policyId");
 };
 
 const getClaimIdsByWallet = async (contract, walletAddress) => {
-  return indexedWalletIds("ClaimSubmitted", walletAddress, "claimId");
+  return indexedWalletIds(contract, "ClaimSubmitted", walletAddress, "claimId");
 };
 
-const indexedWalletIds = async (eventName, wallet, field) => {
+const indexedWalletIds = async (contract, eventName, wallet, field) => {
   const { indexConfirmedEvents, getIndexerContext } = require("./blockchainIndexerService");
   const { getProvider } = require("./contractService");
   await indexConfirmedEvents();
-  const { indexerId } = await getIndexerContext(getProvider());
+  const sharedProvider = contract?.runner?.provider;
+  const provider = sharedProvider || getProvider();
+  let indexerId;
+  try { ({ indexerId } = await getIndexerContext(provider)); }
+  finally { if (!sharedProvider) provider.destroy?.(); }
   const events = require("../models/IndexedBlockchainEvent");
   const ids = await events.distinct(`args.${field}`, { indexerId, eventName, $or: [
     { "args.holderWallet": normalizeAddress(wallet) }, { "args.claimantWallet": normalizeAddress(wallet) },

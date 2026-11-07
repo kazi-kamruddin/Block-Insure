@@ -21,7 +21,16 @@ const getRequiredEnv = (key) => {
 
 const getProvider = () => {
   const rpcUrl = getRequiredEnv("RPC_URL");
-  return new ethers.JsonRpcProvider(rpcUrl);
+  const timeout = Number(process.env.BLOCKCHAIN_RPC_TIMEOUT_MS || 20000);
+  if (!Number.isInteger(timeout) || timeout < 1000 || timeout > 60000) {
+    throw new Error("BLOCKCHAIN_RPC_TIMEOUT_MS must be between 1000 and 60000");
+  }
+  // The library default permits a stalled request to wait five minutes. Keep
+  // transport failures bounded so callers can fail closed and retry normally.
+  const request = new ethers.FetchRequest(rpcUrl);
+  request.timeout = timeout;
+  request.setThrottleParams({ maxAttempts: 3, slotInterval: 500 });
+  return new ethers.JsonRpcProvider(request);
 };
 
 const getContractAddress = () => {
