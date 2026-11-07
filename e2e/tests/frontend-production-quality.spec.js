@@ -53,9 +53,15 @@ for (const firstReadFails of [false, true]) test(`collapsed refund panels stop b
   expect(errors).toEqual([]);
 });
 
-for (const [code, label, manual] of [[2, "FRAUD_FLAGGED", true], [5, "ORACLE_FAILED", true], [1, "DUPLICATE_CHECKED", false], [9, "SETTLED", false]]) {
+for (const [code, label, manual] of [[2, "FRAUD_FLAGGED", true], [5, "ORACLE_FAILED", true], [1, "DUPLICATE_CHECKED", false], [9, "SETTLED", false], [3, "ORACLE_PENDING", false], [6, "MANUAL_REVIEW", false]]) {
   test(`admin manual-review action follows contract state ${label}`, async ({ page }) => {
     // Built component regression; no wallet writes or live API substitution.
+    const pollingCase = code === 3 || code === 6;
+    if (pollingCase) await page.clock.install();
+    const reads = { claim: 0, oracle: 0, quorum: 0, access: 0 };
+    let releaseResume;
+    let resumed = false;
+    const resumePending = new Promise(resolve => { releaseResume = resolve; });
     const user = { role: "ADMIN", walletAddress: "0xd388bb1572cdb7f7db2bb485a1051749f9b1ff1e" };
     const errors = []; page.on("pageerror", e => errors.push(e.message));
     await page.addInitScript(({ user }) => {
@@ -88,7 +94,10 @@ for (const [code, label, manual] of [[2, "FRAUD_FLAGGED", true], [5, "ORACLE_FAI
         else if (item.method === "eth_call") {
           for (const iface of interfaces) {
             const fn = iface.getFunction(item.params[0].data.slice(0, 10));
-            if (fn) { result = iface.encodeFunctionResult(fn, fn.outputs.map(empty)); break; }
+            if (fn) {
+              if (fn.name === "getRequestByClaimId") reads.quorum++;
+              result = iface.encodeFunctionResult(fn, fn.outputs.map(empty)); break;
+            }
           }
         }
         if (result === undefined) throw Error(`Unhandled read-only UI fixture RPC: ${item.method}`);
@@ -96,16 +105,72 @@ for (const [code, label, manual] of [[2, "FRAUD_FLAGGED", true], [5, "ORACLE_FAI
       };
       await route.fulfill({ headers: { "access-control-allow-origin": "*" }, json: Array.isArray(body) ? body.map(respond) : respond(body) });
     });
-    await page.route("**/api/**", route => route.fulfill({ json: {
+    await page.route("**/api/**", async route => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === "/api/claims/42") reads.claim++;
+      if (path === "/api/oracle/results/42") reads.oracle++;
+      if (path === "/api/claims/42/review-access") reads.access++;
+      if (path === "/api/claims/42/review-access/resume" && route.request().method() === "POST") {
+        await resumePending;
+        resumed = true;
+      }
+      return route.fulfill({ json: {
       success: true, user, logs: [], voteSummary: null, appeal: null,
       claim: { claimId: "42", policyId: "4", claimantWallet: "0x6575cbc8b95abc6ab6628e7aec176af5769580f9", claimAmountEth: "0.00002", claimType: "HOSPITALIZATION", hospitalId: "HOSP-001", status: { code, label } },
       evidenceChain: { documentCount: 0, documents: [], verified: false },
-    } }));
+      ...(code === 6 ? { preparation: { state: resumed ? "ACTIVE" : "PREPARING", owner: true, batchExists: true,
+        evidenceSetHash: "0x" + "11".repeat(32), requiredCount: 8, grantedCount: resumed ? 8 : 0,
+        recipients: [1, 2, 3, 4].map(i => ({ walletAddress: "0x" + String(i).repeat(40), keyReady: true, keyVersion: 1 })),
+      } } : {}),
+      } });
+    });
     await page.goto("/admin/claims/42");
     await expect(page.locator(".admin-claim-sidebar")).toContainText(label);
     const action = page.getByRole("button", { name: "Send to Manual Review", exact: true });
     if (manual) await expect(action).toBeEnabled();
     else await expect(action).toHaveCount(0);
+    if (pollingCase) {
+      // Scheduling regression only: component API/RPC fixtures and a controlled
+      // browser clock. This is not a public-provider latency/capacity benchmark.
+      await page.clock.runFor(1000);
+      if (code === 3) await expect.poll(() => reads.quorum).toBeGreaterThan(0);
+      else await expect.poll(() => reads.access).toBeGreaterThan(0);
+      const initial = { ...reads };
+      await page.clock.runFor(8500);
+      expect(reads).toEqual(initial);
+      await page.clock.runFor(2000);
+      await expect.poll(() => reads.claim).toBe(initial.claim + 1);
+      await expect.poll(() => reads.oracle).toBe(initial.oracle + 1);
+      if (code === 3) await expect.poll(() => reads.quorum).toBe(initial.quorum + 1);
+      else await expect.poll(() => reads.access).toBe(initial.access + 1);
+      await page.evaluate(() => {
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+        document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+      });
+      const hidden = { ...reads };
+      await page.clock.runFor(31000);
+      expect(reads).toEqual(hidden);
+      await page.evaluate(() => {
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+        document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+      });
+      await page.clock.runFor(1000);
+      await expect.poll(() => reads.claim).toBeGreaterThan(hidden.claim);
+      const beforeRefresh = reads.claim;
+      await page.getByRole("button", { name: "Refresh Claim", exact: true }).click();
+      await expect.poll(() => reads.claim).toBe(beforeRefresh + 1);
+      if (code === 6) {
+        const resume = page.getByRole("button", { name: "Resume stored reviewer authorization", exact: true });
+        await resume.click();
+        await expect(page.getByRole("button", { name: "Preparing access…", exact: true })).toBeDisabled();
+        const whileActing = reads.access;
+        await page.clock.runFor(11000);
+        expect(reads.access).toBe(whileActing);
+        releaseResume();
+        await expect(page.getByRole("region", { name: "Evidence access preparation" }).getByRole("status")).toContainText("ACTIVE");
+      }
+      await test.info().attach("polling-observations", { body: Buffer.from(JSON.stringify({ initial, hidden, final: reads, schedulingOnly: true })), contentType: "application/json" });
+    }
     expect(errors).toEqual([]);
   });
 }

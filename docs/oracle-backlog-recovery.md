@@ -1,5 +1,22 @@
 # Oracle backlog recovery and operational compatibility
 
+## Current hosted disposition — 7 November 2026
+
+The recovery release is published. Both hosted workers run operational release
+`oracle-appeal-proof-v2`, runtime identity
+`0xfbc9911a6b580c43d8b7626e353f24a4beef3ad16b0dc4d74a30d4c83263754d`.
+Base uses the activated v5 evaluator profile; frozen inference is unchanged.
+Earlier publication/activation instructions below are historical procedures,
+not actions to repeat. Hosted sleep/resume, restored checkpoints and near-head
+readiness have been observed; this is not a continuous-availability guarantee.
+Read `/health/ready` on both workers before a new timed request. Catch-up does
+not require a zero-lag promise, a checkpoint reset or another deployment.
+
+Current verification and remaining private acceptance are recorded in
+[the acceptance report](comprehensive-acceptance-2026-11-07.md).
+
+## Historical implementation and publication review
+
 Current follow-up: [sponsored appeal compatibility](sponsored-appeal-compatibility.md)
 adds protocol v5 with unchanged inference and historical v4/NB dispatch. The v1
 release details below are historical; the new active release is v2. Base activation

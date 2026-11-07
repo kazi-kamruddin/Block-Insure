@@ -171,8 +171,8 @@ export default function AdminClaimDetailPage() {
     queryKey: ["adminClaim", id],
     queryFn: () => getClaimById(id),
     enabled: Boolean(id),
-    refetchInterval: 1200,
-    refetchIntervalInBackground: true,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
   });
 
   const {
@@ -183,8 +183,8 @@ export default function AdminClaimDetailPage() {
     queryKey: ["adminOracleResults", id],
     queryFn: () => getOracleResults(id),
     enabled: Boolean(id),
-    refetchInterval: 1200,
-    refetchIntervalInBackground: true,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
   });
 
   const {
@@ -256,8 +256,8 @@ export default function AdminClaimDetailPage() {
     queryFn: () => getOracleQuorumStatus(id),
     enabled: Boolean(id) && statusName === "ORACLE_PENDING",
     retry: false,
-    refetchInterval: statusName === "ORACLE_PENDING" ? 900 : false,
-    refetchIntervalInBackground: true,
+    refetchInterval: statusName === "ORACLE_PENDING" ? 10_000 : false,
+    refetchIntervalInBackground: false,
   });
 
   const appeal = appealData?.appeal || null;

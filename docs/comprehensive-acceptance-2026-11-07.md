@@ -1,5 +1,121 @@
 # Comprehensive acceptance and stabilization — 7 November 2026
 
+## Current disposition — final hosted pass, 7 November 2026
+
+The earlier combined correction batch and the lazy-refund query correction are
+published. Their old publication instructions below are historical. The hosted
+refund panel's nine read/polling/mobile checks passed on the served frontend.
+This final pass also verified the **actual wallet premium button**, fresh
+two-file claim reconciliation, and the corrected **Admin flagged-review button**.
+
+**The final hosted pass is not complete.** PublicNode RPC throttling recurred
+under actual claim/review polling. Request8 received one commitment/reveal;
+the second worker missed its commit deadline. The supported hosted timeout
+action succeeded, and claim8 then received authorized consent and two rejections.
+The failed quorum is preserved; it is not a matching negative-consensus pass.
+Claim9 is preserved in manual access preparation after an authorization/API500.
+The final fresh negative-quorum and fresh refund UI lifecycle remain pending.
+
+### Small correction prepared for publication
+
+The actual Admin claim page polled claim and Oracle data every1.2seconds,
+plus quorum every0.9seconds while pending, including hidden tabs. Review access
+also polled every3seconds. Render logs establish upstream429/-32005, API500/503
+and worker retries during these operations. Excess browser polling is a concrete
+load contributor; it is not established as the only cause or a guarantee that
+a shared public RPC will always have capacity.
+
+The local correction polls those Admin queries every10seconds while visible,
+stops their intervals in hidden tabs, and uses the same foreground cadence for
+review-access readers. The owner preparation panel pauses interval reads during
+its authorization operation. Existing immediate reads, manual refresh/retry,
+post-action refetch, wallet/claim query keys, authorization and chain proof are
+unchanged. No provider switch, contract, model, deadline or quorum change.
+
+Production-browser regressions reproduced the previous scheduling failure,
+then **21/21 passed** after correction. Controlled API/RPC fixtures and browser
+clock were used: initial reads, bounded cadence, hidden pause, visible recovery,
+manual refresh and pending-authorization pause were asserted. Build, lint and
+ABI/configuration synchronization pass. Both affected real local claim journeys
+passed on their own fresh stack: automatic settlement and negative-Oracle/manual
+review through funded withdrawal. The real local cancellation/refund lifecycle
+also passed: **three distinct affected stateful scenarios**, separate from the
+21 component/production checks. Local tests use loopback Mongo/Hardhat, injected
+wallets and storage stubs; cancellation uses disclosed local chain time travel.
+
+The first combined invocation ran cancellation before the claim suite on one
+chain. Cancellation advanced local time and left an older policy first in the
+selector; the subsequent claim used that old policy and correctly reverted for
+an uncovered incident. That failure and its one unrun case are preserved in
+`stabilization-G5uR1b`; no requirement, assertion or timeout was weakened.
+Running the claim suite on its maintained independent fresh baseline passed
+both cases in `stabilization-qiTmCT`. No product defect was established by that
+cross-suite fixture contamination. Test-owned processes and the Mongo container
+were stopped afterward; their data and unrelated resources remain preserved.
+
+### Preserved live state and budget
+
+- Existing original holder/policies/claims/evidence remain intact. A separate
+  ordinary testnet holder avoids resetting the original holder's daily quota.
+  Its ignored signer file is `deploy/base-sepolia.final-acceptance.env`.
+- New policy5 has two paid installments totaling0.000002testETH; the accelerated
+  calendar naturally lapsed while testing. Earlier covered incidents remain
+  the basis for claims8/9. There is no new EFT mandate to keep collecting.
+- Claim8: **REJECTED**, after request8 timeout (finalization code3), original
+  evidence consent and exactly two rejections. Claim9: **MANUAL_REVIEW**,
+  preparation incomplete, no reviewer votes or payout. Do not recreate either.
+- Twelve direct transactions have successful canonical receipts; actual execution
+  plus L1-data fees total **0.000024579384001502Base test ETH**. The0.00004ETH
+  transfer funds the new holder and is not gas expenditure. Automatic publication,
+  evidence anchoring and review-access transactions are separate.
+- The same cumulative0.001ETH direct-call guard was carried forward from the
+  prior campaign: conservative reservation now0.000422189375ETH, remaining
+  allowance0.000577810625ETH. This includes maximum gas caps and transferred
+  value, not an all-service actual-fee total. No unresolved signed intent.
+
+Source: baseline `9f01c92a76614359bcb04da00a573dda99a0746f` plus this reviewed
+frontend/documentation diff. Authenticated Render API is still merge25d211f;
+workers459167d, release`oracle-appeal-proof-v2`. Last read-only closing sample
+found API and both workers ready, workerlags0; this is a point-in-time observation.
+The Render connector became unavailable later in the session; earlier direct
+reads are retained and not promoted to a fresh current dashboard attestation.
+
+Evidence: `verification-results/hosted-final-2026-11-07/`, especially `state.json`,
+`transactions.jsonl`, `receipt-*.json`, `final-readback-1794070962979.json`,
+`finalApiFailure.json`, `submissionRateFailure.json`, before/after production
+test reports, screenshots and isolated local regression artifacts. The original
+helper errors (route spelling, reload sampling, success wording, wrong ABI getter)
+are preserved separately from real RPC/auth/authorization failures. No failed
+product operation was replaced with a mock or declared successful.
+
+### Next publication/verification gate
+
+Publish the narrow frontend/documentation batch through the owner's usual
+workflow; no Render variable, model activation, contract deployment, new funds
+or migration is required for this patch. Return when Vercel shows Ready.
+Then verify the served foreground/background behavior, resume claim9's existing
+authorization, and finish the bounded negative-quorum/refund checks from saved
+state. Any further provider-capacity failure remains a real operating concern;
+do not hide it with repeated new claims or relaxed deadlines.
+
+Suggested staging only (the agent has not executed these):
+
+```powershell
+git add -- frontEnd/src/pages/AdminClaimDetailPage.jsx frontEnd/src/pages/AuditorVotingPage.jsx frontEnd/src/components/ReviewAccessPanel.jsx e2e/tests/frontend-production-quality.spec.js
+git add -- README.md docs/comprehensive-acceptance-2026-11-07.md docs/oracle-backlog-recovery.md docs/sponsored-appeal-compatibility.md docs/hosted-demonstration-runbook.md
+git commit -m "Bound claim and reviewer polling to reduce RPC throttling"
+```
+
+Use the [current hosted runbook](hosted-demonstration-runbook.md) for real-wallet
+acceptance. The earlier MetaMask warning remains an external review gate; exact
+domain absence from its public list does not clear other detection sources.
+No alerts were disabled or support report sent. Preserve private wallet/mailbox
+acceptance as owner work. An optional Argon review should inspect this exact
+small diff and failure/closure evidence, then return specific findings before
+publication; another broad audit or model/feature cycle is not required.
+
+## Historical local batch review — superseded publication status
+
 Status: the combined local correction batch is READY FOR PUBLICATION REVIEW. The advisory-concurrency failure and policy-read inefficiencies were investigated and corrected locally; affected checks pass. Hosted publication/retest remains required. The current follow-up below supersedes historical unresolved-local-failure notes later in this report.
 
 ## Local latency/concurrency follow-up — 2026-11-07 14:45 UTC
