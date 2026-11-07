@@ -504,7 +504,7 @@ export default function AdminClaimDetailPage() {
           </button>
           ) : null}
 
-          {statusName === "ORACLE_FAILED" ? (
+          {["FRAUD_FLAGGED", "ORACLE_FAILED"].includes(statusName) ? (
           <button
             type="button"
             onClick={handleManualReview}

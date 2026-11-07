@@ -1,5 +1,104 @@
 const { test, expect } = require("@playwright/test");
 
+test("collapsed refund panels stop background polling and refresh when opened", async ({ page }) => {
+  const user = { role: "USER", walletAddress: "0x1111111111111111111111111111111111111111" };
+  await page.clock.install();
+  await page.addInitScript(({ user }) => {
+    localStorage.setItem("blockinsure_wallet", user.walletAddress);
+    localStorage.setItem("blockinsure_user", JSON.stringify(user));
+    localStorage.setItem("blockinsure_jwt", "synthetic-ui-test");
+    window.ethereum = { request: async ({ method }) => {
+      if (["eth_accounts", "eth_requestAccounts"].includes(method)) return [user.walletAddress];
+      if (method === "eth_chainId") return "0x7a69";
+      throw Error("Read-only component fixture forbids wallet operations");
+    }, on() {}, removeListener() {} };
+  }, { user });
+  let benefitReads = 0;
+  const errors = []; page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/api/**", route => {
+    if (route.request().url().includes("/api/policy-benefits/policies/")) benefitReads++;
+    return route.fulfill({ json: { success: true, user,
+      policies: [{ policyId: "1", packageName: "Synthetic health", status: { code: 4, label: "CANCELLED" },
+        startDate: "1", endDate: "31536001", premiumInterval: "7776000", installmentsPaid: "1", coverageAmountEth: "0.0001", premiumAmountEth: "0.000001", totalPremiumPaidEth: "0.000001" }],
+      terms: { configured: false, minimumSurrenderInstallments: 2 }, projections: { surrender: { eth: "0" } },
+      requests: [], claimable: { wei: "0" },
+    } });
+  });
+  await page.goto("/user/policies");
+  const panel = page.locator(".policy-benefits-panel");
+  await expect(panel.getByText("This policy does not offer a cancellation refund.")).toBeAttached();
+  expect(benefitReads).toBe(1);
+  await page.clock.runFor(11000);
+  expect(benefitReads).toBe(1);
+  await panel.locator("summary").click();
+  await expect.poll(() => benefitReads).toBe(2);
+  await page.clock.runFor(5500);
+  await expect.poll(() => benefitReads).toBe(3);
+  await panel.locator("summary").click();
+  await expect(panel).not.toHaveAttribute("open");
+  const closedCount = benefitReads;
+  await page.clock.runFor(11000);
+  expect(benefitReads).toBe(closedCount);
+  expect(errors).toEqual([]);
+});
+
+for (const [code, label, manual] of [[2, "FRAUD_FLAGGED", true], [5, "ORACLE_FAILED", true], [1, "DUPLICATE_CHECKED", false], [9, "SETTLED", false]]) {
+  test(`admin manual-review action follows contract state ${label}`, async ({ page }) => {
+    // Built component regression; no wallet writes or live API substitution.
+    const user = { role: "ADMIN", walletAddress: "0xd388bb1572cdb7f7db2bb485a1051749f9b1ff1e" };
+    const errors = []; page.on("pageerror", e => errors.push(e.message));
+    await page.addInitScript(({ user }) => {
+      localStorage.setItem("blockinsure_wallet", user.walletAddress);
+      localStorage.setItem("blockinsure_user", JSON.stringify(user));
+      localStorage.setItem("blockinsure_jwt", "synthetic-ui-test");
+      window.ethereum = { request: async ({ method }) => {
+        if (["eth_accounts", "eth_requestAccounts"].includes(method)) return [user.walletAddress];
+        if (method === "eth_chainId") return "0x7a69";
+        throw Error("Read-only component fixture forbids wallet operations");
+      }, on() {}, removeListener() {} };
+    }, { user });
+    // Claim42 is synthetic, so its auxiliary contract reads must be synthetic
+    // too. Do not send an inconsistent API fixture to a real local contract.
+    const { ethers } = require("../../backEnd/node_modules/ethers");
+    const interfaces = ["InsuranceManager", "OracleCoordinator", "ClaimAdjudicator", "PolicyEconomics"].map(name =>
+      new ethers.Interface(require(`../../backEnd/abi/${name}.json`).abi));
+    const empty = param => param.baseType === "array" ? [] : param.baseType === "tuple" ? param.components.map(empty) :
+      param.type === "address" ? "0x1111111111111111111111111111111111111111" : param.type === "bool" ? false :
+        param.type === "string" ? "" : param.type === "bytes" ? "0x" : /^bytes\d+$/.test(param.type) ? "0x" + "00".repeat(Number(param.type.slice(5))) : 0n;
+    await page.route("**/*", async route => {
+      const request = route.request(); let body;
+      try { body = request.postDataJSON(); } catch { return route.fallback(); }
+      if (!body || !(Array.isArray(body) ? body[0]?.jsonrpc : body.jsonrpc)) return route.fallback();
+      const respond = item => {
+        let result;
+        if (item.method === "eth_chainId") result = "0x7a69";
+        else if (["eth_getBalance", "eth_blockNumber"].includes(item.method)) result = "0x0";
+        else if (item.method === "eth_getCode") result = "0x60006000";
+        else if (item.method === "eth_call") {
+          for (const iface of interfaces) {
+            const fn = iface.getFunction(item.params[0].data.slice(0, 10));
+            if (fn) { result = iface.encodeFunctionResult(fn, fn.outputs.map(empty)); break; }
+          }
+        }
+        if (result === undefined) throw Error(`Unhandled read-only UI fixture RPC: ${item.method}`);
+        return { jsonrpc: "2.0", id: item.id, result };
+      };
+      await route.fulfill({ headers: { "access-control-allow-origin": "*" }, json: Array.isArray(body) ? body.map(respond) : respond(body) });
+    });
+    await page.route("**/api/**", route => route.fulfill({ json: {
+      success: true, user, logs: [], voteSummary: null, appeal: null,
+      claim: { claimId: "42", policyId: "4", claimantWallet: "0x6575cbc8b95abc6ab6628e7aec176af5769580f9", claimAmountEth: "0.00002", claimType: "HOSPITALIZATION", hospitalId: "HOSP-001", status: { code, label } },
+      evidenceChain: { documentCount: 0, documents: [], verified: false },
+    } }));
+    await page.goto("/admin/claims/42");
+    await expect(page.locator(".admin-claim-sidebar")).toContainText(label);
+    const action = page.getByRole("button", { name: "Send to Manual Review", exact: true });
+    if (manual) await expect(action).toBeEnabled();
+    else await expect(action).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+}
+
 for (const scenario of [
   { role: "USER", route: "/user/claims/new", fields: [["Claim amount in ETH", "0.00002"]] },
   { role: "ADMIN", route: "/admin/policy-packages/new", fields: [

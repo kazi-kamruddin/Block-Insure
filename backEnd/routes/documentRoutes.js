@@ -13,7 +13,7 @@ const {
 } = require("../controllers/documentController");
 const authMiddleware = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
-const claimSubmissionRateLimit = require("../middleware/claimSubmissionRateLimit");
+const { claimDocumentUploadRateLimit } = require("../middleware/claimSubmissionRateLimit");
 
 const router = express.Router();
 
@@ -27,7 +27,7 @@ router.get(
 router.post(
   "/upload",
   authMiddleware,
-  claimSubmissionRateLimit,
+  claimDocumentUploadRateLimit,
   upload.single("document"),
   uploadDocument
 );

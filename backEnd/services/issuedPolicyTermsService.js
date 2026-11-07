@@ -27,8 +27,8 @@ const formatTerms = (raw, { allowed = [], excluded = [], labels = {} } = {}) => 
   };
 };
 
-const readRuleLabels = async (packageId, version, hash) => {
-  const stored = await Publication.findOne({ deploymentScope: await getDeploymentScope(), packageId: String(packageId), version: String(version), policyRuleVersion: hash }).lean();
+const readRuleLabels = async (packageId, version, hash, provider) => {
+  const stored = await Publication.findOne({ deploymentScope: await getDeploymentScope(provider), packageId: String(packageId), version: String(version), policyRuleVersion: hash }).lean();
   if (!stored || ethers.id(stored.ruleDocument) !== hash) return {};
   try {
     const document = JSON.parse(stored.ruleDocument);
@@ -50,7 +50,7 @@ const getConfiguredTerms = async (contract, packageId) => {
   if (pkg.requiredDocumentType !== "HOSPITAL_BILL" || raw.minimumDocumentCommitments !== 1n || raw.requiredDocumentsRoot !== expectedDocumentRoot) return null;
   if (!allowed.some((hash) => !excluded.includes(hash)) || raw.insurerShareBps === 0n) return null;
   const maximumClaimWei = raw.maximumClaimWei === 0n || raw.maximumClaimWei > pkg.coverageAmount ? pkg.coverageAmount : raw.maximumClaimWei;
-  return { ...formatTerms({ ...raw.toObject(), maximumClaimWei }, { allowed, excluded, labels: await readRuleLabels(packageId, version, raw.policyRuleVersion) }),
+  return { ...formatTerms({ ...raw.toObject(), maximumClaimWei }, { allowed, excluded, labels: await readRuleLabels(packageId, version, raw.policyRuleVersion, contract.runner.provider) }),
     paymentSchedule: await readPaymentSchedule(economics) };
 };
 
@@ -59,13 +59,19 @@ const getIssuedTerms = async (contract, policyId) => {
   const raw = await economics.getPolicyTerms(policyId);
   let allowed = [], excluded = [];
   if (raw.packageRuleVersion > 0n) [, allowed, excluded] = await economics.getPackageRules(raw.packageId, raw.packageRuleVersion);
-  const terms = formatTerms(raw, { allowed, excluded, labels: await readRuleLabels(raw.packageId, raw.packageRuleVersion, raw.policyRuleVersion) });
-  terms.coverageIntervals = (await economics.getCoverageIntervals(policyId)).map((interval) => ({
+  // These reads are independent once issued terms have been loaded. Share
+  // the request transport and preserve every value and deployment check.
+  const [labels, intervals, remaining, paymentSchedule] = await Promise.all([
+    readRuleLabels(raw.packageId, raw.packageRuleVersion, raw.policyRuleVersion, contract.runner.provider),
+    economics.getCoverageIntervals(policyId), economics.remainingCoverage(policyId), readPaymentSchedule(economics),
+  ]);
+  const terms = formatTerms(raw, { allowed, excluded, labels });
+  terms.coverageIntervals = intervals.map((interval) => ({
     startsAt: String(interval.startsAt), endsAt: String(interval.endsAt), waitingEndsAt: String(interval.waitingEndsAt),
   }));
-  terms.remainingCoverageWei = String(await economics.remainingCoverage(policyId));
+  terms.remainingCoverageWei = String(remaining);
   terms.coverageLimitWei = String(raw.coverageLimitWei);
-  terms.paymentSchedule = await readPaymentSchedule(economics);
+  terms.paymentSchedule = paymentSchedule;
   return terms;
 };
 
@@ -81,7 +87,7 @@ const getIssuedDocument = async (contract, policy) => {
   const economics = await getPolicyEconomics(contract);
   const hash = await economics.issuedDocumentHash(policy.policyId);
   if (hash === ethers.ZeroHash) return { bound: false, notice: "This policy was issued through the low-level protocol API without an application document commitment." };
-  const acceptance = await Acceptance.findOne({ deploymentScope: await getDeploymentScope(), walletAddress: policy.holderWallet.toLowerCase(),
+  const acceptance = await Acceptance.findOne({ deploymentScope: await getDeploymentScope(contract.runner.provider), walletAddress: policy.holderWallet.toLowerCase(),
     packageId: String(policy.packageId), documentHash: hash.toLowerCase() }).lean();
   if (!acceptance?.documentContent || ethers.id(acceptance.documentContent) !== hash) return { bound: true, documentHash: hash, available: false };
   return { bound: true, available: true, documentHash: hash, documentVersion: acceptance.documentVersion, content: acceptance.documentContent };

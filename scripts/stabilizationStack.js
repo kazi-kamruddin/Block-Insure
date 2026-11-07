@@ -5,6 +5,7 @@ const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const root = path.resolve(__dirname, "..");
+const { redactValue } = require("./observability");
 const children = [];
 let stopping = false;
 const dailyLauncher = process.argv.includes("--daily-launcher");
@@ -43,13 +44,20 @@ function start(label, file, args = [], cwd = root, extra = {}) {
   let diagnostic = "";
   const capture = (chunk) => {
     const safe = chunk.toString().split(/\r?\n/).filter((line) => !/private.?key|secret|mnemonic|seed phrase|0x[a-fA-F0-9]{64}/i.test(line)).join("\n");
-    diagnostic = (diagnostic + safe).slice(-8000);
-    if (label === "Browser regression" || label === "Phase one settlement recovery" || label === "Evidence lifecycle recovery") process.stdout.write(safe);
+    const redacted = redactValue(safe);
+    diagnostic = (diagnostic + redacted).slice(-8000);
+    if (label === "Browser regression" || label === "Phase one settlement recovery" || label === "Evidence lifecycle recovery") process.stdout.write(redacted);
   };
   child.stdout.on("data", capture); child.stderr.on("data", capture);
   child.completed = new Promise((resolve, reject) => {
     child.once("error", reject);
-    child.once("close", (code) => code === 0 ? resolve() : reject(new Error(`${label} exited ${code}: ${diagnostic}`)));
+    child.once("close", (code, signal) => {
+      fs.appendFileSync(path.join(output, "process-exits.jsonl"), JSON.stringify({
+        at: new Date().toISOString(), label, code, signal, expectedShutdown: stopping,
+        diagnostic: code === 0 || stopping ? "" : diagnostic,
+      }) + "\n");
+      if (code === 0) resolve(); else reject(new Error(`${label} exited ${code}: ${diagnostic}`));
+    });
   });
   child.completed.catch(() => {});
   return child;
@@ -57,8 +65,8 @@ function start(label, file, args = [], cwd = root, extra = {}) {
 const run = async (...args) => start(...args).completed;
 const hardhat = (script) => run(script, path.join(root, "contracts/node_modules/hardhat/internal/cli/cli.js"), ["run", script, "--network", "localhost"], path.join(root, "contracts"));
 const backend = (script, args = []) => run(script, path.join(root, "backEnd/scripts", script), args, path.join(root, "backEnd"));
-async function waitFor(check, label) {
-  const deadline = Date.now() + 90000;
+async function waitFor(check, label, timeoutMs = 90000) {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (stopping) throw new Error(`${label} cancelled during cleanup`);
     try { if (await check()) return; } catch { /* wait for local service */ }
@@ -192,9 +200,14 @@ async function main() {
       const coordinator = new ethers.Contract(deployment.components.OracleCoordinator, require("../backEnd/abi/OracleCoordinator.json").abi, rpc);
       const wallet = new ethers.Wallet(environment.ORACLE_PRIVATE_KEY).address;
       let requestId, committed;
+      // Purchasing and encrypting a claim can legitimately outlast the RPC
+      // readiness timeout. Start the commit-boundary budget after its request
+      // exists, not while the browser is still preparing an unrelated form.
       await waitFor(async () => {
         requestId = (await coordinator.requestCounter()) - 1n;
-        if (requestId < 1n) return false;
+        return requestId >= 1n;
+      }, "Oracle request before restart boundary", 300000);
+      await waitFor(async () => {
         committed = await coordinator.commitments(requestId, wallet);
         return committed !== ethers.ZeroHash && Number(await coordinator.revealCount(requestId)) === 0 && !await coordinator.hasRevealed(requestId, wallet);
       }, "Oracle commitment restart boundary");

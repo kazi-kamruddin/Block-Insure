@@ -40,10 +40,10 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
       const firstPolicyText = await policyCards.first().textContent();
       const policyId = firstPolicyText?.match(/Policy #(\d+)/)?.[1];
       expect(policyId, "A purchased policy ID should be visible").toBeTruthy();
-      await policyCards.first().getByText("Beneficiaries and additional benefits").click();
-      await expect(policyCards.first().getByRole("heading", { name: "Current beneficiaries" })).toBeVisible();
-      await expect(policyCards.first().getByRole("heading", { name: "Surrender Value Estimator" })).toBeVisible();
-      await expect(policyCards.first().getByRole("button", { name: "Download Policy Terms" })).toBeVisible();
+      await policyCards.first().getByText("Cancellation refund", { exact: true }).click();
+      await expect(policyCards.first()).toContainText("premiums actually paid");
+      await expect(policyCards.first()).toContainText("separately funded reserve");
+      await expect(policyCards.first().getByRole("button", { name: "Download policy terms", exact: true })).toBeVisible();
 
       await session.page.goto("/user/payments");
       await expect(
@@ -80,13 +80,10 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
       await expect(session.page.getByRole("heading", { name: "Oracle Results" })).toBeVisible();
 
       await session.page.goto("/user/benefits");
-      await expect(
-        session.page.getByRole("heading", { name: "Beneficiary Benefit Request" })
-      ).toBeVisible();
-      await session.page.getByLabel("Policy ID").fill(policyId);
-      await session.page.getByRole("button", { name: "Check Beneficiary Access" }).click();
-      await expect(session.page.getByText(`Policy #${policyId}`, { exact: true })).toBeVisible();
-      await expect(session.page.getByRole("button", { name: "Download Terms" })).toBeVisible();
+      await expect(session.page.getByRole("heading", { name: "Cancellation refunds", exact: true })).toBeVisible();
+      await expect(session.page.locator("main")).toContainText("actual paid installments");
+      await expect(session.page.getByRole("link", { name: "Review policies and refunds", exact: true })).toHaveAttribute("href", "/user/policies");
+      await expect(session.page.getByRole("button", { name: "Check Beneficiary Access" })).toHaveCount(0);
 
       await session.page.goto("/user/notifications");
       await expect(session.page.getByRole("heading", { name: "Notifications" })).toBeVisible();
@@ -145,7 +142,7 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
         session.page.getByRole("heading", { name: "Policy Benefits Administration" })
       ).toBeVisible();
       await expect(session.page.getByRole("heading", { name: "Publish Benefit Schedule" })).toBeVisible();
-      await expect(session.page.getByRole("heading", { name: "Benefit Requests" })).toBeVisible();
+      await expect(session.page.getByRole("heading", { name: "Cancellation Refund Requests" })).toBeVisible();
 
       await session.page.goto("/admin/healthcare-registry");
       await expect(session.page.getByRole("heading", { name: "Hybrid External Registry" })).toBeVisible();
