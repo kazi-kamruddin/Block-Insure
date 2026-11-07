@@ -141,7 +141,7 @@ export default function AuditorVotingPage() {
   const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const latestOracleLog = getLatestOracleLog(oracleLogs);
   const voteSummary = extractVoteSummary(voteData);
-  const accessQuery = useQuery({ queryKey: ["reviewAccess", claimId, walletAddress], queryFn: () => getReviewAccess(claimId), refetchInterval: 3000, retry: false, enabled: Boolean(claimId) });
+  const accessQuery = useQuery({ queryKey: ["reviewAccess", claimId, walletAddress], queryFn: () => getReviewAccess(claimId), refetchInterval: 10_000, refetchIntervalInBackground: false, retry: false, enabled: Boolean(claimId) });
   const bayesianFraudPercent = getBayesianFraudPercent(latestOracleLog);
   const voteRule = getClaimActionRule({
     action: CLAIM_ACTIONS.AUDITOR_VOTE,

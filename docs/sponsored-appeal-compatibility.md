@@ -1,5 +1,19 @@
 # Sponsored appeal proof compatibility
 
+## Current Base disposition — 7 November 2026
+
+Published and activated on the existing Base Sepolia manager. The v5 default is
+`0x5fe2760cc2306065c60287b80df97ca66ba1da54ce3647389672e9bc5ea58e4a`.
+Activation receipt:
+`0x2b3789063c9d905605d00e88cf1e8efc03dce708109cb12bda8a738096ffed98`.
+Hosted claim #3/version 2 completed its actual owner-authorized relayed appeal,
+both v5 Oracle results and settlement withdrawal. Original claim #4 evidence
+was recovered separately without replacing the claim or ciphertext.
+Evidence: `verification-results/hosted-v5-acceptance-2026-11-07/summary.json`.
+These are completed operations; do not repeat activation, appeal or recovery.
+The rollout sections below retain the original local review and guarded procedure.
+Injected testnet-signing transport is distinct from private MetaMask acceptance.
+
 ## Scope and identity
 
 Protocol v5 keeps the frozen XGBoost bundle, feature extraction, calibration, threshold and routing policy. It changes appeal provenance: one successful configured-manager ClaimAppealed event must bind claimant/claim/reason hash, and one configured-adjudicator AppealStarted event must bind the pinned claim version. Payload/query/fact checks and receipt-before-request chronology remain. Outer relayer addresses do not substitute for those proofs.

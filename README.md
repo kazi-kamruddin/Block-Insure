@@ -11,12 +11,20 @@ evaluation. It is not a production insurance service or a clinical fraud detecto
 Oracle restart recovery uses bounded historical scanning and a separately verified
 operational release while preserving the frozen request-pinned evaluator. See
 [Oracle recovery and compatibility](docs/oracle-backlog-recovery.md) for local
-verification, configuration and the remaining hosted publication check.
+verification, configuration and the recorded hosted rollout.
 
 Protocol v5 adds version-bound appeal proof for direct and relayed transactions
 while retaining frozen XGBoost inference and historical request validators. See
 [sponsored appeal compatibility](docs/sponsored-appeal-compatibility.md) for local
-evidence and the separate rollout/default-activation procedure.
+evidence and the completed Base rollout/default-activation record. The hosted
+demonstration uses Base Sepolia (84532); Ethereum Sepolia is a separate, completed
+measurement deployment. Do not repeat activation or deploy contracts to start a demo.
+
+For the hosted walkthrough, use the [demonstration runbook](docs/hosted-demonstration-runbook.md)
+and [acceptance evidence](docs/comprehensive-acceptance-2026-11-07.md).
+Free-service readiness and public RPC capacity must be checked before timed
+claims. Real MetaMask/mailbox acceptance and the earlier wallet security warning
+are separate from automated injected-signing tests.
 
 ## Features
 

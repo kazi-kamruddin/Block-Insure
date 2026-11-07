@@ -9,7 +9,7 @@ export default function ReviewAccessPanel({ claimId, onChange }) {
   const { walletAddress } = useWallet();
   const [acting, setActing] = useState(false);
   const [error, setError] = useState("");
-  const query = useQuery({ queryKey: ["reviewAccess", claimId, walletAddress], queryFn: () => getReviewAccess(claimId), refetchInterval: 3000, retry: false });
+  const query = useQuery({ queryKey: ["reviewAccess", claimId, walletAddress], queryFn: () => getReviewAccess(claimId), refetchInterval: acting ? false : 10_000, refetchIntervalInBackground: false, retry: false });
   const preparation = query.data?.preparation;
   if (query.isLoading) return <p role="status">Checking evidence access preparation…</p>;
   if (query.error) return <section className="card"><h3>Evidence access</h3><p role="alert">{query.error.response?.data?.message || "Evidence preparation is unavailable."}</p><button type="button" onClick={() => query.refetch()}>Retry access status</button></section>;
