@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-test("collapsed refund panels stop background polling and refresh when opened", async ({ page }) => {
+for (const firstReadFails of [false, true]) test(`collapsed refund panels stop background polling and refresh when opened${firstReadFails ? " after provider failure" : ""}`, async ({ page }) => {
   const user = { role: "USER", walletAddress: "0x1111111111111111111111111111111111111111" };
   await page.clock.install();
   await page.addInitScript(({ user }) => {
@@ -16,7 +16,10 @@ test("collapsed refund panels stop background polling and refresh when opened", 
   let benefitReads = 0;
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   await page.route("**/api/**", route => {
-    if (route.request().url().includes("/api/policy-benefits/policies/")) benefitReads++;
+    if (route.request().url().includes("/api/policy-benefits/policies/")) {
+      benefitReads++;
+      if (firstReadFails && benefitReads === 1) return route.fulfill({ status: 503, json: { success: false, message: "Synthetic provider outage" } });
+    }
     return route.fulfill({ json: { success: true, user,
       policies: [{ policyId: "1", packageName: "Synthetic health", status: { code: 4, label: "CANCELLED" },
         startDate: "1", endDate: "31536001", premiumInterval: "7776000", installmentsPaid: "1", coverageAmountEth: "0.0001", premiumAmountEth: "0.000001", totalPremiumPaidEth: "0.000001" }],
@@ -26,19 +29,27 @@ test("collapsed refund panels stop background polling and refresh when opened", 
   });
   await page.goto("/user/policies");
   const panel = page.locator(".policy-benefits-panel");
-  await expect(panel.getByText("This policy does not offer a cancellation refund.")).toBeAttached();
-  expect(benefitReads).toBe(1);
+  await expect(panel.locator("summary")).toHaveText("Cancellation refund");
+  expect(benefitReads).toBe(0);
   await page.clock.runFor(11000);
-  expect(benefitReads).toBe(1);
+  expect(benefitReads).toBe(0);
   await panel.locator("summary").click();
-  await expect.poll(() => benefitReads).toBe(2);
+  await expect.poll(() => benefitReads).toBe(1);
+  if (firstReadFails) {
+    await expect(panel.getByRole("alert")).toContainText("Refund schedule is unavailable");
+    await panel.getByRole("button", { name: "Retry refund schedule", exact: true }).click();
+    await expect.poll(() => benefitReads).toBe(2);
+  }
+  await expect(panel.getByText("This policy does not offer a cancellation refund.")).toBeVisible();
   await page.clock.runFor(5500);
-  await expect.poll(() => benefitReads).toBe(3);
+  await expect.poll(() => benefitReads).toBe(firstReadFails ? 3 : 2);
   await panel.locator("summary").click();
   await expect(panel).not.toHaveAttribute("open");
   const closedCount = benefitReads;
   await page.clock.runFor(11000);
   expect(benefitReads).toBe(closedCount);
+  await panel.locator("summary").click();
+  await expect.poll(() => benefitReads).toBe(closedCount + 1);
   expect(errors).toEqual([]);
 });
 

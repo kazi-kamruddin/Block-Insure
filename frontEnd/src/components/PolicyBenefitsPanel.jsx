@@ -11,11 +11,9 @@ export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
   const [acting, setActing] = useState(false);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const { data, error: loadError, refetch } = useQuery({ queryKey: ["policyBenefits", policy.policyId], queryFn: () => getPolicyBenefits(policy.policyId), retry: false, refetchInterval: expanded ? 5000 : false });
+  const { data, error: loadError, refetch } = useQuery({ queryKey: ["policyBenefits", policy.policyId], queryFn: () => getPolicyBenefits(policy.policyId), enabled: expanded, retry: false, refetchInterval: expanded ? 5000 : false });
   const handleToggle = (event) => {
-    const open = event.currentTarget.open;
-    setExpanded(open);
-    if (open) refetch();
+    setExpanded(event.currentTarget.open);
   };
   async function run(action, message) {
     setActing(true); setError("");
@@ -24,7 +22,7 @@ export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
     finally { setActing(false); }
   }
   if (loadError) return <details className="policy-benefits-panel" onToggle={handleToggle}><summary>Cancellation refund</summary><p role="alert">Refund schedule is unavailable. Retry after service recovery.</p><button type="button" onClick={() => refetch()}>Retry refund schedule</button></details>;
-  if (!data) return <p role="status">Loading cancellation refund schedule…</p>;
+  if (!data) return <details className="policy-benefits-panel" onToggle={handleToggle}><summary>Cancellation refund</summary>{expanded && <p role="status">Loading cancellation refund schedule…</p>}</details>;
   const { terms, projections, requests } = data;
   const latest = requests.filter((request) => request.benefitType.label === "SURRENDER").at(-1);
   const eligible = Number(policy.installmentsPaid || 0) >= terms.minimumSurrenderInstallments;
