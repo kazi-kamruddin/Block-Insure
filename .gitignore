@@ -29,6 +29,10 @@ __pycache__/
 /playwright-report-frontend/
 # Local verification history, source snapshots, and operator handoffs.
 /verification-results/
+/docs/claim-four-evidence-recovery.md
+/docs/comprehensive-acceptance-2026-11-07.md
+/docs/hosted-demonstration-runbook.md
+/docs/transaction-evidence-stabilization.md
 /docs/advanced-engineering-v2.md
 /docs/advanced-ml-phase12.md
 /docs/full-system-e2e-test-report.md

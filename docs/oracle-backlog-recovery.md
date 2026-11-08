@@ -12,8 +12,8 @@ readiness have been observed; this is not a continuous-availability guarantee.
 Read `/health/ready` on both workers before a new timed request. Catch-up does
 not require a zero-lag promise, a checkpoint reset or another deployment.
 
-Current verification and remaining private acceptance are recorded in
-[the acceptance report](comprehensive-acceptance-2026-11-07.md).
+Detailed execution records and operator handoffs are maintained locally. The
+public [release verification guide](release-verification.md) describes the checks.
 
 ## Historical implementation and publication review
 

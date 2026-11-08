@@ -20,11 +20,10 @@ evidence and the completed Base rollout/default-activation record. The hosted
 demonstration uses Base Sepolia (84532); Ethereum Sepolia is a separate, completed
 measurement deployment. Do not repeat activation or deploy contracts to start a demo.
 
-For the hosted walkthrough, use the [demonstration runbook](docs/hosted-demonstration-runbook.md)
-and [acceptance evidence](docs/comprehensive-acceptance-2026-11-07.md).
-Free-service readiness and public RPC capacity must be checked before timed
-claims. Real MetaMask/mailbox acceptance and the earlier wallet security warning
-are separate from automated injected-signing tests.
+For a hosted walkthrough, check service readiness and public RPC capacity before
+starting timed claims. Real wallet and mailbox acceptance is separate from
+automated browser tests. Local execution records and operator notes are kept
+outside the public repository.
 
 ## Features
 
@@ -56,11 +55,9 @@ evidence anchoring recover interrupted operations. Death and maturity products a
 disabled in this release. See [evidence, review and recovery](docs/evidence-review-and-recovery.md)
 for lifecycle rules and privacy limits.
 
-The [current acceptance report](docs/comprehensive-acceptance-2026-11-07.md)
-records hosted and isolated local checks, scoped corrections and remaining limits.
-The [earlier transaction/evidence report](docs/transaction-evidence-stabilization.md)
-retains its original evidence. The [existing-claim recovery procedure](docs/claim-four-evidence-recovery.md)
-has now been verified for the original hosted claim without replacing its ciphertext.
+Automated verification covers transaction reconciliation, encrypted evidence
+recovery, reviewer access, payment settlement and selected failure cases. Results
+depend on the environment and do not establish production readiness.
 
 Model scores support claim routing; they do not establish fraud or bypass
 eligibility, auditor quorum, reserves, or payout-withdrawal rules. Fresh
