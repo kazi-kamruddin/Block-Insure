@@ -32,12 +32,12 @@ Settlement formula commitment: ${terms.settlementFormulaVersion}
 - Initial waiting period: ${terms.waitingPeriodDays} days
 - Reinstatement waiting period: ${terms.reinstatementWaitingPeriodDays} days
 - Claim submission deadline: ${terms.claimDeadlineDays} days after the incident
-- Eligible service codes: ${list(terms.coveredClaimTypes)}
+- Eligible service codes: ${list(terms.coveredClaimTypes)}${terms.serviceSublimitsWei ? "\n- Per-episode service sublimits (test ETH): " + terms.coveredClaimTypes.map(service => service + " " + ethers.formatEther(terms.serviceSublimitsWei[ethers.id(service)] || terms.serviceSublimitsWei[service.replace("service commitment ", "")])).join(", ") : ""}
 - Excluded service codes: ${list(terms.excludedClaimTypes)}
 - Primary document required: ${policyPackage.requiredDocumentType} (one commitment; plaintext authenticity is checked separately)
 - Deductible: ${terms.deductibleRateBps / 100}% of the claim, capped at ${ethers.formatEther(terms.deductibleCapWei)} test ETH
 - Insurer share after deductible: ${terms.coinsuranceBps / 100}%
-- Formula: floor((claim - min(floor(claim × deductible basis points / 10000), deductible cap)) × insurer share basis points / 10000)
+- Formula: ${terms.serviceSublimitsWei ? "First cap the bill at the issued service sublimit. Apply the formula to that eligible amount. Finally cap payment at remaining unreserved coverage. " : ""}floor((claim - min(floor(claim × deductible basis points / 10000), deductible cap)) × insurer share basis points / 10000)
 
 A claim whose calculated liability exceeds remaining aggregate coverage is rejected; the contract does not silently reduce it. Eligibility also requires a paid coverage interval, hospital-record integrity, patient authorization and the applicable Oracle/review process. An estimate is not claim approval.
 

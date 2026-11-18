@@ -254,13 +254,17 @@ async function main() {
   console.log("Frozen XGBoost protocol identity:", protocolArtifact.modelIdentityHash);
 
   const ClaimAdjudicator = await hre.ethers.getContractFactory(
-    "ClaimAdjudicator",
+    process.env.CLAIM_WORKFLOW_PROFILE === "V6" ? "ClaimAdjudicatorV6" : "ClaimAdjudicator",
     adminWallet
   );
   const claimAdjudicator = await deployContract(ClaimAdjudicator, contractAddress);
   await claimAdjudicator.waitForDeployment();
   const adjudicatorAddress = await claimAdjudicator.getAddress();
   await (await insuranceManager.configureClaimAdjudicator(adjudicatorAddress)).wait();
+  if (process.env.REVIEW_TIMING_PROFILE === "DEMONSTRATION") {
+    await (await claimAdjudicator.updatePreparationDuration(600)).wait();
+    await (await claimAdjudicator.updateConfig(600, 900)).wait();
+  }
   console.log("ClaimAdjudicator deployed to:", adjudicatorAddress);
   const economicsAddress = await insuranceManager.policyEconomics();
   console.log("PolicyEconomics deployed to:", economicsAddress);

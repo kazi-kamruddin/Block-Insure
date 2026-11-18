@@ -32,7 +32,15 @@ async function prepareEpisode(user) {
         reason: wallet ? "Synthetic enrollment verified" : "Officer corrected an enrollment after filing" } });
     expect(response.ok(), await response.text()).toBe(true);
     await publish(actor);
-    return (await response.json()).revision;
+    const updatedRevision = (await response.json()).revision;
+    const authorization = await headers(actor);
+    await expect.poll(async () => {
+      const status = await actor.page.request.get(api + "/insurer/publication-status", {
+        headers: authorization, params: { hospitalId: "HOSP-001", invoiceNumber }, maxRetries: 1 });
+      const result = await status.json();
+      return result.revision === updatedRevision && result.pending === false;
+    }, { timeout: 120000 }).toBe(true);
+    return updatedRevision;
   };
   try {
     await loginActor(hospital.page, hospital.actor);

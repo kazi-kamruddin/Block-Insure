@@ -897,7 +897,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     function _calculateVerificationConfidence(uint256 claimId) internal view returns (uint256) {
         // Submission has validated the other predicates and returned early for
         // duplicates. Covered run-off remains valid even if the policy is inactive.
-        Policy memory selectedPolicy = policies[claims[claimId].policyId];
+        Policy storage selectedPolicy = policies[claims[claimId].policyId];
         return selectedPolicy.isActive && block.timestamp <= selectedPolicy.endDate ? 90 : 75;
     }
 
@@ -937,10 +937,10 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         require(_claimExists(claimId), "Claim does not exist");
         require(
             claims[claimId].status == ClaimStatus.DUPLICATE_CHECKED ||
-                claims[claimId].status == ClaimStatus.APPEALED,
+                claims[claimId].status == ClaimStatus.APPEALED || claims[claimId].status == ClaimStatus.ORACLE_FAILED,
             "Claim is not ready for oracle"
         );
-        require(oracleRequestByClaimId[claimId] == 0, "Oracle request already exists");
+        // The coordinator permits one replacement only for a finalized timeout in this version.
 
         Claim memory selectedClaim = claims[claimId];
         bytes32 queryHash = keccak256(
@@ -1078,6 +1078,19 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         emit ClaimAppealed(claimId, msg.sender, appealReasonHash, block.timestamp);
     }
 
+    event ClaimClarified(uint256 indexed claimId, uint64 indexed version, bytes32 evidenceHash);
+    function acceptClarification(uint256 id, uint64 oldVersion, address claimant, uint256 amount, bytes32 evidenceHash) external {
+        Claim storage claim = claims[id];
+        require(msg.sender == address(claimAdjudicator) && claim.claimantWallet == claimant);
+        require(claim.status == ClaimStatus.ORACLE_FAILED && claimVersion[id] == oldVersion && block.timestamp < manualReviewEligibleAt[id]);
+        policyEconomics.reviseActiveReservation(id, amount);
+        claim.claimAmount = amount;
+        claim.status = ClaimStatus.DUPLICATE_CHECKED;
+        claimVersion[id] = oldVersion + 1;
+        delete oracleRequestByClaimId[id];
+        emit ClaimClarified(id, oldVersion + 1, evidenceHash);
+    }
+
     event RejectedClaimAmended(uint256 indexed claimId, uint256 amount, bytes32 invoiceHash);
 
     function amendRejectedClaim(uint256 claimId, uint256 amount, bytes32 invoiceHash) external {
@@ -1203,26 +1216,11 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         claimResolvedAt[claimId] = block.timestamp;
         rejectionReason[claimId] = RejectionReason.NONE;
         bool funded = address(this).balance >= insurerPays;
-        if (funded) {
-            claims[claimId].status = ClaimStatus.PAYOUT_READY;
-            claimAdjudicator.allocatePayout{value: insurerPays}(
-                claimId,
-                claimVersion[claimId],
-                claims[claimId].claimantWallet,
-                insurerPays,
-                decisionHash
-            );
-        } else {
-            claims[claimId].status = ClaimStatus.FUNDING_REQUIRED;
-            claimAdjudicator.allocatePayout(
-                claimId,
-                claimVersion[claimId],
-                claims[claimId].claimantWallet,
-                insurerPays,
-                decisionHash
-            );
-            emit ClaimFundingRequired(claimId, insurerPays, insurerPays - address(this).balance);
-        }
+        claims[claimId].status = funded ? ClaimStatus.PAYOUT_READY : ClaimStatus.FUNDING_REQUIRED;
+        claimAdjudicator.allocatePayout{value: funded ? insurerPays : 0}(
+            claimId, claimVersion[claimId], claims[claimId].claimantWallet, insurerPays, decisionHash
+        );
+        if (!funded) emit ClaimFundingRequired(claimId, insurerPays, insurerPays - address(this).balance);
 
         emit SettlementCalculated(
             claimId,

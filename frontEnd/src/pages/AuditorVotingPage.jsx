@@ -1,3 +1,5 @@
+import { Contract } from "ethers";
+import { api } from "../services/api";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -96,6 +98,7 @@ async function getActiveWalletAddress(fallbackWallet) {
 export default function AuditorVotingPage() {
   const { claimId } = useParams();
   const { walletAddress } = useWallet();
+  const [basis, setBasis] = useState("");
   const [voteError, setVoteError] = useState("");
   const [voteMessage, setVoteMessage] = useState("");
   const [voteTxHash, setVoteTxHash] = useState("");
@@ -168,7 +171,13 @@ export default function AuditorVotingPage() {
       setIsVoting(true);
 
       const contract = await getWalletContract();
-      const tx = await contract.castVote(claimId, voteCode);
+      let tx;
+      if (voteSummary.reasonedVoting) {
+        const version = voteSummary.version;
+        const { data } = await api.post(`/api/votes/claim/${claimId}/reason`, { vote: voteCode, basis, version });
+        const adjudicator = new Contract(await contract.claimAdjudicator(), ["function castReasonedVote(uint256,uint64,uint8,bytes32)"], contract.runner);
+        tx = await adjudicator.castReasonedVote(claimId, version, voteCode, data.commitment);
+      } else tx = await contract.castVote(claimId, voteCode);
 
       setVoteTxHash(tx.hash);
 
@@ -280,9 +289,14 @@ export default function AuditorVotingPage() {
       <div className="card">
         <h3>Advisory weighted summary</h3>
         <p>Weights do not decide claims. Exactly four assigned auditors vote: three approvals approve; two rejections reject. Insufficient quorum at expiry rejects.</p>
+        {voteSummary?.reasonedVoting && !voteSummary.hasCurrentUserVoted && !voteSummary.finalized &&
+          <label>Evidence supporting your vote<textarea maxLength={500} value={basis} onChange={event => setBasis(event.target.value)} /></label>}
+        {voteSummary?.voters?.filter(voter => voter.rationale).map(voter =>
+          <p key={voter.auditorAddress}>{voter.shortenedAddress}: {voter.rationale}</p>)}
         {voteLoading ? <p>Loading votes...</p> : null}
 
-        {voteSummary ? (
+        {voteSummary?.peerVotesHidden && <p>Peer votes appear here after you vote or the review closes. Votes are visible on the public chain.</p>}
+        {voteSummary && !voteSummary.peerVotesHidden ? (
           <>
             <div className="vote-breakdown-grid">
               {Object.values(voteSummary.breakdown || {}).map((entry) => (

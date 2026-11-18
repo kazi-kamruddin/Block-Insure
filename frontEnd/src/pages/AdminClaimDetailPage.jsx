@@ -142,6 +142,7 @@ async function getOracleQuorumStatus(claimId) {
   const confirmations = await coordinator.revealCount(oracleRequest.requestId);
 
   return {
+    retryAvailable: Number(oracleRequest.finalizationCode) === 3 && typeof coordinator.canRetryTimeout === "function" && await coordinator.canRetryTimeout(claimId).catch(() => false),
     requestId: oracleRequest.requestId.toString(),
     confirmations: Number(confirmations),
     required: Number(oracleRequest.requiredConfirmations),
@@ -254,7 +255,7 @@ export default function AdminClaimDetailPage() {
   } = useQuery({
     queryKey: ["adminClaimOracleQuorum", id],
     queryFn: () => getOracleQuorumStatus(id),
-    enabled: Boolean(id) && statusName === "ORACLE_PENDING",
+    enabled: Boolean(id) && ["ORACLE_PENDING", "ORACLE_FAILED"].includes(statusName),
     retry: false,
     refetchInterval: statusName === "ORACLE_PENDING" ? 10_000 : false,
     refetchIntervalInBackground: false,
@@ -272,7 +273,7 @@ export default function AdminClaimDetailPage() {
       ...extra,
     });
   const baseRequestOracleRule = getAdminRule(CLAIM_ACTIONS.REQUEST_ORACLE);
-  const requestOracleRule = baseRequestOracleRule;
+  const requestOracleRule = statusName === "ORACLE_FAILED" && oracleQuorumStatus?.retryAvailable ? { allowed: true } : baseRequestOracleRule;
   const manualReviewRule =
     statusName === "FRAUD_FLAGGED"
       ? { allowed: true, reason: "" }

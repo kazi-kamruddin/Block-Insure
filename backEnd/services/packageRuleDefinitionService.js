@@ -39,8 +39,19 @@ const normalizeRuleDefinition = (input) => {
     maximumClaimWei: amount(input.maximumClaimEth, "maximum claim"),
     exclusionsRoot: root(excludedServices), requiredDocumentsRoot: root(requiredDocuments),
   };
-  if (input.settlementFormulaVersion && input.settlementFormulaVersion !== "BLOCK_INSURE_SETTLEMENT_V1") throw fail("Unsupported settlement formula.");
-  return { normalizedRules, allowedServices, excludedServices, requiredDocuments, allowedClaimTypes, excludedClaimTypes, requiredDocumentTypes };
+  let sublimits;
+  if (input.serviceSublimitsEth !== undefined) {
+    const entries = input.serviceSublimitsEth;
+    if (!entries || typeof entries !== "object" || Array.isArray(entries) ||
+        Object.keys(entries).length !== allowedClaimTypes.length) throw fail("Specify one sublimit for each allowed service.");
+    sublimits = allowedClaimTypes.map(service => {
+      const limit = amount(entries[service], "service sublimit");
+      if (limit <= 0n) throw fail("Every allowed service needs a positive sublimit.");
+      return limit.toString();
+    });
+  }
+  if (input.settlementFormulaVersion && input.settlementFormulaVersion !== (sublimits ? "BLOCK_INSURE_SETTLEMENT_V2" : "BLOCK_INSURE_SETTLEMENT_V1")) throw fail("Unsupported settlement formula.");
+  return { ...(sublimits ? { sublimits } : {}), normalizedRules, allowedServices, excludedServices, requiredDocuments, allowedClaimTypes, excludedClaimTypes, requiredDocumentTypes };
 };
 
 const buildRulePublication = (packageId, version, definition) => {
@@ -49,6 +60,6 @@ const buildRulePublication = (packageId, version, definition) => {
   const ruleDocument = JSON.stringify({ packageId: String(packageId), version: String(version),
     ...Object.fromEntries(Object.entries(normalizedRules).map(([key, value]) => [key, value.toString()])), ...lists });
   return { ...normalized, ruleDocument, rules: { version, ...normalizedRules,
-    settlementFormulaVersion: ethers.id("BLOCK_INSURE_SETTLEMENT_V1"), policyRuleVersion: ethers.id(ruleDocument) } };
+    settlementFormulaVersion: ethers.id(normalized.sublimits ? "BLOCK_INSURE_SETTLEMENT_V2" : "BLOCK_INSURE_SETTLEMENT_V1"), policyRuleVersion: ethers.id(ruleDocument) } };
 };
 module.exports = { normalizeRuleDefinition, buildRulePublication };

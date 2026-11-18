@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { formatEther } from "ethers";
+import { Contract, formatEther } from "ethers";
 import { useQuery } from "@tanstack/react-query";
 
 import ClaimSubmissionRecoveryPanel from "../components/ClaimSubmissionRecoveryPanel";
@@ -27,6 +27,8 @@ import PolicyTermsPanel from "../components/PolicyTermsPanel";
 import {
   assertCorrectNetwork,
   getConnectedWalletAddress,
+  getWalletContract,
+  hashInvoiceNumber,
   parseTransactionError,
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
@@ -94,6 +96,8 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
 
   const [policyId, setPolicyId] = useState("");
   const [claimAmount, setClaimAmount] = useState("0.1");
+  const [intentMessage, setIntentMessage] = useState("");
+  const [filingIntentPending, setFilingIntentPending] = useState(false);
   const [reportedTime, setIncidentDateTime] = useState("");
   const [claimType, setClaimType] = useState("HOSPITALIZATION");
   const [hospitalId, setHospitalId] = useState("HOSP-001");
@@ -502,6 +506,28 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
         </div>
       ) : null}
 
+      {selectedPolicy?.policyTerms?.serviceSublimitsWei && <details className="card">
+        <summary>Record a filing intent while an invoice is awaiting publication</summary>
+        <p>Use the hospital and invoice number on your receipt before the filing deadline. A timely intent gives this invoice seven extra days for submission. Coverage and document checks still apply.</p>
+        <form onSubmit={async event => {
+          event.preventDefault();
+          const fields = new FormData(event.currentTarget);
+          setFilingIntentPending(true);
+          try {
+            const manager = await getWalletContract();
+            const economics = new Contract(await manager.policyEconomics(), ["function recordFilingIntent(uint256,bytes32)"], manager.runner);
+            const tx = await economics.recordFilingIntent(policyId, hashInvoiceNumber(fields.get("invoice").trim(), fields.get("hospital")));
+            await tx.wait();
+            setIntentMessage("Filing intent confirmed.");
+          } catch (error) { setIntentMessage(parseTransactionError(error)); }
+          finally { setFilingIntentPending(false); }
+        }}>
+          <label>Receipt hospital<select name="hospital" required>{networkHospitals.map(row => <option key={row.hospitalId}>{row.hospitalId}</option>)}</select></label>
+          <label>Receipt invoice number<input name="invoice" maxLength={100} required /></label>
+          <button disabled={filingIntentPending}>Record filing intent</button>
+          {intentMessage && <p role="status">{intentMessage}</p>}
+        </form>
+      </details>}
       <ClaimSubmissionRecoveryPanel revision={recoveryRevision} onCompleted={async (result) => { setSuccessMessage(`Claim #${result.attempt.claimId} submitted and its encrypted evidence was reconciled successfully.`); await refetchPolicies(); }} onResume={(attempt) => {
         setResumeAttempt(attempt); setPolicyId(attempt.policyId); setClaimAmount(formatEther(attempt.submittedFacts.claimAmountWei));
         setClaimType(attempt.submittedFacts.claimType); setHospitalId(attempt.submittedFacts.hospitalId); setInvoiceNumber(attempt.submittedFacts.invoiceNumber);

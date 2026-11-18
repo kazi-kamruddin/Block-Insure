@@ -108,6 +108,26 @@ contract PolicyEconomics {
     mapping(bytes32 => bytes32[]) private packageExcludedServices;
     mapping(uint256 => CoverageAccount) private coverageAccounts;
     mapping(uint256 => CoverageInterval[]) private coverageIntervals;
+    bytes32 public constant CAPPED_FORMULA = keccak256("BLOCK_INSURE_SETTLEMENT_V2");
+    mapping(uint256 => mapping(uint64 => mapping(bytes32 => uint256))) public serviceSublimit;
+    mapping(uint256 => bytes32) public reservedService;
+    mapping(uint256 => mapping(bytes32 => uint64)) public filingIntentAt;
+    uint64 public constant FILING_EXTENSION = 7 days;
+    event FilingIntentRecorded(uint256 indexed policyId, bytes32 indexed invoiceId, uint64 filedAt);
+    function recordFilingIntent(uint256 policyId, bytes32 invoiceId) external {
+        PolicyTerms storage terms = policyTerms[policyId];
+        require(terms.holder == msg.sender && terms.settlementFormulaVersion == CAPPED_FORMULA, "Ineligible filing intent");
+        require(invoiceId != bytes32(0) && invoiceClaimId[invoiceId] == 0 && filingIntentAt[policyId][invoiceId] == 0, "Invoice already filed");
+        filingIntentAt[policyId][invoiceId] = uint64(block.timestamp);
+        emit FilingIntentRecorded(policyId, invoiceId, uint64(block.timestamp));
+    }
+
+    function withinFilingWindow(uint256 policyId, bytes32 invoiceId, uint64 incidentAt) public view returns (bool) {
+        uint256 deadline = uint256(incidentAt) + policyTerms[policyId].claimDeadline;
+        if (block.timestamp <= deadline) return true;
+        uint64 filed = filingIntentAt[policyId][invoiceId];
+        return filed >= incidentAt && filed != 0 && filed <= deadline && block.timestamp <= deadline + FILING_EXTENSION;
+    }
     mapping(uint256 => ClaimReservation) private claimReservations;
     mapping(bytes32 => uint256) public invoiceClaimId;
     mapping(uint256 => bool) public coverageTerminated;
@@ -190,6 +210,22 @@ contract PolicyEconomics {
         bytes32[] calldata allowedServices,
         bytes32[] calldata excludedServices
     ) external onlyManagerAdmin {
+        require(rules.settlementFormulaVersion != CAPPED_FORMULA, "Supply issued sublimits");
+        _publish(packageId, rules, allowedServices, excludedServices);
+    }
+
+    function publishCappedRules(uint256 packageId, PackageRules calldata rules, bytes32[] calldata allowedServices,
+        bytes32[] calldata excludedServices, uint256[] calldata limits) external onlyManagerAdmin {
+        require(rules.settlementFormulaVersion == CAPPED_FORMULA && allowedServices.length == limits.length, "Invalid capped offer");
+        _publish(packageId, rules, allowedServices, excludedServices);
+        for (uint256 i; i < limits.length; ++i) {
+            require(limits[i] > 0, "Service limit required");
+            serviceSublimit[packageId][rules.version][allowedServices[i]] = limits[i];
+        }
+    }
+
+    function _publish(uint256 packageId, PackageRules calldata rules, bytes32[] calldata allowedServices,
+        bytes32[] calldata excludedServices) private {
         require(packageId != 0, "Package required");
         require(rules.version == currentPackageRuleVersion[packageId] + 1, "Version must increase by one");
         require(rules.minimumDocumentCommitments == 1, "Only primary invoice supported");
@@ -395,7 +431,7 @@ contract PolicyEconomics {
         // retain their original reporting deadline even after a refund.
         require(claimAmountWei > 0 && claimAmountWei <= terms.maximumClaimWei, "Claim amount not covered");
         require(incidentAt <= block.timestamp, "Incident is in the future");
-        require(block.timestamp <= uint256(incidentAt) + terms.claimDeadline, "Claim deadline expired");
+        require(withinFilingWindow(policyId, invoiceId, incidentAt), "Claim deadline expired");
         require(documentCommitmentCount >= terms.minimumDocumentCommitments, "Required documents missing");
         require(invoiceId != bytes32(0) && invoiceClaimId[invoiceId] == 0, "Invoice identity already used");
         require(_isCovered(policyId, incidentAt), "Incident outside paid coverage interval");
@@ -406,7 +442,8 @@ contract PolicyEconomics {
             require(allowedServiceCodes[keccak256(abi.encode(scope, serviceCode))], "Claim type is not eligible");
         }
 
-        (, , , insurerLiabilityWei, ) = _calculate(terms, claimAmountWei);
+        reservedService[claimId] = serviceCode;
+        (, , , insurerLiabilityWei, ) = _quote(terms, serviceCode, claimAmountWei, remainingCoverage(policyId));
         require(insurerLiabilityWei > 0, "Settlement is zero");
         CoverageAccount storage account = coverageAccounts[policyId];
         require(
@@ -431,7 +468,7 @@ contract PolicyEconomics {
         emit CoverageReserved(policyId, claimId, insurerLiabilityWei, remainingCoverage(policyId));
     }
 
-    function reserveAppeal(uint256 claimId) external onlyManager {
+    function reserveAppeal(uint256 claimId) public onlyManager {
         ClaimReservation storage reservation = claimReservations[claimId];
         // Cancellation refunds do not extinguish a covered medical claim's appeal.
         require(!reservation.reserved && !reservation.settled, "Claim coverage unavailable");
@@ -449,13 +486,13 @@ contract PolicyEconomics {
         emit CoverageReserved(reservation.policyId, claimId, reservation.liabilityWei, remainingCoverage(reservation.policyId));
     }
 
-    function amendRejectedClaim(uint256 claimId, uint256 amount, bytes32 invoiceId) external onlyManager {
+    function amendRejectedClaim(uint256 claimId, uint256 amount, bytes32 invoiceId) public onlyManager {
         ClaimReservation storage reservation = claimReservations[claimId];
         require(!reservation.reserved && !reservation.settled, "Claim coverage unavailable");
         PolicyTerms memory terms = policyTerms[reservation.policyId];
         require(amount > 0 && amount <= terms.maximumClaimWei, "Claim amount not covered");
         require(invoiceId != bytes32(0) && (invoiceClaimId[invoiceId] == 0 || invoiceClaimId[invoiceId] == claimId), "Invoice identity already used");
-        (, , , uint256 liability, ) = _calculate(terms, amount);
+        (, , , uint256 liability, ) = _quote(terms, reservedService[claimId], amount, remainingCoverage(reservation.policyId));
         require(liability > 0, "Settlement is zero");
         // Old invoice identities remain bound to this claim to prevent replay.
         invoiceClaimId[invoiceId] = claimId;
@@ -464,7 +501,16 @@ contract PolicyEconomics {
         reservation.liabilityWei = liability;
     }
 
-    function releaseClaim(uint256 claimId) external onlyManager {
+    function reviseActiveReservation(uint256 claimId, uint256 amount) external onlyManager {
+        ClaimReservation storage r = claimReservations[claimId];
+        require(r.reserved && !r.settled);
+        if (amount == r.claimAmountWei) return;
+        releaseClaim(claimId);
+        amendRejectedClaim(claimId, amount, r.invoiceId);
+        reserveAppeal(claimId);
+    }
+
+    function releaseClaim(uint256 claimId) public onlyManager {
         ClaimReservation storage reservation = claimReservations[claimId];
         if (!reservation.reserved || reservation.settled) return;
         CoverageAccount storage account = coverageAccounts[reservation.policyId];
@@ -503,7 +549,16 @@ contract PolicyEconomics {
     {
         ClaimReservation memory reservation = claimReservations[claimId];
         require(reservation.policyId != 0, "Claim not recorded");
-        return _calculate(policyTerms[reservation.policyId], reservation.claimAmountWei);
+        return _quote(policyTerms[reservation.policyId], reservedService[claimId], reservation.claimAmountWei, reservation.liabilityWei);
+    }
+
+    function _quote(PolicyTerms memory terms, bytes32 service, uint256 gross, uint256 available) private view
+        returns (uint256, uint256 deductible, uint256 afterDeductible, uint256 payableAmount, uint256) {
+        if (terms.settlementFormulaVersion != CAPPED_FORMULA) return _calculate(terms, gross);
+        uint256 limit = serviceSublimit[terms.packageId][terms.packageRuleVersion][service];
+        (, deductible, afterDeductible, payableAmount,) = _calculate(terms, gross < limit ? gross : limit);
+        if (payableAmount > available) payableAmount = available;
+        return (gross, deductible, afterDeductible, payableAmount, gross - payableAmount);
     }
 
     function minimumTreasuryBalance(uint256 approvedUnfundedLiabilityWei)

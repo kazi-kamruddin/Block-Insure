@@ -213,4 +213,27 @@ router.get(
   getAdminClaims
 );
 
+router.get("/oracle-readiness", authMiddleware, requireRole("ADMIN", "CLAIM_OFFICER"), async (_req, res, next) => {
+  try {
+    const manager = require("../services/contractService").getReadOnlyContract();
+    const network = await manager.runner.provider.getNetwork();
+    const origins = process.env.ORACLE_READY_URLS?.split(",").map(url => url.trim()) ||
+      (network.chainId === 31337n ? ["http://127.0.0.1:5101", "http://127.0.0.1:5102"] :
+      ["https://block-insure-oracle-one.onrender.com", "https://block-insure-oracle-two.onrender.com"]);
+    if (origins.length !== 2) throw new Error("Two worker URLs are required");
+    const workers = await Promise.all(origins.map(async origin => {
+      const response = await fetch(new URL("/health/ready", origin), { signal: AbortSignal.timeout(20000) });
+      if (!response.ok) return null;
+      return response.json();
+    }));
+    const ready = workers.every(worker => worker?.status === "ready" && worker.workerEnabled &&
+      worker.deployment?.chainId === String(network.chainId) && worker.deployment.managerAddress === manager.target.toLowerCase() &&
+      Number.isSafeInteger(worker.scanLagBlocks) && worker.scanLagBlocks >= 0 && worker.scanLagBlocks <= 20) &&
+      new Set(workers.map(worker => worker.oracleInstanceId)).size === 2;
+    res.set("Cache-Control", "no-store").status(ready ? 200 : 503).json({ ready,
+      message: ready ? "Both workers are ready." : "Workers are waking or catching up. Try verification again." });
+  } catch {
+    res.status(503).json({ ready: false, message: "Worker readiness is unavailable. Retry before opening the verification window." });
+  }
+});
 module.exports = router;

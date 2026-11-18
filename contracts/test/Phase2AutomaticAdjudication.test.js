@@ -208,6 +208,10 @@ describe("Phase 2 - Automatic adjudication", function () {
     await fixture.manager.connect(fixture.publicCaller).finalizeExpiredManualReview(claimId);
     expect((await fixture.manager.getClaim(claimId)).status).to.equal(8);
     expect(await fixture.manager.rejectionReason(claimId)).to.equal(5);
+    expect(await fixture.adjudicator.proceduralRetryAvailable(claimId, 1)).to.equal(true);
+    await fixture.manager.connect(fixture.user).submitAppeal(claimId, "procedural timeout");
+    expect(await fixture.adjudicator.appealRound(claimId)).to.equal(0);
+    expect(await fixture.adjudicator.proceduralRetryAvailable(claimId, 1)).to.equal(false);
     // Availability failure is not adjudicated ground truth about this vote.
     expect(await fixture.adjudicator.auditorReputation(fixture.auditors[0].address)).to.equal(0);
   });

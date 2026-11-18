@@ -46,6 +46,15 @@ router.get("/insurer/unlinked", authMiddleware, requireRole("ADMIN", "CLAIM_OFFI
     })) });
   } catch (error) { next(error); }
 });
+router.get("/insurer/publication-status", authMiddleware, requireRole("ADMIN", "CLAIM_OFFICER"), async (req, res, next) => {
+  try {
+    const { hospitalId, invoiceNumber } = req.query;
+    if (typeof hospitalId !== "string" || typeof invoiceNumber !== "string") return res.sendStatus(422);
+    const record = await Record.findOne({ hospitalId, invoiceNumber }).select("sourceRevision publicationPending").lean();
+    if (!record) return res.sendStatus(404);
+    res.set("Cache-Control", "private, no-store").json({ revision: record.sourceRevision || 0, pending: Boolean(record.publicationPending) });
+  } catch (error) { next(error); }
+});
 router.put("/insurer/association", authMiddleware, requireRole("ADMIN", "CLAIM_OFFICER"), async (req, res, next) => {
   try {
     const { hospitalId, invoiceNumber, patientReference, wallet, reason, revision } = req.body;

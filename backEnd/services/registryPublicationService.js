@@ -1,3 +1,4 @@
+const { isDeepStrictEqual } = require("node:util");
 const Primary = require("../models/MockHospitalRecord");
 const Secondary = require("../models/MockHospitalRecordOracle2");
 const Publication = require("../models/RegistryPublication");
@@ -44,15 +45,19 @@ const publishPendingRegistry = () => {
       const tree = buildMerkleTree(records);
       if (!tree.rootHash) throw new Error("Cannot publish an empty registry");
       // The two workers share a publisher, not independent medical truth.
-      await Secondary.bulkWrite(records.map(({ _id, __v, ...record }) => ({ updateOne: {
-        filter: { invoiceHash: record.invoiceHash }, update: { $set: record }, upsert: true,
-      } })));
-      // Secondary is a derived replica, not an independent source of records.
-      // Reconcile only rows observed before this reconciliation, with revision
-      // checks so a concurrent secondary write is never silently deleted.
-      const primaryHashes = new Set(records.map((record) => record.invoiceHash));
-      const stale = (await Secondary.find().select("_id invoiceHash updatedAt").lean())
-        .filter((record) => !primaryHashes.has(record.invoiceHash));
+      const payload = ({ _id, __v, createdAt, updatedAt, publicationPending, ...facts }) => facts;
+      const replica = await Secondary.find().lean();
+      const replicaByInvoice = new Map(replica.map(row => [row.invoiceHash, payload(row)]));
+      const updates = [];
+      for (const row of records) {
+        const facts = payload(row);
+        if (!isDeepStrictEqual(facts, replicaByInvoice.get(row.invoiceHash))) {
+          updates.push({ updateOne: { filter: { invoiceHash: row.invoiceHash }, update: { $set: facts }, upsert: true } });
+        }
+      }
+      if (updates.length) await Secondary.bulkWrite(updates);
+      const primaryHashes = new Set(records.map(record => record.invoiceHash));
+      const stale = replica.filter(record => !primaryHashes.has(record.invoiceHash));
       if (stale.length) await Secondary.bulkWrite(stale.map((record) => ({ deleteOne: {
         filter: { _id: record._id, updatedAt: record.updatedAt },
       } })));

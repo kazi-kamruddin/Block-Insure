@@ -133,6 +133,7 @@ export default function AdminCreatePolicyPackagePage() {
           deductibleCapEth: form.deductibleCapEth,
           insurerShareBps: Number(form.insurerShareBps),
           maximumClaimEth: form.maximumClaimEth,
+          ...(form.sublimits?.trim() ? { serviceSublimitsEth: Object.fromEntries(form.sublimits.split(",").map(pair => pair.trim().split("=").map(value => value.trim()))) } : {}),
           allowedClaimTypes: form.allowedClaimTypes
             .split(",")
             .map((value) => value.trim())
@@ -307,6 +308,7 @@ export default function AdminCreatePolicyPackagePage() {
           <input type="number" min="0.000000000000000001" step="any" value={form.maximumClaimEth} onChange={(event) => updateField("maximumClaimEth", event.target.value)} required />
         </label>
 
+        <label>Service sublimits (optional, test ETH)<input value={form.sublimits || ""} placeholder="HEALTH=1,SURGERY=0.8" onChange={event => updateField("sublimits", event.target.value)} /></label>
         <label>
           Allowed claim types (comma separated)
           <input type="text" value={form.allowedClaimTypes} onChange={(event) => updateField("allowedClaimTypes", event.target.value)} required />

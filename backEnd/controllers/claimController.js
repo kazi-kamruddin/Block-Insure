@@ -162,16 +162,22 @@ const formatEnrichedClaim = async (
           adjudicator.preparationRetryUsed(claim.claimId),
           contract.rejectionReason(claim.claimId),
         ]);
+      let retryAvailable = Number(reason) === 7 && !preparationRetryUsed;
+      if (Number(reason) === 5 && !preparationRetryUsed) {
+        const extension = new ethers.Contract(adjudicator.target, ["function proceduralRetryAvailable(uint256,uint64) view returns (bool)"], contract.runner);
+        try { retryAvailable = await extension.proceduralRetryAvailable(claim.claimId, await contract.claimVersion(claim.claimId)); }
+        catch (error) { if (error.code !== "CALL_EXCEPTION") throw error; } // Archived deployments lack this selector.
+      }
       closure = {
         resolvedAt: formatTimestamp(resolvedAt),
         appealed: Number(round) > 0,
         appealRound: Number(round),
         appealFinalized: Boolean(appealFinalized),
         maximumAppeals: Number(maximumAppeals),
-        canAppeal: formatted.status.label === "REJECTED" && (Number(round) < Number(maximumAppeals) || (Number(reason) === 7 && !preparationRetryUsed)),
-        preparationRetryAvailable: formatted.status.label === "REJECTED" && Number(reason) === 7 && !preparationRetryUsed,
+        canAppeal: formatted.status.label === "REJECTED" && (Number(round) < Number(maximumAppeals) || retryAvailable),
+        preparationRetryAvailable: formatted.status.label === "REJECTED" && retryAvailable,
         rejectionReasonCode: Number(reason),
-        rejectionExplanation: Number(reason) === 7 ? "Evidence access preparation was incomplete. This is not a fraud verdict." : "",
+        rejectionExplanation: Number(reason) === 7 ? "Evidence access preparation was incomplete. This is not a fraud verdict." : Number(reason) === 5 ? "Voting expired without quorum." : "",
         canClose: false,
         lifecycleControlledByProtocol: true,
         allocatedSettlementWei: allocation.toString(),

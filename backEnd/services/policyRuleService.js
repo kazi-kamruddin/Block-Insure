@@ -180,11 +180,13 @@ const evaluatePolicyEligibility = ({
   }
   const remaining = terms.remainingCoverageWei === undefined ? coverageWei : BigInt(terms.remainingCoverageWei);
   const cappedWei = requestedWei < remaining ? requestedWei : remaining;
-  const nominalDeductible = terms.authoritative ? requestedWei * BigInt(terms.deductibleRateBps) / 10000n : 0n;
+  const limit = terms.serviceSublimitsWei?.[ethers.id(String(claimType).trim().toUpperCase())];
+  const eligible = limit && BigInt(limit) < requestedWei ? BigInt(limit) : requestedWei;
+  const nominalDeductible = terms.authoritative ? eligible * BigInt(terms.deductibleRateBps) / 10000n : 0n;
   const deductible = terms.authoritative && nominalDeductible > BigInt(terms.deductibleCapWei) ? BigInt(terms.deductibleCapWei) : nominalDeductible;
-  const afterDeductible = requestedWei > deductible ? requestedWei - deductible : 0n;
+  const afterDeductible = eligible > deductible ? eligible - deductible : 0n;
   const shared = afterDeductible * BigInt(terms.coinsuranceBps) / 10000n;
-  if (terms.authoritative && (shared <= 0n || shared > remaining)) {
+  if (terms.authoritative && (shared <= 0n || remaining === 0n || (!terms.serviceSublimitsWei && shared > remaining))) {
     outcome = "OUTSIDE_COVERAGE";
     reasons.push(createReason("INSUFFICIENT_REMAINING_COVERAGE", "Calculated insurer liability is zero or exceeds remaining coverage; the contract rejects this claim.", "BLOCK"));
   }

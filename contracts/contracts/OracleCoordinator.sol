@@ -69,6 +69,11 @@ contract OracleCoordinator {
     mapping(uint64 => RegistrySnapshot) private registrySnapshots;
     mapping(uint256 => OracleRequest) private requests;
     mapping(uint256 => uint256) public requestByClaimId;
+    mapping(uint256 => bool) private timeoutRetryUsed;
+    function canRetryTimeout(uint256 claimId) public view returns (bool) {
+        OracleRequest storage prior = requests[requestByClaimId[claimId]];
+        return prior.finalizationCode == FINALIZED_TIMEOUT && !timeoutRetryUsed[claimId];
+    }
     mapping(uint256 => uint8) public commitmentCount;
     mapping(uint256 => uint8) public revealCount;
     mapping(uint256 => mapping(address => bool)) public eligibleForRequest;
@@ -251,6 +256,11 @@ contract OracleCoordinator {
         // Source membership, patient authorization and committed record integrity
         // are checked by the workers. Hospital staff do not attest to each claim.
 
+        OracleRequest storage previous = requests[requestByClaimId[claimId]];
+        if (previous.requestId != 0 && previous.claimVersion == claimVersion) {
+            require(canRetryTimeout(claimId), "Oracle retry unavailable");
+            timeoutRetryUsed[claimId] = true;
+        }
         requestId = requestCounter++;
         uint256 commitDeadline = block.number + commitWindowBlocks;
         uint256 revealDeadline = commitDeadline + revealWindowBlocks;

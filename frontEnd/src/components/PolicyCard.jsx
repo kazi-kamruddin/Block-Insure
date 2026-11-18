@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatEther } from "ethers";
+import { formatEther, id } from "ethers";
 import { Link } from "react-router-dom";
 
 import PolicyTermsPanel from "./PolicyTermsPanel";
@@ -10,10 +10,13 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
   const [termsAccepted, setTermsAccepted] = useState(false);
   const terms = policyPackage.policyTerms;
   const gross = BigInt(terms?.maximumClaimWei || 0);
-  const rateDeductible = gross * BigInt(terms?.deductibleRateBps || 0) / 10000n;
+  const service = terms?.coveredClaimTypes?.[0];
+  const serviceLimit = service && terms?.serviceSublimitsWei?.[id(service)];
+  const eligible = serviceLimit && BigInt(serviceLimit) < gross ? BigInt(serviceLimit) : gross;
+  const rateDeductible = eligible * BigInt(terms?.deductibleRateBps || 0) / 10000n;
   const cap = BigInt(terms?.deductibleCapWei || 0);
   const deductible = rateDeductible < cap ? rateDeductible : cap;
-  const liability = (gross - deductible) * BigInt(terms?.coinsuranceBps || 0) / 10000n;
+  const liability = (eligible - deductible) * BigInt(terms?.coinsuranceBps || 0) / 10000n;
   const document = policyPackage.policyDocument;
 
   return (
@@ -42,7 +45,7 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
       <p>Required document: {policyPackage.requiredDocumentType}</p>
       {terms?.authoritative && gross > 0n && <details>
         <summary>Worked reimbursement example</summary>
-        <p>For an eligible bill of {formatEther(gross)} test ETH, the deductible is {formatEther(deductible)}.
+        <p>For a bill of {formatEther(gross)} test ETH{serviceLimit ? ` for ${service}, the eligible amount is ${formatEther(eligible)} test ETH` : ""}, the deductible is {formatEther(deductible)}.
           The insurer pays {terms.coinsuranceBps / 100}% of the balance, or {formatEther(liability)} test ETH,
           assuming sufficient remaining policy coverage.</p>
         <p>Paid installments establish covered dates. Treatment outside a paid interval or during the waiting period is ineligible.</p>

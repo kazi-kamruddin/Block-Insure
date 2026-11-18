@@ -40,6 +40,12 @@ const readRuleLabels = async (packageId, version, hash, provider) => {
   } catch { return {}; }
 };
 
+const readSublimits = async (economics, raw, packageId, version, allowed) => {
+  if (raw.settlementFormulaVersion !== ethers.id("BLOCK_INSURE_SETTLEMENT_V2")) return {};
+  const amounts = await Promise.all(allowed.map(code => economics.serviceSublimit(packageId, version, code)));
+  return { serviceSublimitsWei: Object.fromEntries(allowed.map((code, index) => [code, String(amounts[index])])) };
+};
+
 const getConfiguredTerms = async (contract, packageId) => {
   const economics = await getPolicyEconomics(contract);
   const version = await economics.currentPackageRuleVersion(packageId);
@@ -51,7 +57,7 @@ const getConfiguredTerms = async (contract, packageId) => {
   if (!allowed.some((hash) => !excluded.includes(hash)) || raw.insurerShareBps === 0n) return null;
   const maximumClaimWei = raw.maximumClaimWei === 0n || raw.maximumClaimWei > pkg.coverageAmount ? pkg.coverageAmount : raw.maximumClaimWei;
   return { ...formatTerms({ ...raw.toObject(), maximumClaimWei }, { allowed, excluded, labels: await readRuleLabels(packageId, version, raw.policyRuleVersion, contract.runner.provider) }),
-    paymentSchedule: await readPaymentSchedule(economics) };
+    ...await readSublimits(economics, raw, packageId, version, allowed), paymentSchedule: await readPaymentSchedule(economics) };
 };
 
 const getIssuedTerms = async (contract, policyId) => {
@@ -66,6 +72,7 @@ const getIssuedTerms = async (contract, policyId) => {
     economics.getCoverageIntervals(policyId), economics.remainingCoverage(policyId), readPaymentSchedule(economics),
   ]);
   const terms = formatTerms(raw, { allowed, excluded, labels });
+  Object.assign(terms, await readSublimits(economics, raw, raw.packageId, raw.packageRuleVersion, allowed));
   terms.coverageIntervals = intervals.map((interval) => ({
     startsAt: String(interval.startsAt), endsAt: String(interval.endsAt), waitingEndsAt: String(interval.waitingEndsAt),
   }));
