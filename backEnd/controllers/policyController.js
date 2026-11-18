@@ -14,7 +14,7 @@ const {
   paginate,
   parsePagination,
 } = require("../services/contractQueryService");
-const { getConfiguredTerms, getIssuedTerms, getInstallment, getIssuedDocument } = require("../services/issuedPolicyTermsService");
+const { getConfiguredTerms, getIssuedTerms, readFilingWindow, getInstallment, getIssuedDocument } = require("../services/issuedPolicyTermsService");
 const { getDeploymentScope } = require("../services/deploymentScopeService");
 const PolicyTermsAcceptance = require("../models/PolicyTermsAcceptance");
 const { buildPolicyDocument } = require("../services/policyDocumentService");
@@ -162,9 +162,12 @@ const buildEligibilityInput = async ({
     ? Number(startDate)
     : Math.floor(Date.parse(startDate) / 1000);
 
+  const contract = getReadOnlyContract();
+  const terms = historical ? await getConfiguredTerms(contract, policyPackage.packageId) : await getIssuedTerms(contract, policy.policyId);
   return {
-    terms: historical ? await getConfiguredTerms(getReadOnlyContract(), policyPackage.packageId) : await getIssuedTerms(getReadOnlyContract(), policy.policyId),
-    currentTimestamp: Number((await getReadOnlyContract().runner.getBlock("latest")).timestamp),
+    terms,
+    filingWindow: historical ? undefined : await readFilingWindow(contract, policy.policyId, terms, body.invoiceHash, body.incidentDate),
+    currentTimestamp: Number((await contract.runner.getBlock("latest")).timestamp),
     policyStartDate: startDate,
     policyEndDate: historical
       ? body.policyEndDate || parsedStart + durationSeconds

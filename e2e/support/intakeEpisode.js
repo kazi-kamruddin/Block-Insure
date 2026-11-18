@@ -50,12 +50,13 @@ async function prepareEpisode(user) {
       data: { invoiceNumber, patientReference, admissionDate: date, dischargeDate: date, invoiceDate: date,
         billAmount: "0.1", treatmentType: "HOSPITALIZATION", diagnosisCode: "DEMO" } });
     expect(created.status(), await created.text()).toBe(201);
-    const revision = await associate(admin, (await created.json()).record.revision, user.wallet.address);
+    let revision = await associate(admin, (await created.json()).record.revision, user.wallet.address);
     await expect.poll(async () => {
       const response = await user.page.request.get(api + "/my-episodes", { headers: await headers(user), maxRetries: 1 });
       return (await response.json()).records.some(row => row.invoiceNumber === invoiceNumber);
     }, { timeout: 90000 }).toBe(true);
-    return { invoiceNumber, revoke: async actor => { await associate(actor, revision, null); } };
+    return { invoiceNumber, revoke: async actor => { revision = await associate(actor, revision, null); },
+      restore: async actor => { revision = await associate(actor, revision, user.wallet.address); } };
   } finally {
     await closeActor(admin);
     await closeActor(hospital);

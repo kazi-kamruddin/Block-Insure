@@ -52,6 +52,15 @@ module.exports = {
           metadata: { bytecodeHash: "none" },
         },
       },
+      "contracts/ClaimAdjudicatorV6.sol": {
+        version: "0.8.26",
+        settings: {
+          evmVersion: "cancun",
+          optimizer: { enabled: true, runs: 1 },
+          viaIR: true,
+          metadata: { bytecodeHash: "none" },
+        },
+      },
     },
   },
   networks: {

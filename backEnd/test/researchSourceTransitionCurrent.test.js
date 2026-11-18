@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '../..');
 const read = p => fs.readFileSync(path.join(root,p));
 const sha = p => crypto.createHash('sha256').update(read(p)).digest('hex');
 const recorded = JSON.parse(read('backEnd/evaluation-results/research-manifest-v4.json'));
-const receipt = JSON.parse(read('docs/research-source-transition-intake.json'));
+const receipt = JSON.parse(read('docs/research-source-transition-claim-workflow.json'));
 const historicalSha = sha('backEnd/evaluation-results/research-manifest-v4.json');
 
 test('current reviewed transition matches actual source without replacing historical provenance', () => {

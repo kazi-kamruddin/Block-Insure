@@ -1,3 +1,4 @@
+import InsurerClaimStatement from "../components/InsurerClaimStatement";
 import { Contract } from "ethers";
 import { api } from "../services/api";
 import { Link, useParams } from "react-router-dom";
@@ -232,6 +233,7 @@ export default function AuditorVotingPage() {
 
       <div className="auditor-vote-workspace">
         <div className="auditor-vote-analysis">
+      <InsurerClaimStatement statement={claimData?.insurerStatement} />
       {claim && <><ReviewAccessPanel claimId={claimId} onChange={refreshAll} /><EvidenceChainPanel evidenceChain={claimData?.evidenceChain} /></>}
       {claim ? (
         <div className="card">

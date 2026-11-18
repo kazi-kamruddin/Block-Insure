@@ -146,6 +146,9 @@ test.describe("@workflow phase two evidence and review recovery", () => {
           await items.nth(1).getByRole("button", { name: "Preview decrypted" }).click();
           await expect(auditor.page.getByRole("dialog", { name: "Decrypted evidence preview" }).getByRole("img", { name: "Decrypted claim evidence" })).toBeVisible();
           await auditor.page.keyboard.press("Escape");
+          if (process.env.CLAIM_WORKFLOW_PROFILE === "V6") {
+            await auditor.page.getByLabel("Evidence supporting your vote").fill("The decrypted invoice matches the treatment received and documented charges.");
+          }
           await auditor.page.getByRole("button", { name: "Valid Claim", exact: true }).click();
           await expect(auditor.page.locator(".success-text")).toContainText("Valid Claim vote recorded on-chain", { timeout: 60000 });
         } finally { await closeActor(auditor); }

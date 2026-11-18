@@ -69,7 +69,10 @@ const getIndexedSources = async (provider) => {
   const configured = [
     ["InsuranceManager", managerAddress, InsuranceManagerArtifact.abi],
     ["OracleCoordinator", coordinatorAddress, OracleCoordinatorArtifact.abi],
-    ["ClaimAdjudicator", adjudicatorAddress, ClaimAdjudicatorArtifact.abi],
+    ["ClaimAdjudicator", adjudicatorAddress, [
+      ...ClaimAdjudicatorArtifact.abi,
+      "event ClaimClarified(uint256 indexed claimId, uint64 indexed version, bytes32 evidenceHash)",
+    ]],
     ["PolicyEconomics", economicsAddress, PolicyEconomicsArtifact.abi],
   ];
   if (process.env.POLICY_BENEFITS_ADDRESS) configured.push(["PolicyBenefitsManager", process.env.POLICY_BENEFITS_ADDRESS, require("../abi/PolicyBenefitsManager.json").abi]);
@@ -275,6 +278,7 @@ const runIndexingBatch = async () => {
       } catch {
         continue;
       }
+      if (!parsed) continue;
       await IndexedBlockchainEvent.updateOne(
         {
           indexerId,

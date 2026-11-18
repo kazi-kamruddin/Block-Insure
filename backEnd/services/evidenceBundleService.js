@@ -7,7 +7,7 @@ const { assignEvidenceChainLink } = require("./evidenceChainService");
 const { appendEvidenceEvent } = require("./evidenceTransparencyService");
 const fail = (message, statusCode = 409) => Object.assign(new Error(message), { statusCode });
 const MAX_FILES = 5;
-const MAX_REVIEW_FILES = 7; // Initial five plus bounded corrective-appeal evidence.
+const MAX_REVIEW_FILES = 8; // Initial five, a clarification, a procedural retry and a merits appeal.
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
 

@@ -340,13 +340,23 @@ const uploadDocument = async (req, res, next) => {
       const claim = await assertClaimBelongsToWallet(claimId, req.user.walletAddress);
       const contract = getReadOnlyContract();
       const nextVersion = Number(await contract.claimVersion(claimId)) + 1;
-      const draft = await require("../models/AppealSubmissionAttempt").findOne({ deploymentScope: await bundles.assertEvidenceDeployment(), claimId,
-        claimVersion: nextVersion, ownerWallet: req.user.walletAddress, status: "DRAFT" });
-      if (Number(claim.status) !== 8 || Number(aad.claimVersion) !== nextVersion || documentType !== "APPEAL_DOCUMENT" || !draft) {
-        return res.status(409).json({ success: false, message: "Prepare the rejected claim's appeal draft before uploading its version-bound attachment" });
+      const deploymentScope = await bundles.assertEvidenceDeployment();
+      const owner = req.user.walletAddress.toLowerCase();
+      if (Number(aad.claimVersion) !== nextVersion || !["APPEAL_DOCUMENT", "CLARIFICATION_DOCUMENT"].includes(documentType)) {
+        throw bundles.fail("This attachment needs a current appeal or clarification request");
       }
-      if (await File.exists({ claimId, claimVersion: nextVersion, documentType: "APPEAL_DOCUMENT" })) {
-        return res.status(409).json({ success: false, message: "This appeal already has a stored attachment. Resume the saved draft rather than uploading again." });
+      if (documentType === "CLARIFICATION_DOCUMENT") {
+        const block = await contract.runner.provider.getBlock("latest");
+        const draft = await require("../models/ClaimClarification").exists({ scope: deploymentScope, claimId,
+          priorVersion: nextVersion - 1, owner, confirmed: false, deadline: { $gte: block.timestamp } });
+        if (Number(claim.status) !== 5 || !draft) throw bundles.fail("The clarification window is unavailable");
+      } else {
+        const draft = await require("../models/AppealSubmissionAttempt").exists({ deploymentScope, claimId,
+          claimVersion: nextVersion, ownerWallet: owner, status: "DRAFT" });
+        if (Number(claim.status) !== 8 || !draft) throw bundles.fail("Prepare the rejected claim's appeal draft before uploading");
+      }
+      if (await File.exists({ deploymentScope, claimId, claimVersion: nextVersion, documentType })) {
+        throw bundles.fail("This response already has a stored attachment. Resume it without uploading again.");
       }
       if (String(aad.claimId) !== claimId) {
         return res.status(409).json({ success: false, message: "Envelope is bound to another claim" });
@@ -396,7 +406,7 @@ const uploadDocument = async (req, res, next) => {
       });
       fileRecord.evidenceEventIndex = event.treeIndex;
       await fileRecord.save();
-      await require("../models/AppealSubmissionAttempt").updateOne({ deploymentScope: fileRecord.deploymentScope, claimId,
+      if (documentType === "APPEAL_DOCUMENT") await require("../models/AppealSubmissionAttempt").updateOne({ deploymentScope: fileRecord.deploymentScope, claimId,
         claimVersion: fileRecord.claimVersion, ownerWallet: req.user.walletAddress, status: "DRAFT" }, { $set: {
         "payload.additionalDocumentHash": sha256Hash, "payload.additionalDocumentCID": uploadedCid,
       } });

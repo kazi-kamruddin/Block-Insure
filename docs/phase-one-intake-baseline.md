@@ -19,3 +19,13 @@ The activation directory contains the readback, journal and transaction receipt.
 | Successful appeal | The archived hosted v5 acceptance directory records a sponsored appeal with fresh version-bound verification. |
 
 Phase one retains the existing issued economics. A service-specific sublimit, partial payment at the remaining coverage cap and new appeal rules require the separately planned protocol deployment. The v5 medical document's hash and frozen evaluator identify the original behavior.
+
+## Running the revised claims workflow
+
+Set `CLAIM_WORKFLOW_PROFILE=V6` in a separate deployment to enable versioned clarification and votes with evidence reasons. The demonstration timing profile sets ten minutes each for evidence preparation and voting, with a fifteen-minute public routing delay. Production-shaped defaults retain the longer windows.
+
+The insurer may publish an episode immediately from the healthcare registry. On a capped policy, the policyholder can record a filing intent for the invoice before the original deadline. That intent allows seven extra days for the same invoice. The contract still checks the paid coverage interval, service eligibility and invoice reuse. The hospital records and corrects episode facts. The insurer checks the patient-to-wallet association before publication.
+
+The Oracle workers check published facts and the deployment's on-chain commitments. Reviewers can open encrypted attachments after the policyholder prepares access. A clarified claim needs its new evidence set reconciled and a fresh Oracle request. The claimant supplies the encrypted supplement. A reasoned vote binds a private rationale by hash. The app hides peer votes until the viewer votes or the review ends. Public transactions can still reveal votes during the window.
+
+V6 uses its own database, evidence scope, manager address, worker configuration and release manifest. Existing policies, claims, open reviews, balances and encrypted evidence continue to resolve via the archived deployment. Copying old claim IDs or reusing the evidence database would misidentify those records. Use the existing Base Sepolia deployment probe and readback for a parallel deployment. Set the new API's `ORACLE_READY_URLS` to the two worker origins, separated by a comma. Run the hosted smoke suite against that API and its two workers before making it the default viewer.

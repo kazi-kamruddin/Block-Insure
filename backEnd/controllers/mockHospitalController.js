@@ -647,6 +647,7 @@ const verifyHospitalRecord = async (req, res, next) => {
     const authoritativeClaim = claimId ? await getReadOnlyContract().getClaim(claimId) : null;
     let verificationSource = "ORIGINAL_CLAIM";
     let appealCommitment = null;
+    let clarificationManifest = null;
 
     if (claimId && Number.isInteger(requestedClaimVersion) && requestedClaimVersion > 1) {
       const activeAppeal = await Appeal.findOne({
@@ -656,48 +657,58 @@ const verifyHospitalRecord = async (req, res, next) => {
         status: { $in: ["UNDER_REVIEW", "APPROVED"] },
       }).lean();
 
-      // Appeal corrections are persisted only after the claimant's transaction
-      // is confirmed. Never evaluate the stale original claim for a later version.
-      if (!activeAppeal) {
-        return res.status(409).json({
-          success: false,
-          verified: false,
-          message: "Confirmed appeal metadata is not ready for Oracle evaluation",
-        });
-      }
-
-      const commitmentPayload = buildAppealCommitmentPayload(activeAppeal);
-      require("../services/appealFactService").assertAppealFactsMatch(authoritativeClaim, commitmentPayload);
-      const commitmentHash = hashAppealCommitment(commitmentPayload);
-      if (commitmentHash.toLowerCase() !== activeAppeal.appealReasonHash.toLowerCase()) {
-        return res.status(409).json({
-          success: false,
-          verified: false,
-          message: "Stored appeal corrections do not match their on-chain commitment",
-        });
-      }
-      appealCommitment = {
-        payload: commitmentPayload,
-        appealReasonHash: commitmentHash,
-        transactionHash: activeAppeal.transactionHash,
-      };
-
-      if (
-        [
-          activeAppeal.proposedHospitalId,
-          activeAppeal.proposedInvoiceNumber,
-          activeAppeal.proposedClaimType,
-          activeAppeal.proposedClaimAmountEth,
-        ].some(Boolean)
-      ) {
-        hospitalId = activeAppeal.proposedHospitalId || hospitalId;
-        invoiceHash = authoritativeClaim.invoiceHash;
-        claimType = activeAppeal.proposedClaimType || claimType;
-        claimAmountEth =
-          activeAppeal.proposedClaimAmountEth || claimAmountEth;
-        verificationSource = "PENDING_APPEAL_CORRECTION";
+      const clarification = !activeAppeal && await require("../models/ClaimClarification").findOne({
+        scope: await require("../services/deploymentScopeService").getDeploymentScope(), claimId,
+        priorVersion: requestedClaimVersion - 1, confirmed: true,
+      }).lean();
+      if (clarification) {
+        const bundle = await require("../services/evidenceBundleService").getBundle(claimId, requestedClaimVersion);
+        if (bundle?.manifestHash !== clarification.manifestHash) return res.status(409).json({ success: false, verified: false, message: "Clarification evidence is not ready" });
+        clarificationManifest = bundle.manifest;
       } else {
-        verificationSource = "PENDING_APPEAL_REVIEW";
+        // Appeal corrections are persisted only after the claimant's transaction
+        // is confirmed. Never evaluate the stale original claim for a later version.
+        if (!activeAppeal) {
+          return res.status(409).json({
+            success: false,
+            verified: false,
+            message: "Confirmed appeal metadata is not ready for Oracle evaluation",
+          });
+        }
+
+        const commitmentPayload = buildAppealCommitmentPayload(activeAppeal);
+        require("../services/appealFactService").assertAppealFactsMatch(authoritativeClaim, commitmentPayload);
+        const commitmentHash = hashAppealCommitment(commitmentPayload);
+        if (commitmentHash.toLowerCase() !== activeAppeal.appealReasonHash.toLowerCase()) {
+          return res.status(409).json({
+            success: false,
+            verified: false,
+            message: "Stored appeal corrections do not match their on-chain commitment",
+          });
+        }
+        appealCommitment = {
+          payload: commitmentPayload,
+          appealReasonHash: commitmentHash,
+          transactionHash: activeAppeal.transactionHash,
+        };
+
+        if (
+          [
+            activeAppeal.proposedHospitalId,
+            activeAppeal.proposedInvoiceNumber,
+            activeAppeal.proposedClaimType,
+            activeAppeal.proposedClaimAmountEth,
+          ].some(Boolean)
+        ) {
+          hospitalId = activeAppeal.proposedHospitalId || hospitalId;
+          invoiceHash = authoritativeClaim.invoiceHash;
+          claimType = activeAppeal.proposedClaimType || claimType;
+          claimAmountEth =
+            activeAppeal.proposedClaimAmountEth || claimAmountEth;
+          verificationSource = "PENDING_APPEAL_CORRECTION";
+        } else {
+          verificationSource = "PENDING_APPEAL_REVIEW";
+        }
       }
     }
 
@@ -836,6 +847,7 @@ const verifyHospitalRecord = async (req, res, next) => {
         registrySnapshot,
         boundaryNote: BOUNDARY_NOTE,
         appealCommitment,
+      clarificationManifest,
       });
     }
 
@@ -881,6 +893,7 @@ const verifyHospitalRecord = async (req, res, next) => {
       registrySnapshot,
       boundaryNote: BOUNDARY_NOTE,
       appealCommitment,
+      clarificationManifest,
       contractedHospital,
       recordCommitment: {
         hospitalId: record.hospitalId,

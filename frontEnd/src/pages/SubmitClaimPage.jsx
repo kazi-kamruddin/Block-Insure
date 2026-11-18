@@ -168,11 +168,12 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
     coverage.data?.intervals?.some(([begin, end, wait]) => dayStart >= Math.max(Number(begin), Number(wait)) && dayEnd <= Number(end));
   const incidentDateTime = wholeDayCovered ? episodeDay + "T00:00" : reportedTime;
 
-  const { data: eligibilityData, error: eligibilityError } = useQuery({
+  const { data: eligibilityData, error: eligibilityError, refetch: refetchEligibility } = useQuery({
     queryKey: [
       "policyEligibilityPreview",
       policyId,
       incidentDateTime,
+      selectedEpisode?.invoiceHash,
       claimType,
       claimAmount,
       preExistingCondition,
@@ -181,6 +182,7 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
     queryFn: () =>
       previewPurchasedPolicyEligibility(policyId, {
         incidentDate: dateTimeLocalToUnixSeconds(incidentDateTime),
+        invoiceHash: selectedEpisode?.invoiceHash,
         claimType,
         claimAmountEth: claimAmount,
         preExistingCondition,
@@ -519,6 +521,7 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
             const tx = await economics.recordFilingIntent(policyId, hashInvoiceNumber(fields.get("invoice").trim(), fields.get("hospital")));
             await tx.wait();
             setIntentMessage("Filing intent confirmed.");
+            refetchEligibility();
           } catch (error) { setIntentMessage(parseTransactionError(error)); }
           finally { setFilingIntentPending(false); }
         }}>

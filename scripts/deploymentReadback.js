@@ -34,9 +34,12 @@ async function verifyDeployment({ manifest, provider, local = false }) {
   const contracts = Object.fromEntries(names.map((name) => [name, new ethers.Contract(components[name], artifactFor(name).abi, provider)]));
   const calendarProfile = manifest.calendarProfile || "QUARTERLY";
   if (!["QUARTERLY", "ACCELERATED_TESTNET"].includes(calendarProfile)) throw new Error("Unsupported calendar profile");
+  const claimWorkflowProfile = manifest.claimWorkflowProfile || "LEGACY";
+  if (!["LEGACY", "V6"].includes(claimWorkflowProfile)) throw new Error("Unsupported claim workflow profile");
   const codeHashes = {};
   for (const name of names) {
-    const implementation = name === "InsuranceManager" && calendarProfile === "ACCELERATED_TESTNET" ? "AcceleratedInsuranceManager" : name;
+    const implementation = name === "InsuranceManager" && calendarProfile === "ACCELERATED_TESTNET" ? "AcceleratedInsuranceManager" :
+      name === "ClaimAdjudicator" && claimWorkflowProfile === "V6" ? "ClaimAdjudicatorV6" : name;
     const code = await provider.getCode(components[name]);
     if (code === "0x" || comparableCode(code, immutableReferences(implementation)) !== comparableCode(artifactFor(implementation).deployedBytecode, immutableReferences(implementation))) throw new Error(`Deployed code differs: ${name}`);
     codeHashes[name] = ethers.keccak256(code);
@@ -67,7 +70,7 @@ async function verifyDeployment({ manifest, provider, local = false }) {
   const block = await provider.getBlock(Number(manifest.deploymentBlock));
   if (!block) throw new Error("Deployment block missing");
   return { schema: "block-insure-deployment-readback-v1", checkedAt: new Date().toISOString(), chainId: String(chainId),
-    deploymentBlock: Number(manifest.deploymentBlock), deploymentBlockHash: block.hash, modelIdentityHash: model, codeHashes,
+    deploymentBlock: Number(manifest.deploymentBlock), deploymentBlockHash: block.hash, modelIdentityHash: model, claimWorkflowProfile, codeHashes,
     manager: components.InsuranceManager, components, paymentSchedule: schedule, oracleWallets: oracles, auditorWallets: auditors, registryRoot: await contracts.OracleCoordinator.currentRegistryRoot(),
     limitation: "Read-only code, directory, wiring, model and role checks; not workflow, funding, external-service or economic-finality acceptance." };
 }

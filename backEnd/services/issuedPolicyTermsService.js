@@ -100,4 +100,11 @@ const getIssuedDocument = async (contract, policy) => {
   return { bound: true, available: true, documentHash: hash, documentVersion: acceptance.documentVersion, content: acceptance.documentContent };
 };
 
-module.exports = { formatTerms, getConfiguredTerms, getIssuedTerms, getInstallment, getIssuedDocument };
+const readFilingWindow = async (contract, policyId, terms, invoiceHash, incidentAt) => {
+  if (!terms?.serviceSublimitsWei || typeof invoiceHash !== "string" || !ethers.isHexString(invoiceHash, 32)) return undefined;
+  const seconds = /^\d+$/.test(String(incidentAt)) ? Number(incidentAt) : Math.floor(Date.parse(incidentAt) / 1000);
+  if (!Number.isSafeInteger(seconds) || seconds <= 0) return undefined;
+  return (await getPolicyEconomics(contract)).withinFilingWindow(policyId, invoiceHash, seconds);
+};
+
+module.exports = { formatTerms, readFilingWindow, getConfiguredTerms, getIssuedTerms, getInstallment, getIssuedDocument };

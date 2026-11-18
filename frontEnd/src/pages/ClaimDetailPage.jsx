@@ -1,3 +1,5 @@
+import InsurerClaimStatement from "../components/InsurerClaimStatement";
+import ClaimClarificationPanel from "../components/ClaimClarificationPanel";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ethers } from "ethers";
@@ -319,13 +321,8 @@ export default function ClaimDetailPage() {
   return (
     <section className="page-container page-claim-detail">
       <h2>Claim Detail</h2>
-      {claimData?.insurerStatement && <section className="card">
-        <h3>Insurer claim statement</h3>
-        <p>{claimData.insurerStatement.hospitalId} · {claimData.insurerStatement.invoiceNumber} · revision {claimData.insurerStatement.revision}</p>
-        <p>{claimData.insurerStatement.service} · {claimData.insurerStatement.admission.slice(0, 10)} to {claimData.insurerStatement.discharge.slice(0, 10)}</p>
-        <p>Submitted bill: {ethers.formatEther(claimData.insurerStatement.grossWei)} ETH · policy #{claimData.insurerStatement.policyId}</p>
-        <p>Workers verify the published episode. An authorized reviewer can open the encrypted files to compare the documents with this statement.</p>
-      </section>}
+      {claim && <ClaimClarificationPanel claim={claim} onConfirmed={refetch} />}
+      <InsurerClaimStatement statement={claimData?.insurerStatement} />
 
       <button
         type="button"
@@ -509,6 +506,7 @@ export default function ClaimDetailPage() {
           {claim.closure?.rejectionExplanation && <p role="status">{claim.closure.rejectionExplanation}</p>}
           {canAppeal ? (
             <form className="appeal-form" onSubmit={handleSubmitAppeal}>
+              {claim?.closure?.preparationRetryAvailable && <p>A new review is available because the previous review could not finish. This retry preserves your ordinary appeal.</p>}
               <p>Invoice or amount corrections are recorded on-chain before the appeal opens and may require two wallet confirmations. Hospital and treatment identity cannot change in this appeal.</p>
               <label>
                 Appeal category

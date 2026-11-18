@@ -38,8 +38,14 @@ router.get("/", async (req, res, next) => {
       }
       return res.json({ available });
     }
+    const active = req.clarification.version === record.priorVersion && Number(claim.status) === 5 && now <= record.deadline;
+    const [uploaded, confirmedHash] = await Promise.all([
+      File.exists({ deploymentScope: record.scope, claimId, claimVersion: record.priorVersion + 1, uploaderWallet: record.owner, documentType: "CLARIFICATION_DOCUMENT" }),
+      record.manifestHash && !record.confirmed ? panel.clarificationEvidence(claimId, record.priorVersion + 1) : null,
+    ]);
     res.json({ question: record.question, deadline: record.deadline, priorVersion: record.priorVersion,
-      confirmed: record.confirmed, canAnswer: !record.confirmed && Number(claim.status) === 5 && now <= record.deadline });
+      confirmed: record.confirmed, canAnswer: active, uploaded: Boolean(uploaded),
+      canReconcile: Boolean(confirmedHash && confirmedHash === record.manifestHash) });
   } catch (error) { next(error); }
 });
 router.post("/open", requireRole("ADMIN", "CLAIM_OFFICER"), async (req, res, next) => {

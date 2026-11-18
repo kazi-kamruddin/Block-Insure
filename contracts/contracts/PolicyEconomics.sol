@@ -271,7 +271,7 @@ contract PolicyEconomics {
     /// price; only a subsequent short final period is prorated (rounded up).
     /// Reinstatement pays the current calendar period, with no retroactive cover.
     function getInstallmentQuote(uint256 policyId, uint256 paidThrough) public view returns (InstallmentQuote memory q) {
-        PolicyTerms memory terms = policyTerms[policyId];
+        PolicyTerms storage terms = policyTerms[policyId];
         if (terms.holder == address(0) || coverageTerminated[policyId] ||
             paidThrough >= terms.endsAt || block.timestamp >= terms.endsAt) return q;
         uint256 interval = _premiumIntervalSeconds();
@@ -381,7 +381,7 @@ contract PolicyEconomics {
     }
 
     function _recordPremium(uint256 policyId, uint64 previousPaidThrough, uint64 paidAt, uint64 newPaidThrough) internal {
-        PolicyTerms memory terms = policyTerms[policyId];
+        PolicyTerms storage terms = policyTerms[policyId];
         require(terms.holder != address(0), "Policy not recorded");
         CoverageInterval[] storage intervals = coverageIntervals[policyId];
         require(intervals.length > 0, "Coverage interval missing");
@@ -407,7 +407,7 @@ contract PolicyEconomics {
     }
 
     function closeExpiredExposure(uint256 policyId) external {
-        PolicyTerms memory terms = policyTerms[policyId];
+        PolicyTerms storage terms = policyTerms[policyId];
         require(terms.holder != address(0), "Policy not recorded");
         require(block.timestamp > terms.endsAt, "Policy term is active");
         coverageTerminated[policyId] = true;
@@ -424,7 +424,7 @@ contract PolicyEconomics {
         bytes32 invoiceId,
         uint16 documentCommitmentCount
     ) external onlyManager returns (uint256 insurerLiabilityWei) {
-        PolicyTerms memory terms = policyTerms[policyId];
+        PolicyTerms storage terms = policyTerms[policyId];
         require(terms.holder == claimant, "Policy owner mismatch");
         // The retained product is a cancellation refund, not death/maturity
         // cover. Cancelling closes future intervals; paid historical incidents
@@ -489,7 +489,7 @@ contract PolicyEconomics {
     function amendRejectedClaim(uint256 claimId, uint256 amount, bytes32 invoiceId) public onlyManager {
         ClaimReservation storage reservation = claimReservations[claimId];
         require(!reservation.reserved && !reservation.settled, "Claim coverage unavailable");
-        PolicyTerms memory terms = policyTerms[reservation.policyId];
+        PolicyTerms storage terms = policyTerms[reservation.policyId];
         require(amount > 0 && amount <= terms.maximumClaimWei, "Claim amount not covered");
         require(invoiceId != bytes32(0) && (invoiceClaimId[invoiceId] == 0 || invoiceClaimId[invoiceId] == claimId), "Invoice identity already used");
         (, , , uint256 liability, ) = _quote(terms, reservedService[claimId], amount, remainingCoverage(reservation.policyId));
@@ -552,7 +552,7 @@ contract PolicyEconomics {
         return _quote(policyTerms[reservation.policyId], reservedService[claimId], reservation.claimAmountWei, reservation.liabilityWei);
     }
 
-    function _quote(PolicyTerms memory terms, bytes32 service, uint256 gross, uint256 available) private view
+    function _quote(PolicyTerms storage terms, bytes32 service, uint256 gross, uint256 available) private view
         returns (uint256, uint256 deductible, uint256 afterDeductible, uint256 payableAmount, uint256) {
         if (terms.settlementFormulaVersion != CAPPED_FORMULA) return _calculate(terms, gross);
         uint256 limit = serviceSublimit[terms.packageId][terms.packageRuleVersion][service];
@@ -615,9 +615,9 @@ contract PolicyEconomics {
         return false;
     }
 
-    function _calculate(PolicyTerms memory terms, uint256 claimAmount)
+    function _calculate(PolicyTerms storage terms, uint256 claimAmount)
         internal
-        pure
+        view
         returns (
             uint256,
             uint256 deductible,

@@ -1,3 +1,5 @@
+import InsurerClaimStatement from "../components/InsurerClaimStatement";
+import ClaimClarificationPanel from "../components/ClaimClarificationPanel";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -247,6 +249,7 @@ export default function AdminClaimDetailPage() {
   const oracleLogs = extractOracleLogs(oracleData);
   const backendQuorumSummary = oracleData?.quorumSummary || oracleData?.data?.quorumSummary;
   const statusName = getClaimStatusName(claim);
+  const [awaitingClarification, setAwaitingClarification] = useState(false);
 
   const {
     data: oracleQuorumStatus,
@@ -429,6 +432,7 @@ export default function AdminClaimDetailPage() {
         </div>
       ) : null}
 
+      <InsurerClaimStatement statement={claimData?.insurerStatement} />
       {claim ? <XgboostAdvisoryPanel claimId={id} claimVersion={claim.claimVersion} status={statusName} /> : null}
 
       <div className="card hospital-verification-card"><h3>Published hospital records</h3><p>Oracle workers verify the committed record, hospital membership and patient authorization automatically. Hospital staff do not attest to individual claims. Missing records or conflicting results lead to failed automatic verification and the existing review recovery route.</p></div>
@@ -488,20 +492,21 @@ export default function AdminClaimDetailPage() {
         <aside className="admin-claim-sidebar">
       <div className="card">
         <h3>Admin Actions</h3>
+        {claim && <ClaimClarificationPanel claim={claim} officer onWaiting={setAwaitingClarification} onConfirmed={refetch} />}
 
         <p>
           Current status: <strong>{statusName}</strong>
         </p>
 
         <div className="action-row">
-          {["DUPLICATE_CHECKED", "APPEALED"].includes(statusName) ? (
+          {(["DUPLICATE_CHECKED", "APPEALED"].includes(statusName) || oracleQuorumStatus?.retryAvailable) ? (
           <button
             type="button"
             onClick={handleRequestOracle}
-            disabled={!requestOracleRule.allowed || isActing}
+            disabled={!requestOracleRule.allowed || isActing || awaitingClarification}
             title={requestOracleRule.reason}
           >
-            Request Oracle Verification
+            {statusName === "ORACLE_FAILED" ? "Retry Oracle Verification" : "Request Oracle Verification"}
           </button>
           ) : null}
 
@@ -509,7 +514,7 @@ export default function AdminClaimDetailPage() {
           <button
             type="button"
             onClick={handleManualReview}
-            disabled={!manualReviewRule.allowed || isActing}
+            disabled={!manualReviewRule.allowed || isActing || awaitingClarification}
             title={manualReviewRule.reason}
           >
             Send to Manual Review

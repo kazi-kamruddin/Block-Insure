@@ -69,6 +69,7 @@ const evaluatePolicyEligibility = ({
   preExistingCondition = false,
   disclosedAtPurchase = false,
   currentTimestamp = Math.floor(Date.now() / 1000),
+  filingWindow,
 }) => {
   const start = parseUnixSeconds(policyStartDate, "policyStartDate");
   const end = parseUnixSeconds(policyEndDate, "policyEndDate");
@@ -173,7 +174,7 @@ const evaluatePolicyEligibility = ({
       outcome = "EXCLUDED";
       reasons.push(createReason("MAXIMUM_CLAIM_EXCEEDED", "Requested amount exceeds the issued maximum claim amount.", "BLOCK"));
     }
-    if (currentTimestamp > incident + terms.claimDeadlineDays * DAY_SECONDS) {
+    if (filingWindow === false || (filingWindow === undefined && currentTimestamp > incident + terms.claimDeadlineDays * DAY_SECONDS)) {
       outcome = "OUTSIDE_COVERAGE";
       reasons.push(createReason("CLAIM_DEADLINE", "The issued claim submission deadline has passed.", "BLOCK"));
     }

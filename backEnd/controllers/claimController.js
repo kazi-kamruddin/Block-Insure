@@ -1,5 +1,5 @@
 const { ethers } = require("ethers");
-const { getIssuedTerms } = require("../services/issuedPolicyTermsService");
+const { getIssuedTerms, readFilingWindow } = require("../services/issuedPolicyTermsService");
 const { finalizeEvidence } = require("../services/evidenceFinalizationService");
 const {
   getClaimAdjudicator,
@@ -530,9 +530,13 @@ const authorizeClaimSubmission = async (req, res, next) => {
       disclosedAtPurchase: req.body.disclosedAtPurchase === true,
     };
     const terms = await getIssuedTerms(contract, policy.policyId);
+    const latestBlock = await contract.runner.getBlock("latest");
+    const authoritativeNow = Number(latestBlock.timestamp);
+    const filingWindow = await readFilingWindow(contract, policy.policyId, terms, submittedFacts.invoiceHash, submittedFacts.incidentDate);
     const policyEligibility = evaluatePolicyEligibility({
       terms,
-      currentTimestamp: Number((await contract.runner.getBlock("latest")).timestamp),
+      filingWindow,
+      currentTimestamp: authoritativeNow,
       policyStartDate: policy.startDate.toString(),
       policyEndDate: policy.endDate.toString(),
       incidentDate: submittedFacts.incidentDate,
@@ -551,14 +555,13 @@ const authorizeClaimSubmission = async (req, res, next) => {
     ) {
       throw createError("Incident date is outside the policy coverage period");
     }
-    const latestBlock = await contract.runner?.provider?.getBlock("latest");
-    const authoritativeNow = latestBlock?.timestamp
-      ? Number(latestBlock.timestamp)
-      : Math.floor(Date.now() / 1000);
+
     if (canonicalIncidentDate > authoritativeNow) {
       throw createError("Incident date cannot be in the future");
     }
-    if (BigInt(claimAmountWei) > policy.coverageAmount) {
+    const blocked = policyEligibility.reasons?.find(reason => reason.effect === "BLOCK");
+    if (terms.serviceSublimitsWei && blocked) throw createError(blocked.message, 422);
+    if (!terms.serviceSublimitsWei && BigInt(claimAmountWei) > policy.coverageAmount) {
       throw createError("Claim amount cannot exceed policy coverage");
     }
     submittedFacts.incidentDate = String(canonicalIncidentDate);

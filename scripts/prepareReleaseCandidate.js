@@ -10,7 +10,7 @@ const publicDocuments = ["README.md", "docs/local-development.md", "docs/deploym
   "docs/free-tier-staging-deployment.md", "docs/repository-artifacts.md", "docs/protocol-v2-migration.json",
   "docs/financial-and-provider-workflows.md", "docs/evidence-review-and-recovery.md", "docs/release-verification.md",
   "docs/release-static-review.md", "docs/current-system-architecture.md",
-  "docs/xgboost-protocol-migration.md", "docs/research-source-transition-v4.json", "docs/research-source-transition-v5.json", "docs/research-source-transition-intake.json"];
+  "docs/xgboost-protocol-migration.md", "docs/research-source-transition-v4.json", "docs/research-source-transition-v5.json", "docs/research-source-transition-intake.json", "docs/research-source-transition-claim-workflow.json"];
 const readGit = (directory, args) => execFileSync("git", ["-c", `safe.directory=${directory.replaceAll("\\", "/")}`, ...args],
   { cwd: directory, encoding: "utf8" }).trim();
 const resultPath = (value) => {

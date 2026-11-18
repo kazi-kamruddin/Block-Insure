@@ -83,6 +83,8 @@ artifacts/
 !/backEnd/artifacts/xgboost-protocol-v5.json
 !/backEnd/artifacts/oracle-runtime-compatibility-v1.json
 !/backEnd/artifacts/oracle-runtime-compatibility-v2.json
+!/backEnd/artifacts/oracle-runtime-compatibility-v3.json
+!/backEnd/artifacts/oracle-runtime-compatibility-v3.json
 cache/
 typechain/
 typechain-types/

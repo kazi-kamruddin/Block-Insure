@@ -1,7 +1,7 @@
 const { attestTestAccess } = require("./helpers/reviewPreparation");
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { time } = require("@nomicfoundation/hardhat-network-helpers");
+const { mine, time } = require("@nomicfoundation/hardhat-network-helpers");
 const {
   configureOracleFixture,
   finalizeExactResult,
@@ -10,12 +10,12 @@ const {
 describe("Phase 2 - Automatic adjudication", function () {
   const hash = (value) => ethers.keccak256(ethers.toUtf8Bytes(value));
 
-  async function deployFixture({ fund = true } = {}) {
+  async function deployFixture({ fund = true, reasoned = false } = {}) {
     const [admin, user, publicCaller, oracle1, oracle2, auditor1, auditor2, auditor3, auditor4] =
       await ethers.getSigners();
     const Manager = await ethers.getContractFactory("InsuranceManager");
     const manager = await Manager.deploy();
-    const Adjudicator = await ethers.getContractFactory("ClaimAdjudicator");
+    const Adjudicator = await ethers.getContractFactory(reasoned ? "ClaimAdjudicatorV6" : "ClaimAdjudicator");
     const adjudicator = await Adjudicator.deploy(await manager.getAddress());
     await manager.configureClaimAdjudicator(await adjudicator.getAddress());
 
@@ -90,6 +90,59 @@ describe("Phase 2 - Automatic adjudication", function () {
     await attestTestAccess(fixture, claimId);
     return fixture.adjudicator.getReview(claimId, await fixture.manager.claimVersion(claimId));
   }
+
+  it("binds the clarification to the claimant and opens fresh verification without consuming an appeal", async function () {
+    const f = await deployFixture({ reasoned: true });
+    const claimId = await submitClaim(f, "clarification");
+    await decideWithOracles(f, claimId, false);
+    const amount = ethers.parseEther("0.1");
+    const manifest = hash("sealed version two evidence");
+    const deadline = (await f.manager.manualReviewEligibleAt(claimId)) - 1n;
+    const digest = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
+      ["uint256","address","address","uint256","uint64","uint64","uint256","bytes32"],
+      [(await ethers.provider.getNetwork()).chainId, await f.adjudicator.getAddress(), f.user.address, claimId, 1, deadline, amount, manifest]));
+    const signature = await f.admin.signMessage(ethers.getBytes(digest));
+    const args = [claimId, 1, deadline, amount, manifest, signature];
+    await expect(f.adjudicator.connect(f.publicCaller).applyClarification(...args)).to.be.reverted;
+    await f.adjudicator.connect(f.user).applyClarification(...args);
+    expect(await f.manager.claimVersion(claimId)).to.equal(2);
+    expect(await f.adjudicator.appealRound(claimId)).to.equal(0);
+    expect(await f.adjudicator.clarificationEvidence(claimId, 2)).to.equal(manifest);
+    expect((await f.manager.getClaim(claimId)).claimAmount).to.equal(amount);
+    expect((await f.manager.calculateSettlement(claimId)).insurerPays).to.equal(ethers.parseEther("0.072"));
+    await expect(f.adjudicator.connect(f.user).applyClarification(...args)).to.be.reverted;
+    await decideWithOracles(f, claimId, false, "clarification-recheck");
+    await f.manager.sendToManualReview(claimId);
+    await attestTestAccess(f, claimId);
+    const assigned = (await f.adjudicator.getReview(claimId, 2)).auditors;
+    const reviewers = assigned.map(address => f.auditors.find(actor => actor.address === address));
+    await expect(f.manager.connect(reviewers[0]).castVote(claimId, 1)).to.be.reverted;
+    for (const auditor of reviewers.slice(0, 3)) {
+      await f.adjudicator.connect(auditor).castReasonedVote(claimId, 2, 1, hash("verified corrected evidence"));
+    }
+    expect((await f.manager.getClaim(claimId)).status).to.equal(7);
+    await f.manager.connect(f.user).withdrawSettlement(claimId);
+    expect((await f.manager.getClaim(claimId)).status).to.equal(9);
+    await expect(f.manager.connect(f.user).withdrawSettlement(claimId)).to.be.reverted;
+  });
+
+  it("allows one Oracle timeout retry and preserves the original request", async function () {
+    const f = await deployFixture();
+    const claimId = await submitClaim(f, "worker-outage");
+    await f.manager.requestOracleVerification(claimId);
+    const original = await f.coordinator.getRequestByClaimId(claimId);
+    await mine(20);
+    await f.coordinator.resolveTimedOutRequest(claimId);
+    await f.manager.requestOracleVerification(claimId);
+    const retried = await f.coordinator.getRequestByClaimId(claimId);
+    expect(retried.requestId).to.be.greaterThan(original.requestId);
+    expect(retried.claimVersion).to.equal(original.claimVersion);
+    expect((await f.coordinator.getRequest(original.requestId)).finalizationCode).to.equal(3);
+    await mine(20);
+    await f.coordinator.resolveTimedOutRequest(claimId);
+    await expect(f.manager.requestOracleVerification(claimId)).to.be.reverted;
+    await f.manager.sendToManualReview(claimId);
+  });
 
   it("amends rejected invoice and amount before appeal and reserves only the corrected liability", async function () {
     const fixture = await deployFixture();

@@ -153,7 +153,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     PolicyEconomics public policyEconomics;
     address private bankPaymentRegistry;
 
-    mapping(uint256 => SettlementRecord) private settlementRecords;
     mapping(uint256 => uint256) public manualReviewEligibleAt;
     mapping(uint256 => RejectionReason) public rejectionReason;
 
@@ -942,7 +941,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         );
         // The coordinator permits one replacement only for a finalized timeout in this version.
 
-        Claim memory selectedClaim = claims[claimId];
+        Claim storage selectedClaim = claims[claimId];
         bytes32 queryHash = keccak256(
             abi.encode(
                 selectedClaim.claimId,
@@ -1068,27 +1067,25 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         uint64 newVersion = claimVersion[claimId] + 1;
         claimAdjudicator.beginAppeal(claimId, newVersion);
-        claimVersion[claimId] = newVersion;
-        delete claimResolvedAt[claimId];
-        delete rejectionReason[claimId];
-        oracleRequestByClaimId[claimId] = 0;
-        claims[claimId].verificationConfidence = claimBaseVerificationConfidence[claimId];
-        claims[claimId].status = ClaimStatus.APPEALED;
+        _advanceClaim(claimId, ClaimStatus.APPEALED);
 
         emit ClaimAppealed(claimId, msg.sender, appealReasonHash, block.timestamp);
     }
 
-    event ClaimClarified(uint256 indexed claimId, uint64 indexed version, bytes32 evidenceHash);
-    function acceptClarification(uint256 id, uint64 oldVersion, address claimant, uint256 amount, bytes32 evidenceHash) external {
-        Claim storage claim = claims[id];
-        require(msg.sender == address(claimAdjudicator) && claim.claimantWallet == claimant);
-        require(claim.status == ClaimStatus.ORACLE_FAILED && claimVersion[id] == oldVersion && block.timestamp < manualReviewEligibleAt[id]);
+    function acceptClarification(uint256 id, uint256 amount) external {
+        require(msg.sender == address(claimAdjudicator) && claims[id].status == ClaimStatus.ORACLE_FAILED);
         policyEconomics.reviseActiveReservation(id, amount);
-        claim.claimAmount = amount;
-        claim.status = ClaimStatus.DUPLICATE_CHECKED;
-        claimVersion[id] = oldVersion + 1;
+        claims[id].claimAmount = amount;
+        _advanceClaim(id, ClaimStatus.DUPLICATE_CHECKED);
+    }
+
+    function _advanceClaim(uint256 id, ClaimStatus status) internal {
+        claimVersion[id]++;
+        delete claimResolvedAt[id];
+        delete rejectionReason[id];
         delete oracleRequestByClaimId[id];
-        emit ClaimClarified(id, oldVersion + 1, evidenceHash);
+        claims[id].verificationConfidence = claimBaseVerificationConfidence[id];
+        claims[id].status = status;
     }
 
     event RejectedClaimAmended(uint256 indexed claimId, uint256 amount, bytes32 invoiceHash);
@@ -1191,12 +1188,6 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
 
         selectedClaim.status = ClaimStatus.SETTLED;
         claimResolvedAt[claimId] = block.timestamp;
-        settlementRecords[claimId] = SettlementRecord({
-            claimId: claimId,
-            recipient: msg.sender,
-            amount: amount,
-            settledAt: block.timestamp
-        });
 
         emit SettlementWithdrawn(claimId, msg.sender, amount, block.timestamp);
         emit ClaimSettled(claimId, msg.sender, amount, block.timestamp);
@@ -1290,9 +1281,9 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
     }
 
     function getSettlementRecord(uint256 claimId) external view returns (SettlementRecord memory) {
-        require(settlementRecords[claimId].settledAt != 0, "Settlement does not exist");
-
-        return settlementRecords[claimId];
+        Claim storage settled = claims[claimId];
+        require(settled.status == ClaimStatus.SETTLED, "Settlement does not exist");
+        return SettlementRecord(claimId, settled.claimantWallet, claimAdjudicator.withdrawnSettlementWei(claimId), claimResolvedAt[claimId]);
     }
 
     // =============================================================
@@ -1331,7 +1322,7 @@ contract InsuranceManager is AccessControl, Pausable, ReentrancyGuard {
         return graceEnd;
     }
 
-    function _effectivePolicyStatus(Policy memory selectedPolicy) internal view returns (PolicyStatus) {
+    function _effectivePolicyStatus(Policy storage selectedPolicy) internal view returns (PolicyStatus) {
         if (selectedPolicy.status == PolicyStatus.CANCELLED) {
             return PolicyStatus.CANCELLED;
         }

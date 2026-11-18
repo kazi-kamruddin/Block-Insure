@@ -745,7 +745,7 @@ export async function reconcilePendingAdminTransactions() {
 }
 
 export async function requestOracleVerification(claimId) {
-  await api.get("/api/admin/oracle-readiness");
+  await api.get("/api/admin/oracle-readiness", { params: { claimId } });
   const contract = await getWalletContract();
   return executeAdminWalletAction(
     "REQUEST_ORACLE_VERIFICATION",

@@ -23,7 +23,7 @@ test("evidence manifests bind deployment, version, order and every ciphertext wi
   assert.equal(JSON.parse(first.manifest).documents[0].sourceClaimVersion, 1);
   assert.throws(() => buildManifest({ ...base, documents: [file("not-primary")] }));
   assert.throws(() => buildManifest({ ...base, documents: [] }));
-  assert.throws(() => buildManifest({ ...base, documents: [base.documents[0], ...Array.from({ length: 7 }, (_, i) => file(String(i)))] }));
+  assert.throws(() => buildManifest({ ...base, documents: [base.documents[0], ...Array.from({ length: 8 }, (_, i) => file(String(i)))] }));
 });
 test("batch access rejects another owner, stale manifests and missing or excessive grant entries before writing", async () => {
   const wallets = [1, 2, 3, 4].map((n) => `0x${String(n).padStart(40, "0")}`);
