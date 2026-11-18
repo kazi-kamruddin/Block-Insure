@@ -32,6 +32,8 @@ const claimSubmissionAttemptSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    insurerStatement: { type: mongoose.Schema.Types.Mixed },
+    statementDigest: String,
     submittedFacts: {
       incidentDate: { type: String, default: "" },
       claimType: { type: String, default: "" },

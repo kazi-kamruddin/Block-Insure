@@ -319,6 +319,12 @@ export default function ClaimDetailPage() {
   return (
     <section className="page-container page-claim-detail">
       <h2>Claim Detail</h2>
+      {claimData?.insurerStatement && <section className="card">
+        <h3>Insurer claim statement</h3>
+        <p>{claimData.insurerStatement.hospitalId} · {claimData.insurerStatement.invoiceNumber} · revision {claimData.insurerStatement.revision}</p>
+        <p>{claimData.insurerStatement.service} · {claimData.insurerStatement.admission.slice(0, 10)} to {claimData.insurerStatement.discharge.slice(0, 10)}</p>
+        <p>The sealed statement records the episode used at submission. Uploaded files are separate supporting evidence.</p>
+      </section>}
 
       <button
         type="button"

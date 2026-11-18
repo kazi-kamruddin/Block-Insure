@@ -9,6 +9,8 @@ import {
   authorizeClaimSubmission,
   attachDocumentToClaim,
   getMyPolicies,
+  getMyEpisodes,
+  getIntakeCoverage,
   getClaimSubmissionAttempt,
   getNetworkHospitals,
   previewPurchasedPolicyEligibility,
@@ -25,7 +27,6 @@ import PolicyTermsPanel from "../components/PolicyTermsPanel";
 import {
   assertCorrectNetwork,
   getConnectedWalletAddress,
-  hashInvoiceNumber,
   parseTransactionError,
 } from "../services/contractService";
 import { useWallet } from "../context/useWallet";
@@ -37,43 +38,6 @@ import "../styles/pages/SubmitClaimPage.css";
 import { showToast } from "../services/toast";
 import { formatDateOnly, formatDateTime } from "../utils/dateFormat";
 
-const VALID_MOCK_HOSPITAL_PRESETS = [
-  {
-    label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH",
-    hospitalId: "HOSP-001",
-    treatmentType: "HOSPITALIZATION",
-    invoiceNumber: "INV-HOSP-001-001",
-    claimAmount: "0.1",
-  },
-  {
-    label: "Valid HOSP-002 / SURGERY / 0.2 ETH",
-    hospitalId: "HOSP-002",
-    treatmentType: "SURGERY",
-    invoiceNumber: "INV-HOSP-002-001",
-    claimAmount: "0.2",
-  },
-  {
-    label: "Valid HOSP-003 / HOSPITALIZATION / 0.15 ETH",
-    hospitalId: "HOSP-003",
-    treatmentType: "HOSPITALIZATION",
-    invoiceNumber: "INV-HOSP-003-001",
-    claimAmount: "0.15",
-  },
-  {
-    label: "Valid HOSP-004 / SURGERY / 0.3 ETH",
-    hospitalId: "HOSP-004",
-    treatmentType: "SURGERY",
-    invoiceNumber: "INV-HOSP-004-001",
-    claimAmount: "0.3",
-  },
-  {
-    label: "Valid HOSP-005 / EMERGENCY / 0.25 ETH",
-    hospitalId: "HOSP-005",
-    treatmentType: "EMERGENCY",
-    invoiceNumber: "INV-HOSP-005-001",
-    claimAmount: "0.25",
-  },
-];
 
 function extractPolicies(data) {
   if (Array.isArray(data)) return data;
@@ -126,7 +90,7 @@ export default function SubmitClaimPage() {
 
   const [policyId, setPolicyId] = useState("");
   const [claimAmount, setClaimAmount] = useState("0.1");
-  const [incidentDateTime, setIncidentDateTime] = useState("");
+  const [reportedTime, setIncidentDateTime] = useState("");
   const [claimType, setClaimType] = useState("HOSPITALIZATION");
   const [hospitalId, setHospitalId] = useState("HOSP-001");
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -183,6 +147,20 @@ export default function SubmitClaimPage() {
     retry: false,
   });
 
+  const episodes = useQuery({ queryKey: ["myEpisodes", walletAddress], queryFn: getMyEpisodes, enabled: isConnected });
+  const coverage = useQuery({ queryKey: ["intakeCoverage", walletAddress, policyId], queryFn: () => getIntakeCoverage(policyId), enabled: Boolean(policyId && isConnected) });
+  const selectedEpisode = episodes.data?.records.find(row => row.hospitalId === hospitalId && row.invoiceNumber === invoiceNumber);
+  const episodeDay = selectedEpisode?.admissionDate?.slice(0, 10);
+  const dayStart = episodeDay ? Date.parse(episodeDay + "T00:00:00+06:00") / 1000 : NaN;
+  const dayEnd = dayStart + 86399;
+  const now = coverage.dataUpdatedAt / 1000;
+  const filingDays = selectedPolicy?.policyTerms?.claimDeadlineDays;
+  const wholeDayCovered = !resumeAttempt && dayEnd <= now && dayStart + Number(filingDays) * 86400 >= now &&
+    coverage.data?.intervals?.some(([begin, end, wait]) => dayStart >= Math.max(Number(begin), Number(wait)) && dayEnd <= Number(end));
+  const dayRepresentative = new Date((wholeDayCovered ? dayStart : 0) * 1000);
+  dayRepresentative.setMinutes(dayRepresentative.getMinutes() - dayRepresentative.getTimezoneOffset());
+  const incidentDateTime = wholeDayCovered ? dayRepresentative.toISOString().slice(0, 16) : reportedTime;
+
   const { data: eligibilityData, error: eligibilityError } = useQuery({
     queryKey: [
       "policyEligibilityPreview",
@@ -215,17 +193,14 @@ export default function SubmitClaimPage() {
     setIncidentDateTime("");
   }
 
-  function applyMockPreset(presetLabel) {
-    const preset = VALID_MOCK_HOSPITAL_PRESETS.find(
-      (item) => item.label === presetLabel
-    );
-
-    if (!preset) return;
-
-    setHospitalId(preset.hospitalId);
-    setClaimType(preset.treatmentType);
-    setInvoiceNumber(preset.invoiceNumber);
-    setClaimAmount(preset.claimAmount);
+  function selectEpisode(id) {
+    const episode = episodes.data?.records.find(row => row._id === id);
+    if (!episode) return;
+    setHospitalId(episode.hospitalId);
+    setClaimType(episode.treatmentType);
+    setInvoiceNumber(episode.invoiceNumber);
+    setClaimAmount(String(episode.billAmount));
+    setIncidentDateTime("");
   }
 
   async function linkEvidenceToClaim(link) {
@@ -327,7 +302,8 @@ export default function SubmitClaimPage() {
       setIsSubmitting(true);
 
       const invoiceLookup = await previewInvoiceEligibility(hospitalId, undefined, invoiceNumber.trim());
-      const invoiceHash = invoiceLookup.invoiceHash || hashInvoiceNumber(invoiceNumber.trim(), hospitalId);
+      if (!invoiceLookup.registryUsable || invoiceLookup.publicationPending) throw new Error("The selected episode is unavailable or awaiting publication.");
+      const invoiceHash = invoiceLookup.invoiceHash;
       const selectedFiles = [file, ...supportingFiles];
       if (selectedFiles.length > 5 || selectedFiles.filter(Boolean).some((item) => item.size > 8 * 1024 * 1024 || !["application/pdf", "image/jpeg", "image/png"].includes(item.type)) ||
           selectedFiles.filter(Boolean).reduce((sum, item) => sum + item.size, 0) > 20 * 1024 * 1024) throw new Error("Use one invoice plus up to four supporting PDF/JPEG/PNG files, at most 8 MiB each and 20 MiB total.");
@@ -552,25 +528,12 @@ export default function SubmitClaimPage() {
         </label>
 
         <label>
-          Test data preset
-          <select
-            aria-label="Test data preset"
-            disabled={Boolean(resumeAttempt)}
-            defaultValue=""
-            onChange={(event) => applyMockPreset(event.target.value)}
-          >
-            <option value="">Manual / random invoice</option>
-            {VALID_MOCK_HOSPITAL_PRESETS.map((preset) => (
-              <option key={preset.label} value={preset.label}>
-                {preset.label}
-              </option>
-            ))}
+          Authorized episode
+          <select aria-label="Authorized episode" key={walletAddress} defaultValue="" disabled={Boolean(resumeAttempt)} required={!resumeAttempt} onChange={event => selectEpisode(event.target.value)}>
+            <option value="" disabled>Select your treatment episode</option>
+            {(episodes.data?.records || []).map(row => <option key={row._id} value={row._id}>{row.hospitalId} · {row.invoiceNumber} · {formatDateOnly(row.admissionDate)}</option>)}
           </select>
-          <small>
-            Presets fill a record that exists in the local healthcare registry.
-            Manual values are accepted, but the oracle will fail them when they
-            do not match a registered hospital invoice.
-          </small>
+          <small>{episodes.isError ? "Episode lookup failed." : "Missing episode? Contact the insurer to verify the association."}</small>
         </label>
 
         <label>
@@ -580,25 +543,23 @@ export default function SubmitClaimPage() {
             step="any"
             min="0"
             value={claimAmount}
-            disabled={Boolean(resumeAttempt)} onChange={(event) => setClaimAmount(event.target.value)}
+            readOnly
             required
           />
         </label>
 
         <label>
-          Incident date and time
-          <input
+          {wholeDayCovered ? "Covered admission date (Asia/Dhaka)" : "Documented incident date and time"}
+          {wholeDayCovered ? <output>{episodeDay}</output> : <input
             aria-label="Incident date/time"
             type="datetime-local"
             step="60"
             value={incidentDateTime}
             disabled={Boolean(resumeAttempt)} onChange={(event) => setIncidentDateTime(event.target.value)}
             required
-          />
+          />}
           <small>
-            Enter when the incident actually occurred. This value is never
-            replaced with the policy purchase time. Dates are shown in your local
-            timezone.
+            {wholeDayCovered ? "Every instant on this day meets the checked coverage and filing boundaries." : "Use a documented time when coverage is uncertain. If unknown, contact the insurer before submitting. The time picker uses your browser’s time zone."}
           </small>
         </label>
 
@@ -607,7 +568,7 @@ export default function SubmitClaimPage() {
           <input
             type="text"
             value={claimType}
-            disabled={Boolean(resumeAttempt)} onChange={(event) => setClaimType(event.target.value)}
+            readOnly
             required
           />
         </label>
@@ -617,7 +578,7 @@ export default function SubmitClaimPage() {
           <select
             aria-label="Hospital ID"
             value={hospitalId}
-            disabled={Boolean(resumeAttempt)} onChange={(event) => setHospitalId(event.target.value)}
+            disabled
             required
           >
             <option value="">Select a contracted hospital</option>
@@ -635,7 +596,7 @@ export default function SubmitClaimPage() {
           <input
             type="text"
             value={invoiceNumber}
-            disabled={Boolean(resumeAttempt)} onChange={(event) => setInvoiceNumber(event.target.value)}
+            readOnly
             placeholder="Example: INV-HOSP-001-001"
             required
           />

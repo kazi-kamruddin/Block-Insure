@@ -52,9 +52,7 @@ test.describe("@workflow policyholder transaction journey", () => {
         .toBeGreaterThan(1);
       await policySelect.selectOption({ index: 1 });
 
-      await session.page.getByLabel("Test data preset").selectOption({
-        label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH",
-      });
+      await session.page.getByLabel("Authorized episode").selectOption({ label: await session.page.getByLabel("Authorized episode").locator("option").filter({ hasText: "INV-HOSP-001-001" }).innerText() });
       const latestBlock = await session.provider.getBlock("latest");
       if (!latestBlock) throw new Error("Latest local block is unavailable");
       const incidentInput = session.page.getByLabel("Incident date/time");

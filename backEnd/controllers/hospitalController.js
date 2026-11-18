@@ -54,7 +54,6 @@ const formatRecord = (record) => ({
   patientHash: record.patientHash,
   identityVersion: record.identityVersion || 1,
   revision: record.sourceRevision || 0,
-  authorizedClaimants: record.authorizedClaimants || [],
   publicationPending: Boolean(record.publicationPending),
   invoiceNumber: record.invoiceNumber,
   invoiceHash: record.invoiceHash,
@@ -224,10 +223,10 @@ const createMyHospitalRecord = async (req, res, next) => {
     const hospital = await getHospitalIdentity(req.user);
     const invoiceNumber = String(req.body.invoiceNumber || "").trim();
     const patientReference = String(req.body.patientReference || "").trim();
-    const authorizedClaimants = [...new Set(String(req.body.authorizedClaimants || "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean))];
-    if (!authorizedClaimants.length || authorizedClaimants.length > 10 || authorizedClaimants.some((value) => !ethers.isAddress(value))) {
-      throw createError("Supply 1 to 10 authorized policyholder/dependent wallet addresses");
-    }
+    const allowed = ["patientContact", "patientReference", "invoiceNumber", "treatmentType", "diagnosisCode", "billAmount", "admissionDate", "dischargeDate", "invoiceDate"];
+    if (Object.keys(req.body).some(key => !allowed.includes(key))) throw createError("Only patient episode facts can be saved", 422);
+    const patientContact = String(req.body.patientContact || "").trim().toLowerCase();
+    if (patientContact && (patientContact.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patientContact))) throw createError("Invalid patient contact email", 422);
     const treatmentType = String(req.body.treatmentType || "").trim().toUpperCase();
     const diagnosisCode = String(req.body.diagnosisCode || "").trim().toUpperCase();
     const billAmount = String(req.body.billAmount || "").trim();
@@ -264,11 +263,12 @@ const createMyHospitalRecord = async (req, res, next) => {
       hospitalTier: hospital.hospitalTier,
       licenseStatus: "ACTIVE",
       patientHash: patientIdentity(hospital.hospitalId, patientReference),
+      patientContact: patientContact || undefined,
       identityVersion: 2,
       sourceRevision: 1,
       createdByStaffId: req.user.staffId,
       modifiedByStaffId: req.user.staffId,
-      authorizedClaimants,
+      authorizedClaimants: [],
       publicationPending: true,
       treatmentType,
       diagnosisCode,
@@ -283,7 +283,7 @@ const createMyHospitalRecord = async (req, res, next) => {
       invoiceHash,
       invoiceStatus: "VALID",
       recordStatus: "VALID",
-      fraudLabel: "LEGITIMATE",
+      fraudLabel: null,
       fraudSignals: {},
       actualFraud: false,
       controlledAttackTruth: false,
@@ -314,18 +314,13 @@ const updateMyHospitalRecord = async (req, res, next) => {
     const hospital = await getHospitalIdentity(req.user);
     const allowed = [
       "treatmentType", "diagnosisCode", "admissionDate", "dischargeDate",
-      "invoiceDate", "billAmount", "invoiceStatus", "recordStatus",
-      "authorizedClaimants",
+      "invoiceDate", "billAmount",
     ];
+    if (Object.keys(req.body).some(key => !allowed.includes(key))) throw createError("Only patient episode facts can be saved", 422);
     const updates = Object.fromEntries(
       allowed.filter((key) => req.body[key] !== undefined).map((key) => [key, req.body[key]])
     );
     if (Object.keys(updates).length === 0) throw createError("No supported record changes supplied");
-    if (updates.authorizedClaimants !== undefined) {
-      const values = Array.isArray(updates.authorizedClaimants) ? updates.authorizedClaimants : String(updates.authorizedClaimants).split(",");
-      updates.authorizedClaimants = [...new Set(values.map((value) => String(value).trim().toLowerCase()).filter(Boolean))];
-      if (!updates.authorizedClaimants.length || updates.authorizedClaimants.length > 10 || updates.authorizedClaimants.some((wallet) => !ethers.isAddress(wallet))) throw createError("Invalid authorized claimant wallets");
-    }
     if (updates.treatmentType) updates.treatmentType = String(updates.treatmentType).trim().toUpperCase();
     if (updates.diagnosisCode) updates.diagnosisCode = String(updates.diagnosisCode).trim().toUpperCase();
     if (updates.billAmount !== undefined) {
@@ -352,9 +347,11 @@ const updateMyHospitalRecord = async (req, res, next) => {
     if (nextDischargeDate < nextAdmissionDate) {
       throw createError("Discharge date cannot precede admission date");
     }
+    const previousFacts = Object.fromEntries(allowed.map(key => [key, currentRecord[key]]));
+    previousFacts.revision = currentRecord.sourceRevision || 0;
     const record = await MockHospitalRecord.findOneAndUpdate(
       { _id: req.params.id, hospitalId: hospital.hospitalId, updatedAt: currentRecord.updatedAt },
-      { $set: { ...updates, publicationPending: true, modifiedByStaffId: req.user.staffId }, $inc: { sourceRevision: 1 } },
+      { $set: { ...updates, publicationPending: true, modifiedByStaffId: req.user.staffId }, $inc: { sourceRevision: 1 }, $push: { sourceHistory: previousFacts } },
       { returnDocument: "after", runValidators: true }
     );
     if (!record) throw createError("Record changed while editing. Reload and retry.", 409);

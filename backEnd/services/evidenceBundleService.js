@@ -23,22 +23,22 @@ async function assertEvidenceDeployment() {
   return deploymentScope;
 }
 
-function buildManifest({ deploymentScope, claimId, claimVersion, documents }) {
+function buildManifest({ deploymentScope, claimId, claimVersion, documents, insurerStatement }) {
   if (!documents.length || documents.length > MAX_REVIEW_FILES || documents[0].documentType !== "HOSPITAL_BILL") {
     throw fail("One primary hospital invoice and a bounded supporting/appeal evidence set are required.");
   }
-  const manifest = JSON.stringify({ schemaVersion: 1, deploymentScope, claimId: String(claimId), claimVersion: Number(claimVersion),
+  const manifest = JSON.stringify({ schemaVersion: insurerStatement ? 2 : 1, ...(insurerStatement ? { insurerStatement, statementDigest: ethers.id(JSON.stringify(insurerStatement)) } : {}), deploymentScope, claimId: String(claimId), claimVersion: Number(claimVersion),
     documents: documents.map((file, index) => ({ index, documentId: String(file._id), sourceClaimVersion: file.claimVersion,
       documentType: file.documentType, ciphertextHash: file.sha256Hash, ciphertextReference: file.ipfsCID,
       associatedDataHash: file.associatedDataHash, encryptionSchemeVersion: file.encryptionSchemeVersion })) });
   return { manifest, manifestHash: ethers.keccak256(ethers.toUtf8Bytes(manifest)) };
 }
 
-async function sealBundle({ claimId, claimVersion, ownerWallet, documents }) {
+async function sealBundle({ claimId, claimVersion, ownerWallet, documents, insurerStatement }) {
   const deploymentScope = await assertEvidenceDeployment();
   if (documents.some((file) => file.uploaderWallet !== ownerWallet.toLowerCase()
     || (file.deploymentScope && file.deploymentScope !== deploymentScope) || String(file.claimId) !== String(claimId))) throw fail("Evidence owner, deployment or claim mismatch.");
-  const definition = buildManifest({ deploymentScope, claimId, claimVersion, documents });
+  const definition = buildManifest({ deploymentScope, claimId, claimVersion, documents, insurerStatement });
   const key = { deploymentScope, claimId: String(claimId), claimVersion: Number(claimVersion) };
   let bundle;
   try { bundle = await Bundle.findOneAndUpdate(key, { $setOnInsert: { ...key, ownerWallet, documentIds: documents.map((file) => String(file._id)), ...definition } }, { upsert: true, returnDocument: "after" }); }
@@ -66,7 +66,7 @@ async function finalizeAttemptBundle({ attempt, claim, version, actorWallet }) {
     file.evidenceEventIndex = event.treeIndex;
     await file.save();
   }
-  return sealBundle({ claimId: claim.claimId, claimVersion: version, ownerWallet: actorWallet, documents: ordered });
+  return sealBundle({ claimId: claim.claimId, claimVersion: version, ownerWallet: actorWallet, documents: ordered, insurerStatement: attempt.insurerStatement });
 }
 
 async function getBundle(claimId, claimVersion) {

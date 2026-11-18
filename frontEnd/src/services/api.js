@@ -489,6 +489,26 @@ export async function authorizeClaimSubmission(policyId, facts = {}) {
   return response.data;
 }
 
+export async function getIntakeCoverage(policyId) {
+  return (await api.get(`/api/policies/${policyId}`)).data.economics;
+}
+
+export async function getMyEpisodes() {
+  return (await api.get("/api/hospitals/my-episodes")).data;
+}
+
+export async function getUnlinkedEpisodes() {
+  return (await api.get("/api/hospitals/insurer/unlinked")).data;
+}
+
+export async function publishPendingEpisodes() {
+  return (await api.post("/api/hospitals/insurer/publish")).data;
+}
+
+export async function saveEpisodeAssociation(association) {
+  return (await api.put("/api/hospitals/insurer/association", association)).data;
+}
+
 export async function previewInvoiceEligibility(hospitalId, invoiceHash, invoiceNumber) {
   const response = await api.post("/api/claims/invoice-eligibility", { hospitalId, invoiceHash, invoiceNumber });
   return response.data;

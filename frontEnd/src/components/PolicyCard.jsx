@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEther } from "ethers";
 import { Link } from "react-router-dom";
 
 import PolicyTermsPanel from "./PolicyTermsPanel";
@@ -7,6 +8,12 @@ import { getPublicPolicyDocumentUrl } from "../services/api";
 
 export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }) {
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const terms = policyPackage.policyTerms;
+  const gross = BigInt(terms?.maximumClaimWei || 0);
+  const rateDeductible = gross * BigInt(terms?.deductibleRateBps || 0) / 10000n;
+  const cap = BigInt(terms?.deductibleCapWei || 0);
+  const deductible = rateDeductible < cap ? rateDeductible : cap;
+  const liability = (gross - deductible) * BigInt(terms?.coinsuranceBps || 0) / 10000n;
   const document = policyPackage.policyDocument;
 
   return (
@@ -33,6 +40,13 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
       <p>Coverage: {policyPackage.coverageAmountEth} ETH</p>
       <p>Duration: {policyPackage.durationDays} days</p>
       <p>Required document: {policyPackage.requiredDocumentType}</p>
+      {terms?.authoritative && gross > 0n && <details>
+        <summary>Worked reimbursement example</summary>
+        <p>For an eligible bill of {formatEther(gross)} test ETH, the deductible is {formatEther(deductible)}.
+          The insurer pays {terms.coinsuranceBps / 100}% of the balance, or {formatEther(liability)} test ETH,
+          assuming sufficient remaining policy coverage.</p>
+        <p>Paid installments establish covered dates. Treatment outside a paid interval or during the waiting period is ineligible.</p>
+      </details>}
       <PolicyTermsPanel terms={policyPackage.policyTerms} />
       <div className="policy-document-actions">
         <Link to={`/policies/${policyPackage.packageId}`} target="_blank">

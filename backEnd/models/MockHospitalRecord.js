@@ -129,6 +129,9 @@ const mockHospitalRecordSchema = new mongoose.Schema(
       default: "VALID",
       index: true,
     },
+    patientContact: { type: String, select: false, default: undefined },
+    sourceHistory: { type: [{ revision: Number, treatmentType: String, diagnosisCode: String, admissionDate: Date, dischargeDate: Date, invoiceDate: Date, billAmount: String }], select: false, default: undefined },
+    associationHistory: { type: [{ actor: String, wallet: String, reason: String, revision: Number, at: Date }], select: false, default: undefined },
     fraudLabel: {
       type: String,
       enum: [

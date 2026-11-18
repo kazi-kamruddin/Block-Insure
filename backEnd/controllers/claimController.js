@@ -329,6 +329,7 @@ const getClaimById = async (req, res, next) => {
         includeLifecycle: true,
       }), claimVersion: String(claimVersion) },
       documents: documents.map(formatClaimDocument),
+      insurerStatement: bundle ? JSON.parse(bundle.manifest).insurerStatement : undefined,
       evidenceChain: visibleEvidence,
       evidenceSet: bundle ? { manifestHash: bundle.manifestHash, documentIds: bundle.documentIds, claimVersion: bundle.claimVersion } : null,
       hospitalVerification: formatHospitalVerification(hospitalVerification),
@@ -557,13 +558,30 @@ const authorizeClaimSubmission = async (req, res, next) => {
     if (req.body.invoiceNumber !== undefined && (typeof req.body.invoiceNumber !== "string" || req.body.invoiceNumber.length > 100)) throw createError("Invoice number is invalid", 422);
     submittedFacts.invoiceNumber = req.body.invoiceNumber || "";
 
+    const episode = await MockHospitalRecord.findOne({
+      hospitalId, invoiceHash: submittedFacts.invoiceHash, invoiceNumber: submittedFacts.invoiceNumber,
+      authorizedClaimants: req.user.walletAddress.toLowerCase(), publicationPending: { $ne: true },
+      recordStatus: "VALID", invoiceStatus: "VALID", licenseStatus: "ACTIVE",
+    }).select("hospitalId invoiceHash invoiceNumber treatmentType admissionDate dischargeDate billAmount sourceRevision").lean();
+    if (!episode || episode.treatmentType !== submittedFacts.claimType ||
+        ethers.parseEther(String(episode.billAmount)) !== BigInt(claimAmountWei)) {
+      throw createError("No published authorized episode matches these submitted facts.", 409);
+    }
+    const insurerStatement = {
+      version: 1, deployment: await bundles.assertEvidenceDeployment(), policyId: String(policyId),
+      hospitalId, invoiceHash: episode.invoiceHash, invoiceNumber: episode.invoiceNumber,
+      revision: episode.sourceRevision || 0, service: episode.treatmentType,
+      admission: episode.admissionDate.toISOString(), discharge: episode.dischargeDate.toISOString(),
+      reportedIncident: submittedFacts.incidentDate, grossWei: claimAmountWei,
+    };
+    const statementDigest = ethers.id(JSON.stringify(insurerStatement));
     const expectedEvidenceCount = req.body.evidenceCount === undefined ? 1 : req.body.evidenceCount;
     if (!Number.isSafeInteger(expectedEvidenceCount) || expectedEvidenceCount < 1 || expectedEvidenceCount > bundles.MAX_FILES) {
       throw createError("Select one primary invoice and at most four supporting files", 422);
     }
     const attempt = await ClaimSubmissionAttempt.create({
       deploymentScope: await bundles.assertEvidenceDeployment(),
-      expectedEvidenceCount,
+      expectedEvidenceCount, insurerStatement, statementDigest,
       startBlock: await contract.runner.getBlockNumber(),
       walletAddress: req.user.walletAddress,
       policyId,
@@ -900,7 +918,7 @@ const previewInvoiceEligibility = async (req, res, next) => {
     res.json({ success: true, invoiceHash: record?.invoiceHash || null, identityVersion: record?.identityVersion || null, boundToCurrentWallet: Boolean(record),
       publicationPending: Boolean(record?.publicationPending),
       registryUsable: Boolean(record && record.recordStatus === "VALID" && record.invoiceStatus === "VALID" && record.licenseStatus === "ACTIVE"),
-      message: !record ? "No invoice bound to this wallet was found. Historical dataset rows are not automatically demo-ready. Ask the hospital to bind and publish your record; missing invoices can still enter manual review."
+      message: !record ? "No invoice bound to this wallet was found. Historical dataset rows are not automatically demo-ready. Contact insurer support for association review."
         : record.publicationPending ? "This invoice is bound to your wallet but registry publication is pending."
           : "Invoice binding found. Dates, policy terms, amount and independent verification still apply." });
   } catch (error) { next(error); }
