@@ -1,3 +1,4 @@
+const { selectEpisode, prepareEpisode } = require("../support/intakeEpisode");
 const { test, expect } = require("@playwright/test");
 const fs = require("node:fs");
 const mongoose = require("../../backEnd/node_modules/mongoose");
@@ -18,17 +19,19 @@ async function buyAndFill(session) {
   const policy = page.getByLabel("Policy", { exact: true });
   await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1);
   await policy.selectOption({ index: (await policy.locator("option").count()) - 1 });
-  await page.getByLabel("Test data preset").selectOption({ label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH" });
-  const correctedInvoice = await page.getByLabel("Invoice number").inputValue();
+  const episode = await prepareEpisode(session);
+  await page.reload();
+  await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1);
+  await policy.selectOption({ index: (await policy.locator("option").count()) - 1 });
+  await selectEpisode(page, episode.invoiceNumber);
   const incident = page.getByLabel("Incident date/time"); await incident.evaluate((input) => input.setAttribute("step", "1"));
   await incident.fill(localDateTimeValue(new Date(Number((await session.provider.getBlock("latest")).timestamp) * 1000)));
-  await page.getByLabel("Invoice number").fill(`MANUAL-${Date.now()}`);
-  return correctedInvoice;
+  return episode;
 }
-async function openReview(browser, claimId) {
+async function openReview(browser, claimId, episode) {
   const admin = await createActorContext(browser, "admin");
   try {
-    await loginActor(admin.page, admin.actor); await admin.page.goto(`/admin/claims/${claimId}`);
+    await loginActor(admin.page, admin.actor); await episode.revoke(admin); await admin.page.goto(`/admin/claims/${claimId}`);
     await admin.page.getByRole("button", { name: "Request Oracle Verification" }).click();
     const status = admin.page.locator(".admin-claim-sidebar p strong").first();
     await expect.poll(async () => { await admin.page.getByRole("button", { name: "Refresh Claim" }).click(); return (await status.textContent()).trim(); }, { timeout: 90000, intervals: [1000, 3000] }).toBe("ORACLE_FAILED");
@@ -58,7 +61,7 @@ test.describe("@workflow phase two evidence and review recovery", () => {
     let claimantClosed = false;
     const mongo = await mongoose.createConnection(requireDisposableE2EMongoUri()).asPromise();
     try {
-      await buyAndFill(user);
+      const episode = await buyAndFill(user);
       await user.page.getByLabel("Claim document", { exact: true }).setInputFiles(primary);
       await user.page.getByLabel("Supporting evidence (optional)").setInputFiles(supporting);
       let interrupted = false;
@@ -91,7 +94,7 @@ test.describe("@workflow phase two evidence and review recovery", () => {
         expect(fs.readFileSync(await download.path()).equals(original.buffer)).toBe(true);
       }
       await testInfo.attach("owner-decryption-verified", { body: "Both original plaintext files matched after browser decryption", contentType: "text/plain" });
-      await openReview(browser, claimId);
+      await openReview(browser, claimId, episode);
       const { manager, adjudicator } = await chain(user);
       expect((await adjudicator.getReview(claimId, 1)).deadline).toBe(0n);
       await prepareReviewerIdentities(browser);
@@ -164,10 +167,11 @@ test.describe("@workflow phase two evidence and review recovery", () => {
     const user = await createActorContext(browser, "user");
     const mongo = await mongoose.createConnection(requireDisposableE2EMongoUri()).asPromise();
     try {
-      const correctedInvoice = await buyAndFill(user);
+      const episode = await buyAndFill(user);
+      const correctedInvoice = "INV-HOSP-001-001";
       await user.page.getByLabel("Claim document", { exact: true }).setInputFiles(syntheticPdfEvidenceFile());
       await user.page.getByRole("button", { name: "Submit Claim", exact: true }).click();
-      const claimId = await claimIdFrom(user.page); await openReview(browser, claimId);
+      const claimId = await claimIdFrom(user.page); await openReview(browser, claimId, episode);
       const { manager, adjudicator } = await chain(user);
       const preparation = await adjudicator.getPreparation(claimId, 1);
       await user.provider.send("evm_setNextBlockTimestamp", [Number(preparation.deadline) + 1]); await user.provider.send("evm_mine", []);

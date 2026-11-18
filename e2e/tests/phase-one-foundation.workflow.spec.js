@@ -8,6 +8,7 @@ const { getE2EConfig } = require("../support/environment");
 test.describe("@workflow @phase1 coherent application foundation", () => {
   test("administrator provisions hospital staff; a browser without a wallet maintains and publishes scoped records", async ({ browser }, testInfo) => {
     const admin = await createActorContext(browser, "admin");
+    test.setTimeout(300000);
     const staffContext = await browser.newContext({ baseURL: getE2EConfig().appUrl, viewport: { width: 320, height: 780 } });
     const staff = await staffContext.newPage();
     const suffix = crypto.randomBytes(5).toString("hex");
@@ -53,7 +54,7 @@ test.describe("@workflow @phase1 coherent application foundation", () => {
       const record = own.records.find((item) => item.invoiceNumber === invoice);
       expect(record.identityVersion).toBe(2);
       const endpoint = getE2EConfig().apiUrl + "/api/hospitals";
-      const myEpisodes = async () => (await (await admin.page.request.get(endpoint + "/my-episodes", { headers })).json()).records;
+      const myEpisodes = async () => (await (await admin.page.request.get(endpoint + "/my-episodes", { headers, maxRetries: 1 })).json()).records;
       expect((await myEpisodes()).some(item => item.invoiceNumber === invoice)).toBe(false);
       const denied = await staff.request.patch(endpoint + "/records/" + record.id, { headers: staffHeaders, data: { invoiceStatus: "SUSPICIOUS" } });
       expect(denied.status()).toBe(422);

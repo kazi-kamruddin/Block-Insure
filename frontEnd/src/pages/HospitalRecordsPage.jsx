@@ -39,7 +39,7 @@ export default function HospitalRecordsPage() {
       showToast(result.message, { title: "Hospital record created" });
     },
   });
-  const statusMutation = useMutation({
+  const correctionMutation = useMutation({
     mutationFn: ({ id, updates }) => updateMyHospitalRecord(id, updates),
     onSuccess: (result) => {
       refresh();
@@ -47,7 +47,7 @@ export default function HospitalRecordsPage() {
     },
   });
   const records = recordsQuery.data?.records || [];
-  const error = createMutation.error || statusMutation.error || recordsQuery.error;
+  const error = createMutation.error || correctionMutation.error || recordsQuery.error;
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const submit = (event) => {
@@ -94,10 +94,15 @@ export default function HospitalRecordsPage() {
                 <td className="hospital-record-hash">{record.patientHash}</td>
                 <td>{record.treatmentType}<small>{formatDateOnly(record.admissionDate)} to {formatDateOnly(record.dischargeDate)}</small></td>
                 <td>{record.billAmount} ETH</td>
-                <td><form onSubmit={event => {
+                <td><form key={record.revision} onSubmit={event => {
                   event.preventDefault();
-                  statusMutation.mutate({ id: record.id, updates: { billAmount: new FormData(event.currentTarget).get("amount") } });
-                }}><input aria-label={`Correct bill for ${record.invoiceNumber}`} name="amount" defaultValue={record.billAmount} type="number" step="any" min="0.000000000000000001" required /><button disabled={statusMutation.isPending}>Save correction</button></form></td>
+                  const values = Object.fromEntries(new FormData(event.currentTarget));
+                  const updates = Object.fromEntries(Object.entries(values).filter(([key, value]) =>
+                    value !== (key.endsWith("Date") ? record[key].slice(0, 10) : String(record[key]))));
+                  if (Object.keys(updates).length) correctionMutation.mutate({ id: record.id, updates: { ...updates, revision: record.revision } });
+                }}><input aria-label={`Correct bill for ${record.invoiceNumber}`} name="billAmount" defaultValue={record.billAmount} type="number" step="any" min="0.000000000000000001" required /><details><summary>Care and dates</summary>
+                  {["treatmentType", "diagnosisCode", "admissionDate", "dischargeDate", "invoiceDate"].map(key => <label key={key}>{({ treatmentType: "Treatment type", diagnosisCode: "Diagnosis code", admissionDate: "Admission date", dischargeDate: "Discharge date", invoiceDate: "Invoice date" })[key]} for {record.invoiceNumber}<input name={key} type={key.endsWith("Date") ? "date" : "text"} defaultValue={key.endsWith("Date") ? record[key]?.slice(0, 10) : record[key]} required /></label>)}
+                  </details><button disabled={correctionMutation.isPending}>Save correction</button></form></td>
               </tr>
             ))}</tbody>
           </table></div>

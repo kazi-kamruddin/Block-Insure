@@ -94,7 +94,7 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
       await session.page.goto("/user/claims/new");
       await expect(session.page.getByRole("heading", { name: "Submit Claim" })).toBeVisible();
       await expect(session.page.getByRole("heading", { name: "Document Privacy" })).toBeVisible();
-      await expect(session.page.getByLabel("Test data preset")).toBeVisible();
+      await expect(session.page.getByLabel("Authorized episode")).toBeVisible();
     } finally {
       await closeActor(session);
     }

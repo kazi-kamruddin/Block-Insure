@@ -323,7 +323,8 @@ export default function ClaimDetailPage() {
         <h3>Insurer claim statement</h3>
         <p>{claimData.insurerStatement.hospitalId} · {claimData.insurerStatement.invoiceNumber} · revision {claimData.insurerStatement.revision}</p>
         <p>{claimData.insurerStatement.service} · {claimData.insurerStatement.admission.slice(0, 10)} to {claimData.insurerStatement.discharge.slice(0, 10)}</p>
-        <p>The sealed statement records the episode used at submission. Uploaded files are separate supporting evidence.</p>
+        <p>Submitted bill: {ethers.formatEther(claimData.insurerStatement.grossWei)} ETH · policy #{claimData.insurerStatement.policyId}</p>
+        <p>Workers verify the published episode. An authorized reviewer can open the encrypted files to compare the documents with this statement.</p>
       </section>}
 
       <button

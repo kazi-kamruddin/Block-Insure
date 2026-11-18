@@ -285,8 +285,8 @@ const createMyHospitalRecord = async (req, res, next) => {
       recordStatus: "VALID",
       fraudLabel: null,
       fraudSignals: {},
-      actualFraud: false,
-      controlledAttackTruth: false,
+      actualFraud: null,
+      controlledAttackTruth: null,
       syntheticSource: "hospital-maintained-v1",
       baseDataOrigin: "FULLY_SYNTHETIC",
       claimSetting: "SYNTHETIC",
@@ -316,13 +316,16 @@ const updateMyHospitalRecord = async (req, res, next) => {
       "treatmentType", "diagnosisCode", "admissionDate", "dischargeDate",
       "invoiceDate", "billAmount",
     ];
-    if (Object.keys(req.body).some(key => !allowed.includes(key))) throw createError("Only patient episode facts can be saved", 422);
+    if (Object.keys(req.body).some(key => key !== "revision" && !allowed.includes(key))) throw createError("Only patient episode facts can be saved", 422);
     const updates = Object.fromEntries(
       allowed.filter((key) => req.body[key] !== undefined).map((key) => [key, req.body[key]])
     );
     if (Object.keys(updates).length === 0) throw createError("No supported record changes supplied");
-    if (updates.treatmentType) updates.treatmentType = String(updates.treatmentType).trim().toUpperCase();
-    if (updates.diagnosisCode) updates.diagnosisCode = String(updates.diagnosisCode).trim().toUpperCase();
+    for (const key of ["treatmentType", "diagnosisCode"]) {
+      if (updates[key] === undefined) continue;
+      if (typeof updates[key] !== "string" || !updates[key].trim() || updates[key].trim().length > 64) throw createError("Invalid treatment or diagnosis code", 422);
+      updates[key] = updates[key].trim().toUpperCase();
+    }
     if (updates.billAmount !== undefined) {
       try {
         if (ethers.parseEther(String(updates.billAmount)) <= 0n) throw new Error("non-positive");
@@ -342,6 +345,7 @@ const updateMyHospitalRecord = async (req, res, next) => {
       hospitalId: hospital.hospitalId,
     }).lean();
     if (!currentRecord) throw createError("Hospital record not found", 404);
+    if (req.body.revision !== undefined && req.body.revision !== (currentRecord.sourceRevision || 0)) throw createError("A newer revision exists. Reload before saving.", 409);
     const nextAdmissionDate = updates.admissionDate || currentRecord.admissionDate;
     const nextDischargeDate = updates.dischargeDate || currentRecord.dischargeDate;
     if (nextDischargeDate < nextAdmissionDate) {
@@ -349,6 +353,12 @@ const updateMyHospitalRecord = async (req, res, next) => {
     }
     const previousFacts = Object.fromEntries(allowed.map(key => [key, currentRecord[key]]));
     previousFacts.revision = currentRecord.sourceRevision || 0;
+    previousFacts.changedAt = new Date();
+    previousFacts.changedBy = req.user.staffId;
+    if (updates.billAmount && currentRecord.syntheticSource === "hospital-maintained-v1") {
+      updates.expectedBillMin = updates.billAmount;
+      updates.expectedBillMax = updates.billAmount;
+    }
     const record = await MockHospitalRecord.findOneAndUpdate(
       { _id: req.params.id, hospitalId: hospital.hospitalId, updatedAt: currentRecord.updatedAt },
       { $set: { ...updates, publicationPending: true, modifiedByStaffId: req.user.staffId }, $inc: { sourceRevision: 1 }, $push: { sourceHistory: previousFacts } },

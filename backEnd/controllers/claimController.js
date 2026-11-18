@@ -523,8 +523,9 @@ const authorizeClaimSubmission = async (req, res, next) => {
       preExistingCondition: req.body.preExistingCondition === true,
       disclosedAtPurchase: req.body.disclosedAtPurchase === true,
     };
+    const terms = await getIssuedTerms(contract, policy.policyId);
     const policyEligibility = evaluatePolicyEligibility({
-      terms: await getIssuedTerms(contract, policy.policyId),
+      terms,
       currentTimestamp: Number((await contract.runner.getBlock("latest")).timestamp),
       policyStartDate: policy.startDate.toString(),
       policyEndDate: policy.endDate.toString(),
@@ -563,13 +564,20 @@ const authorizeClaimSubmission = async (req, res, next) => {
       authorizedClaimants: req.user.walletAddress.toLowerCase(), publicationPending: { $ne: true },
       recordStatus: "VALID", invoiceStatus: "VALID", licenseStatus: "ACTIVE",
     }).select("hospitalId invoiceHash invoiceNumber treatmentType admissionDate dischargeDate billAmount sourceRevision").lean();
-    if (!episode || episode.treatmentType !== submittedFacts.claimType ||
+    if (!episode || (req.body.episodeRevision !== undefined && req.body.episodeRevision !== (episode.sourceRevision || 0)) || episode.treatmentType !== submittedFacts.claimType ||
         ethers.parseEther(String(episode.billAmount)) !== BigInt(claimAmountWei)) {
       throw createError("No published authorized episode matches these submitted facts.", 409);
+    }
+    const incidentDay = new Date((canonicalIncidentDate + 21600) * 1000).toISOString().slice(0, 10);
+    const admissionDay = episode.admissionDate.toISOString().slice(0, 10);
+    const dischargeDay = episode.dischargeDate.toISOString().slice(0, 10);
+    if (incidentDay < admissionDay || incidentDay > dischargeDay) {
+      throw createError("The documented treatment date must fall within the selected episode.", 422);
     }
     const insurerStatement = {
       version: 1, deployment: await bundles.assertEvidenceDeployment(), policyId: String(policyId),
       hospitalId, invoiceHash: episode.invoiceHash, invoiceNumber: episode.invoiceNumber,
+      issuedRuleVersion: terms.policyRuleVersion, settlementFormulaVersion: terms.settlementFormulaVersion,
       revision: episode.sourceRevision || 0, service: episode.treatmentType,
       admission: episode.admissionDate.toISOString(), discharge: episode.dischargeDate.toISOString(),
       reportedIncident: submittedFacts.incidentDate, grossWei: claimAmountWei,
@@ -826,6 +834,15 @@ const sealSubmissionAttempt = async (req, res, next) => {
     if (attempt.status !== "UPLOADED") throw createError("Upload every selected evidence file before requesting a wallet transaction", 409);
     const files = await File.find({ attemptId: String(attempt._id) }).sort({ uploadSlot: 1 });
     if (files.length !== attempt.expectedEvidenceCount || files.some((file, index) => file.uploadSlot !== index)) throw createError("Evidence slots are incomplete", 409);
+    if (attempt.insurerStatement) {
+      const { hospitalId, invoiceHash, revision } = attempt.insurerStatement;
+      const source = await MockHospitalRecord.findOne({ hospitalId, invoiceHash,
+        authorizedClaimants: req.user.walletAddress.toLowerCase(), publicationPending: { $ne: true },
+        recordStatus: "VALID", invoiceStatus: "VALID", licenseStatus: "ACTIVE" }).select("sourceRevision").lean();
+      if (!source || (source.sourceRevision || 0) !== revision) {
+        throw createError("The episode changed during preparation. Start a new submission with the current published episode.", 409);
+      }
+    }
     attempt.sealedAt = new Date();
     attempt.expiresAt = null; // Unresolved wallet submissions must not expire out of recovery.
     await attempt.save();

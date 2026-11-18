@@ -130,7 +130,7 @@ const mockHospitalRecordSchema = new mongoose.Schema(
       index: true,
     },
     patientContact: { type: String, select: false, default: undefined },
-    sourceHistory: { type: [{ revision: Number, treatmentType: String, diagnosisCode: String, admissionDate: Date, dischargeDate: Date, invoiceDate: Date, billAmount: String }], select: false, default: undefined },
+    sourceHistory: { type: [{ revision: Number, changedBy: String, changedAt: Date, treatmentType: String, diagnosisCode: String, admissionDate: Date, dischargeDate: Date, invoiceDate: Date, billAmount: String }], select: false, default: undefined },
     associationHistory: { type: [{ actor: String, wallet: String, reason: String, revision: Number, at: Date }], select: false, default: undefined },
     fraudLabel: {
       type: String,
@@ -174,8 +174,8 @@ const mockHospitalRecordSchema = new mongoose.Schema(
       min: 0,
     },
     // Deprecated compatibility alias retained for the synthetic Phase 5 model.
-    actualFraud: { type: Boolean, required: true, default: false, index: true },
-    controlledAttackTruth: { type: Boolean, required: true, default: false, index: true },
+    actualFraud: { type: Boolean, default: false, index: true },
+    controlledAttackTruth: { type: Boolean, default: false, index: true },
     providerVelocityAnomaly: { type: Boolean, default: false },
     claimantVelocityAnomaly: { type: Boolean, default: false },
     nearDuplicateAdvisory: { type: Boolean, default: false },

@@ -494,7 +494,14 @@ export async function getIntakeCoverage(policyId) {
 }
 
 export async function getMyEpisodes() {
-  return (await api.get("/api/hospitals/my-episodes")).data;
+  const records = [];
+  let before;
+  do {
+    const { data } = await api.get("/api/hospitals/my-episodes", { params: { before } });
+    records.push(...data.records);
+    before = data.next;
+  } while (before);
+  return { records };
 }
 
 export async function getUnlinkedEpisodes() {

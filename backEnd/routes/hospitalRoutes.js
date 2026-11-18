@@ -65,11 +65,14 @@ router.put("/insurer/association", authMiddleware, requireRole("ADMIN", "CLAIM_O
 });
 router.get("/my-episodes", authMiddleware, async (req, res, next) => {
   try {
-    const records = await Record.find({ authorizedClaimants: req.user.walletAddress.toLowerCase(), publicationPending: { $ne: true },
+    const cursor = req.query.before;
+    if (cursor !== undefined && (typeof cursor !== "string" || !/^[0-9a-f]{24}$/i.test(cursor))) return res.status(422).json({ message: "Invalid episode cursor." });
+    const records = await Record.find({ ...(cursor ? { _id: { $lt: cursor } } : {}), authorizedClaimants: req.user.walletAddress.toLowerCase(), publicationPending: { $ne: true },
       recordStatus: "VALID", invoiceStatus: "VALID", licenseStatus: "ACTIVE" })
       .select("invoiceNumber hospitalId invoiceHash treatmentType admissionDate dischargeDate billAmount sourceRevision")
-      .sort({ admissionDate: -1, _id: 1 }).limit(200).lean();
-    res.set("Cache-Control", "private, no-store").json({ records });
+      .sort({ _id: -1 }).limit(201).lean();
+    const page = records.slice(0, 200);
+    res.set("Cache-Control", "private, no-store").json({ records: page, next: records.length > 200 ? String(page.at(-1)._id) : null });
   } catch (error) { next(error); }
 });
 // Archived attestation routes are deliberately unavailable in the new protocol.

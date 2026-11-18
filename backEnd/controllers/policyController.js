@@ -463,10 +463,11 @@ const getPolicyById = async (req, res, next) => {
       }
 
       const economics = await getPolicyEconomics(contract);
-      const [terms, coverageAccount, coverageIntervals] = await Promise.all([
+      const [terms, coverageAccount, coverageIntervals, block] = await Promise.all([
         economics.getPolicyTerms(req.params.policyId),
         economics.getCoverageAccount(req.params.policyId),
         economics.getCoverageIntervals(req.params.policyId),
+        provider.getBlock("latest"),
       ]);
 
     res.status(200).json({
@@ -480,6 +481,7 @@ const getPolicyById = async (req, res, next) => {
         economics: {
           terms: formatEconomicValue(terms),
           coverage: formatEconomicValue(coverageAccount),
+          asOfTimestamp: Number(block.timestamp),
           intervals: formatEconomicValue(coverageIntervals),
           remainingCoverageWei: (
             await economics.remainingCoverage(req.params.policyId)

@@ -13,6 +13,13 @@ test("evidence manifests bind deployment, version, order and every ciphertext wi
     { documents: [base.documents[0], file("another"), base.documents[1]] }]) {
     assert.notEqual(buildManifest({ ...base, ...patch }).manifestHash, first.manifestHash);
   }
+  assert.equal(JSON.parse(first.manifest).schemaVersion, 1);
+  const insurerStatement = { invoiceHash: "issuer-invoice", revision: 1, grossWei: "100", policyId: "42" };
+  const bound = buildManifest({ ...base, insurerStatement });
+  assert.equal(JSON.parse(bound.manifest).statementDigest, require("ethers").id(JSON.stringify(insurerStatement)));
+  for (const changed of [{ revision: 2 }, { invoiceHash: "other-invoice" }, { grossWei: "101" }, { policyId: "43" }]) {
+    assert.notEqual(buildManifest({ ...base, insurerStatement: { ...insurerStatement, ...changed } }).manifestHash, bound.manifestHash);
+  }
   assert.equal(JSON.parse(first.manifest).documents[0].sourceClaimVersion, 1);
   assert.throws(() => buildManifest({ ...base, documents: [file("not-primary")] }));
   assert.throws(() => buildManifest({ ...base, documents: [] }));

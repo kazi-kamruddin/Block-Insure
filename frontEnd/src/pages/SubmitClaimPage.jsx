@@ -36,7 +36,7 @@ import {
 } from "../services/evidenceEncryption";
 import "../styles/pages/SubmitClaimPage.css";
 import { showToast } from "../services/toast";
-import { formatDateOnly, formatDateTime } from "../utils/dateFormat";
+import { formatDateOnly } from "../utils/dateFormat";
 
 
 function extractPolicies(data) {
@@ -82,11 +82,15 @@ function getUploadedDocumentId(uploadResponse) {
 }
 
 function dateTimeLocalToUnixSeconds(dateTimeValue) {
-  return Math.floor(new Date(dateTimeValue).getTime() / 1000);
+  return Math.floor(Date.parse(dateTimeValue + "+06:00") / 1000);
 }
 
 export default function SubmitClaimPage() {
-  const { isConnected, walletAddress, connectWallet } = useWallet();
+  const wallet = useWallet();
+  return <SubmissionForm key={wallet.walletAddress || "disconnected"} {...wallet} />;
+}
+
+function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
 
   const [policyId, setPolicyId] = useState("");
   const [claimAmount, setClaimAmount] = useState("0.1");
@@ -152,14 +156,13 @@ export default function SubmitClaimPage() {
   const selectedEpisode = episodes.data?.records.find(row => row.hospitalId === hospitalId && row.invoiceNumber === invoiceNumber);
   const episodeDay = selectedEpisode?.admissionDate?.slice(0, 10);
   const dayStart = episodeDay ? Date.parse(episodeDay + "T00:00:00+06:00") / 1000 : NaN;
-  const dayEnd = dayStart + 86399;
-  const now = coverage.dataUpdatedAt / 1000;
+  const lastEpisodeDay = selectedEpisode?.dischargeDate?.slice(0, 10);
+  const dayEnd = lastEpisodeDay ? Date.parse(lastEpisodeDay + "T23:59:59+06:00") / 1000 : NaN;
+  const now = Number(coverage.data?.asOfTimestamp);
   const filingDays = selectedPolicy?.policyTerms?.claimDeadlineDays;
   const wholeDayCovered = !resumeAttempt && dayEnd <= now && dayStart + Number(filingDays) * 86400 >= now &&
     coverage.data?.intervals?.some(([begin, end, wait]) => dayStart >= Math.max(Number(begin), Number(wait)) && dayEnd <= Number(end));
-  const dayRepresentative = new Date((wholeDayCovered ? dayStart : 0) * 1000);
-  dayRepresentative.setMinutes(dayRepresentative.getMinutes() - dayRepresentative.getTimezoneOffset());
-  const incidentDateTime = wholeDayCovered ? dayRepresentative.toISOString().slice(0, 16) : reportedTime;
+  const incidentDateTime = wholeDayCovered ? episodeDay + "T00:00" : reportedTime;
 
   const { data: eligibilityData, error: eligibilityError } = useQuery({
     queryKey: [
@@ -314,6 +317,7 @@ export default function SubmitClaimPage() {
         hospitalId,
         invoiceHash,
         invoiceNumber: invoiceNumber.trim(),
+        episodeRevision: selectedEpisode?.sourceRevision ?? 0,
         evidenceCount: selectedFiles.length,
         preExistingCondition,
         disclosedAtPurchase,
@@ -485,7 +489,7 @@ export default function SubmitClaimPage() {
           <div className="policy-date-summary">
             <div><span>Coverage begins</span><strong>{formatDateOnly(selectedPolicy.startDate)}</strong></div>
             <div><span>Coverage ends</span><strong>{formatDateOnly(selectedPolicy.endDate)}</strong></div>
-            <div><span>Selected incident</span><strong>{incidentDateTime ? formatDateTime(incidentDateTime) : "Not selected"}</strong></div>
+            <div><span>Selected incident</span><strong>{incidentDateTime ? incidentDateTime.replace("T", " ") + " (Asia/Dhaka)" : "Not selected"}</strong></div>
           </div>
           <PolicyTermsPanel terms={selectedPolicy.policyTerms} />
           {eligibilityError ? (
@@ -501,7 +505,7 @@ export default function SubmitClaimPage() {
       <ClaimSubmissionRecoveryPanel revision={recoveryRevision} onCompleted={async (result) => { setSuccessMessage(`Claim #${result.attempt.claimId} submitted and its encrypted evidence was reconciled successfully.`); await refetchPolicies(); }} onResume={(attempt) => {
         setResumeAttempt(attempt); setPolicyId(attempt.policyId); setClaimAmount(formatEther(attempt.submittedFacts.claimAmountWei));
         setClaimType(attempt.submittedFacts.claimType); setHospitalId(attempt.submittedFacts.hospitalId); setInvoiceNumber(attempt.submittedFacts.invoiceNumber);
-        const date = new Date(Number(attempt.submittedFacts.incidentDate) * 1000); date.setMinutes(date.getMinutes() - date.getTimezoneOffset()); setIncidentDateTime(date.toISOString().slice(0, 19));
+        const date = new Date((Number(attempt.submittedFacts.incidentDate) + 21600) * 1000); setIncidentDateTime(date.toISOString().slice(0, 19));
         setFile(null); setSupportingFiles(Array(Math.max(0, attempt.expectedEvidenceCount - 1)).fill(null)); setError("");
       }} />
       {resumeAttempt && <p role="status">Resuming the saved authorization for policy #{resumeAttempt.policyId}. Uploaded slots remain unchanged. Reselect missing files below.</p>}
@@ -553,13 +557,13 @@ export default function SubmitClaimPage() {
           {wholeDayCovered ? <output>{episodeDay}</output> : <input
             aria-label="Incident date/time"
             type="datetime-local"
-            step="60"
+            step="1"
             value={incidentDateTime}
             disabled={Boolean(resumeAttempt)} onChange={(event) => setIncidentDateTime(event.target.value)}
             required
           />}
           <small>
-            {wholeDayCovered ? "Every instant on this day meets the checked coverage and filing boundaries." : "Use a documented time when coverage is uncertain. If unknown, contact the insurer before submitting. The time picker uses your browser’s time zone."}
+            {wholeDayCovered ? "The full episode falls within the checked coverage and filing boundaries. The statement uses its admission date." : "Use a documented time when coverage is uncertain. If unknown, contact the insurer before submitting. Enter Bangladesh time (Asia/Dhaka)."}
           </small>
         </label>
 
@@ -617,7 +621,7 @@ export default function SubmitClaimPage() {
         {!resumeAttempt && supportingFiles.length > 0 && <ul>{supportingFiles.map((item, index) => <li key={index}>{item.name}</li>)}</ul>}
 
         <section aria-label="Invoice readiness" className="rounded-lg border border-[var(--border)] p-3">
-          <p>Dataset examples are not automatically authorized patient invoices. Check wallet binding before uploading evidence.</p>
+          <p>The insurer records the selected episode, revision and bill amount in your claim statement. Workers check these structured facts. Only authorized people can decrypt the attached documents.</p>
           <button type="button" disabled={!isConnected || !hospitalId || !invoiceNumber.trim() || invoiceEligibility.isFetching}
             onClick={() => invoiceEligibility.refetch()}>Check invoice readiness</button>
           {invoiceEligibility.data && <p role="status">{invoiceEligibility.data.message}{invoiceEligibility.data.boundToCurrentWallet && !invoiceEligibility.data.registryUsable ? " The record is not currently valid for automatic verification." : ""}</p>}
