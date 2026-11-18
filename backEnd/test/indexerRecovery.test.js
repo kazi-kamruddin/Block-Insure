@@ -132,6 +132,22 @@ test("invalid confirmation and chunk configuration fail closed", async () => {
   await assert.rejects(fixture({ INDEXER_CHUNK_SIZE: "0" }).service.indexConfirmedEvents(), /Invalid indexer/);
 });
 
+test("startup backs off on RPC throttling and retries the same durable indexer", async () => {
+  const { catchUpIndexer } = fixture().service;
+  const delays = [];
+  let attempts = 0;
+  const { signal } = new AbortController();
+  await catchUpIndexer(async () => {
+    if (++attempts <= 2) throw Object.assign(new Error("request failed"), {
+      info: { responseStatus: "599 CLIENT ESCALATED SERVER ERROR (429 Too Many Requests)" },
+    });
+  }, async delay => delays.push(delay), signal);
+  assert.equal(attempts, 3);
+  assert.deepEqual(delays, [1000, 2000]);
+  await assert.rejects(catchUpIndexer(async () => { throw Error("wrong chain"); },
+    async () => { throw Error("should not back off"); }, signal), /wrong chain/);
+});
+
 test("73,000 empty blocks use range endpoints instead of 73,000 header reads", async () => {
   const f = fixture({ INDEXER_CHUNK_SIZE: "500" });
   let reads = 0, ranges = 0;

@@ -291,6 +291,7 @@ const startServer = async () => {
     if (runtimeConfig.blockchainRuntimeEnabled) {
       console.log("[Backend] Initializing blockchain services and catching up indexed history");
       await startBlockchainIndexer();
+      if (shuttingDown) return;
       startEvidenceAnchorScheduler();
       startReviewAccessScheduler();
       await startBlockchainEventListener();
@@ -328,10 +329,10 @@ const shutdownServer = async (signal) => {
   shuttingDown = true;
   try {
     console.log(`${signal} received. Stopping backend services...`);
+    stopBlockchainIndexer();
     await closeHttpServer();
     if (runtimeConfig.blockchainRuntimeEnabled) {
       await stopBlockchainEventListener();
-      stopBlockchainIndexer();
       stopEvidenceAnchorScheduler();
       stopReviewAccessScheduler();
       stopBankPaymentScheduler();

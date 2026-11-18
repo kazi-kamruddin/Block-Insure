@@ -1,4 +1,5 @@
 const { ethers } = require("ethers");
+const { setTimeout: wait } = require("node:timers/promises");
 const InsuranceManagerArtifact = require("../abi/InsuranceManager.json");
 const OracleCoordinatorArtifact = require("../abi/OracleCoordinator.json");
 const ClaimAdjudicatorArtifact = require("../abi/ClaimAdjudicator.json");
@@ -12,6 +13,7 @@ const { getContractAddress, getProvider } = require("./contractService");
 const INDEXER_ID = "insurance-manager-v1";
 const CHUNK_SIZE = Number(process.env.INDEXER_CHUNK_SIZE || 500);
 let indexerTimer = null;
+let startupRetry;
 let indexingPromise = null;
 let indexMigration;
 
@@ -348,6 +350,20 @@ const indexConfirmedEvents = () => {
   return indexingPromise;
 };
 
+async function catchUpIndexer(run, sleep, signal) {
+  for (let delay = 1000; !signal.aborted; delay = Math.min(delay * 2, 60000)) {
+    try {
+      return await run();
+    } catch (error) {
+      const details = [error?.status, error?.statusCode, error?.error?.code,
+        error?.info?.responseStatus, error?.shortMessage, error?.message].join(" ");
+      if (!/\b429\b|rate limit exceeded/i.test(details)) throw error;
+      console.warn(`[Indexer] RPC rate limited during startup. Retrying from the saved checkpoint in ${delay}ms.`);
+      await sleep(delay, undefined, { signal });
+    }
+  }
+}
+
 const getIndexedEventsPage = async ({
   contractName,
   eventName,
@@ -396,7 +412,16 @@ const getIndexedEventsPage = async ({
 const startBlockchainIndexer = async () => {
   if (process.env.INDEXER_ENABLED === "false" || indexerTimer) return;
   await ensureIndexerIndexes();
-  await indexConfirmedEvents();
+  const retry = new AbortController();
+  startupRetry = retry;
+  try {
+    await catchUpIndexer(indexConfirmedEvents, wait, retry.signal);
+  } catch (error) {
+    if (error.name !== "AbortError" || !retry.signal.aborted) throw error;
+  } finally {
+    if (startupRetry === retry) startupRetry = null;
+  }
+  if (retry.signal.aborted) return;
   indexerTimer = setInterval(() => {
     indexConfirmedEvents().catch((error) =>
       console.error("Blockchain indexer failed:", error.message)
@@ -406,11 +431,13 @@ const startBlockchainIndexer = async () => {
 };
 
 const stopBlockchainIndexer = () => {
+  startupRetry?.abort();
   if (indexerTimer) clearInterval(indexerTimer);
   indexerTimer = null;
 };
 
 module.exports = {
+  catchUpIndexer,
   getIndexerContext,
   INDEXER_ID,
   ensureIndexerIndexes,
