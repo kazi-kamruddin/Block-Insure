@@ -85,7 +85,7 @@ export default function PaymentHistoryPage() {
       <div className="payment-page-heading">
         <div>
           <span className="dashboard-eyebrow">Premium records</span>
-          <h2>Payments and Statements</h2>
+          <h1>Payments and Statements</h1>
           <p>
             Review confirmed payments, upcoming installments, and July–June
             fiscal-year reports.
@@ -93,6 +93,7 @@ export default function PaymentHistoryPage() {
         </div>
         <button
           type="button"
+          className="button-secondary"
           onClick={() => statementQuery.refetch()}
           disabled={statementQuery.isFetching}
         >

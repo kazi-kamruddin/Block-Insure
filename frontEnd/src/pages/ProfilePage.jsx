@@ -11,9 +11,9 @@ function ProfileForm({ user }) {
     <p className="break-all">Wallet: {user.walletAddress}</p>
     <p>These contact details are self-reported. Saving a profile does not verify your identity or change your permissions. Do not enter national identity documents.</p>
     {[ ["name", "Display name", "text", 100], ["email", "Email", "email", 254], ["phone", "Phone", "tel", 30] ].map(([key, label, type, maxLength]) => <label key={key}>{label}<input type={type} autoComplete={key === "phone" ? "tel" : key} maxLength={maxLength} value={fields[key]} onChange={(event) => setFields({ ...fields, [key]: event.target.value })} /></label>)}
-    {mutation.error && <p role="alert">{mutation.error.response?.data?.message || "Profile could not be saved."}</p>}
-    {mutation.isSuccess && <p role="status">Profile saved.</p>}
-    <button disabled={mutation.isPending}>{mutation.isPending ? "Saving…" : "Save profile"}</button>
+    {mutation.error && <p role="alert" className="error-text">{mutation.error.response?.data?.message || "Profile could not be saved."}</p>}
+    {mutation.isSuccess && <p role="status" className="success-text">Profile saved.</p>}
+    <button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Saving…" : "Save profile"}</button>
   </form>;
 }
 
@@ -59,5 +59,27 @@ function EvidenceRecovery({ walletAddress }) {
 export default function ProfilePage() {
   const { walletAddress } = useWallet();
   const query = useQuery({ queryKey: ["profile", walletAddress], queryFn: getCurrentUser });
-  return <section className="page-container"><h2>My profile</h2>{query.isPending ? <p role="status">Loading profile…</p> : query.isError ? <p role="alert">Profile unavailable. <button onClick={() => query.refetch()}>Retry</button></p> : <><ProfileForm key={`profile:${walletAddress}`} user={query.data.user} /><EmailVerification key={`email:${walletAddress}:${query.data.user.email}`} user={query.data.user} /><EvidenceRecovery key={`recovery:${walletAddress}`} walletAddress={walletAddress} /></>}</section>;
+  return (
+    <section className="page-container">
+      <div className="page-header-row">
+        <div>
+          <h1>My profile</h1>
+          <p>Manage optional contact details, verify your mailbox for payment codes, and recover browser evidence keys.</p>
+        </div>
+      </div>
+      {query.isPending ? (
+        <p role="status">Loading profile…</p>
+      ) : query.isError ? (
+        <p role="alert" className="error-text">
+          Profile unavailable. <button type="button" className="button-secondary" onClick={() => query.refetch()}>Retry</button>
+        </p>
+      ) : (
+        <div className="grid gap-4">
+          <ProfileForm key={`profile:${walletAddress}`} user={query.data.user} />
+          <EmailVerification key={`email:${walletAddress}:${query.data.user.email}`} user={query.data.user} />
+          <EvidenceRecovery key={`recovery:${walletAddress}`} walletAddress={walletAddress} />
+        </div>
+      )}
+    </section>
+  );
 }

@@ -1,3 +1,6 @@
+import InsurerClaimStatement from "../components/InsurerClaimStatement";
+import { Contract } from "ethers";
+import { api } from "../services/api";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -96,6 +99,7 @@ async function getActiveWalletAddress(fallbackWallet) {
 export default function AuditorVotingPage() {
   const { claimId } = useParams();
   const { walletAddress } = useWallet();
+  const [basis, setBasis] = useState("");
   const [voteError, setVoteError] = useState("");
   const [voteMessage, setVoteMessage] = useState("");
   const [voteTxHash, setVoteTxHash] = useState("");
@@ -168,7 +172,13 @@ export default function AuditorVotingPage() {
       setIsVoting(true);
 
       const contract = await getWalletContract();
-      const tx = await contract.castVote(claimId, voteCode);
+      let tx;
+      if (voteSummary.reasonedVoting) {
+        const version = voteSummary.version;
+        const { data } = await api.post(`/api/votes/claim/${claimId}/reason`, { vote: voteCode, basis, version });
+        const adjudicator = new Contract(await contract.claimAdjudicator(), ["function castReasonedVote(uint256,uint64,uint8,bytes32)"], contract.runner);
+        tx = await adjudicator.castReasonedVote(claimId, version, voteCode, data.commitment);
+      } else tx = await contract.castVote(claimId, voteCode);
 
       setVoteTxHash(tx.hash);
 
@@ -193,15 +203,20 @@ export default function AuditorVotingPage() {
 
   return (
     <section className="page-container page-auditor-voting">
-      <h2>Auditor Vote</h2>
-
-      <p>
-        <Link to="/auditor/votes">Back to voting queue</Link>
-      </p>
-
-      <button type="button" onClick={refreshAll}>
-        Refresh Voting Data
-      </button>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Quorum adjudication</span>
+          <h1>Auditor Vote</h1>
+        </div>
+        <div className="action-row">
+          <Link to="/auditor/votes" className="button-link button-secondary">
+            Back to voting queue
+          </Link>
+          <button type="button" className="button-secondary" onClick={refreshAll}>
+            Refresh Voting Data
+          </button>
+        </div>
+      </div>
 
       {claimLoading ? <p>Loading claim...</p> : null}
 
@@ -223,28 +238,41 @@ export default function AuditorVotingPage() {
 
       <div className="auditor-vote-workspace">
         <div className="auditor-vote-analysis">
+      <InsurerClaimStatement statement={claimData?.insurerStatement} />
       {claim && <><ReviewAccessPanel claimId={claimId} onChange={refreshAll} /><EvidenceChainPanel evidenceChain={claimData?.evidenceChain} /></>}
       {claim ? (
         <div className="card">
           <h3>Claim #{formatValue(claim.claimId || claimId)}</h3>
-          <div className="voting-detail-grid">
-            <p>Type: {formatValue(claim.claimType)}</p>
-            <p>Amount: {formatValue(claim.claimAmountEth || claim.claimAmount)} ETH</p>
-            <p>Hospital: {formatValue(claim.hospitalId)}</p>
-            <p>
-              Status: <ClaimStatusBadge status={statusName} />
-            </p>
-            <p>
-          Verification confidence: {formatValue(claim.verificationConfidence)}/100
-              <small> Higher means the deterministic submission checks passed.</small>
-            </p>
-            <p>
-              Recorded model risk score:{" "}
-              {bayesianFraudPercent === null
-                ? "-"
-                : `${formatValue(bayesianFraudPercent)}%`}
-            </p>
-          </div>
+          <dl className="detail-kv-grid">
+            <div>
+              <dt>Type</dt>
+              <dd>{formatValue(claim.claimType)}</dd>
+            </div>
+            <div>
+              <dt>Amount</dt>
+              <dd>{formatValue(claim.claimAmountEth || claim.claimAmount)} ETH</dd>
+            </div>
+            <div>
+              <dt>Hospital</dt>
+              <dd>{formatValue(claim.hospitalId)}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd><ClaimStatusBadge status={statusName} /></dd>
+            </div>
+            <div>
+              <dt>Verification confidence</dt>
+              <dd>{formatValue(claim.verificationConfidence)}/100</dd>
+            </div>
+            <div>
+              <dt>Recorded model risk score</dt>
+              <dd>
+                {bayesianFraudPercent === null
+                  ? "-"
+                  : `${formatValue(bayesianFraudPercent)}%`}
+              </dd>
+            </div>
+          </dl>
           <PolicyEligibilityResult
             evaluation={claim.policyEligibility?.evaluation}
             title="Submission-time policy assessment"
@@ -280,9 +308,25 @@ export default function AuditorVotingPage() {
       <div className="card">
         <h3>Advisory weighted summary</h3>
         <p>Weights do not decide claims. Exactly four assigned auditors vote: three approvals approve; two rejections reject. Insufficient quorum at expiry rejects.</p>
+        {voteSummary?.reasonedVoting && !voteSummary.hasCurrentUserVoted && !voteSummary.finalized && (
+          <label>
+            Evidence supporting your vote
+            <textarea
+              rows={3}
+              maxLength={500}
+              value={basis}
+              onChange={(event) => setBasis(event.target.value)}
+              placeholder="Summarize key invoice, hospital, or medical evidence facts..."
+            />
+            <small>{basis.length}/500 characters</small>
+          </label>
+        )}
+        {voteSummary?.voters?.filter(voter => voter.rationale).map(voter =>
+          <p key={voter.auditorAddress}>{voter.shortenedAddress}: {voter.rationale}</p>)}
         {voteLoading ? <p>Loading votes...</p> : null}
 
-        {voteSummary ? (
+        {voteSummary?.peerVotesHidden && <p>Peer votes appear here after you vote or the review closes. Votes are visible on the public chain.</p>}
+        {voteSummary && !voteSummary.peerVotesHidden ? (
           <>
             <div className="vote-breakdown-grid">
               {Object.values(voteSummary.breakdown || {}).map((entry) => (
@@ -331,6 +375,9 @@ export default function AuditorVotingPage() {
 
       <div className="card voting-panel">
         <h3>Cast Vote</h3>
+        <p className="muted-text">
+          Casting a vote opens MetaMask and commits your signed decision on-chain.
+        </p>
 
         <div className="action-row vote-action-row">
           {VOTE_OPTIONS.map((option) => (

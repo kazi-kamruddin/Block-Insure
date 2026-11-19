@@ -166,4 +166,8 @@ fileSchema.index({ attemptId: 1, uploadSlot: 1 }, { unique: true, partialFilterE
 fileSchema.index({ deploymentScope: 1, claimId: 1, claimVersion: 1 }, { unique: true, name: "one_appeal_attachment_per_version",
   partialFilterExpression: { documentType: "APPEAL_DOCUMENT", claimId: { $gt: "" } } });
 
+fileSchema.index({ deploymentScope: 1, claimId: 1, claimVersion: 1, documentType: 1 }, { unique: true,
+  name: "unique_clarification_attachment",
+  partialFilterExpression: { documentType: "CLARIFICATION_DOCUMENT", claimId: { $gt: "" } } });
+
 module.exports = mongoose.model("File", fileSchema);

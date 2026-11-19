@@ -54,6 +54,8 @@ contract ClaimAdjudicator is ReentrancyGuard {
     uint64 public preparationDuration = 3 days;
     mapping(bytes32 => AccessPreparation) private preparations;
     mapping(uint256 => bool) public preparationRetryUsed;
+    mapping(bytes32 => bool) private proceduralExpiry;
+    event PreparationDurationUpdated(uint64 duration);
 
     address[] private activeAuditors;
     mapping(address => bool) public isActiveAuditor;
@@ -169,6 +171,16 @@ contract ClaimAdjudicator is ReentrancyGuard {
         emit ReviewConfigUpdated(newReviewDuration, newRoutingDelay);
     }
 
+    function updatePreparationDuration(uint64 duration) external onlyManagerAdmin {
+        require(duration > 0, "Preparation duration required");
+        preparationDuration = duration;
+        emit PreparationDurationUpdated(duration);
+    }
+
+    function proceduralRetryAvailable(uint256 claimId, uint64 version) public view returns (bool) {
+        return proceduralExpiry[reviewKey(claimId, version)] && !preparationRetryUsed[claimId];
+    }
+
     function updateMaxAppeals(uint8 newMaximum) external onlyManagerAdmin {
         require(newMaximum > 0, "Maximum appeals required");
         maxAppeals = newMaximum;
@@ -231,12 +243,28 @@ contract ClaimAdjudicator is ReentrancyGuard {
         _finalize(claimId, version, review, false, ACCESS_INCOMPLETE);
     }
 
+    function reasonedVotingRequired() public pure virtual returns (bool) { return false; }
+    mapping(bytes32 => mapping(address => bytes32)) public voteReason;
+    event VoteReasonRecorded(uint256 indexed claimId, uint64 indexed version, address indexed auditor, bytes32 commitment);
+
+    function castReasonedVote(uint256 claimId, uint64 version, uint8 vote, bytes32 reason) external {
+        require(reason != bytes32(0), "Reason commitment required");
+        voteReason[reviewKey(claimId, version)][msg.sender] = reason;
+        emit VoteReasonRecorded(claimId, version, msg.sender, reason);
+        _castVote(claimId, version, msg.sender, vote);
+    }
+
     function castVote(
         uint256 claimId,
         uint64 version,
         address auditor,
         uint8 vote
     ) external onlyManager {
+        require(!reasonedVotingRequired(), "Use reasoned vote");
+        _castVote(claimId, version, auditor, vote);
+    }
+
+    function _castVote(uint256 claimId, uint64 version, address auditor, uint8 vote) private {
         require(vote == VOTE_VALID || vote == VOTE_INVALID, "Invalid vote");
         bytes32 key = reviewKey(claimId, version);
         ManualReview storage review = reviews[key];
@@ -379,7 +407,7 @@ contract ClaimAdjudicator is ReentrancyGuard {
         onlyManager
         returns (uint8 round)
     {
-        if (decisions[claimId][newVersion - 1].rejectionReason == ACCESS_INCOMPLETE && !preparationRetryUsed[claimId]) {
+        if (proceduralRetryAvailable(claimId, newVersion - 1)) {
             preparationRetryUsed[claimId] = true;
         } else {
             require(appealRound[claimId] < maxAppeals, "Maximum appeals reached");
@@ -422,6 +450,7 @@ contract ClaimAdjudicator is ReentrancyGuard {
     ) private {
         review.finalized = true;
         review.approved = approved;
+        proceduralExpiry[reviewKey(claimId, version)] = reasonCode == ACCESS_INCOMPLETE || reasonCode == REVIEW_TIMED_OUT;
         // Expiry is an availability outcome, not evidence that an approving
         // auditor was wrong on the merits of the claim.
         if (reasonCode != REVIEW_TIMED_OUT && reasonCode != ACCESS_INCOMPLETE) _recordAuditorObservations(claimId, version, review, approved);

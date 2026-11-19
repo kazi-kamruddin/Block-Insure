@@ -1,5 +1,23 @@
 import { useEffect, useState } from "react";
 
+function ToastGlyph({ tone }) {
+  if (tone === "error" || tone === "warning") {
+    return (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 export default function ToastViewport() {
   const [toasts, setToasts] = useState([]);
 
@@ -29,11 +47,7 @@ export default function ToastViewport() {
       {toasts.map((toast) => (
         <article className={`app-toast toast-${toast.tone}`} key={toast.id}>
           <span className="toast-icon" aria-hidden="true">
-            {toast.tone === "error"
-              ? "!"
-              : toast.tone === "warning"
-                ? "!"
-                : "✓"}
+            <ToastGlyph tone={toast.tone} />
           </span>
           <div>
             {toast.title ? <strong>{toast.title}</strong> : null}
@@ -48,7 +62,10 @@ export default function ToastViewport() {
               )
             }
           >
-            ×
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </article>
       ))}

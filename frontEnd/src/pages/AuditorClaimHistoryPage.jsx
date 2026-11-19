@@ -1,3 +1,4 @@
+import { formatEther } from "ethers";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -207,12 +208,21 @@ function getEventMeta(event) {
   );
 }
 
+function formatWeiAmount(weiValue) {
+  if (weiValue === undefined || weiValue === null || weiValue === "") return "-";
+  try {
+    return `${formatEther(String(weiValue))} ETH`;
+  } catch {
+    return `${formatValue(weiValue)} wei`;
+  }
+}
+
 function getEventSummary(event) {
   const args = getEventArgs(event);
   const eventName = getEventName(event);
 
   if (eventName === "ClaimSubmitted") {
-    return `Amount ${formatValue(args.claimAmount)} wei from ${shortenAddress(args.claimant)}`;
+    return `Amount ${formatWeiAmount(args.claimAmount)} from ${shortenAddress(args.claimant)}`;
   }
 
   if (eventName === "DocumentAdded") {
@@ -238,7 +248,7 @@ function getEventSummary(event) {
   }
 
   if (eventName === "ClaimSettled") {
-    return `Paid ${formatValue(args.amount)} wei to ${shortenAddress(args.recipient)}`;
+    return `Paid ${formatWeiAmount(args.amount)} to ${shortenAddress(args.recipient)}`;
   }
 
   return getEventMeta(event).summary;
@@ -411,25 +421,31 @@ export default function AuditorClaimHistoryPage() {
 
   return (
     <section className="page-container page-auditor-claim-history">
-      <h2>Auditor Claim History</h2>
-
-      <p>
-        <Link to="/auditor/claims">Back to audit timelines</Link>
-      </p>
-
-      <button
-        type="button"
-        onClick={() => {
-          refetch();
-          refetchOracle();
-          refetchClaim();
-        }}
-        disabled={isFetching || oracleFetching || claimFetching}
-      >
-        {isFetching || oracleFetching || claimFetching
-          ? "Refreshing..."
-          : "Refresh Timeline"}
-      </button>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Claim audit log</span>
+          <h1>Auditor Claim History</h1>
+        </div>
+        <div className="action-row">
+          <Link to="/auditor/claims" className="button-link button-secondary">
+            Back to audit timelines
+          </Link>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => {
+              refetch();
+              refetchOracle();
+              refetchClaim();
+            }}
+            disabled={isFetching || oracleFetching || claimFetching}
+          >
+            {isFetching || oracleFetching || claimFetching
+              ? "Refreshing..."
+              : "Refresh Timeline"}
+          </button>
+        </div>
+      </div>
 
       <div className="action-row">
         <button type="button" onClick={() => handleExport("json")}>
@@ -506,17 +522,17 @@ export default function AuditorClaimHistoryPage() {
 
               {event.args || event.details ? (
                 <details className="raw-details">
-                  <summary>
-                    Raw event details{" "}
+                  <summary>Raw event details</summary>
+                  <div className="mt-2 grid gap-2">
                     <CopyableText
                       value={formatValue(event.args || event.details)}
                       label="Copy details"
                       short
                     />
-                  </summary>
-                  <pre className="pre-box">
-                    {formatValue(event.args || event.details)}
-                  </pre>
+                    <pre className="pre-box">
+                      {formatValue(event.args || event.details)}
+                    </pre>
+                  </div>
                 </details>
               ) : null}
             </div>

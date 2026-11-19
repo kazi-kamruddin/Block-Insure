@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { formatEther } from "ethers";
 import { Link, useParams } from "react-router-dom";
 
 import {
@@ -6,6 +7,7 @@ import {
   getPublicPolicyPackage,
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
+import CopyableText from "../components/CopyableText";
 import PaymentScheduleNotice from "../components/PaymentScheduleNotice";
 import "../styles/pages/PublicPolicyPages.css";
 
@@ -52,7 +54,7 @@ export default function PublicPolicyDetailPage() {
         <div className="policy-document-commitment">
           <span>Document version</span>
           <strong>{document.documentVersion}</strong>
-          <code>{document.documentHash}</code>
+          <CopyableText value={document.documentHash} label="Copy commitment" short />
         </div>
       </header>
       <PaymentScheduleNotice schedule={terms?.paymentSchedule} />
@@ -73,7 +75,7 @@ export default function PublicPolicyDetailPage() {
         <p><strong>Excluded:</strong> {readableList(terms.excludedClaimTypes)}</p>
         <p>Initial waiting period: {terms.waitingPeriodDays} days.</p>
         <p>Pre-existing-condition underwriting is outside this prototype scope.</p>
-        <p>Deductible: {terms.deductibleRateBps / 100}% with a cap of {BigInt(terms.deductibleCapWei || 0).toString()} wei. Claim deadline: {terms.claimDeadlineDays} days.</p>
+        <p>Deductible: {terms.deductibleRateBps / 100}% capped at {formatEther(BigInt(terms.deductibleCapWei || 0))} ETH. Claim deadline: {terms.claimDeadlineDays} days.</p>
         <p>Insurer share after applicable limits: {terms.coinsuranceBps / 100}%.</p>
       </section>
 

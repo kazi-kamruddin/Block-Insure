@@ -117,7 +117,7 @@ export default function AdminDashboardPage() {
       <div className="dashboard-heading">
         <div>
           <span className="dashboard-eyebrow">Administration workspace</span>
-          <h2>Portfolio oversight</h2>
+          <h1>Portfolio oversight</h1>
           <p>
             Monitor reserve health, manage coverage products, review claim
             decisions, and control final settlement.
@@ -174,7 +174,7 @@ export default function AdminDashboardPage() {
       <div className="card-row">
         <div className="card">
           <h3>Referenced Treasury Funding</h3>
-          <form onSubmit={fundTreasury}>
+          <form className="form-grid" onSubmit={fundTreasury}>
             <label>
               Funding reference
               <input value={fundingReference} onChange={(event) => setFundingReference(event.target.value)} required />
@@ -319,10 +319,11 @@ export default function AdminDashboardPage() {
       {oracleHealth.length > 0 ? (
         <div className="card reserve-table-card">
           <h3>Oracle Identity and Independence</h3>
-          <table className="reserve-table">
-            <thead>
-              <tr>
-                <th>Oracle</th>
+          <div className="table-wrap">
+            <table className="reserve-table">
+              <thead>
+                <tr>
+                  <th>Oracle</th>
                 <th>Wallet</th>
                 <th>Registry Root</th>
                 <th>Heartbeat</th>
@@ -343,8 +344,9 @@ export default function AdminDashboardPage() {
                   <td>{oracle.status}</td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
 
@@ -352,6 +354,7 @@ export default function AdminDashboardPage() {
         <div className="reserve-grid">
           <div className="card reserve-table-card">
             <h3>Claim Status Liability</h3>
+            <div className="table-wrap">
             <table className="reserve-table">
               <thead>
                 <tr>
@@ -373,6 +376,7 @@ export default function AdminDashboardPage() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           <div className="card reserve-table-card">
@@ -381,6 +385,7 @@ export default function AdminDashboardPage() {
             {settlementQueue.length === 0 ? (
               <p>No approved claims waiting for settlement.</p>
             ) : (
+              <div className="table-wrap">
               <table className="reserve-table">
                 <thead>
                   <tr>
@@ -403,6 +408,7 @@ export default function AdminDashboardPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>

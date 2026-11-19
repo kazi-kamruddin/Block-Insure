@@ -26,12 +26,33 @@ export default function AppealRecoveryPanel({ claimId, onCompleted, revision }) 
     } catch (failure) { setError(failure.response?.data?.message || failure.shortMessage || failure.message); }
     finally { setActing(false); }
   }
-  return <section className="card min-w-0 break-words" aria-label="Appeal recovery"><h3>Unfinished appeal</h3>
-    <p>Recover the saved operation before opening another appeal. A confirmed appeal only needs its missing registration completed.</p>
-    {attempts.map((attempt) => <article key={attempt.id}><p>Claim version {attempt.claimVersion}: {attempt.status}</p>
-      {attempt.lastRevertedTransactionHash && <p>Last confirmed reverted transaction: <TransactionLink txHash={attempt.lastRevertedTransactionHash} /></p>}
-      {attempt.status === "DRAFT" ? <p>The draft is saved. Complete the appeal form to finish its corrections and evidence.</p> : <button type="button" disabled={acting} onClick={() => recover(attempt)}>Recover appeal registration</button>}
-      {attempt.status === "READY" && !attempt.transactionHash && <button type="button" disabled={acting} onClick={() => recover(attempt, true)}>Submit saved appeal</button>}
-    </article>)}{error && <p role="alert">{error}</p>}
-  </section>;
+  return (
+    <section className="card min-w-0 break-words" aria-label="Appeal recovery">
+      <h3>Unfinished appeal</h3>
+      <p>Recover the saved operation before opening another appeal. A confirmed appeal only needs its missing registration completed.</p>
+      {attempts.map((attempt) => (
+        <article key={attempt.id} className="my-3 border-t border-[var(--line)] pt-3">
+          <p className="font-semibold text-[var(--text)]">Claim version {attempt.claimVersion}: {attempt.status}</p>
+          {attempt.lastRevertedTransactionHash && (
+            <p>Last confirmed reverted transaction: <TransactionLink txHash={attempt.lastRevertedTransactionHash} /></p>
+          )}
+          <div className="action-row">
+            {attempt.status === "DRAFT" ? (
+              <p className="muted-text m-0">The draft is saved. Complete the appeal form below to finish its corrections and evidence.</p>
+            ) : (
+              <button type="button" className="button-secondary" disabled={acting} onClick={() => recover(attempt)}>
+                Recover appeal registration
+              </button>
+            )}
+            {attempt.status === "READY" && !attempt.transactionHash && (
+              <button type="button" disabled={acting} onClick={() => recover(attempt, true)}>
+                Submit saved appeal
+              </button>
+            )}
+          </div>
+        </article>
+      ))}
+      {error && <p role="alert" className="error-text">{error}</p>}
+    </section>
+  );
 }

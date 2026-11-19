@@ -42,16 +42,17 @@ export default function AuditorClaimLookupPage() {
 
   return (
     <section className="page-container page-auditor-claim-lookup">
-      <div className="page-heading-row">
+      <div className="page-header-row">
         <div>
-          <h2>Claim Audit Timelines</h2>
-          <p>
+          <span className="section-eyebrow">Audit trail explorer</span>
+          <h1>Claim Audit Timelines</h1>
+          <p className="muted-text mt-1">
             Every submitted claim has an audit trail. Choose any claim below to
             inspect its blockchain events, oracle evidence, documents, votes,
             appeals, settlement, and closure history.
           </p>
         </div>
-        <button type="button" onClick={() => refetch()} disabled={isFetching}>
+        <button type="button" className="button-secondary" onClick={() => refetch()} disabled={isFetching}>
           {isFetching ? "Refreshing..." : "Refresh Claims"}
         </button>
       </div>

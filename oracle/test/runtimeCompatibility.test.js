@@ -4,7 +4,7 @@ const { createRequire } = require('node:module');
 const { canonicalize } = require('../modelArtifact');
 const entry = require.resolve('../runtimeProtocol'), root = path.resolve(__dirname, '../..');
 const realRequire = createRequire(entry);
-const releasePath = path.join(root, 'backEnd/artifacts/oracle-runtime-compatibility-v2.json');
+const releasePath = path.join(root, 'backEnd/artifacts/oracle-runtime-compatibility-v3.json');
 const profilePath = path.join(root, 'backEnd/artifacts/xgboost-protocol-v4.json');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 function isolated({ editFile, editRelease, editLoaded } = {}) {
@@ -52,7 +52,7 @@ for (const [name, edit] of [
   ['wrong runtime fingerprint', r => ({ ...r, runtimeIdentityHash: '0x' + '0'.repeat(64) })],
 ]) test('reject manifest: ' + name, () => assert.throws(() => isolated({ editRelease: edit }).loadProtocolArtifact(), /integrity mismatch/));
 test('missing release never falls back to unchecked execution', () => {
-  assert.throws(() => isolated({ editFile: (name, bytes) => { if (name.endsWith('oracle-runtime-compatibility-v2.json')) throw Error('missing release'); return bytes; } }).loadProtocolArtifact(), /missing release/);
+  assert.throws(() => isolated({ editFile: (name, bytes) => { if (name.endsWith('oracle-runtime-compatibility-v3.json')) throw Error('missing release'); return bytes; } }).loadProtocolArtifact(), /missing release/);
 });
 test('modified inference identity or threshold cannot inherit compatibility', () => {
   for (const editLoaded of [v => ({ ...v, bundleHash: 'changed' }), v => ({ ...v, manifestHash: 'changed' }),

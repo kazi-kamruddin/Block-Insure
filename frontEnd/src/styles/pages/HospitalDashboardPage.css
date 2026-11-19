@@ -2,6 +2,7 @@
 
 .hospital-heading { align-items: center; display: flex; gap: 20px; justify-content: space-between; }
 
+.hospital-heading h1,
 .hospital-heading h2,
 .hospital-heading p,
 .hospital-records-card h3,
@@ -43,7 +44,7 @@
 
 .hospital-verification-layout {
   display: grid;
-  grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 1.5fr);
+  grid-template-columns: minmax(min(100%, 15rem), 0.7fr) minmax(0, 1.5fr);
   gap: 1rem;
 }
 
@@ -52,7 +53,7 @@
   display: grid;
   gap: 0.25rem;
   text-align: left;
-  background: var(--surface, #f5f7fb);
+  background: var(--surface-strong);
   color: inherit;
   border: 1px solid var(--line);
 }
@@ -68,10 +69,10 @@
 .hospital-attestation-result small { color: var(--muted); }
 .hospital-check-list { list-style: none; padding: 0; display: grid; gap: 0.5rem; }
 .hospital-check-list li { display: flex; gap: 0.55rem; align-items: center; }
-.hospital-check-list .is-passed span { color: #16803a; }
-.hospital-check-list .is-failed span { color: #b42318; }
+.hospital-check-list .is-passed span { color: var(--success); }
+.hospital-check-list .is-failed span { color: var(--danger); }
 .hospital-request-detail textarea { width: 100%; min-height: 5rem; }
-.hospital-attestation-result { padding: 0.8rem; background: var(--surface, #f5f7fb); border-radius: 0.6rem; overflow-wrap: anywhere; }
+.hospital-attestation-result { padding: 0.8rem; background: var(--surface-strong); border-radius: 0.6rem; overflow-wrap: anywhere; }
 
 @media (max-width: 800px) {
   .hospital-heading { align-items: stretch; flex-direction: column; }

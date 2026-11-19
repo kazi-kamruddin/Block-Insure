@@ -1,4 +1,5 @@
 import TransactionLink from "./TransactionLink";
+import { formatDateTime } from "../utils/dateFormat";
 
 function formatValue(value) {
   if (value === undefined || value === null || value === "") return "-";
@@ -9,8 +10,7 @@ function formatValue(value) {
 
 function formatTimestamp(value) {
   if (!value) return "-";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? formatValue(value) : date.toLocaleString();
+  return formatDateTime(value);
 }
 
 function formatDuration(ms) {

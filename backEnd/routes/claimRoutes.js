@@ -25,6 +25,7 @@ const {
 } = require("../middleware/claimSubmissionRateLimit");
 
 const router = express.Router();
+router.use("/:claimId/clarification", require("./clarificationRoutes"));
 const reviewAccess = require("../controllers/reviewAccessController");
 router.get("/:claimId/review-access", authMiddleware, reviewAccess.status);
 router.post("/:claimId/review-access", authMiddleware, requireRole("USER"), reviewAccess.authorize);

@@ -111,9 +111,41 @@ test("indexer is single-flight and local automining indexes the tip without extr
   assert.equal(f.checkpoints.rows[0].blockNumber, 2);
 });
 
+test("indexes a V6 clarification and skips unknown topics without blocking policy reads", async () => {
+  const f = fixture();
+  const getLogs = f.provider.getLogs;
+  const adjudicator = "0x" + "3".repeat(40);
+  const iface = new ethers.Interface(["event ClaimClarified(uint256 indexed claimId, uint64 indexed version, bytes32 evidenceHash)"]);
+  const event = iface.encodeEventLog("ClaimClarified", [1n, 2n, ethers.id("clarification")]);
+  f.provider.getLogs = async filter => [
+    ...await getLogs(filter),
+    { address: adjudicator, transactionHash: "extra", blockNumber: 2, blockHash: "tip-a", index: 1, topics: [ethers.id("OtherEvent()")], data: "0x" },
+    { address: adjudicator, transactionHash: "extra", blockNumber: 2, blockHash: "tip-a", index: 2, ...event },
+  ];
+  await f.service.indexConfirmedEvents();
+  assert.equal(f.checkpoints.rows[0].blockNumber, 2);
+  assert.deepEqual(f.events.rows.map(row => row.eventName), ["ClaimSubmitted", "ClaimSubmitted", "ClaimClarified"]);
+});
+
 test("invalid confirmation and chunk configuration fail closed", async () => {
   await assert.rejects(fixture({ INDEXER_CONFIRMATIONS: "-1" }).service.indexConfirmedEvents(), /Invalid indexer/);
   await assert.rejects(fixture({ INDEXER_CHUNK_SIZE: "0" }).service.indexConfirmedEvents(), /Invalid indexer/);
+});
+
+test("startup backs off on RPC throttling and retries the same durable indexer", async () => {
+  const { catchUpIndexer } = fixture().service;
+  const delays = [];
+  let attempts = 0;
+  const { signal } = new AbortController();
+  await catchUpIndexer(async () => {
+    if (++attempts <= 2) throw Object.assign(new Error("request failed"), {
+      info: { responseStatus: "599 CLIENT ESCALATED SERVER ERROR (429 Too Many Requests)" },
+    });
+  }, async delay => delays.push(delay), signal);
+  assert.equal(attempts, 3);
+  assert.deepEqual(delays, [1000, 2000]);
+  await assert.rejects(catchUpIndexer(async () => { throw Error("wrong chain"); },
+    async () => { throw Error("should not back off"); }, signal), /wrong chain/);
 });
 
 test("73,000 empty blocks use range endpoints instead of 73,000 header reads", async () => {

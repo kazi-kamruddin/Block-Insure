@@ -11,7 +11,7 @@ const ACTIVE_FILE = "backEnd/artifacts/xgboost-protocol-v5.json";
 const FROZEN_SOURCES = ["oracle/protocolAssessment.js", "oracle/runtimeProtocol.js", "oracle/protocol.js", "oracle/recordIdentity.js", "oracle/merkleProof.js", "oracle/index.js"];
 const SOURCES = ["oracle/protocolAssessment.js", "oracle/protocol.js", "oracle/recordIdentity.js", "oracle/merkleProof.js", "oracle/appealValidation.js"];
 const RUNTIME_FILES = ["oracle/index.js", "oracle/runtimeProtocol.js", "oracle/scanRecovery.js", "oracle/workerHealth.js", "oracle/appealValidation.js"];
-const RELEASE_FILE = "backEnd/artifacts/oracle-runtime-compatibility-v2.json";
+const RELEASE_FILE = "backEnd/artifacts/oracle-runtime-compatibility-v3.json";
 const fail = () => { throw new Error("Oracle protocol or operational release integrity mismatch"); };
 const exactKeys = (value, keys) => value && !Array.isArray(value) &&
   canonicalize(Object.keys(value).sort()) === canonicalize([...keys].sort());
@@ -42,7 +42,7 @@ function activeProfile(frozen) {
 function verifyRelease(frozen, active) {
   const release = JSON.parse(read(RELEASE_FILE));
   if (!exactKeys(release, ["schema", "release", "compatibleModelIdentityHashes", "frozenProfileSha256", "activeProfileSha256", "files", "runtimeIdentityHash"]) ||
-      release.schema !== "oracle-runtime-compatibility-v2" || release.release !== "oracle-appeal-proof-v2" ||
+      release.schema !== "oracle-runtime-compatibility-v3" || release.release !== "oracle-clarification-proof-v3" ||
       canonicalize(release.compatibleModelIdentityHashes) !== canonicalize([active.legacyModelIdentityHash, frozen.modelIdentityHash, active.modelIdentityHash]) ||
       release.frozenProfileSha256 !== PROFILE_SHA || release.activeProfileSha256 !== sha(read(ACTIVE_FILE)) ||
       !exactKeys(release.files, RUNTIME_FILES)) fail();

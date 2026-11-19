@@ -107,27 +107,30 @@ export default function AuditorVoteQueuePage() {
 
   return (
     <section className="page-container page-auditor-claim-lookup">
-      <div className="page-heading-row">
+      <div className="page-header-row">
         <div>
-          <h2>Voting Queue</h2>
-          <p>
+          <span className="section-eyebrow">Assigned review queue</span>
+          <h1>Voting Queue</h1>
+          <p className="muted-text mt-1">
             Auditors vote only when a claim is actually open for independent
             review. In this contract, that means claims in{" "}
             <strong>MANUAL_REVIEW</strong> and assigned to your snapshotted panel.
           </p>
         </div>
-        <button type="button" onClick={() => refetch()} disabled={isFetching}>
-          {isFetching ? "Refreshing..." : "Refresh Queue"}
-        </button>
-        <button
-          type="button"
-          onClick={prepareEvidenceKey}
-          disabled={isPreparingEvidenceKey || !walletAddress}
-        >
-          {isPreparingEvidenceKey
-            ? "Preparing evidence key..."
-            : "Prepare encrypted evidence access"}
-        </button>
+        <div className="action-row">
+          <button type="button" className="button-secondary" onClick={() => refetch()} disabled={isFetching}>
+            {isFetching ? "Refreshing..." : "Refresh Queue"}
+          </button>
+          <button
+            type="button"
+            onClick={prepareEvidenceKey}
+            disabled={isPreparingEvidenceKey || !walletAddress}
+          >
+            {isPreparingEvidenceKey
+              ? "Preparing evidence key..."
+              : "Prepare encrypted evidence access"}
+          </button>
+        </div>
       </div>
 
       {error ? (

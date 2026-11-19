@@ -53,13 +53,14 @@ node -r ./backEnd/node_modules/dotenv/config scripts/migrateProtocolModel.js --m
 
 ## Reviewed staging scope
 
-Suggestions only, alongside the exact pending transaction/evidence staging list in docs/transaction-evidence-stabilization.md. The agent has not run Git add/commit/push.
+Historical staging suggestions only; the referenced local transaction/evidence
+report is not part of the public repository.
 
 ```powershell
 git add -- .gitignore README.md oracle/index.js oracle/runtimeProtocol.js oracle/appealValidation.js oracle/test/sponsoredAppeal.test.js oracle/test/evaluatorCompatibility.test.js oracle/test/runtimeCompatibility.test.js oracle/test/protocolAssessment.test.js
 git add -- backEnd/artifacts/xgboost-protocol-v5.json backEnd/artifacts/oracle-runtime-compatibility-v2.json backEnd/services/oracleDecisionService.js backEnd/test/protocolMigration.test.js backEnd/test/protocolMigrationCLI.integration.js
 git add -- scripts/devAll.js scripts/deploymentReadback.js scripts/migrateProtocolModel.js scripts/packageProtocolModel.js deploy/backend.Dockerfile deploy/oracle.Dockerfile
-git add -- e2e/support/walletBridge.js e2e/support/sponsoredWallet.js e2e/tests/unfinished-claim-finality.workflow.spec.js docs/sponsored-appeal-compatibility.md docs/oracle-backlog-recovery.md docs/transaction-evidence-stabilization.md
+git add -- e2e/support/walletBridge.js e2e/support/sponsoredWallet.js e2e/tests/unfinished-claim-finality.workflow.spec.js docs/sponsored-appeal-compatibility.md docs/oracle-backlog-recovery.md
 ```
 
 Suggested combined commit: Reconcile sponsored transactions and version Oracle appeal proofs

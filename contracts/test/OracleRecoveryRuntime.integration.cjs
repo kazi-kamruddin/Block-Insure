@@ -22,7 +22,9 @@ describe('Oracle operational compatibility and local restart recovery', function
   const savedEnv={RPC_URL:process.env.RPC_URL,VITE_CONTRACT_ADDRESS:process.env.VITE_CONTRACT_ADDRESS,ORACLE_API_KEY:process.env.ORACLE_API_KEY};
   const started=Date.now();
   try {
-   await mongoose.connect('mongodb://127.0.0.1:27039/'+database,{serverSelectionTimeoutMS:10000});
+   const mongoPort = Number(process.env.E2E_ORACLE_MONGO_PORT || 27039);
+   assert(Number.isInteger(mongoPort) && mongoPort > 0 && mongoPort <= 65535, "Invalid local MongoDB port");
+   await mongoose.connect(`mongodb://127.0.0.1:${mongoPort}/${database}`, { serverSelectionTimeoutMS: 10000 });
    const [admin,user,,one,two]=await ethers.getSigners();
    const manager=await (await ethers.getContractFactory('InsuranceManager')).deploy();await manager.waitForDeployment();
    const coordinator=await configureOracleFixture(manager,admin,[one,two],{commitBlocks:5,revealBlocks:5});

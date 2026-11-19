@@ -203,8 +203,19 @@ for (const scenario of [
     await page.route("**/api/**", (route) => route.fulfill({ json: {
       success: true, user, policies: [], hospitals: [], packages: [],
       attempts: [], pendingAttempts: [], limit: { remaining: 5 },
+      records: [{ _id: "synthetic-episode", hospitalId: "HOSP-001", invoiceNumber: "SYN-COMPACT",
+        billAmount: "0.00002", admissionDate: "2026-11-03", dischargeDate: "2026-11-03",
+        treatmentType: "HOSPITALIZATION", sourceRevision: 1 }],
     } }));
     await page.goto(scenario.route);
+    if (scenario.role === "USER") {
+      await page.getByLabel("Authorized episode").selectOption("synthetic-episode");
+      const amount = page.getByLabel("Claim amount in ETH", { exact: true });
+      await expect(amount).toHaveValue("0.00002");
+      await expect(amount).toHaveAttribute("readonly", "");
+      expect(await amount.evaluate(input => input.validity.valid)).toBe(true);
+      return;
+    }
     for (const [label, value] of scenario.fields) {
       const input = page.getByLabel(label, { exact: true });
       await input.fill(value);
@@ -235,7 +246,7 @@ test("hospital form accepts compact ETH invoices and blocks zero or negative amo
   await page.goto("/hospital/records");
   await page.getByLabel(/Patient reference/).fill("SYNTHETIC-COMPACT");
   await page.getByLabel("Invoice number", { exact: true }).fill("UI-COMPACT-001");
-  await page.getByLabel(/Authorized claimant wallets/).fill("0x6575cBC8B95aBc6aB6628e7AeC176aF5769580F9");
+  await expect(page.getByLabel(/Authorized claimant wallets/)).toHaveCount(0);
   await page.getByLabel("Diagnosis code", { exact: true }).fill("GEN-001");
   for (const label of ["Admission date", "Discharge date", "Invoice date"]) await page.getByLabel(label, { exact: true }).fill("2026-11-02");
   const amount = page.getByLabel("Bill amount (ETH)", { exact: true });

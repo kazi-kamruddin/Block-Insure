@@ -2,6 +2,24 @@ import { Link, Navigate } from "react-router-dom";
 import { useWallet } from "../context/useWallet";
 import "../styles/pages/HomePage.css";
 
+function CheckMarkIcon({ size = 12 }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 export default function HomePage() {
   const {
     isConnected,
@@ -56,20 +74,18 @@ export default function HomePage() {
 
           <div className="home-proof-row" aria-label="Core platform properties">
             <span>
-              <i aria-hidden="true">✓</i> Role-isolated workspaces
+              <CheckMarkIcon /> Role-isolated workspaces
             </span>
             <span>
-              <i aria-hidden="true">✓</i> Tamper-evident evidence
+              <CheckMarkIcon /> Tamper-evident evidence
             </span>
             <span>
-              <i aria-hidden="true">✓</i> On-chain settlement
+              <CheckMarkIcon /> On-chain settlement
             </span>
           </div>
         </div>
 
         <div className="home-hero-visual" aria-label="Claim assurance workflow">
-          <div className="home-orbit home-orbit-one" />
-          <div className="home-orbit home-orbit-two" />
           <div className="home-ledger-card">
             <span className="home-ledger-kicker">Claim assurance pipeline</span>
             <div className="home-ledger-status">
@@ -83,22 +99,22 @@ export default function HomePage() {
               <div>
                 <span>01</span>
                 <p>Evidence committed</p>
-                <i className="step-check" aria-hidden="true">✓</i>
+                <i className="step-check" aria-hidden="true"><CheckMarkIcon /></i>
               </div>
               <div>
                 <span>02</span>
                 <p>Oracle quorum reached</p>
-                <i className="step-check" aria-hidden="true">✓</i>
+                <i className="step-check" aria-hidden="true"><CheckMarkIcon /></i>
               </div>
               <div>
                 <span>03</span>
                 <p>Decision reviewed</p>
-                <i className="step-check" aria-hidden="true">✓</i>
+                <i className="step-check" aria-hidden="true"><CheckMarkIcon /></i>
               </div>
               <div>
                 <span>04</span>
                 <p>Settlement recorded</p>
-                <i className="step-check" aria-hidden="true">✓</i>
+                <i className="step-check" aria-hidden="true"><CheckMarkIcon /></i>
               </div>
             </div>
           </div>
@@ -277,8 +293,12 @@ export default function HomePage() {
           <span>Enter the correct workspace automatically</span>
           <h2>Connect your assigned wallet to continue.</h2>
         </div>
-        <button type="button" onClick={connectWallet} disabled={isConnecting}>
-          {isConnecting ? "Connecting wallet..." : "Connect wallet"}
+        <button type="button" onClick={connectWallet} disabled={isConnecting || isRestoringSession}>
+          {isRestoringSession
+            ? "Checking saved session..."
+            : isConnecting
+              ? "Connecting wallet..."
+              : "Connect wallet"}
         </button>
       </section>
     </div>

@@ -152,7 +152,9 @@ const publishEconomicRules = async ({ contract, packageId, economicRules }) => {
   // already-published custom service names impossible to reconstruct.
   await RulePublication.updateOne({ deploymentScope: await getDeploymentScope(), policyRuleVersion: publication.rules.policyRuleVersion },
     { $setOnInsert: { packageId: String(packageId), version: String(version), ruleDocument: publication.ruleDocument } }, { upsert: true });
-  const transaction = await economics.publishPackageRules(packageId, publication.rules, publication.allowedServices, publication.excludedServices);
+  const args = [packageId, publication.rules, publication.allowedServices, publication.excludedServices];
+  const transaction = publication.sublimits ? await economics.publishCappedRules(...args, publication.sublimits)
+    : await economics.publishPackageRules(...args);
   const receipt = await transaction.wait();
   return { transaction, receipt, version, ruleDocument: publication.ruleDocument };
 };

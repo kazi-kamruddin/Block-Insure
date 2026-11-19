@@ -33,14 +33,27 @@ async function authorizedRequest(input, action, digest = "") {
   } catch (failure) { provider.destroy(); throw failure; }
 }
 
+// Both workers request the same immutable, content-addressed archive. Share
+// the verified payload, while authenticating and checking the chain per caller.
+let recentArchive;
+function canonicalArchive(root) {
+  if (recentArchive?.root === root) return recentArchive.records;
+  const records = readCommittedRecords(root).then(rows => rows.map(getCanonicalRecordPayload));
+  recentArchive = { root, records };
+  records.catch(() => {
+    if (recentArchive?.records === records) recentArchive = undefined;
+  });
+  return records;
+}
+
 async function withPacket(input, action, digest, callback) {
   const auth = await authorizedRequest(input, action, digest);
   try {
     const loaded = loadAdvisoryBundle();
     const bound = binding({ ...auth.authoritative, bundleHash: loaded.bundleHash, manifestHash: loaded.manifestHash });
-    const records = await readCommittedRecords(bound.registryRoot);
+    const records = await canonicalArchive(bound.registryRoot);
     if (!records.some((record) => record.invoiceHash.toLowerCase() === auth.authoritative.claim.invoiceHash.toLowerCase())) throw error("Invoice unavailable in shadow snapshot", 409);
-    const packet = { version: "request-shadow-v1", binding: bound, contextId: hash(bound), records: records.map(getCanonicalRecordPayload) };
+    const packet = { version: "request-shadow-v1", binding: bound, contextId: hash(bound), records };
     const result = await callback(packet, auth, loaded);
     const [version, block] = await Promise.all([auth.contract.claimVersion(bound.claimId), auth.provider.getBlock(auth.block.number)]);
     if (String(version) !== bound.claimVersion || block?.hash !== auth.block.hash) throw error("Chain changed during shadow assessment", 409);

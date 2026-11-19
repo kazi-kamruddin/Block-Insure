@@ -7,7 +7,7 @@ export default function AuditorDashboardPage() {
       <div className="dashboard-heading">
         <div>
           <span className="dashboard-eyebrow">Independent assurance workspace</span>
-          <h2>Claim audit and evidence review</h2>
+          <h1>Claim audit and evidence review</h1>
           <p>
             Examine claim histories, validate committed evidence, and contribute
             fixed-quorum judgments after evidence access preparation.
@@ -57,7 +57,7 @@ export default function AuditorDashboardPage() {
             and document commitment before submitting an independent vote.
           </p>
         </div>
-        <Link to="/auditor/healthcare-registry">Inspect Registry</Link>
+        <Link to="/auditor/votes" className="button-link">Open Voting Queue</Link>
       </div>
     </section>
   );

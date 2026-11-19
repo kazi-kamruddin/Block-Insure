@@ -11,15 +11,19 @@ export default function AdminRoleHealthPage() {
 
   return (
     <section className="page-container">
-      <h2>Role Sync Health</h2>
-      <p>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Diagnostics</span>
+          <h1>Role Sync Health</h1>
+        </div>
+        <button type="button" className="button-secondary" onClick={() => refetch()} disabled={isLoading}>
+          {isLoading ? "Checking..." : "Refresh Role Check"}
+        </button>
+      </div>
+      <p className="muted-text">
         Diagnostic only. MongoDB role metadata is compared against on-chain
         ADMIN_ROLE, AUDITOR_ROLE, and ORACLE_ROLE grants.
       </p>
-
-      <button type="button" onClick={() => refetch()} disabled={isLoading}>
-        {isLoading ? "Checking..." : "Refresh Role Check"}
-      </button>
 
       {error ? (
         <p className="error-text">
@@ -29,13 +33,25 @@ export default function AdminRoleHealthPage() {
 
       <div className="card">
         <h3>Summary</h3>
-        <p>Checked wallets: {data?.summary?.checkedWallets || 0}</p>
-        <p>Mismatches: {data?.summary?.mismatches || 0}</p>
-        <p>Status: {data?.summary?.healthy ? "Healthy" : "Needs attention"}</p>
+        <dl className="detail-kv-grid">
+          <div>
+            <dt>Checked wallets</dt>
+            <dd>{data?.summary?.checkedWallets || 0}</dd>
+          </div>
+          <div>
+            <dt>Mismatches</dt>
+            <dd>{data?.summary?.mismatches || 0}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>{data?.summary?.healthy ? "Healthy" : "Needs attention"}</dd>
+          </div>
+        </dl>
       </div>
 
       <div className="card reserve-table-card">
         <h3>Role Matrix</h3>
+        <div className="table-wrap">
         <table className="reserve-table">
           <thead>
             <tr>
@@ -58,6 +74,7 @@ export default function AdminRoleHealthPage() {
             ))}
           </tbody>
         </table>
+        </div>
         {!isLoading && rows.length === 0 ? <p>No privileged users found.</p> : null}
       </div>
     </section>

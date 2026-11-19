@@ -1,3 +1,4 @@
+const { selectEpisode } = require("../support/intakeEpisode");
 const { test, expect } = require("@playwright/test");
 const { Contract } = require("../../backEnd/node_modules/ethers");
 const { createActorContext, closeActor } = require("../support/walletBridge");
@@ -16,7 +17,7 @@ test("@workflow approved claim remains unfunded until treasury funding then with
     await user.page.goto("/user/claims/new");
     const policy = user.page.getByLabel("Policy", { exact: true });
     await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1); await policy.selectOption({ index: 1 });
-    await user.page.getByLabel("Test data preset").selectOption({ label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH" });
+    await selectEpisode(user.page);
     const incident = user.page.getByLabel("Incident date/time"); await incident.evaluate((input) => input.setAttribute("step", "1"));
     await incident.fill(localDateTimeValue(new Date(Number((await user.provider.getBlock("latest")).timestamp) * 1000)));
     await user.page.getByLabel("Claim document", { exact: true }).setInputFiles(syntheticPdfEvidenceFile());

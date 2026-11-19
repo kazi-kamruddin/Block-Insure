@@ -1,5 +1,6 @@
 .page-bank-dashboard { display: grid; gap: 1rem; }
 .bank-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.bank-heading h1,
 .bank-heading h2 { margin: .25rem 0; }
 .bank-heading p { margin: 0; max-width: 72ch; color: var(--muted); }
 .bank-identity-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
