@@ -343,6 +343,14 @@ const appealValidators = require("./appealValidation").createAppealValidators({
   crypto, ethers, provider, manager, CONTRACT_ADDRESS, invoiceIdentity, normalizeHash,
 });
 const validateAppealCommitment = async (request, claim, response) => {
+  if (Number(request.claimVersion) > 1 && typeof response.clarificationManifest === "string") {
+    const manifest = response.clarificationManifest;
+    if (manifest.length > 32768) return false;
+    const evidence = new ethers.Contract(await manager.claimAdjudicator(),
+      ["function clarificationEvidence(uint256,uint64) view returns (bytes32)"], provider);
+    const committed = await evidence.clarificationEvidence(request.claimId, request.claimVersion, { blockTag: request.requestBlock });
+    return committed === ethers.id(manifest);
+  }
   const selected = resolveRequestModel(request.modelVersion);
   return (selected.artifact.appealProofVersion === "trusted-appeal-events-v2"
     ? appealValidators.eventBound : appealValidators.legacy)(request, claim, response);

@@ -54,18 +54,24 @@ export default function MyClaimsPage() {
       .toLowerCase();
     return matchesStatus && (!normalizedSearch || searchable.includes(normalizedSearch));
   });
+  const hasActiveFilter = statusFilter !== "ALL" || normalizedSearch.length > 0;
 
   return (
     <section className="page-container page-my-claims">
-      <h2>My Claims</h2>
-
-      <button
-        type="button"
-        onClick={() => refetch()}
-        disabled={!isConnected || isFetching}
-      >
-        {isFetching ? "Refreshing..." : "Refresh My Claims"}
-      </button>
+      <div className="page-header-row">
+        <div>
+          <h1>My Claims</h1>
+          <p>Track validation, hospital verification, auditor review, and settlement across your claims.</p>
+        </div>
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={() => refetch()}
+          disabled={!isConnected || isFetching}
+        >
+          {isFetching ? "Refreshing..." : "Refresh My Claims"}
+        </button>
+      </div>
       <div className="list-toolbar" role="search">
         <label className="compact-filter">
           Search claims
@@ -99,26 +105,46 @@ export default function MyClaimsPage() {
       </div>
 
       {error ? (
-        <p className="error-text">
+        <p className="error-text" role="alert">
           {error.message || "Could not load your claims"}
         </p>
       ) : null}
 
-      {isLoading ? <p>Loading claims...</p> : null}
+      {isLoading ? <p role="status">Loading claims...</p> : null}
 
       {!isLoading && !error && claims.length === 0 ? (
-        <div className="card empty-state">
-          <span className="dashboard-eyebrow">Clean claim history</span>
-          <h3>No claims submitted yet</h3>
-          <p>
-            Your first claim will appear here after it is committed on-chain.
-            You need an active policy before submitting.
-          </p>
-          <div className="action-row">
-            <Link to="/user/claims/new">Submit a Claim</Link>
-            <Link to="/user/policies">Check My Policies</Link>
+        hasActiveFilter ? (
+          <div className="card empty-state">
+            <span className="dashboard-eyebrow">Filtered view</span>
+            <h3>No claims match your current filter</h3>
+            <p>Try clearing your search query or switching the status filter back to all claims.</p>
+            <div className="action-row justify-center">
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => {
+                  setStatusFilter("ALL");
+                  setSearchTerm("");
+                }}
+              >
+                Clear filters
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="card empty-state">
+            <span className="dashboard-eyebrow">Clean claim history</span>
+            <h3>No claims submitted yet</h3>
+            <p>
+              Your first claim will appear here after it is committed on-chain.
+              You need an active policy before submitting.
+            </p>
+            <div className="action-row">
+              <Link to="/user/claims/new">Submit a Claim</Link>
+              <Link to="/user/policies">Check My Policies</Link>
+            </div>
+          </div>
+        )
       ) : null}
 
       <div className="card-row">

@@ -27,7 +27,7 @@ export default function HospitalDashboardPage() {
       <div className="hospital-heading">
         <div>
           <span className="dashboard-eyebrow">Independent provider workspace</span>
-          <h2>{hospital?.name || "Hospital Workspace"}</h2>
+          <h1>{hospital?.name || "Hospital Workspace"}</h1>
           <p>
             This view is scoped to the signed-in hospital staff account and its own
             patient and invoice records.
@@ -35,6 +35,7 @@ export default function HospitalDashboardPage() {
         </div>
         <button
           type="button"
+          className="button-secondary"
           onClick={() => {
             profileQuery.refetch();
             recordsQuery.refetch();

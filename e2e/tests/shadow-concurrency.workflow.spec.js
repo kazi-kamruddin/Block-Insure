@@ -1,18 +1,19 @@
+const { selectEpisode, prepareEpisode } = require("../support/intakeEpisode");
 const { test, expect } = require("@playwright/test");
 const mongoose = require("../../backEnd/node_modules/mongoose");
 const { createActorContext, closeActor } = require("../support/walletBridge");
 const { loginActor, localDateTimeValue, syntheticPdfEvidenceFile } = require("../support/actions");
 const { requireDisposableE2EMongoUri } = require("../support/environment");
 test("@workflow simultaneous claimant submissions retain separate evidence and shadow identities", async ({ browser }) => {
-  test.setTimeout(240000);
+  test.setTimeout(420000);
   const sessions = [];
   const mongo = await mongoose.createConnection(requireDisposableE2EMongoUri()).asPromise();
   try {
-    for (const actor of ["user", "beneficiary", "hospital", "admin"]) {
+    for (const actor of ["user", "beneficiary", "admin"]) {
       const session = await createActorContext(browser, actor); sessions.push(session); await loginActor(session.page, session.actor);
     }
-    const [first, second, hospital, admin] = sessions;
-    const users = [first, second], invoices = users.map((_, i) => `CONCURRENT-SHADOW-${Date.now()}-${i}`);
+    const [first, second, admin] = sessions;
+    const users = [first, second], invoices = [];
     const headers = async (session) => ({ Authorization: `Bearer ${await session.page.evaluate(() => sessionStorage.getItem("blockinsure_hospital_session") || localStorage.getItem("blockinsure_jwt"))}` });
     for (const user of users) {
       await user.page.goto("/user/policies/buy");
@@ -23,12 +24,7 @@ test("@workflow simultaneous claimant submissions retain separate evidence and s
     const block = await first.provider.getBlock("latest");
     const instant = new Date(Number(block.timestamp) * 1000);
     for (let i = 0; i < users.length; i++) {
-      const response = await hospital.context.request.post("http://localhost:5000/api/hospitals/records", { headers: await headers(hospital), data: {
-        invoiceNumber: invoices[i], patientReference: `synthetic-concurrency-${i}`, authorizedClaimants: users[i].wallet.address,
-        treatmentType: "HOSPITALIZATION", diagnosisCode: "DEMO", billAmount: "0.1",
-        admissionDate: instant.toISOString(), dischargeDate: instant.toISOString(), invoiceDate: instant.toISOString(),
-      } });
-      expect(response.status(), await response.text()).toBe(201);
+      invoices.push((await prepareEpisode(users[i])).invoiceNumber);
     }
     await expect.poll(async () => mongo.db.collection("mockhospitalrecords").countDocuments({ invoiceNumber: { $in: invoices }, publicationPending: false }),
       { timeout: 90000 }).toBe(2);
@@ -38,8 +34,7 @@ test("@workflow simultaneous claimant submissions retain separate evidence and s
       const policy = page.getByLabel("Policy", { exact: true });
       await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1);
       await policy.selectOption({ index: 1 });
-      await page.getByLabel("Test data preset").selectOption({ label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH" });
-      await page.getByLabel("Invoice number").fill(invoices[i]);
+      await selectEpisode(page, invoices[i]);
       const incident = page.getByLabel("Incident date/time"); await incident.evaluate((input) => input.setAttribute("step", "1"));
       await incident.fill(localDateTimeValue(instant));
       await page.getByLabel("Claim document").setInputFiles(syntheticPdfEvidenceFile());

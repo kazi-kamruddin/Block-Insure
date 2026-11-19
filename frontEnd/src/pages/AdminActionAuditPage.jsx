@@ -49,7 +49,15 @@ export default function AdminActionAuditPage() {
 
   return (
     <section className="page-container">
-      <h2>Admin Action Audit</h2>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Auditability</span>
+          <h1>Admin Action Audit</h1>
+        </div>
+        <button type="button" className="button-secondary" onClick={() => refetch()} disabled={isLoading}>
+          {isLoading ? "Loading..." : "Refresh Logs"}
+        </button>
+      </div>
 
       <div className="card">
         <div className="form-grid">

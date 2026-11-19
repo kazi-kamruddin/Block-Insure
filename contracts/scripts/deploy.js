@@ -254,13 +254,17 @@ async function main() {
   console.log("Frozen XGBoost protocol identity:", protocolArtifact.modelIdentityHash);
 
   const ClaimAdjudicator = await hre.ethers.getContractFactory(
-    "ClaimAdjudicator",
+    process.env.CLAIM_WORKFLOW_PROFILE === "V6" ? "ClaimAdjudicatorV6" : "ClaimAdjudicator",
     adminWallet
   );
   const claimAdjudicator = await deployContract(ClaimAdjudicator, contractAddress);
   await claimAdjudicator.waitForDeployment();
   const adjudicatorAddress = await claimAdjudicator.getAddress();
   await (await insuranceManager.configureClaimAdjudicator(adjudicatorAddress)).wait();
+  if (process.env.REVIEW_TIMING_PROFILE === "DEMONSTRATION") {
+    await (await claimAdjudicator.updatePreparationDuration(600)).wait();
+    await (await claimAdjudicator.updateConfig(600, 900)).wait();
+  }
   console.log("ClaimAdjudicator deployed to:", adjudicatorAddress);
   const economicsAddress = await insuranceManager.policyEconomics();
   console.log("PolicyEconomics deployed to:", economicsAddress);
@@ -293,15 +297,22 @@ async function main() {
   await tx.wait();
 
   const { buildRulePublication } = require("../../backEnd/services/packageRuleDefinitionService");
+  const services = ["HEALTH", "HOSPITALIZATION", "SURGERY", "EMERGENCY", "ACCIDENT", "CONSULTATION", "DIAGNOSTIC", "TRAUMA"];
+  const capped = process.env.CLAIM_WORKFLOW_PROFILE === "V6";
   const issue = buildRulePublication(1, 1, {
     waitingPeriodDays: 0, reinstatementWaitingPeriodDays: 0, claimDeadlineDays: 365,
     minimumDocumentCommitments: 1, deductibleRateBps: 1000, deductibleCapEth: "0.02", insurerShareBps: 8000,
     maximumClaimEth: hre.ethers.formatEther(coverageAmount),
-    allowedClaimTypes: ["HEALTH", "HOSPITALIZATION", "SURGERY", "EMERGENCY", "ACCIDENT", "CONSULTATION", "DIAGNOSTIC", "TRAUMA"],
+    allowedClaimTypes: services,
+    ...(capped ? { serviceSublimitsEth: Object.fromEntries(services.map(service => [
+      service, hre.ethers.formatEther(service === "SURGERY" ? coverageAmount * 8n / 10n : coverageAmount),
+    ])) } : {}),
     excludedClaimTypes: ["COSMETIC"], requiredDocumentTypes: ["HOSPITAL_BILL"],
   });
   const issueEconomics = await hre.ethers.getContractAt("PolicyEconomics", economicsAddress, adminWallet);
-  await (await issueEconomics.publishPackageRules(1, issue.rules, issue.allowedServices, issue.excludedServices)).wait();
+  const publication = [1, issue.rules, issue.allowedServices, issue.excludedServices];
+  await (await (capped ? issueEconomics.publishCappedRules(...publication, issue.sublimits)
+    : issueEconomics.publishPackageRules(...publication))).wait();
   console.log("Health Basic package and enforceable issue rules published");
 
   const PolicyBenefitsManager = await hre.ethers.getContractFactory(
@@ -396,6 +407,7 @@ async function main() {
     network: networkName,
     chainId: network.chainId.toString(),
     calendarProfile,
+    claimWorkflowProfile: capped ? "V6" : "LEGACY",
     deployedAt: new Date().toISOString(),
     modelIdentityHash: protocolArtifact.modelIdentityHash,
     protocolModel: protocolArtifact.modelVersion,

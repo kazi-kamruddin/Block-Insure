@@ -7,6 +7,9 @@ import {
   getHealthcareRegistryRecords,
   getHealthcareOnChainRegistryMerkleRoot,
   pushRegistryMerkleRoot,
+  saveEpisodeAssociation,
+  publishPendingEpisodes,
+  getUnlinkedEpisodes,
 } from "../services/api";
 import { useWallet } from "../context/useWallet";
 import "../styles/pages/HealthcareRegistryPage.css";
@@ -88,6 +91,9 @@ function formatTimestamp(timestamp) {
 
 export default function HealthcareRegistryPage() {
   const { role } = useWallet();
+  const publication = useMutation({ mutationFn: publishPendingEpisodes });
+  const unlinked = useQuery({ queryKey: ["unlinkedEpisodes"], queryFn: getUnlinkedEpisodes, enabled: role === "ADMIN" });
+  const association = useMutation({ mutationFn: saveEpisodeAssociation, onSuccess: () => unlinked.refetch() });
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
   const [activeFilters, setActiveFilters] = useState(DEFAULT_FILTERS);
   const [proofInvoiceHash, setProofInvoiceHash] = useState("");
@@ -208,7 +214,32 @@ export default function HealthcareRegistryPage() {
 
   return (
     <section className="page-container page-healthcare-registry">
-      <h2>Hybrid External Registry</h2>
+      <h1>Hybrid External Registry</h1>
+      {role === "ADMIN" && <form className="card form-grid" onSubmit={event => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(event.currentTarget));
+        association.mutate({ ...data, wallet: data.wallet.trim() || null, revision: Number(data.revision) });
+      }}>
+        <h3>Verify patient association</h3>
+        <p>Check the beneficiary against insurer enrollment evidence before linking. Leave ambiguous episodes unlinked. The publisher checks pending records every 30 seconds while running.</p>
+        <button type="button" disabled={publication.isPending} onClick={() => publication.mutate()}>Publish pending episodes now</button>
+        {publication.data && <p role="status">{publication.data.message}</p>}
+        {publication.isError && <p role="alert">Publication is pending. Check the registry status.</p>}
+        {unlinked.data?.records?.length > 0 && <details><summary>Episodes awaiting verification</summary><ul>
+          {unlinked.data.records.map(row => <li key={row.hospitalId + ":" + row.invoiceNumber}>
+            {row.hospitalId} · {row.invoiceNumber} · revision {row.revision} · {row.candidates.length ? "Contact matches: " + row.candidates.join(", ") : "No verified contact match"}
+          </li>)}
+        </ul></details>}
+        <label>Hospital ID<input name="hospitalId" required /></label>
+        <label>Patient reference<input name="patientReference" required /></label>
+        <label>Invoice number<input name="invoiceNumber" required /></label>
+        <label>Current record revision<input name="revision" type="number" min="0" required /></label>
+        <label>Verified beneficiary wallet (leave empty to revoke)<input name="wallet" /></label>
+        <label>Basis for verification or revocation<input name="reason" maxLength="256" required /></label>
+        <button disabled={association.isPending}>Save association</button>
+        {association.isSuccess && <p role="status">Association saved. Publication queued.</p>}
+        {association.isError && <p role="alert">{association.error.response?.data?.message || "Association could not be saved."}</p>}
+      </form>}
       <p>
         Browse public-secondary claim adaptations and controlled synthetic
         scenarios used as the external oracle verification source.

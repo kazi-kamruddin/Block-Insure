@@ -32,13 +32,13 @@
 
 .thesis-metric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
   gap: 10px;
   margin: 14px 0;
 }
 
 .thesis-metric-grid.compact {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
 }
 
 .thesis-metric-grid > div,
@@ -77,14 +77,14 @@
 .thesis-two-column,
 .gas-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(min(100%, 280px), 1fr) minmax(min(100%, 280px), 1fr);
   gap: 16px;
   align-items: start;
 }
 
 .throughput-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 430px) minmax(220px, 1fr);
+  grid-template-columns: minmax(min(100%, 280px), 430px) minmax(min(100%, 220px), 1fr);
   gap: 16px;
   align-items: stretch;
   margin-bottom: 14px;
@@ -257,7 +257,7 @@
   height: 14px;
   overflow: hidden;
   border-radius: 999px;
-  background: #26344a;
+  background: var(--surface-hover);
 }
 
 .risk-bar-row b {
@@ -278,7 +278,7 @@
 
 .registry-commitment-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 2fr) repeat(3, minmax(150px, 1fr));
+  grid-template-columns: minmax(min(100%, 260px), 2fr) repeat(3, minmax(min(100%, 150px), 1fr));
   gap: 10px;
 }
 

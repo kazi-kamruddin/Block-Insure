@@ -70,7 +70,7 @@ function uniqueEvidenceFile() {
 }
 
 function localDateTimeValue(date = new Date()) {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  const local = new Date(date.getTime() + 6 * 3_600_000);
   return local.toISOString().slice(0, 19);
 }
 

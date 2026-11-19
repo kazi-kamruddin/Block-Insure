@@ -1,5 +1,5 @@
 const { ethers } = require("ethers");
-const { getIssuedTerms } = require("../services/issuedPolicyTermsService");
+const { getIssuedTerms, readFilingWindow } = require("../services/issuedPolicyTermsService");
 const { finalizeEvidence } = require("../services/evidenceFinalizationService");
 const {
   getClaimAdjudicator,
@@ -162,16 +162,22 @@ const formatEnrichedClaim = async (
           adjudicator.preparationRetryUsed(claim.claimId),
           contract.rejectionReason(claim.claimId),
         ]);
+      let retryAvailable = Number(reason) === 7 && !preparationRetryUsed;
+      if (Number(reason) === 5 && !preparationRetryUsed) {
+        const extension = new ethers.Contract(adjudicator.target, ["function proceduralRetryAvailable(uint256,uint64) view returns (bool)"], contract.runner);
+        try { retryAvailable = await extension.proceduralRetryAvailable(claim.claimId, await contract.claimVersion(claim.claimId)); }
+        catch (error) { if (error.code !== "CALL_EXCEPTION") throw error; } // Archived deployments lack this selector.
+      }
       closure = {
         resolvedAt: formatTimestamp(resolvedAt),
         appealed: Number(round) > 0,
         appealRound: Number(round),
         appealFinalized: Boolean(appealFinalized),
         maximumAppeals: Number(maximumAppeals),
-        canAppeal: formatted.status.label === "REJECTED" && (Number(round) < Number(maximumAppeals) || (Number(reason) === 7 && !preparationRetryUsed)),
-        preparationRetryAvailable: formatted.status.label === "REJECTED" && Number(reason) === 7 && !preparationRetryUsed,
+        canAppeal: formatted.status.label === "REJECTED" && (Number(round) < Number(maximumAppeals) || retryAvailable),
+        preparationRetryAvailable: formatted.status.label === "REJECTED" && retryAvailable,
         rejectionReasonCode: Number(reason),
-        rejectionExplanation: Number(reason) === 7 ? "Evidence access preparation was incomplete. This is not a fraud verdict." : "",
+        rejectionExplanation: Number(reason) === 7 ? "Evidence access preparation was incomplete. This is not a fraud verdict." : Number(reason) === 5 ? "Voting expired without quorum." : "",
         canClose: false,
         lifecycleControlledByProtocol: true,
         allocatedSettlementWei: allocation.toString(),
@@ -329,6 +335,7 @@ const getClaimById = async (req, res, next) => {
         includeLifecycle: true,
       }), claimVersion: String(claimVersion) },
       documents: documents.map(formatClaimDocument),
+      insurerStatement: bundle ? JSON.parse(bundle.manifest).insurerStatement : undefined,
       evidenceChain: visibleEvidence,
       evidenceSet: bundle ? { manifestHash: bundle.manifestHash, documentIds: bundle.documentIds, claimVersion: bundle.claimVersion } : null,
       hospitalVerification: formatHospitalVerification(hospitalVerification),
@@ -522,9 +529,14 @@ const authorizeClaimSubmission = async (req, res, next) => {
       preExistingCondition: req.body.preExistingCondition === true,
       disclosedAtPurchase: req.body.disclosedAtPurchase === true,
     };
+    const terms = await getIssuedTerms(contract, policy.policyId);
+    const latestBlock = await contract.runner.getBlock("latest");
+    const authoritativeNow = Number(latestBlock.timestamp);
+    const filingWindow = await readFilingWindow(contract, policy.policyId, terms, submittedFacts.invoiceHash, submittedFacts.incidentDate);
     const policyEligibility = evaluatePolicyEligibility({
-      terms: await getIssuedTerms(contract, policy.policyId),
-      currentTimestamp: Number((await contract.runner.getBlock("latest")).timestamp),
+      terms,
+      filingWindow,
+      currentTimestamp: authoritativeNow,
       policyStartDate: policy.startDate.toString(),
       policyEndDate: policy.endDate.toString(),
       incidentDate: submittedFacts.incidentDate,
@@ -543,27 +555,50 @@ const authorizeClaimSubmission = async (req, res, next) => {
     ) {
       throw createError("Incident date is outside the policy coverage period");
     }
-    const latestBlock = await contract.runner?.provider?.getBlock("latest");
-    const authoritativeNow = latestBlock?.timestamp
-      ? Number(latestBlock.timestamp)
-      : Math.floor(Date.now() / 1000);
+
     if (canonicalIncidentDate > authoritativeNow) {
       throw createError("Incident date cannot be in the future");
     }
-    if (BigInt(claimAmountWei) > policy.coverageAmount) {
+    const blocked = policyEligibility.reasons?.find(reason => reason.effect === "BLOCK");
+    if (terms.serviceSublimitsWei && blocked) throw createError(blocked.message, 422);
+    if (!terms.serviceSublimitsWei && BigInt(claimAmountWei) > policy.coverageAmount) {
       throw createError("Claim amount cannot exceed policy coverage");
     }
     submittedFacts.incidentDate = String(canonicalIncidentDate);
     if (req.body.invoiceNumber !== undefined && (typeof req.body.invoiceNumber !== "string" || req.body.invoiceNumber.length > 100)) throw createError("Invoice number is invalid", 422);
     submittedFacts.invoiceNumber = req.body.invoiceNumber || "";
 
+    const episode = await MockHospitalRecord.findOne({
+      hospitalId, invoiceHash: submittedFacts.invoiceHash, invoiceNumber: submittedFacts.invoiceNumber,
+      authorizedClaimants: req.user.walletAddress.toLowerCase(), publicationPending: { $ne: true },
+      recordStatus: "VALID", invoiceStatus: "VALID", licenseStatus: "ACTIVE",
+    }).select("hospitalId invoiceHash invoiceNumber treatmentType admissionDate dischargeDate billAmount sourceRevision").lean();
+    if (!episode || (req.body.episodeRevision !== undefined && req.body.episodeRevision !== (episode.sourceRevision || 0)) || episode.treatmentType !== submittedFacts.claimType ||
+        ethers.parseEther(String(episode.billAmount)) !== BigInt(claimAmountWei)) {
+      throw createError("No published authorized episode matches these submitted facts.", 409);
+    }
+    const incidentDay = new Date((canonicalIncidentDate + 21600) * 1000).toISOString().slice(0, 10);
+    const admissionDay = episode.admissionDate.toISOString().slice(0, 10);
+    const dischargeDay = episode.dischargeDate.toISOString().slice(0, 10);
+    if (incidentDay < admissionDay || incidentDay > dischargeDay) {
+      throw createError("The documented treatment date must fall within the selected episode.", 422);
+    }
+    const insurerStatement = {
+      version: 1, deployment: await bundles.assertEvidenceDeployment(), policyId: String(policyId),
+      hospitalId, invoiceHash: episode.invoiceHash, invoiceNumber: episode.invoiceNumber,
+      issuedRuleVersion: terms.policyRuleVersion, settlementFormulaVersion: terms.settlementFormulaVersion,
+      revision: episode.sourceRevision || 0, service: episode.treatmentType,
+      admission: episode.admissionDate.toISOString(), discharge: episode.dischargeDate.toISOString(),
+      reportedIncident: submittedFacts.incidentDate, grossWei: claimAmountWei,
+    };
+    const statementDigest = ethers.id(JSON.stringify(insurerStatement));
     const expectedEvidenceCount = req.body.evidenceCount === undefined ? 1 : req.body.evidenceCount;
     if (!Number.isSafeInteger(expectedEvidenceCount) || expectedEvidenceCount < 1 || expectedEvidenceCount > bundles.MAX_FILES) {
       throw createError("Select one primary invoice and at most four supporting files", 422);
     }
     const attempt = await ClaimSubmissionAttempt.create({
       deploymentScope: await bundles.assertEvidenceDeployment(),
-      expectedEvidenceCount,
+      expectedEvidenceCount, insurerStatement, statementDigest,
       startBlock: await contract.runner.getBlockNumber(),
       walletAddress: req.user.walletAddress,
       policyId,
@@ -808,6 +843,15 @@ const sealSubmissionAttempt = async (req, res, next) => {
     if (attempt.status !== "UPLOADED") throw createError("Upload every selected evidence file before requesting a wallet transaction", 409);
     const files = await File.find({ attemptId: String(attempt._id) }).sort({ uploadSlot: 1 });
     if (files.length !== attempt.expectedEvidenceCount || files.some((file, index) => file.uploadSlot !== index)) throw createError("Evidence slots are incomplete", 409);
+    if (attempt.insurerStatement) {
+      const { hospitalId, invoiceHash, revision } = attempt.insurerStatement;
+      const source = await MockHospitalRecord.findOne({ hospitalId, invoiceHash,
+        authorizedClaimants: req.user.walletAddress.toLowerCase(), publicationPending: { $ne: true },
+        recordStatus: "VALID", invoiceStatus: "VALID", licenseStatus: "ACTIVE" }).select("sourceRevision").lean();
+      if (!source || (source.sourceRevision || 0) !== revision) {
+        throw createError("The episode changed during preparation. Start a new submission with the current published episode.", 409);
+      }
+    }
     attempt.sealedAt = new Date();
     attempt.expiresAt = null; // Unresolved wallet submissions must not expire out of recovery.
     await attempt.save();
@@ -900,7 +944,7 @@ const previewInvoiceEligibility = async (req, res, next) => {
     res.json({ success: true, invoiceHash: record?.invoiceHash || null, identityVersion: record?.identityVersion || null, boundToCurrentWallet: Boolean(record),
       publicationPending: Boolean(record?.publicationPending),
       registryUsable: Boolean(record && record.recordStatus === "VALID" && record.invoiceStatus === "VALID" && record.licenseStatus === "ACTIVE"),
-      message: !record ? "No invoice bound to this wallet was found. Historical dataset rows are not automatically demo-ready. Ask the hospital to bind and publish your record; missing invoices can still enter manual review."
+      message: !record ? "No invoice bound to this wallet was found. Historical dataset rows are not automatically demo-ready. Contact insurer support for association review."
         : record.publicationPending ? "This invoice is bound to your wallet but registry publication is pending."
           : "Invoice binding found. Dates, policy terms, amount and independent verification still apply." });
   } catch (error) { next(error); }

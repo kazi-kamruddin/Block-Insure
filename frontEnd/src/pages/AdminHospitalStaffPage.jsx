@@ -35,7 +35,7 @@ export default function AdminHospitalStaffPage() {
       <label>Staff display name<input required maxLength={100} value={form.displayName} onChange={(event) => change("displayName", event.target.value)} /></label>
       <label>Staff username<input required pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,63}" autoComplete="off" value={form.username} onChange={(event) => change("username", event.target.value)} /></label>
       <label>Initial staff password<input required type="password" autoComplete="new-password" minLength={12} maxLength={128} value={form.password} onChange={(event) => change("password", event.target.value)} /></label>
-      <button disabled={mutate.isPending} type="submit" style={{ minHeight: 44 }}>Create staff account</button>
+      <button className="min-h-11" disabled={mutate.isPending} type="submit">Create staff account</button>
       <p>Share credentials privately. Do not put passwords in project documentation or Git.</p>
     </form>
     <section className="card"><h2>Assigned staff</h2>
@@ -43,14 +43,16 @@ export default function AdminHospitalStaffPage() {
       <div className="table-wrap"><table><thead><tr><th>Staff member</th><th>Hospital</th><th>Access</th><th>Actions</th></tr></thead><tbody>
         {(accounts.data?.staff || []).map((staff) => <tr key={staff.staffId}>
           <td>{staff.displayName}<small>{staff.username}</small></td><td>{staff.hospitalId}</td><td>{staff.active ? "Active" : "Disabled"}</td>
-          <td><button disabled={mutate.isPending} style={{ minHeight: 44 }} onClick={() => mutate.mutate({ id: staff.staffId, payload: { active: !staff.active } })}>{staff.active ? "Disable" : "Enable"} {staff.username}</button>
-            <button style={{ minHeight: 44 }} onClick={() => { setResetId(staff.staffId); setResetPassword(""); }}>Reset password for {staff.username}</button></td>
+          <td><div className="action-row"><button type="button" className="min-h-11" disabled={mutate.isPending} onClick={() => mutate.mutate({ id: staff.staffId, payload: { active: !staff.active } })}>{staff.active ? "Disable" : "Enable"} {staff.username}</button>
+            <button type="button" className="button-secondary min-h-11" onClick={() => { setResetId(staff.staffId); setResetPassword(""); }}>Reset password for {staff.username}</button></div></td>
         </tr>)}
       </tbody></table></div>
-      {resetId && <form className="form-grid" onSubmit={(event) => { event.preventDefault(); mutate.mutate({ id: resetId, payload: { password: resetPassword } }); }}>
+      {resetId && <form className="form-grid mt-4" onSubmit={(event) => { event.preventDefault(); mutate.mutate({ id: resetId, payload: { password: resetPassword } }); }}>
         <label>New staff password<input type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} /></label>
-        <button type="submit" disabled={mutate.isPending} style={{ minHeight: 44 }}>Save password reset</button>
-        <button type="button" onClick={() => { setResetId(""); setResetPassword(""); }}>Cancel reset</button>
+        <div className="action-row">
+          <button type="submit" className="min-h-11" disabled={mutate.isPending}>Save password reset</button>
+          <button type="button" className="button-secondary min-h-11" onClick={() => { setResetId(""); setResetPassword(""); }}>Cancel reset</button>
+        </div>
       </form>}
     </section>
   </section>;

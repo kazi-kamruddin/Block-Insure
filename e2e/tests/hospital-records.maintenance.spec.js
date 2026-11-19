@@ -14,14 +14,14 @@ test.describe("@maintenance hospital-owned records", () => {
       const invoice = `DEMO-PUBLISHED-${Date.now()}`;
       await hospital.page.getByLabel("Patient reference", { exact: false }).fill("SYNTHETIC-PATIENT-ONLY");
       await hospital.page.getByLabel("Invoice number", { exact: true }).fill(invoice);
-      await hospital.page.getByLabel(/Authorized claimant wallets/).fill(user.wallet.address);
+      await expect(hospital.page.getByLabel(/Authorized claimant wallets/)).toHaveCount(0);
       await hospital.page.getByLabel("Diagnosis code", { exact: true }).fill("DEMO");
       for (const name of ["Admission date", "Discharge date", "Invoice date"]) await hospital.page.getByLabel(name, { exact: true }).fill(date);
       await hospital.page.getByLabel("Bill amount (ETH)", { exact: true }).fill("0.1");
       await hospital.page.getByRole("button", { name: "Create hospital record", exact: true }).click();
       const row = hospital.page.locator("tbody tr").filter({ hasText: invoice });
       await expect(row).toBeVisible();
-      await expect(row.getByLabel(`Authorized claimants for ${invoice}`)).toHaveValue(user.wallet.address.toLowerCase());
+      await expect(row.getByLabel(`Authorized claimants for ${invoice}`)).toHaveCount(0);
       await expect(row.getByText("Publication pending", { exact: true })).toHaveCount(0, { timeout: 90000 });
     } finally {
       await closeActor(user);
@@ -34,7 +34,7 @@ test.describe("@maintenance hospital-owned records", () => {
       await expect(auditor.page.getByText("Roots Match", { exact: true })).toBeVisible({ timeout: 30000 });
     } finally { await closeActor(auditor); }
   });
-  test("Hospital can update record and invoice status and restore the source record", async ({ browser }) => {
+  test("Hospital can correct and restore a bill while classification controls remain unavailable", async ({ browser }) => {
     const session = await createActorContext(browser, "hospital");
     try {
       await loginActor(session.page, session.actor);
@@ -42,36 +42,18 @@ test.describe("@maintenance hospital-owned records", () => {
       const recordRow = session.page.locator("tbody tr").filter({ hasText: "INV-HOSP-001-001" });
       await expect(recordRow).toBeVisible();
 
-      const recordStatus = recordRow.getByLabel("Record status for INV-HOSP-001-001");
-      const invoiceStatus = recordRow.getByLabel("Invoice status for INV-HOSP-001-001");
-      await expect(recordStatus).toHaveValue("VALID");
-      await expect(invoiceStatus).toHaveValue("VALID");
-
-      for (const [select, temporaryValue] of [
-        [recordStatus, "INVALID"],
-        [invoiceStatus, "SUSPICIOUS"],
-      ]) {
-        const updateResponsePromise = session.page.waitForResponse(
-          (response) => response.request().method() === "PATCH" && /\/api\/hospitals\/records\/[^/]+$/.test(response.url())
-        );
-        await select.selectOption(temporaryValue);
-        const updateResponse = await updateResponsePromise;
-        expect(updateResponse.ok(), await updateResponse.text()).toBe(true);
-        await expect(select).toHaveValue(temporaryValue);
-
-        const restoreResponsePromise = session.page.waitForResponse(
-          (response) => response.request().method() === "PATCH" && /\/api\/hospitals\/records\/[^/]+$/.test(response.url())
-        );
-        await select.selectOption("VALID");
-        const restoreResponse = await restoreResponsePromise;
-        expect(restoreResponse.ok(), await restoreResponse.text()).toBe(true);
-        await expect(select).toHaveValue("VALID");
+      const bill = recordRow.getByLabel("Correct bill for INV-HOSP-001-001");
+      const original = await bill.inputValue();
+      await expect(recordRow.getByLabel(/invoice status/i)).toHaveCount(0);
+      for (const value of ["0.11", original]) {
+        await bill.fill(value);
+        const saved = session.page.waitForResponse(response => response.request().method() === "PATCH" && response.url().includes("/hospitals/records/"));
+        await recordRow.getByRole("button", { name: "Save correction" }).click();
+        expect((await saved).ok()).toBe(true);
       }
-
       await session.page.reload();
-      const restoredRow = session.page.locator("tbody tr").filter({ hasText: "INV-HOSP-001-001" });
-      await expect(restoredRow.getByLabel("Record status for INV-HOSP-001-001")).toHaveValue("VALID");
-      await expect(restoredRow.getByLabel("Invoice status for INV-HOSP-001-001")).toHaveValue("VALID");
+      const restoredRow = recordRow;
+      await expect(bill).toHaveValue(original);
       await expect(restoredRow.getByText("Publication pending", { exact: true })).toHaveCount(0, { timeout: 90000 });
     } finally {
       await closeActor(session);

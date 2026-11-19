@@ -1,4 +1,20 @@
+<div align="center">
+
 # Block-Insure
+
+**A transparent path from policy to payout.**
+
+A blockchain and machine-learning thesis prototype for healthcare insurance.
+
+**[Live Demo](https://block-insure.vercel.app/)** · **[Features](#features)** · **[Architecture](#architecture)** · **[Getting Started](#local-development)** · **[Verification](#verification)**
+
+`Solidity` · `React` · `Node.js` · `MongoDB` · `XGBoost`
+
+</div>
+
+---
+
+## Overview
 
 Block-Insure is a blockchain-based insurance thesis prototype with role-based
 workspaces for policyholders, administrators, auditors, hospitals, and banks.
@@ -20,23 +36,23 @@ evidence and the completed Base rollout/default-activation record. The hosted
 demonstration uses Base Sepolia (84532); Ethereum Sepolia is a separate, completed
 measurement deployment. Do not repeat activation or deploy contracts to start a demo.
 
-For the hosted walkthrough, use the [demonstration runbook](docs/hosted-demonstration-runbook.md)
-and [acceptance evidence](docs/comprehensive-acceptance-2026-11-07.md).
-Free-service readiness and public RPC capacity must be checked before timed
-claims. Real MetaMask/mailbox acceptance and the earlier wallet security warning
-are separate from automated injected-signing tests.
+For a hosted walkthrough, check service readiness and public RPC capacity before
+starting timed claims. Real wallet and mailbox acceptance is separate from
+automated browser tests. Local execution records and operator notes are kept
+outside the public repository.
 
 ## Features
 
-- Policy purchase, premium payments, standing bank instructions, and statements.
-- Claims with versioned encrypted invoice/supporting-file bundles and recoverable appeals.
-- Hospital staff record maintenance, automatic publication and Merkle verification.
-- Two Oracle workers with request-bound, versioned risk assessments.
-- Manual review with bounded access preparation and a four-auditor snapshot: three approvals allocate a payout,
-  two rejections reject, and an expired review rejects without sufficient quorum.
-- Pull-payment settlement: recipients withdraw allocated payouts.
-- Optional cancellation refunds with reachable eligibility and a separate funded reserve.
-- SIWE for signing roles, separate hospital staff login, and email confirmation/OTP.
+| Area | What the prototype provides |
+| --- | --- |
+| **Policies and premiums** | Review issued terms, purchase coverage, pay installments and view statements. |
+| **Simulated banking** | Authorize a manual OTP payment or set up a standing EFT instruction against a simulated balance. |
+| **Claims and evidence** | Submit an encrypted invoice and supporting files, track a claim and recover an interrupted submission or appeal. |
+| **Hospital records** | Maintain institution-scoped synthetic records through an ordinary staff login; publish versioned commitments for matching. |
+| **Oracle verification** | Two workers verify committed records and execute the request-pinned XGBoost routing pipeline. |
+| **Auditor review** | The claimant authorizes the assigned four-person panel; three approvals approve, two rejections reject, and insufficient quorum at expiry rejects. |
+| **Settlement** | Approved, funded payouts and eligible cancellation refunds are allocated for the recipient to withdraw. |
+| **Access and recovery** | Wallet sign-in for signing roles, hospital staff accounts, email confirmation and encrypted evidence-key recovery. |
 
 Premium collection uses fixed installment periods shared by wallet, OTP and
 EFT payments. Simulated BDT debits settle funded test ETH atomically, with durable
@@ -56,11 +72,9 @@ evidence anchoring recover interrupted operations. Death and maturity products a
 disabled in this release. See [evidence, review and recovery](docs/evidence-review-and-recovery.md)
 for lifecycle rules and privacy limits.
 
-The [current acceptance report](docs/comprehensive-acceptance-2026-11-07.md)
-records hosted and isolated local checks, scoped corrections and remaining limits.
-The [earlier transaction/evidence report](docs/transaction-evidence-stabilization.md)
-retains its original evidence. The [existing-claim recovery procedure](docs/claim-four-evidence-recovery.md)
-has now been verified for the original hosted claim without replacing its ciphertext.
+Automated verification covers transaction reconciliation, encrypted evidence
+recovery, reviewer access, payment settlement and selected failure cases. Results
+depend on the environment and do not establish production readiness.
 
 Model scores support claim routing; they do not establish fraud or bypass
 eligibility, auditor quorum, reserves, or payout-withdrawal rules. Fresh
@@ -69,12 +83,42 @@ their captured model version.
 
 ## Architecture
 
+```text
+ Policyholder / Admin / Auditors             Hospital staff
+          React + wallet                      Staff portal
+                |                                  |
+                +----------- Express API ----------+
+                       |          |          |
+                  MongoDB   Encrypted files   Hospital records
+                       |                     |
+                 Smart contracts <---- Two Oracle workers
+                       |
+                Funded withdrawal
+```
+
+The Oracles share a configured record source and model. Their agreement confirms
+the implemented verification process; it does not independently establish that
+the hospital record or uploaded document is medically true.
+
+### Technology stack
+
+| Layer | Technologies |
+| --- | --- |
+| **Frontend** | React, Vite, Tailwind CSS, Ethers |
+| **Backend and data** | Node.js, Express, MongoDB |
+| **Contracts** | Solidity, Hardhat, OpenZeppelin |
+| **Oracle and risk routing** | Dual Oracle workers, Merkle commitments, XGBoost |
+| **Evidence privacy** | Client-side encryption and IronCore Recrypt |
+| **Verification** | Playwright, contract and backend tests |
+
+### Project structure
+
 | Directory | Contents |
 | --- | --- |
 | `contracts/` | Solidity contracts, Hardhat deployment scripts, and contract tests |
 | `backEnd/` | Express API, MongoDB models, cryptographic services, and model integration |
 | `frontEnd/` | React dashboards, wallet integration, and client-side evidence encryption |
-| `oracle/` | Independent Oracle workers, proof verification, and model dispatch |
+| `oracle/` | Two Oracle workers, proof verification, and model dispatch |
 | `e2e/` | Playwright browser tests and isolated test-wallet helpers |
 | `scripts/` | Startup, configuration, packaging, and verification tools |
 | `deploy/` | Container definitions and deployment environment templates |
@@ -144,7 +188,7 @@ guide. It includes hospital login without a wallet, issued terms, coordinated
 payments, claim processing and recovery of persisted gateway transactions.
 
 Historical research artifacts retain their original source scope. The
-[reviewed source transition](docs/research-source-transition-v4.json) records
+[reviewed source transition](docs/research-source-transition-v5.json) records
 changed runtime bindings without rewriting historical results. A passing repository
 check does not revalidate those measurements for the current release.
 

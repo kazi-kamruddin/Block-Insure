@@ -8,6 +8,7 @@ const { getE2EConfig } = require("../support/environment");
 test.describe("@workflow @phase1 coherent application foundation", () => {
   test("administrator provisions hospital staff; a browser without a wallet maintains and publishes scoped records", async ({ browser }, testInfo) => {
     const admin = await createActorContext(browser, "admin");
+    test.setTimeout(300000);
     const staffContext = await browser.newContext({ baseURL: getE2EConfig().appUrl, viewport: { width: 320, height: 780 } });
     const staff = await staffContext.newPage();
     const suffix = crypto.randomBytes(5).toString("hex");
@@ -38,7 +39,7 @@ test.describe("@workflow @phase1 coherent application foundation", () => {
       const invoice = `LOCAL-${suffix}`;
       await staff.getByLabel("Patient reference", { exact: false }).fill("PATIENT-LOCAL-001");
       await staff.getByLabel("Invoice number", { exact: true }).fill(invoice);
-      await staff.getByLabel("Authorized claimant wallets", { exact: false }).fill(admin.wallet.address);
+      await expect(staff.getByLabel("Authorized claimant wallets")).toHaveCount(0);
       await staff.getByLabel("Diagnosis code", { exact: true }).fill("DEMO");
       for (const name of ["Admission date", "Discharge date", "Invoice date"]) await staff.getByLabel(name, { exact: true }).fill(date);
       await staff.getByLabel("Bill amount (ETH)", { exact: true }).fill("0.1");
@@ -52,6 +53,19 @@ test.describe("@workflow @phase1 coherent application foundation", () => {
       const own = await (await staff.request.get(`${getE2EConfig().apiUrl}/api/hospitals/records`, { headers: staffHeaders })).json();
       const record = own.records.find((item) => item.invoiceNumber === invoice);
       expect(record.identityVersion).toBe(2);
+      const endpoint = getE2EConfig().apiUrl + "/api/hospitals";
+      const myEpisodes = async () => (await (await admin.page.request.get(endpoint + "/my-episodes", { headers, maxRetries: 1 })).json()).records;
+      expect((await myEpisodes()).some(item => item.invoiceNumber === invoice)).toBe(false);
+      const denied = await staff.request.patch(endpoint + "/records/" + record.id, { headers: staffHeaders, data: { invoiceStatus: "SUSPICIOUS" } });
+      expect(denied.status()).toBe(422);
+      const association = { hospitalId: "HOSP-001", invoiceNumber: invoice, patientReference: "PATIENT-LOCAL-001",
+        wallet: admin.wallet.address, revision: record.revision, reason: "Verified synthetic enrollment fixture" };
+      const linked = await admin.page.request.put(endpoint + "/insurer/association", { headers, data: association });
+      expect(linked.status(), await linked.text()).toBe(200);
+      await expect.poll(async () => (await myEpisodes()).some(item => item.invoiceNumber === invoice), { timeout: 90000 }).toBe(true);
+      const revoked = await admin.page.request.put(endpoint + "/insurer/association", { headers, data: { ...association, revision: record.revision + 1, wallet: null } });
+      expect(revoked.ok()).toBe(true);
+      expect((await myEpisodes()).some(item => item.invoiceNumber === invoice)).toBe(false);
       const staff2 = await admin.page.request.post(`${getE2EConfig().apiUrl}/api/hospital-staff/accounts`, { headers,
         data: { username: `${username}.second`, password, hospitalId: "HOSP-002", displayName: "Other hospital staff" } });
       expect(staff2.status()).toBe(201);
@@ -64,7 +78,7 @@ test.describe("@workflow @phase1 coherent application foundation", () => {
       expect(cross.status()).toBe(404);
       const sameLocalInvoice = await staff.request.post(`${getE2EConfig().apiUrl}/api/hospitals/records`, {
         headers: { Authorization: `Bearer ${login2.token}` }, data: {
-          invoiceNumber: invoice, patientReference: "PATIENT-LOCAL-001", authorizedClaimants: admin.wallet.address,
+          invoiceNumber: invoice, patientReference: "PATIENT-LOCAL-001",
           treatmentType: "HOSPITALIZATION", diagnosisCode: "DEMO", billAmount: "0.1", admissionDate: date, dischargeDate: date, invoiceDate: date,
         },
       });

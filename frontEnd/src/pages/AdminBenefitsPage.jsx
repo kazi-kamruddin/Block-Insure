@@ -34,6 +34,8 @@ export default function AdminBenefitsPage() {
   const [error, setError] = useState("");
   const [transactionHash, setTransactionHash] = useState("");
   const [evidenceReferences, setEvidenceReferences] = useState({});
+  const [rejectingId, setRejectingId] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
 
   const { data: requestsData, refetch: refetchRequests } = useQuery({
     queryKey: ["adminBenefitRequests"],
@@ -88,7 +90,13 @@ export default function AdminBenefitsPage() {
     }
   }
 
-  async function runRequestAction(request, action) {
+  async function runRequestAction(request, action, reason = "") {
+    if (action === "reject" && !reason.trim()) {
+      setRejectingId(request.requestId);
+      setRejectionReason("");
+      return;
+    }
+
     setError("");
     setTransactionHash("");
     setActingId(request.requestId);
@@ -99,9 +107,9 @@ export default function AdminBenefitsPage() {
       } else if (action === "settle") {
         result = await settleBenefitRequest(request.requestId);
       } else {
-        const reason = window.prompt("Enter a concise rejection reason:");
-        if (!reason?.trim()) return;
         result = await rejectBenefitRequest(request.requestId, reason.trim());
+        setRejectingId("");
+        setRejectionReason("");
       }
       setTransactionHash(result.transactionHash);
       showToast(`Benefit request ${action} action confirmed.`);
@@ -124,7 +132,12 @@ export default function AdminBenefitsPage() {
 
   return (
     <section className="page-container page-admin-benefits">
-      <h2>Policy Benefits Administration</h2>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Policy lifecycle</span>
+          <h1>Policy Benefits Administration</h1>
+        </div>
+      </div>
       <p className="muted-text">
         Publish immutable cancellation-refund rules and review refund requests.
         Death and maturity products are disabled. Publishing requires a version greater than the current on-chain version.
@@ -224,16 +237,55 @@ export default function AdminBenefitsPage() {
                   >
                     Approve
                   </button>
-                  <button type="button" onClick={() => runRequestAction(request, "reject")} disabled={actingId === request.requestId}>Reject</button>
+                  <button type="button" className="button-secondary" onClick={() => runRequestAction(request, "reject")} disabled={actingId === request.requestId}>Reject</button>
                 </>
               ) : null}
               {request.status.label === "APPROVED" ? (
                 <>
                   <button type="button" onClick={() => runRequestAction(request, "settle")} disabled={actingId === request.requestId}>Allocate Benefit</button>
-                  <button type="button" onClick={() => runRequestAction(request, "reject")} disabled={actingId === request.requestId}>Revoke Approval</button>
+                  <button type="button" className="button-secondary" onClick={() => runRequestAction(request, "reject")} disabled={actingId === request.requestId}>Revoke Approval</button>
                 </>
               ) : null}
             </div>
+            {rejectingId === request.requestId ? (
+              <form
+                className="form-grid mt-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  runRequestAction(request, "reject", rejectionReason);
+                }}
+              >
+                <label>
+                  Rejection reason
+                  <textarea
+                    rows={2}
+                    maxLength={250}
+                    required
+                    value={rejectionReason}
+                    onChange={(event) => setRejectionReason(event.target.value)}
+                    placeholder="Enter a concise rejection reason"
+                  />
+                </label>
+                <div className="action-row">
+                  <button
+                    type="submit"
+                    disabled={actingId === request.requestId || !rejectionReason.trim()}
+                  >
+                    {actingId === request.requestId ? "Rejecting..." : "Confirm Rejection"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => {
+                      setRejectingId("");
+                      setRejectionReason("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : null}
           </article>
         ))}
       </div>

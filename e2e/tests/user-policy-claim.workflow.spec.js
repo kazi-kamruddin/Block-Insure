@@ -1,3 +1,4 @@
+const { selectEpisode, prepareEpisode } = require("../support/intakeEpisode");
 const { prepareReviewerIdentities, authorizeReview } = require("../support/reviewPreparation");
 const { test, expect } = require("@playwright/test");
 const fs = require("node:fs");
@@ -52,9 +53,7 @@ test.describe("@workflow policyholder transaction journey", () => {
         .toBeGreaterThan(1);
       await policySelect.selectOption({ index: 1 });
 
-      await session.page.getByLabel("Test data preset").selectOption({
-        label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH",
-      });
+      await selectEpisode(session.page);
       const latestBlock = await session.provider.getBlock("latest");
       if (!latestBlock) throw new Error("Latest local block is unavailable");
       const incidentInput = session.page.getByLabel("Incident date/time");
@@ -258,20 +257,17 @@ test.describe("@workflow policyholder transaction journey", () => {
       await expect.poll(() => policySelect.locator("option").count()).toBeGreaterThan(1);
       const policyOptionCount = await policySelect.locator("option").count();
       await policySelect.selectOption({ index: policyOptionCount - 1 });
+      const episode = await prepareEpisode(session);
+      await session.page.reload();
+      await policySelect.selectOption({ index: policyOptionCount - 1 });
+      await selectEpisode(session.page, episode.invoiceNumber);
 
       const latestBlock = await session.provider.getBlock("latest");
       if (!latestBlock) throw new Error("Latest local block is unavailable");
       const incidentInput = session.page.getByLabel("Incident date/time");
       await incidentInput.evaluate((input) => input.setAttribute("step", "1"));
       await incidentInput.fill(localDateTimeValue(new Date(Number(latestBlock.timestamp) * 1000)));
-      await session.page.getByLabel("Claim amount in ETH").fill("0.1");
-      await session.page.getByLabel("Claim type").fill("HOSPITALIZATION");
-      await session.page.getByLabel("Hospital ID").selectOption("HOSP-001");
-      await session.page
-        .getByLabel("Invoice number")
-        .fill(`E2E-MANUAL-${Date.now()}`);
-      await session.page.getByRole("button", { name: "Check invoice readiness" }).click();
-      await expect(session.page.getByRole("region", { name: "Invoice readiness" })).toContainText("No invoice bound to this wallet was found");
+
       const evidenceFile = uniqueEvidenceFile();
       await session.page.getByLabel("Claim document").setInputFiles(evidenceFile);
       await session.page.getByRole("button", { name: "Submit Claim" }).click();
@@ -288,6 +284,7 @@ test.describe("@workflow policyholder transaction journey", () => {
       const adminSession = await createActorContext(browser, "admin");
       try {
         await loginActor(adminSession.page, adminSession.actor);
+        await episode.revoke(adminSession);
         await adminSession.page.goto(`/admin/claims/${claimId}`);
         const currentStatus = adminSession.page
           .locator(".admin-claim-sidebar p strong")

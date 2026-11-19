@@ -1,3 +1,4 @@
+const { selectEpisode, prepareEpisode } = require("../support/intakeEpisode");
 const { prepareReviewerIdentities, authorizeReview } = require("../support/reviewPreparation");
 const { test, expect } = require("@playwright/test");
 const fs = require("node:fs");
@@ -61,17 +62,18 @@ async function createManualReview(browser) {
   const policy = user.page.getByLabel("Policy", { exact: true });
   await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1);
   await policy.selectOption({ index: (await policy.locator("option").count()) - 1 });
-  await user.page.getByLabel("Test data preset").selectOption({
-    label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH",
-  });
-  const correctedInvoice = await user.page.getByLabel("Invoice number").inputValue();
+  const episode = await prepareEpisode(user);
+  await user.page.reload();
+  await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1);
+  await policy.selectOption({ index: (await policy.locator("option").count()) - 1 });
+  await selectEpisode(user.page, episode.invoiceNumber);
+  const correctedInvoice = "INV-HOSP-001-001";
   expect(correctedInvoice).toBeTruthy();
   const block = await user.provider.getBlock("latest");
   const incident = user.page.getByLabel("Incident date/time");
   await incident.evaluate((input) => input.setAttribute("step", "1"));
   const incidentValue = localDateTimeValue(new Date(Number(block.timestamp) * 1000));
   await incident.fill(incidentValue.endsWith(":00") ? incidentValue.slice(0, -3) : incidentValue);
-  await user.page.getByLabel("Invoice number").fill(`E2E-FINALITY-${Date.now()}`);
   await user.page.getByLabel("Claim document").setInputFiles(uniqueEvidenceFile());
   await user.page.getByRole("button", { name: "Submit Claim" }).click();
   if (
@@ -98,6 +100,7 @@ async function createManualReview(browser) {
     await admin.page.goto(`/admin/claims/${claimId}`);
     const status = admin.page.locator(".admin-claim-sidebar p strong").first();
     await expect(status).toHaveText("DUPLICATE_CHECKED");
+    await episode.revoke(admin);
     await admin.page.getByRole("button", { name: "Request Oracle Verification" }).click();
     await expect
       .poll(async () => {

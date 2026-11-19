@@ -12,7 +12,7 @@ import "../styles/pages/HospitalDashboardPage.css";
 
 const emptyForm = {
   patientReference: "",
-  authorizedClaimants: "",
+  patientContact: "",
   invoiceNumber: "",
   treatmentType: "HOSPITALIZATION",
   diagnosisCode: "",
@@ -39,7 +39,7 @@ export default function HospitalRecordsPage() {
       showToast(result.message, { title: "Hospital record created" });
     },
   });
-  const statusMutation = useMutation({
+  const correctionMutation = useMutation({
     mutationFn: ({ id, updates }) => updateMyHospitalRecord(id, updates),
     onSuccess: (result) => {
       refresh();
@@ -47,7 +47,7 @@ export default function HospitalRecordsPage() {
     },
   });
   const records = recordsQuery.data?.records || [];
-  const error = createMutation.error || statusMutation.error || recordsQuery.error;
+  const error = createMutation.error || correctionMutation.error || recordsQuery.error;
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const submit = (event) => {
@@ -60,7 +60,7 @@ export default function HospitalRecordsPage() {
       <div className="hospital-heading">
         <div>
           <span className="dashboard-eyebrow">Hospital-owned data</span>
-          <h2>Patient and Invoice Records</h2>
+          <h1>Patient and Invoice Records</h1>
           <p>Only authorized staff assigned to this hospital can maintain these source records.</p>
         </div>
       </div>
@@ -70,8 +70,8 @@ export default function HospitalRecordsPage() {
       <form className="card form-grid hospital-record-form" onSubmit={submit}>
         <h3>Create hospital record</h3>
         <label>Patient reference<input value={form.patientReference} onChange={(e) => updateField("patientReference", e.target.value)} required /><small>Stored as a hospital-scoped hash. Equal local references at other hospitals are separate people.</small></label>
+        <label>Patient contact email (if recorded)<input type="email" value={form.patientContact} onChange={e => updateField("patientContact", e.target.value)} /></label>
         <label>Invoice number<input value={form.invoiceNumber} onChange={(e) => updateField("invoiceNumber", e.target.value)} required /></label>
-        <label>Authorized claimant wallets<input value={form.authorizedClaimants} onChange={(e) => updateField("authorizedClaimants", e.target.value)} required /><small>Hospital-confirmed policyholder or covered-dependent association; comma-separated addresses.</small></label>
         <label>Treatment type<input value={form.treatmentType} onChange={(e) => updateField("treatmentType", e.target.value)} required /></label>
         <label>Diagnosis code<input value={form.diagnosisCode} onChange={(e) => updateField("diagnosisCode", e.target.value)} required /></label>
         <label>Admission date<input type="date" value={form.admissionDate} onChange={(e) => updateField("admissionDate", e.target.value)} required /></label>
@@ -87,15 +87,24 @@ export default function HospitalRecordsPage() {
         {recordsQuery.isLoading ? <p>Loading records...</p> : null}
         {records.length ? (
           <div className="table-wrap"><table>
-            <thead><tr><th>Invoice</th><th>Patient hash</th><th>Care</th><th>Bill</th><th>Record</th><th>Invoice status</th></tr></thead>
+            <thead><tr><th>Invoice</th><th>Patient hash</th><th>Care</th><th>Bill</th><th>Correction</th></tr></thead>
             <tbody>{records.map((record) => (
               <tr key={record.id}>
                 <td><strong>{record.invoiceNumber}</strong><small>{record.invoiceHash}</small>{record.publicationPending ? <small>Publication pending</small> : <small>Ready for the latest registry publication</small>}</td>
-                <td className="hospital-record-hash">{record.patientHash}<input aria-label={`Authorized claimants for ${record.invoiceNumber}`} defaultValue={(record.authorizedClaimants || []).join(",")} onBlur={(e) => { if (e.target.value !== (record.authorizedClaimants || []).join(",")) statusMutation.mutate({ id: record.id, updates: { authorizedClaimants: e.target.value } }); }} /></td>
+                <td className="hospital-record-hash">{record.patientHash}</td>
                 <td>{record.treatmentType}<small>{formatDateOnly(record.admissionDate)} to {formatDateOnly(record.dischargeDate)}</small></td>
                 <td>{record.billAmount} ETH</td>
-                <td><select aria-label={`Record status for ${record.invoiceNumber}`} value={record.recordStatus} onChange={(e) => statusMutation.mutate({ id: record.id, updates: { recordStatus: e.target.value } })}><option>VALID</option><option>INVALID</option><option>USED</option><option>CANCELLED</option></select></td>
-                <td><select aria-label={`Invoice status for ${record.invoiceNumber}`} value={record.invoiceStatus} onChange={(e) => statusMutation.mutate({ id: record.id, updates: { invoiceStatus: e.target.value } })}><option>VALID</option><option>USED</option><option>CANCELLED</option><option>SUSPICIOUS</option></select></td>
+                <td><form key={record.revision} onSubmit={event => {
+                  event.preventDefault();
+                  const values = Object.fromEntries(new FormData(event.currentTarget));
+                  const updates = Object.fromEntries(Object.entries(values).filter(([key, value]) =>
+                    value !== (key.endsWith("Date") ? record[key].slice(0, 10) : String(record[key]))));
+                  if (Object.keys(updates).length) correctionMutation.mutate({ id: record.id, updates: { ...updates, revision: record.revision } });
+                }} className="grid gap-2"><input aria-label={`Correct bill for ${record.invoiceNumber}`} name="billAmount" defaultValue={record.billAmount} type="number" step="any" min="0.000000000000000001" required /><details><summary>Care and dates</summary>
+                  <div className="grid gap-2 mt-2">
+                  {["treatmentType", "diagnosisCode", "admissionDate", "dischargeDate", "invoiceDate"].map(key => <label key={key}>{({ treatmentType: "Treatment type", diagnosisCode: "Diagnosis code", admissionDate: "Admission date", dischargeDate: "Discharge date", invoiceDate: "Invoice date" })[key]} for {record.invoiceNumber}<input name={key} type={key.endsWith("Date") ? "date" : "text"} defaultValue={key.endsWith("Date") ? record[key]?.slice(0, 10) : record[key]} required /></label>)}
+                  </div>
+                  </details><button type="submit" className="button-secondary" disabled={correctionMutation.isPending}>Save correction</button></form></td>
               </tr>
             ))}</tbody>
           </table></div>

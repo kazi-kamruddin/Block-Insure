@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { formatEther } from "ethers";
+import { Link } from "react-router-dom";
+import { Contract, formatEther } from "ethers";
 import { useQuery } from "@tanstack/react-query";
 
 import ClaimSubmissionRecoveryPanel from "../components/ClaimSubmissionRecoveryPanel";
@@ -9,6 +10,8 @@ import {
   authorizeClaimSubmission,
   attachDocumentToClaim,
   getMyPolicies,
+  getMyEpisodes,
+  getIntakeCoverage,
   getClaimSubmissionAttempt,
   getNetworkHospitals,
   previewPurchasedPolicyEligibility,
@@ -25,6 +28,7 @@ import PolicyTermsPanel from "../components/PolicyTermsPanel";
 import {
   assertCorrectNetwork,
   getConnectedWalletAddress,
+  getWalletContract,
   hashInvoiceNumber,
   parseTransactionError,
 } from "../services/contractService";
@@ -35,45 +39,8 @@ import {
 } from "../services/evidenceEncryption";
 import "../styles/pages/SubmitClaimPage.css";
 import { showToast } from "../services/toast";
-import { formatDateOnly, formatDateTime } from "../utils/dateFormat";
+import { formatDateOnly } from "../utils/dateFormat";
 
-const VALID_MOCK_HOSPITAL_PRESETS = [
-  {
-    label: "Valid HOSP-001 / HOSPITALIZATION / 0.1 ETH",
-    hospitalId: "HOSP-001",
-    treatmentType: "HOSPITALIZATION",
-    invoiceNumber: "INV-HOSP-001-001",
-    claimAmount: "0.1",
-  },
-  {
-    label: "Valid HOSP-002 / SURGERY / 0.2 ETH",
-    hospitalId: "HOSP-002",
-    treatmentType: "SURGERY",
-    invoiceNumber: "INV-HOSP-002-001",
-    claimAmount: "0.2",
-  },
-  {
-    label: "Valid HOSP-003 / HOSPITALIZATION / 0.15 ETH",
-    hospitalId: "HOSP-003",
-    treatmentType: "HOSPITALIZATION",
-    invoiceNumber: "INV-HOSP-003-001",
-    claimAmount: "0.15",
-  },
-  {
-    label: "Valid HOSP-004 / SURGERY / 0.3 ETH",
-    hospitalId: "HOSP-004",
-    treatmentType: "SURGERY",
-    invoiceNumber: "INV-HOSP-004-001",
-    claimAmount: "0.3",
-  },
-  {
-    label: "Valid HOSP-005 / EMERGENCY / 0.25 ETH",
-    hospitalId: "HOSP-005",
-    treatmentType: "EMERGENCY",
-    invoiceNumber: "INV-HOSP-005-001",
-    claimAmount: "0.25",
-  },
-];
 
 function extractPolicies(data) {
   if (Array.isArray(data)) return data;
@@ -118,15 +85,21 @@ function getUploadedDocumentId(uploadResponse) {
 }
 
 function dateTimeLocalToUnixSeconds(dateTimeValue) {
-  return Math.floor(new Date(dateTimeValue).getTime() / 1000);
+  return Math.floor(Date.parse(dateTimeValue + "+06:00") / 1000);
 }
 
 export default function SubmitClaimPage() {
-  const { isConnected, walletAddress, connectWallet } = useWallet();
+  const wallet = useWallet();
+  return <SubmissionForm key={wallet.walletAddress || "disconnected"} {...wallet} />;
+}
+
+function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
 
   const [policyId, setPolicyId] = useState("");
   const [claimAmount, setClaimAmount] = useState("0.1");
-  const [incidentDateTime, setIncidentDateTime] = useState("");
+  const [intentMessage, setIntentMessage] = useState("");
+  const [filingIntentPending, setFilingIntentPending] = useState(false);
+  const [reportedTime, setIncidentDateTime] = useState("");
   const [claimType, setClaimType] = useState("HOSPITALIZATION");
   const [hospitalId, setHospitalId] = useState("HOSP-001");
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -183,11 +156,25 @@ export default function SubmitClaimPage() {
     retry: false,
   });
 
-  const { data: eligibilityData, error: eligibilityError } = useQuery({
+  const episodes = useQuery({ queryKey: ["myEpisodes", walletAddress], queryFn: getMyEpisodes, enabled: isConnected });
+  const coverage = useQuery({ queryKey: ["intakeCoverage", walletAddress, policyId], queryFn: () => getIntakeCoverage(policyId), enabled: Boolean(policyId && isConnected) });
+  const selectedEpisode = episodes.data?.records.find(row => row.hospitalId === hospitalId && row.invoiceNumber === invoiceNumber);
+  const episodeDay = selectedEpisode?.admissionDate?.slice(0, 10);
+  const dayStart = episodeDay ? Date.parse(episodeDay + "T00:00:00+06:00") / 1000 : NaN;
+  const lastEpisodeDay = selectedEpisode?.dischargeDate?.slice(0, 10);
+  const dayEnd = lastEpisodeDay ? Date.parse(lastEpisodeDay + "T23:59:59+06:00") / 1000 : NaN;
+  const now = Number(coverage.data?.asOfTimestamp);
+  const filingDays = selectedPolicy?.policyTerms?.claimDeadlineDays;
+  const wholeDayCovered = !resumeAttempt && dayEnd <= now && dayStart + Number(filingDays) * 86400 >= now &&
+    coverage.data?.intervals?.some(([begin, end, wait]) => dayStart >= Math.max(Number(begin), Number(wait)) && dayEnd <= Number(end));
+  const incidentDateTime = wholeDayCovered ? episodeDay + "T00:00" : reportedTime;
+
+  const { data: eligibilityData, error: eligibilityError, refetch: refetchEligibility } = useQuery({
     queryKey: [
       "policyEligibilityPreview",
       policyId,
       incidentDateTime,
+      selectedEpisode?.invoiceHash,
       claimType,
       claimAmount,
       preExistingCondition,
@@ -196,6 +183,7 @@ export default function SubmitClaimPage() {
     queryFn: () =>
       previewPurchasedPolicyEligibility(policyId, {
         incidentDate: dateTimeLocalToUnixSeconds(incidentDateTime),
+        invoiceHash: selectedEpisode?.invoiceHash,
         claimType,
         claimAmountEth: claimAmount,
         preExistingCondition,
@@ -215,17 +203,14 @@ export default function SubmitClaimPage() {
     setIncidentDateTime("");
   }
 
-  function applyMockPreset(presetLabel) {
-    const preset = VALID_MOCK_HOSPITAL_PRESETS.find(
-      (item) => item.label === presetLabel
-    );
-
-    if (!preset) return;
-
-    setHospitalId(preset.hospitalId);
-    setClaimType(preset.treatmentType);
-    setInvoiceNumber(preset.invoiceNumber);
-    setClaimAmount(preset.claimAmount);
+  function selectEpisode(id) {
+    const episode = episodes.data?.records.find(row => row._id === id);
+    if (!episode) return;
+    setHospitalId(episode.hospitalId);
+    setClaimType(episode.treatmentType);
+    setInvoiceNumber(episode.invoiceNumber);
+    setClaimAmount(String(episode.billAmount));
+    setIncidentDateTime("");
   }
 
   async function linkEvidenceToClaim(link) {
@@ -327,7 +312,8 @@ export default function SubmitClaimPage() {
       setIsSubmitting(true);
 
       const invoiceLookup = await previewInvoiceEligibility(hospitalId, undefined, invoiceNumber.trim());
-      const invoiceHash = invoiceLookup.invoiceHash || hashInvoiceNumber(invoiceNumber.trim(), hospitalId);
+      if (!invoiceLookup.registryUsable || invoiceLookup.publicationPending) throw new Error("The selected episode is unavailable or awaiting publication.");
+      const invoiceHash = invoiceLookup.invoiceHash;
       const selectedFiles = [file, ...supportingFiles];
       if (selectedFiles.length > 5 || selectedFiles.filter(Boolean).some((item) => item.size > 8 * 1024 * 1024 || !["application/pdf", "image/jpeg", "image/png"].includes(item.type)) ||
           selectedFiles.filter(Boolean).reduce((sum, item) => sum + item.size, 0) > 20 * 1024 * 1024) throw new Error("Use one invoice plus up to four supporting PDF/JPEG/PNG files, at most 8 MiB each and 20 MiB total.");
@@ -338,6 +324,7 @@ export default function SubmitClaimPage() {
         hospitalId,
         invoiceHash,
         invoiceNumber: invoiceNumber.trim(),
+        episodeRevision: selectedEpisode?.sourceRevision ?? 0,
         evidenceCount: selectedFiles.length,
         preExistingCondition,
         disclosedAtPurchase,
@@ -429,11 +416,20 @@ export default function SubmitClaimPage() {
 
   return (
     <section className="page-container page-submit-claim">
-      <h2>Submit Claim</h2>
-
-      <button type="button" onClick={() => refetchPolicies()}>
-        Refresh Policies
-      </button>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Claims filing</span>
+          <h1>Submit Claim</h1>
+        </div>
+        <div className="action-row">
+          <Link to="/user/claims" className="button-link button-secondary">
+            My Claims
+          </Link>
+          <button type="button" className="button-secondary" onClick={() => refetchPolicies()}>
+            Refresh Policies
+          </button>
+        </div>
+      </div>
 
       {policiesError ? (
         <p className="error-text">
@@ -509,7 +505,7 @@ export default function SubmitClaimPage() {
           <div className="policy-date-summary">
             <div><span>Coverage begins</span><strong>{formatDateOnly(selectedPolicy.startDate)}</strong></div>
             <div><span>Coverage ends</span><strong>{formatDateOnly(selectedPolicy.endDate)}</strong></div>
-            <div><span>Selected incident</span><strong>{incidentDateTime ? formatDateTime(incidentDateTime) : "Not selected"}</strong></div>
+            <div><span>Selected incident</span><strong>{incidentDateTime ? incidentDateTime.replace("T", " ") + " (Asia/Dhaka)" : "Not selected"}</strong></div>
           </div>
           <PolicyTermsPanel terms={selectedPolicy.policyTerms} />
           {eligibilityError ? (
@@ -522,10 +518,33 @@ export default function SubmitClaimPage() {
         </div>
       ) : null}
 
+      {selectedPolicy?.policyTerms?.serviceSublimitsWei && <details className="card">
+        <summary>Record a filing intent while an invoice is awaiting publication</summary>
+        <p>Use the hospital and invoice number on your receipt before the filing deadline. A timely intent gives this invoice seven extra days for submission. Coverage and document checks still apply.</p>
+        <form className="form-grid mt-3" onSubmit={async event => {
+          event.preventDefault();
+          const fields = new FormData(event.currentTarget);
+          setFilingIntentPending(true);
+          try {
+            const manager = await getWalletContract();
+            const economics = new Contract(await manager.policyEconomics(), ["function recordFilingIntent(uint256,bytes32)"], manager.runner);
+            const tx = await economics.recordFilingIntent(policyId, hashInvoiceNumber(fields.get("invoice").trim(), fields.get("hospital")));
+            await tx.wait();
+            setIntentMessage("Filing intent confirmed.");
+            refetchEligibility();
+          } catch (error) { setIntentMessage(parseTransactionError(error)); }
+          finally { setFilingIntentPending(false); }
+        }}>
+          <label>Receipt hospital<select name="hospital" required>{networkHospitals.map(row => <option key={row.hospitalId}>{row.hospitalId}</option>)}</select></label>
+          <label>Receipt invoice number<input name="invoice" maxLength={100} required /></label>
+          <button type="submit" className="button-secondary" disabled={filingIntentPending}>Record filing intent</button>
+          {intentMessage && <p role="status">{intentMessage}</p>}
+        </form>
+      </details>}
       <ClaimSubmissionRecoveryPanel revision={recoveryRevision} onCompleted={async (result) => { setSuccessMessage(`Claim #${result.attempt.claimId} submitted and its encrypted evidence was reconciled successfully.`); await refetchPolicies(); }} onResume={(attempt) => {
         setResumeAttempt(attempt); setPolicyId(attempt.policyId); setClaimAmount(formatEther(attempt.submittedFacts.claimAmountWei));
         setClaimType(attempt.submittedFacts.claimType); setHospitalId(attempt.submittedFacts.hospitalId); setInvoiceNumber(attempt.submittedFacts.invoiceNumber);
-        const date = new Date(Number(attempt.submittedFacts.incidentDate) * 1000); date.setMinutes(date.getMinutes() - date.getTimezoneOffset()); setIncidentDateTime(date.toISOString().slice(0, 19));
+        const date = new Date((Number(attempt.submittedFacts.incidentDate) + 21600) * 1000); setIncidentDateTime(date.toISOString().slice(0, 19));
         setFile(null); setSupportingFiles(Array(Math.max(0, attempt.expectedEvidenceCount - 1)).fill(null)); setError("");
       }} />
       {resumeAttempt && <p role="status">Resuming the saved authorization for policy #{resumeAttempt.policyId}. Uploaded slots remain unchanged. Reselect missing files below.</p>}
@@ -552,25 +571,12 @@ export default function SubmitClaimPage() {
         </label>
 
         <label>
-          Test data preset
-          <select
-            aria-label="Test data preset"
-            disabled={Boolean(resumeAttempt)}
-            defaultValue=""
-            onChange={(event) => applyMockPreset(event.target.value)}
-          >
-            <option value="">Manual / random invoice</option>
-            {VALID_MOCK_HOSPITAL_PRESETS.map((preset) => (
-              <option key={preset.label} value={preset.label}>
-                {preset.label}
-              </option>
-            ))}
+          Authorized episode
+          <select aria-label="Authorized episode" key={walletAddress} defaultValue="" disabled={Boolean(resumeAttempt)} required={!resumeAttempt} onChange={event => selectEpisode(event.target.value)}>
+            <option value="" disabled>Select your treatment episode</option>
+            {(episodes.data?.records || []).map(row => <option key={row._id} value={row._id}>{row.hospitalId} · {row.invoiceNumber} · {formatDateOnly(row.admissionDate)}</option>)}
           </select>
-          <small>
-            Presets fill a record that exists in the local healthcare registry.
-            Manual values are accepted, but the oracle will fail them when they
-            do not match a registered hospital invoice.
-          </small>
+          <small>{episodes.isError ? "Episode lookup failed." : "Missing episode? Contact the insurer to verify the association."}</small>
         </label>
 
         <label>
@@ -580,25 +586,23 @@ export default function SubmitClaimPage() {
             step="any"
             min="0"
             value={claimAmount}
-            disabled={Boolean(resumeAttempt)} onChange={(event) => setClaimAmount(event.target.value)}
+            readOnly
             required
           />
         </label>
 
         <label>
-          Incident date and time
-          <input
+          {wholeDayCovered ? "Covered admission date (Asia/Dhaka)" : "Documented incident date and time"}
+          {wholeDayCovered ? <output>{episodeDay}</output> : <input
             aria-label="Incident date/time"
             type="datetime-local"
-            step="60"
+            step="1"
             value={incidentDateTime}
             disabled={Boolean(resumeAttempt)} onChange={(event) => setIncidentDateTime(event.target.value)}
             required
-          />
+          />}
           <small>
-            Enter when the incident actually occurred. This value is never
-            replaced with the policy purchase time. Dates are shown in your local
-            timezone.
+            {wholeDayCovered ? "The full episode falls within the checked coverage and filing boundaries. The statement uses its admission date." : "Use a documented time when coverage is uncertain. If unknown, contact the insurer before submitting. Enter Bangladesh time (Asia/Dhaka)."}
           </small>
         </label>
 
@@ -607,7 +611,7 @@ export default function SubmitClaimPage() {
           <input
             type="text"
             value={claimType}
-            disabled={Boolean(resumeAttempt)} onChange={(event) => setClaimType(event.target.value)}
+            readOnly
             required
           />
         </label>
@@ -617,7 +621,7 @@ export default function SubmitClaimPage() {
           <select
             aria-label="Hospital ID"
             value={hospitalId}
-            disabled={Boolean(resumeAttempt)} onChange={(event) => setHospitalId(event.target.value)}
+            disabled
             required
           >
             <option value="">Select a contracted hospital</option>
@@ -635,7 +639,7 @@ export default function SubmitClaimPage() {
           <input
             type="text"
             value={invoiceNumber}
-            disabled={Boolean(resumeAttempt)} onChange={(event) => setInvoiceNumber(event.target.value)}
+            readOnly
             placeholder="Example: INV-HOSP-001-001"
             required
           />
@@ -655,9 +659,9 @@ export default function SubmitClaimPage() {
         {resumeAttempt && supportingFiles.map((item, index) => <label key={index}>Supporting file slot {index + 2}<input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => setSupportingFiles((values) => values.map((value, slot) => slot === index ? event.target.files?.[0] || null : value))} /></label>)}
         {!resumeAttempt && supportingFiles.length > 0 && <ul>{supportingFiles.map((item, index) => <li key={index}>{item.name}</li>)}</ul>}
 
-        <section aria-label="Invoice readiness" className="rounded-lg border border-[var(--border)] p-3">
-          <p>Dataset examples are not automatically authorized patient invoices. Check wallet binding before uploading evidence.</p>
-          <button type="button" disabled={!isConnected || !hospitalId || !invoiceNumber.trim() || invoiceEligibility.isFetching}
+        <section aria-label="Invoice readiness" className="rounded-lg border border-[var(--line)] bg-[var(--surface-hover)] p-4 grid gap-3">
+          <p>The insurer records the selected episode, revision and bill amount in your claim statement. Workers check these structured facts. Only authorized people can decrypt the attached documents.</p>
+          <button type="button" className="button-secondary" disabled={!isConnected || !hospitalId || !invoiceNumber.trim() || invoiceEligibility.isFetching}
             onClick={() => invoiceEligibility.refetch()}>Check invoice readiness</button>
           {invoiceEligibility.data && <p role="status">{invoiceEligibility.data.message}{invoiceEligibility.data.boundToCurrentWallet && !invoiceEligibility.data.registryUsable ? " The record is not currently valid for automatic verification." : ""}</p>}
           {invoiceEligibility.error && <p role="alert">Invoice readiness could not be checked. No submission was created.</p>}
@@ -677,6 +681,10 @@ export default function SubmitClaimPage() {
             the backend cannot decrypt it.
           </p>
         </div>
+
+        <p className="muted-text">
+          Submitting encrypts evidence locally in your browser, pins encrypted files, and opens MetaMask for your on-chain claim transaction.
+        </p>
 
         <button
           type="submit"

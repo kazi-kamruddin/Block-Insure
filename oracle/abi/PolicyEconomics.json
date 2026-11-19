@@ -166,6 +166,31 @@
         {
           "indexed": true,
           "internalType": "uint256",
+          "name": "policyId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "invoiceId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "filedAt",
+          "type": "uint64"
+        }
+      ],
+      "name": "FilingIntentRecorded",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
           "name": "packageId",
           "type": "uint256"
         },
@@ -272,6 +297,32 @@
       ],
       "name": "TreasuryFundingAttributed",
       "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "CAPPED_FORMULA",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "FILING_EXTENSION",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
     },
     {
       "inputs": [
@@ -540,6 +591,30 @@
           "internalType": "bool",
           "name": "",
           "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "filingIntentAt",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
         }
       ],
       "stateMutability": "view",
@@ -1177,9 +1252,127 @@
           "internalType": "bytes32[]",
           "name": "excludedServices",
           "type": "bytes32[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "limits",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "publishCappedRules",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "packageId",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "version",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "waitingPeriod",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "reinstatementWaitingPeriod",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "claimDeadline",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint16",
+              "name": "minimumDocumentCommitments",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint16",
+              "name": "deductibleRateBps",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint16",
+              "name": "insurerShareBps",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint128",
+              "name": "deductibleCapWei",
+              "type": "uint128"
+            },
+            {
+              "internalType": "uint128",
+              "name": "maximumClaimWei",
+              "type": "uint128"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "exclusionsRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "requiredDocumentsRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "settlementFormulaVersion",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "policyRuleVersion",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct PolicyEconomics.PackageRules",
+          "name": "rules",
+          "type": "tuple"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "allowedServices",
+          "type": "bytes32[]"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "excludedServices",
+          "type": "bytes32[]"
         }
       ],
       "name": "publishPackageRules",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "policyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "invoiceId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "recordFilingIntent",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1327,6 +1520,72 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "reservedService",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "claimId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "reviseActiveReservation",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "serviceSublimit",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
           "name": "claimId",
           "type": "uint256"
         }
@@ -1448,6 +1707,35 @@
         }
       ],
       "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "policyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "invoiceId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint64",
+          "name": "incidentAt",
+          "type": "uint64"
+        }
+      ],
+      "name": "withinFilingWindow",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     }
   ]

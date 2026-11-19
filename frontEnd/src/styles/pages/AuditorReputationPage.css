@@ -28,7 +28,7 @@
   margin-right: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #26344a;
+  background: var(--surface-hover);
   vertical-align: middle;
 }
 

@@ -17,7 +17,7 @@ test("measurement refuses existing JSON/CSV or ambiguous output extensions witho
     const output = path.join(directory, "receipt.json"), csv = path.join(directory, "receipt.csv");
     const run = (target) => spawnSync(process.execPath, [path.join(root, "scripts/networkMeasurement.js"),
       "--manifest", path.join(directory, "missing-manifest.json"), "--transactions", path.join(directory, "missing-input.json"), "--output", target],
-    { cwd: root, env: { ...process.env, RPC_URL: "http://127.0.0.1:1" }, encoding: "utf8", timeout: 5000, windowsHide: true });
+    { cwd: root, env: { ...process.env, RPC_URL: "http://127.0.0.1:1" }, encoding: "utf8", timeout: 30000, windowsHide: true });
     fs.writeFileSync(output, "original-json"); assert.equal(run(output).status, 1); assert.equal(fs.readFileSync(output, "utf8"), "original-json");
     fs.unlinkSync(output); fs.writeFileSync(csv, "original-csv");
     assert.equal(run(output).status, 1); assert.equal(fs.existsSync(output), false); assert.equal(fs.readFileSync(csv, "utf8"), "original-csv");

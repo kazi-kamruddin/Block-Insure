@@ -18,7 +18,7 @@ export default function CopyableText({ value, label = "Copy", short = false }) {
 
       window.setTimeout(() => {
         setCopied(false);
-      }, 1200);
+      }, 1400);
     } catch (error) {
       console.error("Copy failed:", error);
     }
@@ -26,8 +26,13 @@ export default function CopyableText({ value, label = "Copy", short = false }) {
 
   return (
     <span className="copyable-text">
-      <code>{displayText}</code>{" "}
-      <button type="button" className="small-button" onClick={handleCopy}>
+      <code title={short ? text : undefined}>{displayText}</code>
+      <button
+        type="button"
+        className="small-button"
+        aria-label={copied ? `${label} copied` : `${label}: ${displayText}`}
+        onClick={handleCopy}
+      >
         {copied ? "Copied" : label}
       </button>
     </span>

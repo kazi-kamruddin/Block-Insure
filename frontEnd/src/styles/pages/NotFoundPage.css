@@ -1,10 +1,17 @@
 .page-not-found {
-  min-height: 48vh;
+  min-height: 52vh;
   display: grid;
   place-content: center;
   text-align: center;
 }
 
-.page-not-found a {
-  justify-self: center;
+.not-found-card {
+  max-width: 30rem;
+  display: grid;
+  gap: 12px;
+  padding: 28px;
+}
+
+.not-found-card p {
+  margin: 0 auto;
 }

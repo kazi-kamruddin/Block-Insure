@@ -1,6 +1,12 @@
 import { Link } from "react-router-dom";
+import { REQUIRED_CHAIN_ID, REQUIRED_NETWORK_NAME } from "../services/contractService";
 
 export default function Footer() {
+  const networkLabel =
+    REQUIRED_CHAIN_ID === 31337
+      ? "Local Hardhat network (31337)"
+      : `${REQUIRED_NETWORK_NAME} (${REQUIRED_CHAIN_ID})`;
+
   return (
     <footer className="site-footer">
       <div className="footer-inner">
@@ -23,7 +29,7 @@ export default function Footer() {
       </div>
       <div className="footer-meta">
         <span>Thesis research prototype</span>
-        <span>Local development network</span>
+        <span>{networkLabel}</span>
         <span>No real patient or financial data</span>
       </div>
     </footer>

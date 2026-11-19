@@ -72,7 +72,7 @@
 
 .claim-detail-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(min(100%, 320px), 0.65fr);
   align-items: start;
   gap: 18px;
   margin-top: 18px;
@@ -80,11 +80,11 @@
 
 .claim-detail-workspace .appeal-card {
   position: sticky;
-  top: 92px;
+  top: 124px;
 }
 
 .section-eyebrow {
-  color: var(--brand);
+  color: var(--brand-strong);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;

@@ -68,12 +68,16 @@ export default function AuditorReputationPage() {
 
   return (
     <section className="page-container page-auditor-reputation">
-      <h2>Auditor Reputation</h2>
-      <p>This score measures agreement with finalized quorum decisions. It does not measure independently verified fraud-detection accuracy or clinical expertise. Review expiry is not a merits observation.</p>
-
-      <button type="button" onClick={() => refetch()} disabled={isFetching}>
-        {isFetching ? "Refreshing..." : "Refresh Reputation"}
-      </button>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Quorum governance</span>
+          <h1>Auditor Reputation</h1>
+        </div>
+        <button type="button" className="button-secondary" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? "Refreshing..." : "Refresh Reputation"}
+        </button>
+      </div>
+      <p className="muted-text">This score measures agreement with finalized quorum decisions. It does not measure independently verified fraud-detection accuracy or clinical expertise. Review expiry is not a merits observation.</p>
 
       {isLoading ? <p>Loading auditors...</p> : null}
 
@@ -92,6 +96,7 @@ export default function AuditorReputationPage() {
 
       {auditors.length > 0 ? (
         <div className="card auditor-reputation-card">
+          <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -129,6 +134,7 @@ export default function AuditorReputationPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ) : null}
     </section>

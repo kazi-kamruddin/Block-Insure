@@ -60,6 +60,10 @@ describe("Phase 3 - Policy economics and Solidity rules", function () {
       policyRuleVersion: hash(`policy-rules-${version}`),
       ...overrides,
     };
+    if (overrides.limits) {
+      await economics.publishCappedRules(1, rules, overrides.allowedServices || [surgery], [], overrides.limits);
+      return;
+    }
     await economics.publishPackageRules(
       1,
       rules,
@@ -67,6 +71,37 @@ describe("Phase 3 - Policy economics and Solidity rules", function () {
       overrides.excludedServices || []
     );
   }
+
+  it("applies the issued service sublimit, deductible, share and remaining coverage in order", async () => {
+    const eth = ethers.parseEther;
+    const { manager, economics, user } = await deployFixture({ configuredRules: {
+      settlementFormulaVersion: hash("BLOCK_INSURE_SETTLEMENT_V2"), deductibleCapWei: coverage,
+      allowedServices: [hash("SURGERY"), hash("HEALTH")], limits: [eth("0.8"), coverage],
+    } });
+    const policy = await manager.getPolicy(1);
+    await manager.connect(user).submitClaim(1, eth("0.833333333333333334"), policy.startDate, "HEALTH", "HOSP-001",
+      hash("first-invoice"), hash("first-document"), "ipfs://first");
+    expect(await economics.remainingCoverage(1)).to.equal(eth("0.4"));
+    await submit(manager, user, "capped", coverage);
+    const result = await manager.calculateSettlement(2);
+    expect(Array.from(result)).to.deep.equal([coverage, eth("0.08"), eth("0.72"), eth("0.4"), eth("0.6")]);
+    expect(await economics.remainingCoverage(1)).to.equal(0n);
+    expect(await economics.invoiceClaimId(hash("invoice-capped"))).to.equal(2n);
+  });
+
+  it("tolls only the holder's identified invoice when intent precedes its original filing deadline", async () => {
+    const { manager, economics, user, other } = await deployFixture({ configuredRules: {
+      settlementFormulaVersion: hash("BLOCK_INSURE_SETTLEMENT_V2"), claimDeadline: 100, limits: [coverage],
+    } });
+    const invoice = hash("invoice-delayed");
+    await expect(economics.connect(other).recordFilingIntent(1, invoice)).to.be.reverted;
+    await economics.connect(user).recordFilingIntent(1, invoice);
+    await expect(economics.connect(user).recordFilingIntent(1, invoice)).to.be.reverted;
+    await time.increase(101);
+    expect(await economics.withinFilingWindow(1, hash("invoice-missing-intent"), (await manager.getPolicy(1)).startDate)).to.equal(false);
+    await expect(submit(manager, user, "missing-intent")).to.be.reverted;
+    await submit(manager, user, "delayed");
+  });
 
   async function submit(manager, user, suffix, amount = ethers.parseEther("0.2"), incidentDate) {
     const policy = await manager.getPolicy(1);

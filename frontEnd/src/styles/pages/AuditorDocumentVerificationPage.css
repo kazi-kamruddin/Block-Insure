@@ -5,7 +5,7 @@
 
 .document-verification-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 1.4fr) minmax(260px, 0.8fr);
+  grid-template-columns: minmax(min(100%, 280px), 1.4fr) minmax(min(100%, 260px), 0.8fr);
   gap: 16px;
   align-items: stretch;
 }
@@ -86,15 +86,15 @@
   width: 54px;
   height: 54px;
   border-radius: 50%;
-  background: var(--success);
-  color: #07131f;
+  background: #15803d;
+  color: #ffffff;
   font-size: 34px;
   font-weight: 900;
   line-height: 1;
 }
 
 .is-mismatch .verification-result-head > span {
-  background: var(--danger);
+  background: #b91c1c;
 }
 
 .verification-result-head h3,
@@ -111,7 +111,7 @@
 .hash-comparison-grid,
 .claim-integrity-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 10px;
 }
 

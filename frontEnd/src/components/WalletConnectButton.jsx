@@ -19,39 +19,47 @@ export default function WalletConnectButton() {
 
   if (isConnected) {
     return (
-      <div className="wallet-box" data-connected="true">
-        <span className="wallet-avatar" aria-hidden="true">
-          <span className="wallet-status-dot" />
-          {role?.slice(0, 1) || "W"}
-        </span>
-        <span className="wallet-identity">
-          <span className="wallet-address" title={walletAddress}>
-            {shortAddress(walletAddress)}
+      <div className="wallet-control">
+        <div className="wallet-box" data-connected="true">
+          <span className="wallet-avatar" aria-hidden="true">
+            <span className="wallet-status-dot" />
+            {role?.slice(0, 1) || "W"}
           </span>
-          <span className="wallet-role">{role}</span>
-        </span>
-        <button type="button" onClick={logout}>
-          Logout
-        </button>
+          <span className="wallet-identity">
+            <span className="wallet-address" title={walletAddress}>
+              {shortAddress(walletAddress)}
+            </span>
+            <span className="wallet-role">{role}</span>
+          </span>
+          <button
+            type="button"
+            onClick={logout}
+            aria-label={`Log out ${role} wallet ${shortAddress(walletAddress)}`}
+          >
+            Logout
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="wallet-box" data-connected="false">
-      <button
-        type="button"
-        onClick={connectWallet}
-        disabled={isConnecting || isRestoringSession}
-      >
-        {isRestoringSession
-          ? "Checking session..."
-          : isConnecting
-            ? "Connecting..."
-            : "Connect wallet"}
-      </button>
+    <div className="wallet-control">
+      <div className="wallet-box" data-connected="false">
+        <button
+          type="button"
+          onClick={connectWallet}
+          disabled={isConnecting || isRestoringSession}
+        >
+          {isRestoringSession
+            ? "Checking session..."
+            : isConnecting
+              ? "Connecting..."
+              : "Connect wallet"}
+        </button>
+      </div>
       {error ? (
-        <small className="error-text" role="alert">
+        <small className="wallet-inline-error error-text" role="alert">
           {error}
         </small>
       ) : null}

@@ -155,104 +155,24 @@ export default function PolicyListPage() {
 
   return (
     <section className="page-container page-policy-list">
-      <h2>Buy Policy</h2>
-
-      <button type="button" onClick={() => refetch()} disabled={isFetching}>
-        {isFetching ? "Refreshing..." : "Refresh Packages"}
-      </button>
-
-      <details className="card risk-pricing-card research-tools-panel">
-        <summary>Optional research pricing preview</summary>
-        <h3>Premium Simulation — Not Applied at Checkout</h3>
-        <p className="muted-text">
-          Transparent underwriting demo. Final purchase still pays the smart-contract
-          package premium until on-chain risk pricing is activated.
-        </p>
-        <div className="form-grid">
-          <label>
-            Age band
-            <select
-              value={riskProfile.ageBand}
-              onChange={(event) => updateRiskProfile("ageBand", event.target.value)}
-            >
-              <option value="UNDER_30">Under 30</option>
-              <option value="30_45">30-45</option>
-              <option value="46_60">46-60</option>
-              <option value="OVER_60">Over 60</option>
-            </select>
-            <small>Age cohort used by this transparent demonstration model.</small>
-          </label>
-          <label>
-            Selected risk level
-            <select
-              value={riskProfile.selectedRiskLevel}
-              onChange={(event) =>
-                updateRiskProfile("selectedRiskLevel", event.target.value)
-              }
-            >
-              <option value="LOW">Low</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="HIGH">High</option>
-            </select>
-            <small>Self-selected scenario severity; this is not a medical assessment.</small>
-          </label>
-          <label>
-            Treatment category
-            <select
-              value={riskProfile.treatmentCategory}
-              onChange={(event) =>
-                updateRiskProfile("treatmentCategory", event.target.value)
-              }
-            >
-              <option value="CONSULTATION">Consultation</option>
-              <option value="HOSPITALIZATION">Hospitalization</option>
-              <option value="SURGERY">Surgery</option>
-              <option value="EMERGENCY">Emergency</option>
-            </select>
-            <small>Treatment category used to estimate relative underwriting exposure.</small>
-          </label>
-          <label>
-            Claim history count
-            <input
-              type="number"
-              min="0"
-              max="5"
-              value={riskProfile.claimHistoryCount}
-              onChange={(event) =>
-                updateRiskProfile("claimHistoryCount", event.target.value)
-              }
-            />
-            <small>Prior-claim count used only for this quote simulation.</small>
-          </label>
-          <details>
-            <summary>Developer-only multiplier override</summary>
-            <label>
-              Manual multiplier
-              <input
-                type="number"
-                min="0.5"
-                max="3"
-                step="0.05"
-                value={riskProfile.manualMultiplier}
-                onChange={(event) =>
-                  updateRiskProfile("manualMultiplier", event.target.value)
-                }
-                placeholder="Optional"
-              />
-              <small>Testing control; normal customers would not set this value.</small>
-            </label>
-          </details>
+      <div className="page-header-row">
+        <div>
+          <h1>Buy Policy</h1>
+          <p>Review full policy terms, schedule commitments, and purchase active coverage on-chain.</p>
         </div>
-      </details>
+        <button type="button" className="button-secondary" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? "Refreshing..." : "Refresh Packages"}
+        </button>
+      </div>
 
       {loadError ? (
-        <p className="error-text">
+        <p className="error-text" role="alert">
           {loadError.message || "Could not load policy packages"}
         </p>
       ) : null}
 
-      {buyError ? <p className="error-text">{buyError}</p> : null}
-      {successMessage ? <p className="success-text">{successMessage}</p> : null}
+      {buyError ? <p className="error-text" role="alert">{buyError}</p> : null}
+      {successMessage ? <p className="success-text" role="status">{successMessage}</p> : null}
 
       {txHash ? (
         <p>
@@ -260,14 +180,10 @@ export default function PolicyListPage() {
         </p>
       ) : null}
 
-      {isLoading ? <p>Loading policy packages...</p> : null}
+      {isLoading ? <p role="status">Loading policy packages...</p> : null}
 
       {!isLoading && packages.length === 0 ? (
         <p>No active policy packages found.</p>
-      ) : null}
-
-      {packages.length > 0 ? (
-        <PolicyEligibilitySimulator packages={packages} />
       ) : null}
 
       <div className="card-row">
@@ -285,6 +201,96 @@ export default function PolicyListPage() {
         pagination={data?.pagination}
         onPageChange={setPage}
       />
+
+      <section aria-label="Coverage estimator and research pricing" className="mt-8 grid gap-4">
+        <details className="card risk-pricing-card research-tools-panel">
+          <summary>Optional research pricing preview</summary>
+          <h3>Premium Simulation — Not Applied at Checkout</h3>
+          <p className="muted-text">
+            Transparent underwriting demo. Final purchase still pays the smart-contract
+            package premium until on-chain risk pricing is activated.
+          </p>
+          <div className="form-grid">
+            <label>
+              Age band
+              <select
+                value={riskProfile.ageBand}
+                onChange={(event) => updateRiskProfile("ageBand", event.target.value)}
+              >
+                <option value="UNDER_30">Under 30</option>
+                <option value="30_45">30-45</option>
+                <option value="46_60">46-60</option>
+                <option value="OVER_60">Over 60</option>
+              </select>
+              <small>Age cohort used by this transparent demonstration model.</small>
+            </label>
+            <label>
+              Selected risk level
+              <select
+                value={riskProfile.selectedRiskLevel}
+                onChange={(event) =>
+                  updateRiskProfile("selectedRiskLevel", event.target.value)
+                }
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </select>
+              <small>Self-selected scenario severity; this is not a medical assessment.</small>
+            </label>
+            <label>
+              Treatment category
+              <select
+                value={riskProfile.treatmentCategory}
+                onChange={(event) =>
+                  updateRiskProfile("treatmentCategory", event.target.value)
+                }
+              >
+                <option value="CONSULTATION">Consultation</option>
+                <option value="HOSPITALIZATION">Hospitalization</option>
+                <option value="SURGERY">Surgery</option>
+                <option value="EMERGENCY">Emergency</option>
+              </select>
+              <small>Treatment category used to estimate relative underwriting exposure.</small>
+            </label>
+            <label>
+              Claim history count
+              <input
+                type="number"
+                min="0"
+                max="5"
+                value={riskProfile.claimHistoryCount}
+                onChange={(event) =>
+                  updateRiskProfile("claimHistoryCount", event.target.value)
+                }
+              />
+              <small>Prior-claim count used only for this quote simulation.</small>
+            </label>
+            <details>
+              <summary>Developer-only multiplier override</summary>
+              <label>
+                Manual multiplier
+                <input
+                  type="number"
+                  min="0.5"
+                  max="3"
+                  step="0.05"
+                  value={riskProfile.manualMultiplier}
+                  onChange={(event) =>
+                    updateRiskProfile("manualMultiplier", event.target.value)
+                  }
+                  placeholder="Optional"
+                />
+                <small>Testing control; normal customers would not set this value.</small>
+              </label>
+            </details>
+          </div>
+        </details>
+
+        {packages.length > 0 ? (
+          <PolicyEligibilitySimulator packages={packages} />
+        ) : null}
+      </section>
     </section>
   );
 }

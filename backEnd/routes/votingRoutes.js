@@ -1,6 +1,6 @@
 const express = require("express");
 const {
-  getClaimVoteSummary,
+  getClaimVoteSummary, prepareVoteReason,
 } = require("../controllers/votingController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
@@ -14,4 +14,5 @@ router.get(
   getClaimVoteSummary
 );
 
+router.post("/claim/:claimId/reason", authMiddleware, requireRole("AUDITOR"), prepareVoteReason);
 module.exports = router;

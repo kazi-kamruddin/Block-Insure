@@ -69,6 +69,7 @@ const evaluatePolicyEligibility = ({
   preExistingCondition = false,
   disclosedAtPurchase = false,
   currentTimestamp = Math.floor(Date.now() / 1000),
+  filingWindow,
 }) => {
   const start = parseUnixSeconds(policyStartDate, "policyStartDate");
   const end = parseUnixSeconds(policyEndDate, "policyEndDate");
@@ -173,18 +174,20 @@ const evaluatePolicyEligibility = ({
       outcome = "EXCLUDED";
       reasons.push(createReason("MAXIMUM_CLAIM_EXCEEDED", "Requested amount exceeds the issued maximum claim amount.", "BLOCK"));
     }
-    if (currentTimestamp > incident + terms.claimDeadlineDays * DAY_SECONDS) {
+    if (filingWindow === false || (filingWindow === undefined && currentTimestamp > incident + terms.claimDeadlineDays * DAY_SECONDS)) {
       outcome = "OUTSIDE_COVERAGE";
       reasons.push(createReason("CLAIM_DEADLINE", "The issued claim submission deadline has passed.", "BLOCK"));
     }
   }
   const remaining = terms.remainingCoverageWei === undefined ? coverageWei : BigInt(terms.remainingCoverageWei);
   const cappedWei = requestedWei < remaining ? requestedWei : remaining;
-  const nominalDeductible = terms.authoritative ? requestedWei * BigInt(terms.deductibleRateBps) / 10000n : 0n;
+  const limit = terms.serviceSublimitsWei?.[ethers.id(String(claimType).trim().toUpperCase())];
+  const eligible = limit && BigInt(limit) < requestedWei ? BigInt(limit) : requestedWei;
+  const nominalDeductible = terms.authoritative ? eligible * BigInt(terms.deductibleRateBps) / 10000n : 0n;
   const deductible = terms.authoritative && nominalDeductible > BigInt(terms.deductibleCapWei) ? BigInt(terms.deductibleCapWei) : nominalDeductible;
-  const afterDeductible = requestedWei > deductible ? requestedWei - deductible : 0n;
+  const afterDeductible = eligible > deductible ? eligible - deductible : 0n;
   const shared = afterDeductible * BigInt(terms.coinsuranceBps) / 10000n;
-  if (terms.authoritative && (shared <= 0n || shared > remaining)) {
+  if (terms.authoritative && (shared <= 0n || remaining === 0n || (!terms.serviceSublimitsWei && shared > remaining))) {
     outcome = "OUTSIDE_COVERAGE";
     reasons.push(createReason("INSUFFICIENT_REMAINING_COVERAGE", "Calculated insurer liability is zero or exceeds remaining coverage; the contract rejects this claim.", "BLOCK"));
   }

@@ -50,11 +50,15 @@ export default function AdminClaimListPage() {
 
   return (
     <section className="page-container page-admin-claim-list">
-      <h2>Admin Claims</h2>
-
-      <button type="button" onClick={() => refetch()} disabled={isFetching}>
-        {isFetching ? "Refreshing..." : "Refresh Claims"}
-      </button>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Adjudication queue</span>
+          <h1>Admin Claims</h1>
+        </div>
+        <button type="button" className="button-secondary" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? "Refreshing..." : "Refresh Claims"}
+        </button>
+      </div>
       <div className="list-toolbar" role="search">
         <label className="compact-filter">
           Search queue
@@ -96,15 +100,35 @@ export default function AdminClaimListPage() {
       {isLoading ? <p>Loading claims...</p> : null}
 
       {!isLoading && !error && claims.length === 0 ? (
-        <div className="card empty-state">
-          <span className="dashboard-eyebrow">Clean operational state</span>
-          <h3>No claims require review</h3>
-          <p>
-            Claims will appear here after a policyholder submits one. Nothing
-            has been pre-populated into this queue.
-          </p>
-          <Link to="/admin/dashboard">Return to Portfolio Overview</Link>
-        </div>
+        statusFilter !== "ALL" || normalizedSearch ? (
+          <div className="card empty-state">
+            <span className="dashboard-eyebrow">Filtered queue</span>
+            <h3>No claims match your filters</h3>
+            <p>
+              Try clearing the search query or switching back to All claims.
+            </p>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => {
+                setStatusFilter("ALL");
+                setSearchTerm("");
+              }}
+            >
+              Reset filters
+            </button>
+          </div>
+        ) : (
+          <div className="card empty-state">
+            <span className="dashboard-eyebrow">Clean operational state</span>
+            <h3>No claims require review</h3>
+            <p>
+              Claims will appear here after a policyholder submits one. Nothing
+              has been pre-populated into this queue.
+            </p>
+            <Link to="/admin/dashboard">Return to Portfolio Overview</Link>
+          </div>
+        )
       ) : null}
 
       <div className="card-row">
