@@ -103,7 +103,7 @@ function GasComparisonChart({ row }) {
   const merkleHeight = Math.max(8, (row.merkle_gas / maxGas) * 130);
 
   return (
-    <svg className="gas-chart" viewBox="0 0 320 180" role="img">
+    <svg className="gas-chart" viewBox="0 0 320 180" role="img" aria-label="Individual vs Merkle root gas consumption comparison chart">
       <line x1="40" y1="150" x2="290" y2="150" />
       <rect
         className="gas-chart-individual"
@@ -155,7 +155,7 @@ function ThroughputLatencyChart({ rows = [] }) {
     .join(" ");
 
   return (
-    <svg className="throughput-chart" viewBox="0 0 330 190" role="img">
+    <svg className="throughput-chart" viewBox="0 0 330 190" role="img" aria-label="Claim throughput and average end-to-end latency across concurrency levels">
       <line x1="36" y1="150" x2="300" y2="150" />
       <polyline points={points} />
       {chartRows.map((row, index) => {
@@ -290,16 +290,20 @@ export default function ThesisResultsDashboardPage() {
 
   return (
     <section className="page-container page-thesis-results">
-      <h2>Thesis Results Dashboard</h2>
-      <p className="muted">
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Empirical evaluation</span>
+          <h1>Thesis Results Dashboard</h1>
+        </div>
+        <button type="button" className="button-secondary" onClick={refreshAll} disabled={anyLoading}>
+          {anyLoading ? "Refreshing..." : "Refresh Results"}
+        </button>
+      </div>
+      <p className="muted-text">
         Recorded research results and current chain activity are separate evidence.
         Historical classification metrics do not validate the revised observable-only runtime;
         its predictive performance requires a fresh evaluation. Local measurements are not deployed L1/L2 fees.
       </p>
-
-      <button type="button" onClick={refreshAll} disabled={anyLoading}>
-        {anyLoading ? "Refreshing..." : "Refresh Results"}
-      </button>
 
       <div className="thesis-section card">
         <div className="thesis-section-head">
@@ -600,6 +604,7 @@ export default function ThesisResultsDashboardPage() {
         </div>
 
         <div className="thesis-two-column">
+          <div className="table-wrap">
           <table className="confusion-matrix">
             <thead>
               <tr>
@@ -629,6 +634,7 @@ export default function ThesisResultsDashboardPage() {
               </tr>
             </tbody>
           </table>
+          </div>
 
           <div className="risk-level-list">
             {riskLevelRows.map(([level, count]) => (

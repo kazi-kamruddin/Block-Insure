@@ -3,11 +3,12 @@
 }
 
 .page-admin-claim-detail .card:first-of-type {
+  border-left: 4px solid var(--brand);
   background: linear-gradient(
     135deg,
-    rgba(45, 212, 191, 0.08),
-    rgba(21, 31, 51, 0.98)
-  );
+    var(--brand-soft),
+    transparent 60%
+  ), var(--surface);
 }
 
 .page-admin-claim-detail .form-grid {
@@ -173,7 +174,7 @@
 }
 .admin-claim-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(340px, 0.9fr);
+  grid-template-columns: minmax(0, 1.6fr) minmax(min(100%, 340px), 0.9fr);
   align-items: start;
   gap: 18px;
   margin-top: 18px;
@@ -187,8 +188,8 @@
 
 .admin-claim-sidebar {
   position: sticky;
-  top: 18px;
-  max-height: calc(100vh - 36px);
+  top: 124px;
+  max-height: calc(100vh - 140px);
   overflow: auto;
   padding-right: 4px;
 }

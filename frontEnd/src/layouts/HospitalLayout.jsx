@@ -15,8 +15,14 @@ export default function HospitalLayout() {
     return () => window.removeEventListener("blockinsure:hospital-session-expired", expire);
   }, []);
   if (expired || !readHospitalSession() || [401, 403].includes(session.error?.response?.status)) return <Navigate to="/hospital/login" replace />;
-  if (session.isPending) return <p role="status">Restoring hospital session…</p>;
-  if (session.isError) return <section className="page-container"><p role="alert">Hospital session check is unavailable.</p><button onClick={() => session.refetch()}>Retry session check</button></section>;
+  if (session.isPending) {
+    return (
+      <div className="route-loading" role="status" aria-live="polite">
+        Restoring hospital session…
+      </div>
+    );
+  }
+  if (session.isError) return <section className="page-container"><p role="alert">Hospital session check is unavailable.</p><button type="button" onClick={() => session.refetch()}>Retry session check</button></section>;
   const logout = async () => {
     try {
       await logoutHospital();
@@ -26,13 +32,22 @@ export default function HospitalLayout() {
   };
   return <div className="workspace-shell" data-role="hospital">
     <div className="workspace-navigation">
-      <div className="workspace-identity"><span><small>Hospital staff</small><strong>{session.data.staff.displayName} · {session.data.staff.hospitalId}</strong></span></div>
+      <div className="workspace-identity" aria-hidden="true">
+        <span className="workspace-identity-icon">H</span>
+        <span>
+          <small>Hospital staff</small>
+          <strong>{session.data.staff.displayName} · {session.data.staff.hospitalId}</strong>
+        </span>
+      </div>
       <nav className="subnav" aria-label="Hospital navigation">
-        <NavLink to="/hospital/dashboard">Overview</NavLink><NavLink to="/hospital/records">Patient &amp; Invoices</NavLink>
-        <button type="button" onClick={logout} style={{ minHeight: 44 }}>Sign out all staff sessions</button>
+        <NavLink to="/hospital/dashboard">Overview</NavLink>
+        <NavLink to="/hospital/records">Patient &amp; Invoices</NavLink>
       </nav>
+      <div className="workspace-nav-actions">
+        <button type="button" className="button-secondary" onClick={logout}>Sign out all staff sessions</button>
+      </div>
     </div>
-    {logoutError && <p role="alert">{logoutError}</p>}
+    {logoutError && <p className="error-text page-container pb-0!" role="alert">{logoutError}</p>}
     <Outlet context={{ staff: session.data.staff }} />
   </div>;
 }

@@ -60,7 +60,7 @@ export default function HospitalRecordsPage() {
       <div className="hospital-heading">
         <div>
           <span className="dashboard-eyebrow">Hospital-owned data</span>
-          <h2>Patient and Invoice Records</h2>
+          <h1>Patient and Invoice Records</h1>
           <p>Only authorized staff assigned to this hospital can maintain these source records.</p>
         </div>
       </div>
@@ -100,9 +100,11 @@ export default function HospitalRecordsPage() {
                   const updates = Object.fromEntries(Object.entries(values).filter(([key, value]) =>
                     value !== (key.endsWith("Date") ? record[key].slice(0, 10) : String(record[key]))));
                   if (Object.keys(updates).length) correctionMutation.mutate({ id: record.id, updates: { ...updates, revision: record.revision } });
-                }}><input aria-label={`Correct bill for ${record.invoiceNumber}`} name="billAmount" defaultValue={record.billAmount} type="number" step="any" min="0.000000000000000001" required /><details><summary>Care and dates</summary>
+                }} className="grid gap-2"><input aria-label={`Correct bill for ${record.invoiceNumber}`} name="billAmount" defaultValue={record.billAmount} type="number" step="any" min="0.000000000000000001" required /><details><summary>Care and dates</summary>
+                  <div className="grid gap-2 mt-2">
                   {["treatmentType", "diagnosisCode", "admissionDate", "dischargeDate", "invoiceDate"].map(key => <label key={key}>{({ treatmentType: "Treatment type", diagnosisCode: "Diagnosis code", admissionDate: "Admission date", dischargeDate: "Discharge date", invoiceDate: "Invoice date" })[key]} for {record.invoiceNumber}<input name={key} type={key.endsWith("Date") ? "date" : "text"} defaultValue={key.endsWith("Date") ? record[key]?.slice(0, 10) : record[key]} required /></label>)}
-                  </details><button disabled={correctionMutation.isPending}>Save correction</button></form></td>
+                  </div>
+                  </details><button type="submit" className="button-secondary" disabled={correctionMutation.isPending}>Save correction</button></form></td>
               </tr>
             ))}</tbody>
           </table></div>

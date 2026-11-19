@@ -99,15 +99,20 @@ export default function MyPoliciesPage() {
 
   return (
     <section className="page-container page-my-policies">
-      <h2>My Policies</h2>
-
-      <button
-        type="button"
-        onClick={() => refetch()}
-        disabled={!isConnected || isFetching}
-      >
-        {isFetching ? "Refreshing..." : "Refresh My Policies"}
-      </button>
+      <div className="page-header-row">
+        <div>
+          <h1>My Policies</h1>
+          <p>Review active terms, pay upcoming installments, and manage optional cancellation refunds.</p>
+        </div>
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={() => refetch()}
+          disabled={!isConnected || isFetching}
+        >
+          {isFetching ? "Refreshing..." : "Refresh My Policies"}
+        </button>
+      </div>
 
       {error ? (
         <p className="error-text">

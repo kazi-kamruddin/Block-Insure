@@ -26,7 +26,7 @@
 
 .public-policy-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 20px;
 }
 
@@ -39,14 +39,6 @@
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  transition: all 180ms ease;
-}
-
-.public-policy-card:hover {
-  border-color: var(--line-strong);
-  background: var(--surface-hover);
-  box-shadow: var(--shadow);
-  transform: translateY(-2px);
 }
 
 .public-policy-card h2 {

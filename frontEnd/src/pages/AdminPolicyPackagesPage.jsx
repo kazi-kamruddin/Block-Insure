@@ -122,14 +122,19 @@ export default function AdminPolicyPackagesPage() {
 
   return (
     <section className="page-container page-admin-policy-packages">
-      <h2>Admin Policy Packages</h2>
-
-      <div className="action-row">
-        <Link to="/admin/policy-packages/new">Create New Package</Link>
-
-        <button type="button" onClick={() => refetch()} disabled={isFetching}>
-          {isFetching ? "Refreshing..." : "Refresh Packages"}
-        </button>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Product catalog</span>
+          <h1>Admin Policy Packages</h1>
+        </div>
+        <div className="action-row">
+          <Link to="/admin/policy-packages/new" className="button-link">
+            Create New Package
+          </Link>
+          <button type="button" className="button-secondary" onClick={() => refetch()} disabled={isFetching}>
+            {isFetching ? "Refreshing..." : "Refresh Packages"}
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -170,6 +175,7 @@ export default function AdminPolicyPackagesPage() {
             <div className="action-row">
               <button
                 type="button"
+                className="button-secondary"
                 onClick={() => startEditing(policyPackage)}
                 disabled={Boolean(actingPackageId)}
               >

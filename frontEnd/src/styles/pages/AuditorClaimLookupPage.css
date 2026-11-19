@@ -18,7 +18,7 @@
 
 .auditor-claim-card {
   display: grid;
-  grid-template-columns: minmax(240px, 1.2fr) minmax(300px, 1.6fr) auto;
+  grid-template-columns: minmax(min(100%, 240px), 1.2fr) minmax(min(100%, 300px), 1.6fr) auto;
   align-items: center;
   gap: 18px;
 }

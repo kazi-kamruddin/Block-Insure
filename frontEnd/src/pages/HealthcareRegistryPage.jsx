@@ -214,7 +214,7 @@ export default function HealthcareRegistryPage() {
 
   return (
     <section className="page-container page-healthcare-registry">
-      <h2>Hybrid External Registry</h2>
+      <h1>Hybrid External Registry</h1>
       {role === "ADMIN" && <form className="card form-grid" onSubmit={event => {
         event.preventDefault();
         const data = Object.fromEntries(new FormData(event.currentTarget));

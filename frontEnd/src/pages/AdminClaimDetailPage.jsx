@@ -353,15 +353,20 @@ export default function AdminClaimDetailPage() {
 
   return (
     <section className="page-container page-admin-claim-detail">
-      <h2>Admin Claim Detail</h2>
-
-      <p>
-        <Link to="/admin/claims">Back to Admin Claims</Link>
-      </p>
-
-      <button type="button" onClick={refreshAll}>
-        Refresh Claim
-      </button>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Claim adjudication</span>
+          <h1>Admin Claim Detail</h1>
+        </div>
+        <div className="action-row">
+          <Link to="/admin/claims" className="button-link button-secondary">
+            Back to Admin Claims
+          </Link>
+          <button type="button" className="button-secondary" onClick={refreshAll}>
+            Refresh Claim
+          </button>
+        </div>
+      </div>
 
       <div className="admin-claim-workspace">
         <div className="admin-claim-main">
@@ -392,20 +397,40 @@ export default function AdminClaimDetailPage() {
         <div className="card">
           <h3>Claim #{formatValue(claim.claimId || id)}</h3>
 
-          <p>Policy ID: {formatValue(claim.policyId)}</p>
-          <p>Claimant: {formatValue(claim.claimantWallet)}</p>
-          <p>Amount: {formatValue(claim.claimAmountEth || claim.claimAmount)} ETH</p>
-          <p>Claim type: {formatValue(claim.claimType)}</p>
-          <p>Hospital ID: {formatValue(claim.hospitalId)}</p>
-          <p>
-            Status: <ClaimStatusBadge status={statusName} showHelp />
-          </p>
-          <p>
-            On-chain validation score:{" "}
-          {claim.verificationConfidenceAvailable === false
-              ? "Not calculated"
-            : `${formatValue(claim.verificationConfidence)}/100`}
-          </p>
+          <dl className="detail-kv-grid">
+            <div>
+              <dt>Policy ID</dt>
+              <dd>{formatValue(claim.policyId)}</dd>
+            </div>
+            <div>
+              <dt>Claimant</dt>
+              <dd className="break-all">{formatValue(claim.claimantWallet)}</dd>
+            </div>
+            <div>
+              <dt>Amount</dt>
+              <dd>{formatValue(claim.claimAmountEth || claim.claimAmount)} ETH</dd>
+            </div>
+            <div>
+              <dt>Claim type</dt>
+              <dd>{formatValue(claim.claimType)}</dd>
+            </div>
+            <div>
+              <dt>Hospital ID</dt>
+              <dd>{formatValue(claim.hospitalId)}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd><ClaimStatusBadge status={statusName} showHelp /></dd>
+            </div>
+            <div>
+              <dt>On-chain validation score</dt>
+              <dd>
+                {claim.verificationConfidenceAvailable === false
+                  ? "Not calculated"
+                  : `${formatValue(claim.verificationConfidence)}/100`}
+              </dd>
+            </div>
+          </dl>
           <p className="muted-text">
             Higher is cleaner in the contract’s duplicate-check model. Oracle
             fraud probability is reported separately below.
@@ -611,6 +636,7 @@ export default function AdminClaimDetailPage() {
               </div>
 
               {voteSummary.voters?.length > 0 ? (
+                <div className="table-wrap">
                 <table className="voter-table">
                   <thead>
                     <tr>
@@ -629,6 +655,7 @@ export default function AdminClaimDetailPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               ) : (
                 <p>No auditor votes have been cast yet.</p>
               )}

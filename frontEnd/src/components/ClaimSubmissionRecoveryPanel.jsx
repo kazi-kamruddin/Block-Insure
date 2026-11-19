@@ -23,20 +23,56 @@ export default function ClaimSubmissionRecoveryPanel({ onResume, onCompleted, re
     } catch (failure) { setError(failure.response?.data?.message || failure.shortMessage || failure.message); }
     finally { setActing(""); }
   }
-  return <section className="card min-w-0 break-words" aria-label="Claim submission recovery"><h3>Continue an unfinished claim</h3>
-    <p>Uploaded evidence and the original authorization are retained. Recovery completes an existing transaction rather than consuming another claim submission.</p>
-    {attempts.map((attempt) => <article key={attempt._id} className="my-3 border-t border-[var(--border)] pt-3"><p>Policy #{attempt.policyId} · {attempt.status} · {attempt.documentIds.length}/{attempt.expectedEvidenceCount} selected files uploaded</p>
-      {!attempt.sealedAt && !attempt.transactionHash && <button type="button" disabled={Boolean(acting)} onClick={() => onResume(attempt)}>Resume evidence uploads</button>}
-      {!attempt.sealedAt && !attempt.transactionHash && ["AUTHORIZED", "UPLOADED"].includes(attempt.status) && <button type="button" disabled={Boolean(acting)} onClick={async () => {
-        if (!window.confirm("Abandon this unsubmitted attempt and remove its unused encrypted uploads?")) return;
-        setActing(attempt._id); setError("");
-        try { await api.delete(`/api/claims/submission-attempts/${attempt._id}`, { data: { reason: "Owner abandoned an unsubmitted evidence preparation" } }); await query.refetch(); }
-        catch (failure) { setError(failure.response?.data?.message || failure.message); }
-        finally { setActing(""); }
-      }}>Abandon unsubmitted attempt</button>}
-      {attempt.status === "UPLOADED" && !attempt.sealedAt && <button type="button" disabled={Boolean(acting)} onClick={() => run(attempt)}>Submit prepared claim</button>}
-      {!attempt.sealedAt && attempt.status === "AUTHORIZED" && attempt.documentIds.length > 0 && <button type="button" disabled={Boolean(acting)} onClick={() => run(attempt, true)}>Continue with uploaded files only</button>}
-      {(attempt.sealedAt || attempt.transactionHash) && <button type="button" disabled={Boolean(acting)} onClick={() => run(attempt)}>Recover submitted claim</button>}
-    </article>)}{error && <p role="alert">{error}</p>}
-  </section>;
+  return (
+    <section className="card min-w-0 break-words" aria-label="Claim submission recovery">
+      <h3>Continue an unfinished claim</h3>
+      <p>Uploaded evidence and the original authorization are retained. Recovery completes an existing transaction rather than consuming another claim submission.</p>
+      {attempts.map((attempt) => (
+        <article key={attempt._id} className="my-3 border-t border-[var(--line)] pt-3">
+          <p className="font-semibold text-[var(--text)]">
+            Policy #{attempt.policyId} · {attempt.status} · {attempt.documentIds.length}/{attempt.expectedEvidenceCount} selected files uploaded
+          </p>
+          <div className="action-row">
+            {!attempt.sealedAt && !attempt.transactionHash && (
+              <button type="button" className="button-secondary" disabled={Boolean(acting)} onClick={() => onResume(attempt)}>
+                Resume evidence uploads
+              </button>
+            )}
+            {!attempt.sealedAt && !attempt.transactionHash && ["AUTHORIZED", "UPLOADED"].includes(attempt.status) && (
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={Boolean(acting)}
+                onClick={async () => {
+                  if (!window.confirm("Abandon this unsubmitted attempt and remove its unused encrypted uploads?")) return;
+                  setActing(attempt._id); setError("");
+                  try { await api.delete(`/api/claims/submission-attempts/${attempt._id}`, { data: { reason: "Owner abandoned an unsubmitted evidence preparation" } }); await query.refetch(); }
+                  catch (failure) { setError(failure.response?.data?.message || failure.message); }
+                  finally { setActing(""); }
+                }}
+              >
+                Abandon unsubmitted attempt
+              </button>
+            )}
+            {attempt.status === "UPLOADED" && !attempt.sealedAt && (
+              <button type="button" disabled={Boolean(acting)} onClick={() => run(attempt)}>
+                Submit prepared claim
+              </button>
+            )}
+            {!attempt.sealedAt && attempt.status === "AUTHORIZED" && attempt.documentIds.length > 0 && (
+              <button type="button" disabled={Boolean(acting)} onClick={() => run(attempt, true)}>
+                Continue with uploaded files only
+              </button>
+            )}
+            {(attempt.sealedAt || attempt.transactionHash) && (
+              <button type="button" disabled={Boolean(acting)} onClick={() => run(attempt)}>
+                Recover submitted claim
+              </button>
+            )}
+          </div>
+        </article>
+      ))}
+      {error && <p role="alert" className="error-text">{error}</p>}
+    </section>
+  );
 }

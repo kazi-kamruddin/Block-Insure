@@ -157,7 +157,7 @@ export default function UserDashboardPage() {
       <div className="dashboard-heading">
         <div>
           <span className="dashboard-eyebrow">Policyholder workspace</span>
-          <h2>Coverage and claims overview</h2>
+          <h1>Coverage and claims overview</h1>
           <p>
             Manage active protection, submit evidence-backed claims, and follow
             every decision through settlement.

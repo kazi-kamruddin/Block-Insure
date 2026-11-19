@@ -3,12 +3,12 @@
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(45, 212, 191, 0.05);
+  background: var(--surface-soft);
 }
 
 .policy-benefits-panel > summary {
   cursor: pointer;
-  color: var(--brand-strong);
+  color: var(--link);
   font-weight: 700;
 }
 
@@ -27,7 +27,7 @@
 }
 
 .benefit-projection-grid span {
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: 0.82rem;
 }
 

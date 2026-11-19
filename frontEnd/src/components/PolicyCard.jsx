@@ -23,8 +23,29 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
     <div className="card">
       <h3>{policyPackage.name}</h3>
 
-      <p>Type: {policyPackage.policyType}</p>
-      <p>Premium: {policyPackage.premiumAmountEth} ETH</p>
+      <dl className="detail-kv-grid">
+        <div>
+          <dt>Type</dt>
+          <dd>{policyPackage.policyType}</dd>
+        </div>
+        <div>
+          <dt>Premium</dt>
+          <dd>{policyPackage.premiumAmountEth} ETH</dd>
+        </div>
+        <div>
+          <dt>Coverage</dt>
+          <dd>{policyPackage.coverageAmountEth} ETH</dd>
+        </div>
+        <div>
+          <dt>Duration</dt>
+          <dd>{policyPackage.durationDays} days</dd>
+        </div>
+        <div>
+          <dt>Required document</dt>
+          <dd>{policyPackage.requiredDocumentType}</dd>
+        </div>
+      </dl>
+
       <PaymentScheduleNotice schedule={policyPackage.policyTerms?.paymentSchedule} />
       {riskQuote ? (
         <div className="risk-premium-summary">
@@ -40,9 +61,6 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
           </strong>
         </div>
       ) : null}
-      <p>Coverage: {policyPackage.coverageAmountEth} ETH</p>
-      <p>Duration: {policyPackage.durationDays} days</p>
-      <p>Required document: {policyPackage.requiredDocumentType}</p>
       {terms?.authoritative && gross > 0n && <details>
         <summary>Worked reimbursement example</summary>
         <p>For a bill of {formatEther(gross)} test ETH{serviceLimit ? ` for ${service}, the eligible amount is ${formatEther(eligible)} test ETH` : ""}, the deductible is {formatEther(deductible)}.
@@ -52,7 +70,7 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
       </details>}
       <PolicyTermsPanel terms={policyPackage.policyTerms} />
       <div className="policy-document-actions">
-        <Link to={`/policies/${policyPackage.packageId}`} target="_blank">
+        <Link to={`/policies/${policyPackage.packageId}`} target="_blank" rel="noopener noreferrer">
           Read Full Policy
         </Link>
         <a
@@ -79,6 +97,9 @@ export default function PolicyCard({ policyPackage, onBuy, isBuying, riskQuote }
           Document commitment: {document.documentHash.slice(0, 14)}…
         </small>
       ) : null}
+      <p className="muted-text">
+        Purchasing opens MetaMask to confirm the base premium of {policyPackage.premiumAmountEth} ETH on-chain.
+      </p>
       <button
         type="button"
         onClick={() => onBuy(policyPackage)}

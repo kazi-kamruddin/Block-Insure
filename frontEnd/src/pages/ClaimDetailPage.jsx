@@ -320,24 +320,30 @@ export default function ClaimDetailPage() {
 
   return (
     <section className="page-container page-claim-detail">
-      <h2>Claim Detail</h2>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Claim tracking</span>
+          <h1>Claim Detail</h1>
+        </div>
+        <div className="action-row">
+          <Link to="/user/claims" className="button-link button-secondary">
+            Back to My Claims
+          </Link>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => {
+              refetch();
+              refetchOracle();
+              refetchAppeal();
+            }}
+          >
+            Refresh Claim
+          </button>
+        </div>
+      </div>
       {claim && <ClaimClarificationPanel claim={claim} onConfirmed={refetch} />}
       <InsurerClaimStatement statement={claimData?.insurerStatement} />
-
-      <button
-        type="button"
-        onClick={() => {
-          refetch();
-          refetchOracle();
-          refetchAppeal();
-        }}
-      >
-        Refresh Claim
-      </button>
-
-      <p>
-        <Link to="/user/claims">Back to My Claims</Link>
-      </p>
 
       {isLoading ? <p>Loading claim...</p> : null}
 
@@ -358,29 +364,48 @@ export default function ClaimDetailPage() {
               )}`}
           </h3>
 
-          <p>Amount: {formatValue(claim.claimAmountEth || claim.claimAmount)} ETH</p>
-          <p>Claim type: {formatValue(claim.claimType)}</p>
-          <p>Hospital ID: {formatValue(claim.hospitalId)}</p>
-          <p>
-            Status: <ClaimStatusBadge status={statusName} showHelp />
+          <dl className="detail-kv-grid">
+            <div>
+              <dt>Amount</dt>
+              <dd>{formatValue(claim.claimAmountEth || claim.claimAmount)} ETH</dd>
+            </div>
+            <div>
+              <dt>Claim type</dt>
+              <dd>{formatValue(claim.claimType)}</dd>
+            </div>
+            <div>
+              <dt>Hospital ID</dt>
+              <dd>{formatValue(claim.hospitalId)}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>
+                <ClaimStatusBadge status={statusName} showHelp />
+              </dd>
+            </div>
+            <div>
+              <dt>On-chain validation score</dt>
+              <dd>
+                {claim.verificationConfidenceAvailable === false
+                  ? "Not calculated"
+                  : `${formatValue(claim.verificationConfidence)}/100`}
+              </dd>
+            </div>
+            <div>
+              <dt>Submitted</dt>
+              <dd>{formatDateTime(claim.submittedAt)}</dd>
+            </div>
+            <div>
+              <dt>Incident</dt>
+              <dd>{formatDateTime(claim.incidentDate)}</dd>
+            </div>
+          </dl>
+          <p className="muted-text mt-3">
+            Higher validation values mean the on-chain duplicate checks found
+            fewer warning signals. This is not the oracle fraud probability.
           </p>
-          <p>
-            On-chain validation score:{" "}
-              {claim.verificationConfidenceAvailable === false
-              ? "Not calculated"
-                : `${formatValue(claim.verificationConfidence)}/100`}
-          </p>
-          <p className="muted-text">
-            Higher values mean the on-chain duplicate checks found fewer
-            warning signals. This is not the oracle fraud probability.
-          </p>
-          <p>
-            Submitted:{" "}
-            {formatDateTime(claim.submittedAt)}
-          </p>
-          <p>Incident: {formatDateTime(claim.incidentDate)}</p>
           {claim.fraudReason ? (
-            <p className="error-text">
+            <p className="error-text mt-2">
               <strong>Flag reason:</strong> {claim.fraudReason}
             </p>
           ) : null}
@@ -446,6 +471,7 @@ export default function ClaimDetailPage() {
         <div className="card">
           <h3>Payment ready</h3>
           <p>Your settlement is allocated in the protocol payout vault.</p>
+          <p className="muted-text">Withdrawing transfers allocated funds on-chain and opens MetaMask for confirmation.</p>
           <button type="button" onClick={handleWithdrawSettlement} disabled={isWithdrawing}>
             {isWithdrawing ? "Withdrawing..." : "Withdraw Payment"}
           </button>
@@ -456,6 +482,7 @@ export default function ClaimDetailPage() {
         <div className="card">
           <h3>Funding required</h3>
           <p>This claim is valid. It is waiting for treasury backing and has not been rejected.</p>
+          <p className="muted-text">Once treasury reserves cover this claim, confirm the transaction in MetaMask to release payout readiness.</p>
           <button type="button" disabled={isWithdrawing} onClick={async () => {
             setIsWithdrawing(true);
             try { await (await (await getWalletContract()).activateFundedClaim(id)).wait(); await refetch(); }
@@ -584,6 +611,9 @@ export default function ClaimDetailPage() {
                 </label>
               </fieldset>
 
+              <p className="muted-text">
+                Submitting requests a MetaMask signature after any supporting file encryption completes.
+              </p>
               <button type="submit" disabled={isSubmittingAppeal}>
                 {isSubmittingAppeal ? "Submitting Appeal..." : "Appeal This Decision"}
               </button>

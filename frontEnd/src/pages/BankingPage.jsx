@@ -81,7 +81,7 @@ export default function BankingPage() {
   return <section className="page-container banking-page">
     <header className="banking-hero">
       <span className="dashboard-eyebrow">Policyholder banking</span>
-      <h2>Premium payments and standing EFT instructions</h2>
+      <h1>Premium payments and standing EFT instructions</h1>
       <p>Scheduled EFT runs automatically after bank approval and never asks for OTP. OTP is required only when you initiate a manual bank payment.</p>
       <p>BDT balances and conversion are simulated at 100,000 BDT per test ETH. A funded gateway supplies the test ETH and gas; this does not debit a real bank account. All methods pay the same installment under its issued payment calendar.</p>
     </header>

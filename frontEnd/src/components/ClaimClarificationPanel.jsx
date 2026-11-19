@@ -49,23 +49,50 @@ export default function ClaimClarificationPanel({ claim, officer = false, onWait
   });
 
   if (!details?.question && !(officer && details?.available)) return null;
-  return <section className="card">
-    <h3>Evidence clarification</h3>
-    {details.question && <>
-      <p>{details.question}</p>
-      <p>Response deadline {new Date(details.deadline * 1000).toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })} Bangladesh time.</p>
-    </>}
-    {officer && details.available && <form onSubmit={event => { event.preventDefault(); action.mutate("open"); }}>
-      <label>Question for the claimant<textarea required maxLength={500} value={question} onChange={event => setQuestion(event.target.value)} /></label>
-      <button disabled={action.isPending || !question.trim()}>Request clarification</button>
-    </form>}
-    {!officer && details.canAnswer && <form onSubmit={event => { event.preventDefault(); action.mutate("answer"); }}>
-      {details.uploaded ? <p>Your encrypted attachment is ready.</p> :
-        <label>Supporting document<input required type="file" accept="application/pdf,image/jpeg,image/png" onChange={event => setFile(event.target.files[0])} /></label>}
-      <button disabled={action.isPending || (!details.uploaded && !file)}>Submit clarification</button>
-    </form>}
-    {details.canReconcile && <button type="button" disabled={action.isPending} onClick={() => action.mutate("reconcile")}>Register confirmed clarification</button>}
-    {details.confirmed && <p>The updated evidence is ready for fresh Oracle verification.</p>}
-    {action.isError && <p role="alert">{action.error.response?.data?.message || action.error.shortMessage || action.error.message}</p>}
-  </section>;
+  return (
+    <section className="card min-w-0">
+      <h3>Evidence clarification</h3>
+      {details.question && (
+        <div className="grid gap-1 mb-3">
+          <p className="m-0 text-[var(--text)] font-medium">{details.question}</p>
+          <p className="m-0 text-xs muted-text">
+            Response deadline {new Date(details.deadline * 1000).toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })} Bangladesh time.
+          </p>
+        </div>
+      )}
+      {officer && details.available && (
+        <form className="form-grid" onSubmit={event => { event.preventDefault(); action.mutate("open"); }}>
+          <label>
+            Question for the claimant
+            <textarea required maxLength={500} rows={3} value={question} onChange={event => setQuestion(event.target.value)} />
+          </label>
+          <button type="submit" disabled={action.isPending || !question.trim()}>
+            {action.isPending ? "Sending..." : "Request clarification"}
+          </button>
+        </form>
+      )}
+      {!officer && details.canAnswer && (
+        <form className="form-grid" onSubmit={event => { event.preventDefault(); action.mutate("answer"); }}>
+          {details.uploaded ? <p role="status">Your encrypted attachment is ready. Submitting will open your wallet to confirm on-chain clarification.</p> : (
+            <label>
+              Supporting document
+              <input required type="file" accept="application/pdf,image/jpeg,image/png" onChange={event => setFile(event.target.files[0])} />
+            </label>
+          )}
+          <button type="submit" disabled={action.isPending || (!details.uploaded && !file)}>
+            {action.isPending ? "Submitting..." : "Submit clarification"}
+          </button>
+        </form>
+      )}
+      {details.canReconcile && (
+        <div className="action-row">
+          <button type="button" disabled={action.isPending} onClick={() => action.mutate("reconcile")}>
+            {action.isPending ? "Registering..." : "Register confirmed clarification"}
+          </button>
+        </div>
+      )}
+      {details.confirmed && <p role="status" className="success-text">The updated evidence is ready for fresh Oracle verification.</p>}
+      {action.isError && <p role="alert" className="error-text">{action.error.response?.data?.message || action.error.shortMessage || action.error.message}</p>}
+    </section>
+  );
 }

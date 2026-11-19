@@ -54,7 +54,7 @@ export default function BankDashboardPage() {
   const refreshing = profileQuery.isFetching || accountsQuery.isFetching || mandatesQuery.isFetching || transactionsQuery.isFetching;
 
   return <section className="page-container page-bank-dashboard">
-    <div className="bank-heading"><div><span className="dashboard-eyebrow">Simulated banking gateway</span><h2>{bank?.name || "Bank Workspace"}</h2><p>Approve simulated standing instructions and settle funded test ETH against the shared policy installment.</p></div><button type="button" disabled={refreshing} onClick={refresh}>{refreshing ? "Refreshing..." : "Refresh bank data"}</button></div>
+    <div className="bank-heading"><div><span className="dashboard-eyebrow">Simulated banking gateway</span><h1>{bank?.name || "Bank Workspace"}</h1><p>Approve simulated standing instructions and settle funded test ETH against the shared policy installment.</p></div><button type="button" className="button-secondary" disabled={refreshing} onClick={refresh}>{refreshing ? "Refreshing..." : "Refresh bank data"}</button></div>
     {error ? <p className="error-text" role="alert">{errorMessage(error)}</p> : null}
     {bank ? <>
       <section className="card bank-identity-card"><div><span>Bank ID</span><strong>{bank.bankId}</strong></div><div><span>Operating status</span><strong>{bank.operatingStatus}</strong></div><div><span>Routing code</span><strong>{bank.routingCode}</strong></div><div><span>Settlement currency</span><strong>{bank.currency}</strong></div><div className="bank-wallet-field"><span>Bank wallet</span><strong>{bank.walletAddress}</strong></div></section>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import CopyableText from "./CopyableText";
 import IpfsLink from "./IpfsLink";
 import { getEvidenceReceipt } from "../services/api";
+import { formatDateTime } from "../utils/dateFormat";
 
 function formatValue(value) {
   if (value === undefined || value === null || value === "") return "-";
@@ -12,8 +13,7 @@ function formatValue(value) {
 
 function formatDate(value) {
   if (!value) return "-";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+  return formatDateTime(value);
 }
 
 export default function EvidenceChainPanel({
@@ -117,9 +117,11 @@ export default function EvidenceChainPanel({
                   sha256Hash={document.sha256Hash}
                 />
               </p>
-              <button type="button" onClick={() => downloadReceipt(document.id)}>
-                Download transparency receipt
-              </button>
+              <div className="action-row my-2!">
+                <button type="button" className="button-secondary" onClick={() => downloadReceipt(document.id)}>
+                  Download transparency receipt
+                </button>
+              </div>
               <details className="technical-details">
                 <summary>Integrity and storage details</summary>
                 <p>Document type: {formatValue(document.documentType)}</p>

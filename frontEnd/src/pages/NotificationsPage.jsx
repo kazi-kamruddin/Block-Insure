@@ -82,7 +82,7 @@ export default function NotificationsPage() {
     <section className="page-container page-notifications">
       <div className="notifications-head">
         <div>
-          <h2>Notifications</h2>
+          <h1>Notifications</h1>
           <p>{unreadCount} unread notification{unreadCount === 1 ? "" : "s"}</p>
         </div>
 

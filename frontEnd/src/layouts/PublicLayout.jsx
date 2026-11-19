@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import Footer from "../components/Footer";
 import ThemeToggle from "../components/ThemeToggle";
 import WalletConnectButton from "../components/WalletConnectButton";
@@ -7,7 +7,8 @@ import { REQUIRED_CHAIN_ID, REQUIRED_NETWORK_NAME } from "../services/contractSe
 
 export default function PublicLayout() {
   const { isConnected, workspace } = useWallet();
-  const hospitalPortal = useLocation().pathname.startsWith("/hospital");
+  const pathname = useLocation().pathname;
+  const hospitalPortal = pathname.startsWith("/hospital");
 
   return (
     <div className="app-shell relative isolate overflow-x-clip">
@@ -25,7 +26,7 @@ export default function PublicLayout() {
       <nav className="navbar" aria-label="Primary navigation">
         <Link className="brand group" to="/" aria-label="Block-Insure home">
           <span className="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 2.4 20 5.7v5.8c0 5.2-3.4 8.6-8 10.1-4.6-1.5-8-4.9-8-10.1V5.7L12 2.4Z" />
               <path d="M9 8.2h4.1a2.3 2.3 0 0 1 0 4.6H9V8.2Zm0 4.6h4.8a2.4 2.4 0 1 1 0 4.8H9v-4.8Z" />
             </svg>
@@ -37,10 +38,12 @@ export default function PublicLayout() {
         </Link>
 
         <div className="nav-links" aria-label="Product navigation">
-          <Link to="/policies">Policies</Link>
-          <Link to="/hospital/login">Hospital portal</Link>
+          <NavLink to="/policies">Policies</NavLink>
+          <NavLink to="/hospital/login">Hospital portal</NavLink>
           {isConnected && workspace ? (
-            <span className="portal-context">{workspace.label}</span>
+            <Link className="portal-context" to={workspace.home}>
+              {workspace.label}
+            </Link>
           ) : (
             <>
               <a href="/#capabilities">Capabilities</a>

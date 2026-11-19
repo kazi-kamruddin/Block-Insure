@@ -169,11 +169,15 @@ export default function AdminCreatePolicyPackagePage() {
 
   return (
     <section className="page-container page-admin-create-policy-package">
-      <h2>Create Policy Package</h2>
-
-      <p>
-        <Link to="/admin/policy-packages">Back to Policy Packages</Link>
-      </p>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Product catalog</span>
+          <h1>Create Policy Package</h1>
+        </div>
+        <Link to="/admin/policy-packages" className="button-link button-secondary">
+          Back to Policy Packages
+        </Link>
+      </div>
 
       {error ? <p className="error-text">{error}</p> : null}
       {successMessage ? <p className="success-text">{successMessage}</p> : null}
@@ -185,139 +189,156 @@ export default function AdminCreatePolicyPackagePage() {
       ) : null}
 
       <form className="form-grid" onSubmit={handleSubmit}>
-        <label>
-          Quick preset
-          <select defaultValue="" onChange={(event) => applyPreset(event.target.value)}>
-            <option value="">Manual package</option>
-            {PACKAGE_PRESETS.map((preset) => (
-              <option key={preset.label} value={preset.label}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset className="card grid gap-3">
+          <legend className="font-semibold">Core package identity</legend>
+          <label>
+            Quick preset
+            <select defaultValue="" onChange={(event) => applyPreset(event.target.value)}>
+              <option value="">Manual package</option>
+              {PACKAGE_PRESETS.map((preset) => (
+                <option key={preset.label} value={preset.label}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          Package name
-          <input
-            type="text"
-            value={form.name}
-            onChange={(event) => updateField("name", event.target.value)}
-            required
-          />
-        </label>
+          <label>
+            Package name
+            <input
+              type="text"
+              value={form.name}
+              onChange={(event) => updateField("name", event.target.value)}
+              required
+            />
+          </label>
 
-        <label>
-          Policy type
-          <input
-            type="text"
-            value={form.policyType}
-            onChange={(event) => updateField("policyType", event.target.value)}
-            required
-          />
-        </label>
+          <label>
+            Policy type
+            <input
+              type="text"
+              value={form.policyType}
+              onChange={(event) => updateField("policyType", event.target.value)}
+              required
+            />
+          </label>
 
-        <label>
-          Premium amount in ETH
-          <input
-            type="number"
-            step="any"
-            min="0"
-            value={form.premiumAmountEth}
-            onChange={(event) =>
-              updateField("premiumAmountEth", event.target.value)
-            }
-            required
-          />
-        </label>
+          <label>
+            Premium amount in ETH
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={form.premiumAmountEth}
+              onChange={(event) =>
+                updateField("premiumAmountEth", event.target.value)
+              }
+              required
+            />
+          </label>
 
-        <label>
-          Coverage amount in ETH
-          <input
-            type="number"
-            step="any"
-            min="0"
-            value={form.coverageAmountEth}
-            onChange={(event) =>
-              updateField("coverageAmountEth", event.target.value)
-            }
-            required
-          />
-        </label>
+          <label>
+            Coverage amount in ETH
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={form.coverageAmountEth}
+              onChange={(event) =>
+                updateField("coverageAmountEth", event.target.value)
+              }
+              required
+            />
+          </label>
 
-        <label>
-          Duration in days
-          <input
-            type="number"
-            min="1"
-            value={form.durationDays}
-            onChange={(event) => updateField("durationDays", event.target.value)}
-            required
-          />
-        </label>
+          <label>
+            Duration in days
+            <input
+              type="number"
+              min="1"
+              value={form.durationDays}
+              onChange={(event) => updateField("durationDays", event.target.value)}
+              required
+            />
+          </label>
 
-        <label>
-          Required document type
-          <input
-            type="text"
-            value={form.requiredDocumentType} readOnly
-            onChange={(event) =>
-              updateField("requiredDocumentType", event.target.value)
-            }
-            required
-          />
-        </label>
+          <label>
+            Required document type
+            <input
+              type="text"
+              value={form.requiredDocumentType} readOnly
+              onChange={(event) =>
+                updateField("requiredDocumentType", event.target.value)
+              }
+              required
+            />
+          </label>
+        </fieldset>
 
-        <label>
-          Initial waiting period (days)
-          <input type="number" min="0" value={form.waitingPeriodDays} onChange={(event) => updateField("waitingPeriodDays", event.target.value)} required />
-        </label>
+        <fieldset className="card grid gap-3">
+          <legend className="font-semibold">Waiting periods & deadlines</legend>
+          <label>
+            Initial waiting period (days)
+            <input type="number" min="0" value={form.waitingPeriodDays} onChange={(event) => updateField("waitingPeriodDays", event.target.value)} required />
+          </label>
 
-        <label>
-          Reinstatement waiting period (days)
-          <input type="number" min="0" value={form.reinstatementWaitingPeriodDays} onChange={(event) => updateField("reinstatementWaitingPeriodDays", event.target.value)} required />
-        </label>
+          <label>
+            Reinstatement waiting period (days)
+            <input type="number" min="0" value={form.reinstatementWaitingPeriodDays} onChange={(event) => updateField("reinstatementWaitingPeriodDays", event.target.value)} required />
+          </label>
 
-        <label>
-          Claim filing deadline (days)
-          <input type="number" min="1" value={form.claimDeadlineDays} onChange={(event) => updateField("claimDeadlineDays", event.target.value)} required />
-        </label>
+          <label>
+            Claim filing deadline (days)
+            <input type="number" min="1" value={form.claimDeadlineDays} onChange={(event) => updateField("claimDeadlineDays", event.target.value)} required />
+          </label>
 
-        <label>
-          Minimum evidence commitments
-          <input type="number" min="1" max="1" value={form.minimumDocumentCommitments} onChange={(event) => updateField("minimumDocumentCommitments", event.target.value)} required />
-        </label>
+          <label>
+            Minimum evidence commitments
+            <input type="number" min="1" max="1" value={form.minimumDocumentCommitments} onChange={(event) => updateField("minimumDocumentCommitments", event.target.value)} required />
+          </label>
+        </fieldset>
 
-        <label>
-          Deductible rate (basis points)
-          <input type="number" min="0" max="10000" value={form.deductibleRateBps} onChange={(event) => updateField("deductibleRateBps", event.target.value)} required />
-        </label>
+        <fieldset className="card grid gap-3">
+          <legend className="font-semibold">Deductibles & limits</legend>
+          <label>
+            Deductible rate (basis points)
+            <input type="number" min="0" max="10000" value={form.deductibleRateBps} onChange={(event) => updateField("deductibleRateBps", event.target.value)} required />
+          </label>
 
-        <label>
-          Deductible cap (ETH)
-          <input type="number" min="0" step="any" value={form.deductibleCapEth} onChange={(event) => updateField("deductibleCapEth", event.target.value)} required />
-        </label>
+          <label>
+            Deductible cap (ETH)
+            <input type="number" min="0" step="any" value={form.deductibleCapEth} onChange={(event) => updateField("deductibleCapEth", event.target.value)} required />
+          </label>
 
-        <label>
-          Insurer share (basis points)
-          <input type="number" min="0" max="10000" value={form.insurerShareBps} onChange={(event) => updateField("insurerShareBps", event.target.value)} required />
-        </label>
+          <label>
+            Insurer share (basis points)
+            <input type="number" min="0" max="10000" value={form.insurerShareBps} onChange={(event) => updateField("insurerShareBps", event.target.value)} required />
+          </label>
 
-        <label>
-          Maximum claim (ETH)
-          <input type="number" min="0.000000000000000001" step="any" value={form.maximumClaimEth} onChange={(event) => updateField("maximumClaimEth", event.target.value)} required />
-        </label>
+          <label>
+            Maximum claim (ETH)
+            <input type="number" min="0.000000000000000001" step="any" value={form.maximumClaimEth} onChange={(event) => updateField("maximumClaimEth", event.target.value)} required />
+          </label>
 
-        <label>Service sublimits (optional, test ETH)<input value={form.sublimits || ""} placeholder="HEALTH=1,SURGERY=0.8" onChange={event => updateField("sublimits", event.target.value)} /></label>
-        <label>
-          Allowed claim types (comma separated)
-          <input type="text" value={form.allowedClaimTypes} onChange={(event) => updateField("allowedClaimTypes", event.target.value)} required />
-        </label>
+          <label>Service sublimits (optional, test ETH)<input value={form.sublimits || ""} placeholder="HEALTH=1,SURGERY=0.8" onChange={event => updateField("sublimits", event.target.value)} /></label>
+        </fieldset>
 
-        <label>
-          Excluded service codes (comma separated)
-          <input type="text" value={form.excludedClaimTypes} onChange={(event) => updateField("excludedClaimTypes", event.target.value)} />
-        </label>
+        <fieldset className="card grid gap-3">
+          <legend className="font-semibold">Service eligibility codes</legend>
+          <label>
+            Allowed claim types (comma separated)
+            <input type="text" value={form.allowedClaimTypes} onChange={(event) => updateField("allowedClaimTypes", event.target.value)} required />
+          </label>
+
+          <label>
+            Excluded service codes (comma separated)
+            <input type="text" value={form.excludedClaimTypes} onChange={(event) => updateField("excludedClaimTypes", event.target.value)} />
+          </label>
+        </fieldset>
+
+        <p className="muted-text">
+          Submitting deploys the package terms on-chain and registers them for policyholder purchase.
+        </p>
 
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Creating..." : "Create Package"}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Contract, formatEther } from "ethers";
 import { useQuery } from "@tanstack/react-query";
 
@@ -415,11 +416,20 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
 
   return (
     <section className="page-container page-submit-claim">
-      <h2>Submit Claim</h2>
-
-      <button type="button" onClick={() => refetchPolicies()}>
-        Refresh Policies
-      </button>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Claims filing</span>
+          <h1>Submit Claim</h1>
+        </div>
+        <div className="action-row">
+          <Link to="/user/claims" className="button-link button-secondary">
+            My Claims
+          </Link>
+          <button type="button" className="button-secondary" onClick={() => refetchPolicies()}>
+            Refresh Policies
+          </button>
+        </div>
+      </div>
 
       {policiesError ? (
         <p className="error-text">
@@ -511,7 +521,7 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
       {selectedPolicy?.policyTerms?.serviceSublimitsWei && <details className="card">
         <summary>Record a filing intent while an invoice is awaiting publication</summary>
         <p>Use the hospital and invoice number on your receipt before the filing deadline. A timely intent gives this invoice seven extra days for submission. Coverage and document checks still apply.</p>
-        <form onSubmit={async event => {
+        <form className="form-grid mt-3" onSubmit={async event => {
           event.preventDefault();
           const fields = new FormData(event.currentTarget);
           setFilingIntentPending(true);
@@ -527,7 +537,7 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
         }}>
           <label>Receipt hospital<select name="hospital" required>{networkHospitals.map(row => <option key={row.hospitalId}>{row.hospitalId}</option>)}</select></label>
           <label>Receipt invoice number<input name="invoice" maxLength={100} required /></label>
-          <button disabled={filingIntentPending}>Record filing intent</button>
+          <button type="submit" className="button-secondary" disabled={filingIntentPending}>Record filing intent</button>
           {intentMessage && <p role="status">{intentMessage}</p>}
         </form>
       </details>}
@@ -649,9 +659,9 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
         {resumeAttempt && supportingFiles.map((item, index) => <label key={index}>Supporting file slot {index + 2}<input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => setSupportingFiles((values) => values.map((value, slot) => slot === index ? event.target.files?.[0] || null : value))} /></label>)}
         {!resumeAttempt && supportingFiles.length > 0 && <ul>{supportingFiles.map((item, index) => <li key={index}>{item.name}</li>)}</ul>}
 
-        <section aria-label="Invoice readiness" className="rounded-lg border border-[var(--border)] p-3">
+        <section aria-label="Invoice readiness" className="rounded-lg border border-[var(--line)] bg-[var(--surface-hover)] p-4 grid gap-3">
           <p>The insurer records the selected episode, revision and bill amount in your claim statement. Workers check these structured facts. Only authorized people can decrypt the attached documents.</p>
-          <button type="button" disabled={!isConnected || !hospitalId || !invoiceNumber.trim() || invoiceEligibility.isFetching}
+          <button type="button" className="button-secondary" disabled={!isConnected || !hospitalId || !invoiceNumber.trim() || invoiceEligibility.isFetching}
             onClick={() => invoiceEligibility.refetch()}>Check invoice readiness</button>
           {invoiceEligibility.data && <p role="status">{invoiceEligibility.data.message}{invoiceEligibility.data.boundToCurrentWallet && !invoiceEligibility.data.registryUsable ? " The record is not currently valid for automatic verification." : ""}</p>}
           {invoiceEligibility.error && <p role="alert">Invoice readiness could not be checked. No submission was created.</p>}
@@ -671,6 +681,10 @@ function SubmissionForm({ isConnected, walletAddress, connectWallet }) {
             the backend cannot decrypt it.
           </p>
         </div>
+
+        <p className="muted-text">
+          Submitting encrypts evidence locally in your browser, pins encrypted files, and opens MetaMask for your on-chain claim transaction.
+        </p>
 
         <button
           type="submit"

@@ -24,17 +24,19 @@ export default function XgboostAdvisoryPanel({ claimId, claimVersion, status }) 
           <h3 id="xgboost-advisory-title">XGBoost advisory assessment</h3>
           <p className="muted-text">Primary Admin advisory · {result?.protocolModel?.kind === "xgboost" ? "XGBoost Oracle routing" : "Request-specific protocol model"}</p>
         </div>
-        <button type="button" className="min-h-11" onClick={() => refetch()} disabled={isFetching}>
+        <button type="button" className="button-secondary min-h-11" onClick={() => refetch()} disabled={isFetching}>
           {isFetching ? "Assessing…" : "Refresh advisory"}
         </button>
       </div>
-      <p>This assessment supports your review. It creates no approval, rejection, manual-review transition or payout. Existing Oracle outcomes remain authoritative.</p>
+      <p>This advisory score routes claims for review; it creates no approval, rejection, manual-review transition or payout. Deterministic Oracle outcomes remain authoritative.</p>
       {isLoading ? <p role="status">Loading the committed registry assessment…</p> : null}
-      {error ? <p role="alert">XGBoost assessment unavailable. Refresh to retry; the existing claim workflow remains available.</p> : null}
+      {error ? <p role="alert" className="error-text">XGBoost assessment unavailable. Refresh to retry; the existing claim workflow remains available.</p> : null}
       {result?.status === "UNAVAILABLE" ? <p role="status">Assessment unavailable: {label(result.reason)}. No replacement or zero-risk score was supplied.</p> : null}
       <details>
-        <summary className="min-h-11 cursor-pointer py-3">Operational model monitoring</summary>
-        <button type="button" className="min-h-11" disabled={monitoring.isFetching} onClick={() => monitoring.refetch()}>Load monitoring summary</button>
+        <summary className="min-h-11 cursor-pointer py-2">Operational model monitoring</summary>
+        <div className="action-row">
+          <button type="button" className="button-secondary min-h-11" disabled={monitoring.isFetching} onClick={() => monitoring.refetch()}>Load monitoring summary</button>
+        </div>
         {monitoring.error ? <p role="status">Monitoring unavailable; no accuracy estimate was substituted.</p> : null}
         {monitoring.data?.monitoring ? <div className="space-y-2 [overflow-wrap:anywhere]">
           <p>{monitoring.data.monitoring.requestsObserved} distinct requests observed; {monitoring.data.monitoring.reviewedByOracle} routed away from automatic verification; {monitoring.data.monitoring.inferenceOrContextUnavailable} unavailable assessments.</p>
@@ -46,16 +48,16 @@ export default function XgboostAdvisoryPanel({ claimId, claimVersion, status }) 
       {result?.status === "AVAILABLE" ? (
         <>
           <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-            <article className="min-w-0 rounded-lg border border-[var(--line)] p-3">
+            <article className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--surface-soft)] p-3.5">
               <h4>XGBoost · Primary advisory</h4>
-              <p className="text-2xl font-bold">{percent(assessment.riskScore)}</p>
-              <p>{label(assessment.recommendation)}</p>
+              <p className="text-2xl font-bold text-[var(--text)] [font-variant-numeric:tabular-nums]">{percent(assessment.riskScore)}</p>
+              <p className="font-semibold text-[var(--text)]">{label(assessment.recommendation)}</p>
               <p className="muted-text">{assessment.riskMeaning}</p>
             </article>
-            <article className="min-w-0 rounded-lg border border-[var(--line)] p-3">
+            <article className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--surface-soft)] p-3.5">
               <h4>Bernoulli NB · Historical comparison</h4>
-              <p className="text-2xl font-bold">{percent(result.comparison.riskScore)}</p>
-              <p>{label(result.comparison.recommendation)}</p>
+              <p className="text-2xl font-bold text-[var(--text)] [font-variant-numeric:tabular-nums]">{percent(result.comparison.riskScore)}</p>
+              <p className="font-semibold text-[var(--text)]">{label(result.comparison.recommendation)}</p>
               <p className="muted-text">Same snapshot, each model’s frozen feature contract. NB remains the routing evaluator only for requests that pin its historical identity.</p>
             </article>
           </div>

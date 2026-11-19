@@ -97,8 +97,13 @@ export default function AuditorDocumentVerificationPage() {
 
   return (
     <section className="page-container page-auditor-document-verification">
-      <h2>Document Integrity Verification</h2>
-      <p>
+      <div className="page-header-row">
+        <div>
+          <span className="section-eyebrow">Cryptographic verification</span>
+          <h1>Document Integrity Verification</h1>
+        </div>
+      </div>
+      <p className="muted-text">
         Local-only hash verification. The selected file is hashed in the browser
         and is not uploaded or stored during this check.
       </p>
@@ -179,7 +184,17 @@ export default function AuditorDocumentVerificationPage() {
           }`}
         >
           <div className="verification-result-head">
-            <span aria-hidden="true">{result.isMatch ? "\u2713" : "X"}</span>
+            <span aria-hidden="true">
+              {result.isMatch ? (
+                <svg viewBox="0 0 20 20" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m4.5 10.5 3.5 3.5 7.5-8" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 20 20" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <path d="M5 5l10 10M15 5L5 15" />
+                </svg>
+              )}
+            </span>
             <div>
               <h3>
                 {result.isMatch
