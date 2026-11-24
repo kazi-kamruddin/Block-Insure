@@ -69,7 +69,22 @@ const publishPendingRegistry = () => {
         }, { upsert: true });
       }
       job.rootHash = tree.rootHash;
-      const tx = await coordinator.publishRegistrySnapshot(tree.rootHash, tree.leafCount, ethers.id(tree.treeVersion));
+      const treeVersionHash = ethers.id(tree.treeVersion);
+      const currentVersion = await coordinator.currentRegistryVersion();
+      if (currentVersion !== 0n) {
+        const current = await coordinator.getRegistrySnapshot(currentVersion);
+        if (current.root === tree.rootHash && current.leafCount === BigInt(tree.leafCount) && current.treeVersionHash === treeVersionHash) {
+          const filter = coordinator.filters.RegistrySnapshotPublished(currentVersion, current.root, treeVersionHash);
+          const events = await coordinator.queryFilter(filter, current.publishedAtBlock, current.publishedAtBlock);
+          if (events.length !== 1) throw new Error("The identical registry snapshot lacks a unique canonical publication");
+          job.transactionHash = events[0].transactionHash;
+          await job.save();
+          // The persisted hash is reconciled through the same path as a
+          // previously broadcast publication on the next process pass.
+          return job;
+        }
+      }
+      const tx = await coordinator.publishRegistrySnapshot(tree.rootHash, tree.leafCount, treeVersionHash);
       job.transactionHash = tx.hash;
       await job.save(); // Persist before waiting; restart reconciles this receipt.
       // Ethers' transaction subscriber runs an asynchronous receipt poll outside
@@ -96,7 +111,7 @@ const publishPendingRegistry = () => {
   return running;
 };
 const startRegistryPublisher = () => {
-  if (timer) return;
+  if (timer || process.env.REGISTRY_AUTO_PUBLISH === "false") return;
   const tick = () => publishPendingRegistry().catch(() => console.error("Registry publication will retry"));
   tick();
   timer = setInterval(tick, 30000);

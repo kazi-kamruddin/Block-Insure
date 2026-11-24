@@ -35,10 +35,16 @@ test("@workflow cancellation refund uses scheduled receipts and a separately fun
       await request.getByRole("button", { name: "Allocate Benefit" }).click();
       await expect(request).toContainText("Status: ALLOCATED", { timeout: 60000 });
     } finally { await closeActor(admin); }
+    await user.page.goto("/user/notifications");
+    await expect(user.page.getByRole("heading", { name: "Cancellation refund available" })).toBeVisible();
+    await user.page.goto("/user/policies");
+    await card.locator("details.policy-benefits-panel > summary").click();
     await expect(card.getByRole("button", { name: "Withdraw cancellation refund" })).toBeVisible({ timeout: 30000 });
     await card.getByRole("button", { name: "Withdraw cancellation refund" }).click();
     await expect(card).toContainText("Latest wallet refund withdrawal confirmed", { timeout: 30000 });
     await expect(card.getByRole("button", { name: "Withdraw cancellation refund" })).toHaveCount(0);
+    await user.page.goto("/user/notifications");
+    await expect(user.page.getByRole("heading", { name: "Cancellation refund withdrawn" })).toBeVisible();
     await user.page.goto("/user/benefits");
     await expect(user.page.getByRole("heading", { name: "Cancellation refunds" })).toBeVisible();
     await expect(user.page.getByRole("button", { name: /death|maturity/i })).toHaveCount(0);

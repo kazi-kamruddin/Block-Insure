@@ -1,0 +1,23 @@
+{
+  "schema": "block-insure-paired-v6-live-routing/v1",
+  "fixtureManifestSha256": "249201c1bc633f769018826b3db9f1dc678b7ed8760907ff2373398bb60a7676",
+  "decisionDate": "2026-11-24",
+  "manual": {
+    "claimAmountEth": "0.003",
+    "hospitalBillEth": "0.003",
+    "referenceBillEth": "0.003",
+    "route": "REVIEW",
+    "scoreUnits": 67415682,
+    "workerCodePrefix": "XGB_REVIEW:",
+    "case": "insurer-association-correction",
+    "sequence": [
+      "manual.episode",
+      "manual.publish",
+      "manual.encrypted-evidence",
+      "manual.claim",
+      "manual.correct-association",
+      "manual.corrected-publish",
+      "manual.oracle-request"
+    ]
+  }
+}

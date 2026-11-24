@@ -6,6 +6,15 @@ const { verifyModelArtifact } = require("../../backEnd/services/modelArtifactSer
 
 const networkName = hre.network.name;
 const isLocalNetwork = networkName === "localhost" || networkName === "hardhat";
+const pairedScenario = process.env.PAIRED_SCENARIO_FILE
+  ? require("../../scripts/paired/manifest").readManifest(process.env.PAIRED_SCENARIO_FILE)
+  : null;
+if (pairedScenario) {
+  if (process.env.DEPLOY_WRITE_ENV !== "false" || !process.env.DEPLOYMENT_OUTPUT_DIR) {
+    throw new Error("Paired deployment requires a separate output directory and DEPLOY_WRITE_ENV=false");
+  }
+  Object.assign(process.env, require("../../scripts/paired/deployment").environmentForDeployment(pairedScenario.manifest.deployment));
+}
 let publicProvider;
 
 function updateEnvValue(filePath, key, value) {
@@ -163,7 +172,7 @@ async function main() {
     provider
   );
   require("../../scripts/deploymentNetworkSafety").assertDeploymentSigner(
-    (await provider.getNetwork()).chainId, adminWallet.address, { local: isLocalNetwork }
+    (await provider.getNetwork()).chainId, adminWallet.address, { local: isLocalNetwork, paired: Boolean(pairedScenario) }
   );
 
   const adminBalance = await provider.getBalance(adminWallet.address);
@@ -305,7 +314,8 @@ async function main() {
     maximumClaimEth: hre.ethers.formatEther(coverageAmount),
     allowedClaimTypes: services,
     ...(capped ? { serviceSublimitsEth: Object.fromEntries(services.map(service => [
-      service, hre.ethers.formatEther(service === "SURGERY" ? coverageAmount * 8n / 10n : coverageAmount),
+      service, service === "SURGERY" && pairedScenario ? pairedScenario.manifest.deployment.surgerySublimitEth :
+        hre.ethers.formatEther(service === "SURGERY" ? coverageAmount * 8n / 10n : coverageAmount),
     ])) } : {}),
     excludedClaimTypes: ["COSMETIC"], requiredDocumentTypes: ["HOSPITAL_BILL"],
   });
@@ -400,7 +410,7 @@ async function main() {
     ).wait();
   }
   console.log("ProtocolDeploymentRegistry deployed to:", deploymentRegistryAddress);
-  syncContractAbi();
+  if (!pairedScenario) syncContractAbi();
   const network = await provider.getNetwork();
   const deployment = {
     schemaVersion: 1,
@@ -408,6 +418,7 @@ async function main() {
     chainId: network.chainId.toString(),
     calendarProfile,
     claimWorkflowProfile: capped ? "V6" : "LEGACY",
+    ...(pairedScenario ? { pairedManifestHash: pairedScenario.manifestHash } : {}),
     deployedAt: new Date().toISOString(),
     modelIdentityHash: protocolArtifact.modelIdentityHash,
     protocolModel: protocolArtifact.modelVersion,
@@ -432,7 +443,9 @@ async function main() {
     deploymentsDirectory,
     `${networkName}-${network.chainId}.json`
   );
-  fs.writeFileSync(deploymentPath, `${JSON.stringify(deployment, null, 2)}\n`, "utf8");
+  fs.writeFileSync(deploymentPath, `${JSON.stringify(deployment, null, 2)}\n`, {
+    encoding: "utf8", flag: pairedScenario ? "wx" : "w",
+  });
   console.log("Deployment manifest written to:", deploymentPath);
 
   if (isLocalNetwork && process.env.DEPLOY_WRITE_ENV !== "false") {
@@ -464,7 +477,11 @@ async function main() {
   console.log("BANK_IDENTITY_REGISTRY_ADDRESS =", bankIdentityRegistryAddress);
 }
 
-main().catch(() => {
+main().catch((error) => {
+  if (pairedScenario && isLocalNetwork) {
+    const message = String(error.shortMessage || error.message || "").replace(/https?:\/\/\S+/g, "[RPC]").replace(/0x[a-f0-9]{64,}/gi, "[hex]").slice(0, 400);
+    console.error("Paired local deployment failed:", error.code || error.name, message);
+  }
   console.error("Deployment failed. Check private network/funding/total-gas configuration and retain existing addresses/receipts before retrying.");
   process.exitCode = 1;
 }).finally(() => publicProvider?.destroy());

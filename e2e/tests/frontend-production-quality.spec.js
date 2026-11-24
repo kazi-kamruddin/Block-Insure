@@ -57,8 +57,13 @@ for (const [code, label, manual] of [[2, "FRAUD_FLAGGED", true], [5, "ORACLE_FAI
   test(`admin manual-review action follows contract state ${label}`, async ({ page }) => {
     // Built component regression; no wallet writes or live API substitution.
     const pollingCase = code === 3 || code === 6;
-    if (pollingCase) await page.clock.install();
+    if (pollingCase) {
+      const start = new Date("2026-11-24T00:00:00Z");
+      await page.clock.install({ time: start });
+      await page.clock.pauseAt(new Date(start.getTime() + 60_000));
+    }
     const reads = { claim: 0, oracle: 0, quorum: 0, access: 0 };
+    let completedQuorumCalls = 0;
     let releaseResume;
     let resumed = false;
     const resumePending = new Promise(resolve => { releaseResume = resolve; });
@@ -96,6 +101,7 @@ for (const [code, label, manual] of [[2, "FRAUD_FLAGGED", true], [5, "ORACLE_FAI
             const fn = iface.getFunction(item.params[0].data.slice(0, 10));
             if (fn) {
               if (fn.name === "getRequestByClaimId") reads.quorum++;
+              if (fn.name === "revealCount") completedQuorumCalls++;
               result = iface.encodeFunctionResult(fn, fn.outputs.map(empty)); break;
             }
           }
@@ -125,6 +131,12 @@ for (const [code, label, manual] of [[2, "FRAUD_FLAGGED", true], [5, "ORACLE_FAI
       } });
     });
     await page.goto("/admin/claims/42");
+    if (pollingCase) {
+      await expect.poll(async () => {
+        await page.clock.runFor(50);
+        return page.locator(".admin-claim-sidebar").filter({ hasText: label }).count();
+      }).toBe(1);
+    }
     await expect(page.locator(".admin-claim-sidebar")).toContainText(label);
     const action = page.getByRole("button", { name: "Send to Manual Review", exact: true });
     if (manual) await expect(action).toBeEnabled();
@@ -132,16 +144,25 @@ for (const [code, label, manual] of [[2, "FRAUD_FLAGGED", true], [5, "ORACLE_FAI
     if (pollingCase) {
       // Scheduling regression only: component API/RPC fixtures and a controlled
       // browser clock. This is not a public-provider latency/capacity benchmark.
-      await page.clock.runFor(1000);
-      if (code === 3) await expect.poll(() => reads.quorum).toBeGreaterThan(0);
-      else await expect.poll(() => reads.access).toBeGreaterThan(0);
+      if (code === 3) {
+        await expect.poll(async () => {
+          await page.clock.runFor(50);
+          return completedQuorumCalls;
+        }).toBe(1);
+        await page.clock.runFor(50);
+      } else await expect.poll(() => reads.access).toBeGreaterThan(0);
       const initial = { ...reads };
       await page.clock.runFor(8500);
       expect(reads).toEqual(initial);
       await page.clock.runFor(2000);
       await expect.poll(() => reads.claim).toBe(initial.claim + 1);
       await expect.poll(() => reads.oracle).toBe(initial.oracle + 1);
-      if (code === 3) await expect.poll(() => reads.quorum).toBe(initial.quorum + 1);
+      if (code === 3) {
+        await expect.poll(async () => {
+          await page.clock.runFor(50);
+          return reads.quorum;
+        }).toBe(initial.quorum + 1);
+      }
       else await expect.poll(() => reads.access).toBe(initial.access + 1);
       await page.evaluate(() => {
         Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
@@ -269,9 +290,11 @@ test("built release metadata exposes only the allowlisted public deployment conf
   const response = await request.get("/release-config.json");
   expect(response.ok()).toBe(true);
   const body = await response.json();
-  expect(Object.keys(body).sort()).toEqual(["schema", "chainId", "apiOrigin", "managerAddress", "economicsAddress", "evidenceRegistryAddress", "benefitsAddress"].sort());
+  expect(Object.keys(body).sort()).toEqual(["schema", "chainId", "apiOrigin", "managerAddress", "economicsAddress", "evidenceRegistryAddress", "benefitsAddress", "sourceCommit", "abiDigest"].sort());
   expect(body.schema).toBe("block-insure-public-release-v1");
   expect(Number.isSafeInteger(Number(body.chainId))).toBe(true);
+  expect(body.sourceCommit).toMatch(/^[a-f0-9]{40}$/);
+  expect(body.abiDigest).toMatch(/^[a-f0-9]{64}$/);
 });
 
 const viewports = [

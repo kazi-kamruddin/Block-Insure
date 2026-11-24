@@ -1,5 +1,34 @@
 const { expect } = require("@playwright/test");
 
+async function requestReadyOracleVerification(page, claimId) {
+  const { apiUrl } = require("./environment").getE2EConfig();
+  const token = await page.evaluate(() => localStorage.getItem("blockinsure_jwt"));
+  const readinessPath = "/api/admin/oracle-readiness";
+  const request = page.getByRole("button", { name: "Request Oracle Verification", exact: true });
+  let readiness;
+  for (let attempt = 0; attempt < 3; ++attempt) {
+    await expect.poll(async () => {
+      const response = await page.request.get(apiUrl + readinessPath, {
+        headers: { Authorization: `Bearer ${token}` }, params: { claimId }, maxRetries: 1,
+      });
+      return response.status();
+    }, { message: `Both Oracle workers must be ready for claim ${claimId}`, timeout: 90_000 }).toBe(200);
+    [readiness] = await Promise.all([
+      page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return response.request().method() === "GET" && url.pathname === readinessPath && url.searchParams.get("claimId") === String(claimId);
+      }, { timeout: 30_000 }),
+      request.click(),
+    ]);
+    // HTTP 503 exits the application's readiness check before any send.
+    if (readiness.status() !== 503) break;
+    await expect(request).toBeEnabled();
+  }
+  expect(readiness.status()).toBe(200);
+  await expect(page.locator(".success-text").filter({ hasText: /^Oracle verification requested successfully\.$/ }))
+    .toBeVisible({ timeout: 60_000 });
+}
+
 async function loginActor(page, actor) {
   if (actor.role === "HOSPITAL") {
     const { getE2EConfig } = require("./environment");
@@ -55,6 +84,12 @@ async function resetLocalClaimSubmissionLimit(page) {
   }
 }
 
+async function prepareReasonedVote(page, basis) {
+  if (process.env.CLAIM_WORKFLOW_PROFILE !== "V6") return;
+  const input = page.getByRole("textbox", { name: /Evidence supporting your vote/ });
+  await input.fill(basis);
+}
+
 function uniqueEvidenceFile() {
   const onePixelPng = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -71,7 +106,7 @@ function uniqueEvidenceFile() {
 
 function localDateTimeValue(date = new Date()) {
   const local = new Date(date.getTime() + 6 * 3_600_000);
-  return local.toISOString().slice(0, 19);
+  return local.toISOString().slice(0, local.getUTCSeconds() === 0 ? 16 : 19);
 }
 
 function syntheticPdfEvidenceFile() {
@@ -113,6 +148,8 @@ module.exports = {
   localDateTimeValue,
   loginActor,
   resetLocalClaimSubmissionLimit,
+  prepareReasonedVote,
+  requestReadyOracleVerification,
   uniqueEvidenceFile,
   syntheticPdfEvidenceFile,
 };

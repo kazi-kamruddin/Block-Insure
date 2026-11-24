@@ -7,6 +7,10 @@ const {
 } = require("hardhat/builtin-tasks/task-names");
 
 const { RPC_URL, ADMIN_PRIVATE_KEY } = process.env;
+const pairedChainId = Number(process.env.PAIRED_LOCAL_CHAIN_ID || 31337);
+const pairedRpc = process.env.PAIRED_LOCAL_RPC_URL;
+if (![31337, 11155111].includes(pairedChainId)) throw new Error("Invalid paired local chain ID");
+if (pairedRpc && !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(pairedRpc)) throw new Error("Paired local RPC must be loopback");
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD).setAction(
   async ({ solcVersion }, _hre, runSuper) => {
@@ -68,9 +72,11 @@ module.exports = {
     // coverage instrumentation from hitting Osaka's EIP-7825 transaction cap;
     // deployability is enforced separately by the EIP-170 bytecode-size tests.
     hardhat: {
+      chainId: pairedChainId,
       hardfork: "cancun",
       blockGasLimit: 100_000_000,
     },
+    ...(pairedRpc ? { localhost: { url: pairedRpc, chainId: pairedChainId } } : {}),
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL || RPC_URL || "",
       chainId: 11155111,

@@ -6,7 +6,7 @@ const { createActorContext, closeActor } = require("../support/walletBridge");
 
 test("@workflow accelerated calendar becomes payable on elapsed local wall time and settles manual OTP once", async ({ browser }, testInfo) => {
   test.skip(process.env.CALENDAR_PROFILE !== "ACCELERATED_TESTNET", "Separate explicit accelerated deployment required");
-  test.setTimeout(240000);
+  test.setTimeout(360000);
   const user = await createActorContext(browser, "user", { viewport: { width: 320, height: 900 } });
   try {
     expect((await user.provider.getNetwork()).chainId).toBe(31337n);

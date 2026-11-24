@@ -20,8 +20,14 @@ function validateBootstrap(network, environment) {
   return { ...target, rpc, signer: wallet.address, calendarProfile };
 }
 async function main() {
-  const args = require("./operatorArguments").parseOperatorArguments(process.argv.slice(2), { values: ["--network", "--env", "--output-dir"], switches: ["--probe", "--apply"], required: ["--network", "--env"] });
+  const args = require("./operatorArguments").parseOperatorArguments(process.argv.slice(2), { values: ["--network", "--env", "--output-dir", "--paired"], switches: ["--probe", "--apply"], required: ["--network", "--env"] });
   const environment = parseEnv(fs.readFileSync(path.resolve(args["--env"]), "utf8"));
+  if (args["--paired"]) {
+    const file = path.resolve(args["--paired"]);
+    const { manifest } = require("./paired/manifest").readManifest(file);
+    Object.assign(environment, require("./paired/deployment").environmentForDeployment(manifest.deployment),
+      { PAIRED_SCENARIO_FILE: file });
+  }
   const target = validateBootstrap(args["--network"], environment);
   const report = { network: args["--network"], chainId: target.chainId, signer: target.signer, calendarProfile: target.calendarProfile, transactionSent: false, configurationValidated: true };
   if (args["--probe"] || args["--apply"]) {

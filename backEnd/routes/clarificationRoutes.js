@@ -7,6 +7,7 @@ const bundles = require("../services/evidenceBundleService");
 const { getReadOnlyContract, getAdminContract } = require("../services/contractService");
 const auth = require("../middleware/authMiddleware");
 const { requireRole } = require("../middleware/roleMiddleware");
+const { notifyClarification } = require("../services/notificationService");
 const router = express.Router({ mergeParams: true });
 const extension = ["function clarificationUsed(uint256) view returns(bool)",
   "function clarificationEvidence(uint256,uint64) view returns(bytes32)"];
@@ -55,8 +56,9 @@ router.post("/open", requireRole("ADMIN", "CLAIM_OFFICER"), async (req, res, nex
     if (typeof question !== "string" || !question.trim() || question.length > 500) throw bundles.fail("Supply a specific evidence question", 422);
     const deadline = Number(await manager.manualReviewEligibleAt(claimId)) - 1;
     if (record || Number(claim.status) !== 5 || deadline <= now || await panel.clarificationUsed(claimId)) throw bundles.fail("Clarification window unavailable");
-    await Clarification.create({ scope, claimId, owner, priorVersion: version, question: question.trim(),
+    const saved = await Clarification.create({ scope, claimId, owner, priorVersion: version, question: question.trim(),
       deadline, requestedBy: req.user.walletAddress });
+    await notifyClarification(saved, "ASKED");
     res.status(201).json({ deadline });
   } catch (error) { next(error.code === 11000 ? bundles.fail("A request already exists") : error); }
 });
@@ -104,6 +106,7 @@ router.post("/reconcile", async (req, res, next) => {
     const bundle = await bundles.sealBundle({ claimId, claimVersion: record.priorVersion + 1, ownerWallet: owner, documents, insurerStatement: record.statement });
     if (bundle.manifestHash !== record.manifestHash) throw bundles.fail("Registered evidence differs from the confirmed response");
     await Clarification.updateOne({ _id: record._id }, { $set: { confirmed: true } });
+    await notifyClarification(record, "ANSWERED");
     res.json({ confirmed: true });
   } catch (error) { next(error); }
 });

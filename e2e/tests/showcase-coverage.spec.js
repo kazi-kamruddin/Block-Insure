@@ -3,8 +3,6 @@ const { loginActor } = require("../support/actions");
 const { closeActor, createActorContext } = require("../support/walletBridge");
 
 test.describe("@showcase expanded supervisor demonstration coverage", () => {
-  test.describe.configure({ mode: "serial" });
-
   test("Policyholder can inspect pricing, policy benefits, settled claims, and notifications", async ({ browser }) => {
     const session = await createActorContext(browser, "user");
     try {
@@ -158,8 +156,9 @@ test.describe("@showcase expanded supervisor demonstration coverage", () => {
 
       await session.page.goto("/admin/role-health");
       await expect(session.page.getByRole("heading", { name: "Role Sync Health" })).toBeVisible();
-      await expect(session.page.getByText("Status: Healthy")).toBeVisible();
-      await expect(session.page.getByText("Mismatches: 0")).toBeVisible();
+      const roleSummary = session.page.locator(".detail-kv-grid > div");
+      await expect(roleSummary.filter({ has: session.page.getByText("Status", { exact: true }) }).locator("dd")).toHaveText("Healthy");
+      await expect(roleSummary.filter({ has: session.page.getByText("Mismatches", { exact: true }) }).locator("dd")).toHaveText("0");
       expect(await session.page.locator("tbody tr").count()).toBeGreaterThanOrEqual(7);
 
       await session.page.goto("/admin/audit-actions");

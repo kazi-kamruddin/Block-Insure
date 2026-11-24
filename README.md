@@ -32,9 +32,7 @@ verification, configuration and the recorded hosted rollout.
 Protocol v5 adds version-bound appeal proof for direct and relayed transactions
 while retaining frozen XGBoost inference and historical request validators. See
 [sponsored appeal compatibility](docs/sponsored-appeal-compatibility.md) for local
-evidence and the completed Base rollout/default-activation record. The hosted
-demonstration uses Base Sepolia (84532); Ethereum Sepolia is a separate, completed
-measurement deployment. Do not repeat activation or deploy contracts to start a demo.
+evidence and the completed Base rollout/default-activation record. The historical hosted demonstration uses legacy contracts on Base Sepolia (84532). The completed Ethereum Sepolia run also used legacy contracts. The parallel Base V6 deployment is a separate environment. The upcoming paired V6 campaign and cutover use the [paired V6 runbook](docs/paired-v6-measurement.md).
 
 For a hosted walkthrough, check service readiness and public RPC capacity before
 starting timed claims. Real wallet and mailbox acceptance is separate from
@@ -47,11 +45,11 @@ outside the public repository.
 | --- | --- |
 | **Policies and premiums** | Review issued terms, purchase coverage, pay installments and view statements. |
 | **Simulated banking** | Authorize a manual OTP payment or set up a standing EFT instruction against a simulated balance. |
-| **Claims and evidence** | Submit an encrypted invoice and supporting files, track a claim and recover an interrupted submission or appeal. |
+| **Claims and evidence** | In V6, select an insurer-linked episode, attach encrypted evidence, track the claim, and recover an interrupted submission or appeal. |
 | **Hospital records** | Maintain institution-scoped synthetic records through an ordinary staff login; publish versioned commitments for matching. |
 | **Oracle verification** | Two workers verify committed records and execute the request-pinned XGBoost routing pipeline. |
 | **Auditor review** | The claimant authorizes the assigned four-person panel; three approvals approve, two rejections reject, and insufficient quorum at expiry rejects. |
-| **Settlement** | Approved, funded payouts and eligible cancellation refunds are allocated for the recipient to withdraw. |
+| **Settlement** | In V6, covered payouts apply the service sublimit and remaining policy coverage. Funded payouts and eligible cancellation refunds are allocated for the recipient to withdraw. |
 | **Access and recovery** | Wallet sign-in for signing roles, hospital staff accounts, email confirmation and encrypted evidence-key recovery. |
 
 Premium collection uses fixed installment periods shared by wallet, OTP and

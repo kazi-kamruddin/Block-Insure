@@ -272,6 +272,10 @@ export async function getPolicyBenefits(policyId) {
   return response.data;
 }
 
+export async function confirmRefundWithdrawal(transactionHash) {
+  return (await api.post("/api/policy-benefits/withdrawals/confirm", { transactionHash })).data;
+}
+
 export async function getPackageBenefitTerms(packageId) {
   const response = await api.get(
     `/api/policy-benefits/packages/${packageId}/terms`

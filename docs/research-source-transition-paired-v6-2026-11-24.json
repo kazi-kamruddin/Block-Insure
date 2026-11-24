@@ -1,0 +1,272 @@
+{
+  "schemaVersion": 1,
+  "releaseProtocol": "BLOCK_INSURE_PAIRED_V6_LOCAL_REHEARSAL",
+  "reviewDate": "2026-11-24",
+  "historicalManifest": "backEnd/evaluation-results/research-manifest-v4.json",
+  "historicalManifestSha256": "f9be1fdd686180701037a662937c0b03f7a0fae30cac0c3b7fc2582d0d405f01",
+  "historicalReproducibilityHash": "7cc953d5982e95d41690b9aba85dd544de4e43e86f2cef0ddffadacde4a3680c",
+  "evidenceStatus": "HISTORICAL_NOT_REVALIDATED",
+  "limitation": "Exact source provenance for local V6 rehearsal tooling. Historical experimental results keep their prior identities and have not been revalidated.",
+  "changes": [
+    {
+      "path": [
+        "artifacts",
+        "protocolRouting",
+        "modelIdentityHash"
+      ],
+      "before": "0xf86d83cbf87ac192b77aaf5bf830d99f7f4b01daf04c9f905502d3161b3fda8a",
+      "after": "0x5fe2760cc2306065c60287b80df97ca66ba1da54ce3647389672e9bc5ea58e4a",
+      "reason": "Protocol v5 changes trusted sponsored-appeal receipt proof and request identity, retaining frozen inference, calibration, threshold and historical request dispatch. This is not a new experimental measurement."
+    },
+    {
+      "path": [
+        "contracts",
+        "BankIdentityRegistry",
+        "artifactSha256"
+      ],
+      "before": "c99fc28b2983d464d84c999b56e09fb6f99fdc8536217065ee517376f5e85295",
+      "after": "bd547418680130615332671dae145fe45c49185d427238ecd028cf1fb9a3c751",
+      "reason": "Retained prior source transition: Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "BankIdentityRegistry",
+        "deployedBytecodeBytes"
+      ],
+      "before": 2423,
+      "after": 2416,
+      "reason": "Retained prior source transition: Compiled financial schedule, issued-term commitments, atomic funded gateway settlement and sender-bound oracle commitments"
+    },
+    {
+      "path": [
+        "contracts",
+        "ClaimAdjudicator",
+        "artifactSha256"
+      ],
+      "before": "a266f97224d077689c55a028bfd5b333455f75803488ae1d80e2ad0cfe7c7b87",
+      "after": "a2015a0add5ee236ae0a73691e9fb25bbca9cea9f704d135f9af4d914ab6a7f5",
+      "reason": "Updated source binding for v6 clarification compatibility."
+    },
+    {
+      "path": [
+        "contracts",
+        "ClaimAdjudicator",
+        "deployedBytecodeBytes"
+      ],
+      "before": 10501,
+      "after": 13682,
+      "reason": "Updated source binding for v6 clarification compatibility."
+    },
+    {
+      "path": [
+        "contracts",
+        "InsuranceManager",
+        "artifactSha256"
+      ],
+      "before": "4dd26a5045fce6b24f23eb3b8453bcc9cce5b372e0819a77f4fece0a2fd86ba8",
+      "after": "78cce5628d7dd2cc10f57ac465ba520b3bc08b6a20f9c8bfa4891aa599c833a3",
+      "reason": "Recompiled published claim workflow with versioned clarification, bounded timeout retry and capped policy terms. Historical measurements remain archival."
+    },
+    {
+      "path": [
+        "contracts",
+        "InsuranceManager",
+        "deployedBytecodeBytes"
+      ],
+      "before": 24320,
+      "after": 24383,
+      "reason": "Recompiled published claim workflow with versioned clarification, bounded timeout retry and capped policy terms. Historical measurements remain archival."
+    },
+    {
+      "path": [
+        "contracts",
+        "OracleCoordinator",
+        "artifactSha256"
+      ],
+      "before": "4b528b7d5b58c7cda6b66369ed93df23242825d268f39778a6569007079316dc",
+      "after": "3307570240f72de1a2fa81ea5429ca5ec76702ff42f47ad22f4b37b4390e1bee",
+      "reason": "Updated source binding for v6 clarification compatibility."
+    },
+    {
+      "path": [
+        "contracts",
+        "OracleCoordinator",
+        "deployedBytecodeBytes"
+      ],
+      "before": 7878,
+      "after": 7641,
+      "reason": "Updated source binding for v6 clarification compatibility."
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyBenefitsManager",
+        "artifactSha256"
+      ],
+      "before": "6f0ff0e5026b7523af0d05aa6327d884c480fa477a4af04b3184f8eb6361b78c",
+      "after": "e691710ac92bdce25e6bcb5e9f4e432fac09c6778998aecc2d6e9e2e443e19da",
+      "reason": "Compiled bounded access preparation, immutable quorum, incomplete-evidence recovery and retained cancellation-refund semantics"
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyBenefitsManager",
+        "deployedBytecodeBytes"
+      ],
+      "before": 10918,
+      "after": 11541,
+      "reason": "Compiled bounded access preparation, immutable quorum, incomplete-evidence recovery and retained cancellation-refund semantics"
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyEconomics",
+        "artifactSha256"
+      ],
+      "before": "a074e111def63057944fa0da4d032e5ce1eb199a94b412c0e2a2072e0f971757",
+      "after": "62dc514bb13f67856a919074186157114c89bd18f4f831410a96d7dea370e30c",
+      "reason": "Recompiled published claim workflow with versioned clarification, bounded timeout retry and capped policy terms. Historical measurements remain archival."
+    },
+    {
+      "path": [
+        "contracts",
+        "PolicyEconomics",
+        "deployedBytecodeBytes"
+      ],
+      "before": 10413,
+      "after": 15468,
+      "reason": "Recompiled published claim workflow with versioned clarification, bounded timeout retry and capped policy terms. Historical measurements remain archival."
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/artifacts/xgboost-advisory-manifest.json"
+      ],
+      "before": "d0ddf20bba29053ec770217108b21ee79d5d663769ceb465a41b2a3ae249e3f6",
+      "after": "ccc476d1644586f4db28676d794b06148067e62715557ef5c5f2c4d6bdf78b60",
+      "reason": "Retained prior source transition: Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/services/merkleRegistryService.js"
+      ],
+      "before": "4eee02c246d69c6b9b92dec17793ce0e235a99e1e1cebbe2295e328c93729389",
+      "after": "4de67c6df10d06e037c687d43de1780ffad4187f4f43ed33a7a1e1ee0bf89870",
+      "reason": "Retained prior source transition: Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/services/oracleDecisionService.js"
+      ],
+      "before": "42d59002bd681fd608a389f891c8b2a9a1c429b98a3fac389f14493ffd8a03a6",
+      "after": "6735f0bb6218f0017d449cc53f5e3a5832cc9d40d824970015c3219604ec8a58",
+      "reason": "Resolve each request-pinned evaluator for persisted decisions and validated reveal logs; retain canonical assessment, request/block/version identity and result-hash checks across v4/v5."
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/services/oracleShadowService.js"
+      ],
+      "before": "48b7c31a51180242ac3eec0d071f6ce3eac79c3fe2057b0f6466a0ed69754b5a",
+      "after": "760dfddba06e3b75803d9fc59a93302bcb9d8487fe6eb69a80868a64b9d32542",
+      "reason": "Coalesce immutable snapshot loads for simultaneous worker verification. Protocol checks and frozen inference are retained."
+    },
+    {
+      "path": [
+        "implementation",
+        "backEnd/test/phase8OperationalHardening.test.js"
+      ],
+      "before": "a4d1b64e83d02a7353276ee3894c5c03d9b1a9af3033ef9215f8b2809206917e",
+      "after": "98e17053e6c19a3a2fc353df3d2d37fd991e9c304b25681db5c86e6533e2d008",
+      "reason": "Retained prior source transition: Version-aware hospital record publication and matching; refreshed source-bound protocol/advisory packaging and affected regression fixture"
+    },
+    {
+      "path": [
+        "implementation",
+        "contracts/hardhat.config.js"
+      ],
+      "before": "f38453d52d55ac76b081709930a587e1e15212014d43197d4e0a46e2c15ba042",
+      "after": "38bee60b336120d7475428e27206e68aa23e7137314b578e9e062dbd1030b0e4",
+      "reason": "Adds an explicit loopback Hardhat rehearsal chain and RPC. Compiler options, bytecode and default network behavior retain their existing values."
+    },
+    {
+      "path": [
+        "implementation",
+        "contracts/test/Phase6ProtocolStatefulInvariants.test.js"
+      ],
+      "before": "8ff2468b3d34786d1389b95bf87c09aecf492c5ad5aa757edc1dd19840520c59",
+      "after": "61f41755e16f1670666c2d7b16dd7e7d697279daaf7f270d19cc1397a3ee7b42",
+      "reason": "Reviewed version-aware hospital and appeal verification, source-bound protocol v3 packaging and manual-review preparation regression changes"
+    },
+    {
+      "path": [
+        "implementation",
+        "oracle/runtimeProtocol.js"
+      ],
+      "before": "c0b3fc99f6b2f0468652fa8b35641f073bf7ba7850c967792abdaf5a786e6dfe",
+      "after": "fe58d802a47c5ac69567f0b226811ddd4c2741f5d4ade7c1d06729a16f194e6e",
+      "reason": "Versioned worker compatibility receipt for the clarification proof transport."
+    },
+    {
+      "path": [
+        "implementation",
+        "scripts/deploymentNetworkSafety.js"
+      ],
+      "before": "ee35529548ddfba68e2f45f423946dd34c7227407d2339d74951e58ddeacf2d1",
+      "after": "48565fded3a9399ea2fc1cd4e7667f0beecb20f5fcb9aa3890a50405c6b75ffe",
+      "reason": "Permits the rehearsal chain ID in explicit paired-local mode while retaining separation from public signer admission."
+    },
+    {
+      "path": [
+        "implementation",
+        "scripts/devAll.js"
+      ],
+      "before": "7023902e698e0cd8cdabb27079957db653133da96e4fc1657c747fff3c7f41b1",
+      "after": "d5428cdfa2b630df7e1ae17a00da63555a0c26131782eae9c519264976fec807",
+      "reason": "Local launcher recognizes supported historical request profiles and warns that explicit migration is required; it does not silently activate v5 or reset existing deployments."
+    },
+    {
+      "path": [
+        "implementation",
+        "scripts/migrateProtocolModel.js"
+      ],
+      "before": "1e23cee78c83c47f8b1be07308dbc1bb1042ae3a9ac7e6c3a41955b1e05feea9",
+      "after": "274abebd6461ebb4d7ee465e70c91fe5ce3cee9de3f9225e5d02d9fda31f9e74",
+      "reason": "Guarded migration accepts recognized historical source profiles, binds expected current identity and network/role checks, and verifies default readback. No migration is performed by repository verification."
+    },
+    {
+      "path": [
+        "implementation",
+        "scripts/networkMeasurement.js"
+      ],
+      "before": "a8a886973c9673894c423848f325bece9d05c6e18f536c1af35a39e2a7dbacf5",
+      "after": "cde2a00c8278820708932d96bb20197a84be39277909814b99a9d2db45591950",
+      "reason": "Receipt schema v2 labels charged gas/fees without assuming execution-only accounting under Sepolia Glamsterdam; missing execution/state splits and L2 data fees remain unknown. No historical receipt or study was rewritten."
+    },
+    {
+      "path": [
+        "implementation",
+        "scripts/packageProtocolModel.js"
+      ],
+      "before": "b46b1ef1140bffc3bdfbae1b8f2e194b8d33bcba46c2f57d526a80347c2239c3",
+      "after": "d09dccc6e277e5613a88b3a51bef17c944399a8c837e6a529206578992d17b35",
+      "reason": "Package/check v5 and operational compatibility v2 while retaining historical profiles and unchanged inference bindings; check mode verifies without rewriting artifacts."
+    },
+    {
+      "path": [
+        "packages",
+        "root",
+        "packageJsonSha256"
+      ],
+      "before": "a9c111c86279f2dc7f9124b4dd48c4dfba7fcfa242a3712aa87ebafd6069164c",
+      "after": "6583fc8864b5a0b95ecc52e694651ab8dd8a1408692016bbe10e0ed6162b2744",
+      "reason": "Release verification/packaging command update; runtime model and historical measurements unchanged"
+    }
+  ],
+  "releaseWork": "Pins the current intake and claim workflow source changes without revalidating historical research measurements.",
+  "previousTransition": "docs/research-source-transition-claim-workflow.json",
+  "previousTransitionSha256": "1e73b1f07883fb8dbdd60be43266145f3fe18ab864f8d507750a7ed694208db4"
+}

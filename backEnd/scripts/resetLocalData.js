@@ -45,7 +45,7 @@ const ChainReadSnapshot = require("../models/ChainReadSnapshot");
 const {
   buildSyntheticRecords,
 } = require("./seedMockData");
-const { buildHybridRuntimeRecords } = require("./seedHybridData");
+const { alignDemoPresetDates, buildHybridRuntimeRecords } = require("./seedHybridData");
 const { seedHospitalDirectory } = require("../services/hospitalDirectoryService");
 const { seedBankDirectory } = require("../services/bankDirectoryService");
 
@@ -153,9 +153,17 @@ async function main() {
   if (!process.env.MONGODB_URI) {
     throw new Error("MONGODB_URI is missing in backEnd/.env");
   }
-  assertSafeResetTarget(process.env.MONGODB_URI);
-
+  const { databaseName, localHost } = assertSafeResetTarget(process.env.MONGODB_URI);
   const hybridMode = process.argv.includes("--hybrid");
+  const demoPresets = process.argv.includes("--demo-presets");
+  const pairedReference = process.env.E2E_PAIRED_REGISTRY_REFERENCE;
+  if (demoPresets && (hybridMode || !localHost || !/^block_insure_[a-z0-9_]*e2e$/.test(databaseName))) {
+    throw new Error("The demo preset profile requires one disposable loopback E2E database");
+  }
+  if (pairedReference && (!demoPresets || process.env.E2E_PAIRED_ROUTE_PREFLIGHT !== "true" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(pairedReference) || !Number.isFinite(Date.parse(pairedReference)))) {
+    throw new Error("A pinned registry reference is supported only by the isolated paired route preflight");
+  }
   let connectionError;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
@@ -186,7 +194,7 @@ async function main() {
 
     const registryRecords = hybridMode
       ? await buildHybridRuntimeRecords({ demoReferenceDate: await getChainReferenceDate() })
-      : buildSyntheticRecords();
+      : demoPresets ? alignDemoPresetDates(buildSyntheticRecords().slice(0, 5), pairedReference || await getChainReferenceDate()) : buildSyntheticRecords();
     await MockHospitalRecord.deleteMany({});
     await MockHospitalRecordOracle2.deleteMany({});
     await MockHospitalRecord.insertMany(registryRecords);

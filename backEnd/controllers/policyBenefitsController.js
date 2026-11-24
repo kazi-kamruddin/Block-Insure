@@ -12,6 +12,7 @@ const {
   getReadOnlyBenefitsContract,
 } = require("../services/policyBenefitsService");
 const { logAdminAction } = require("../services/adminActionLogService");
+const { notifyRefund } = require("../services/notificationService");
 
 const createError = (message, statusCode = 400) => {
   const error = new Error(message);
@@ -173,6 +174,24 @@ const getConfirmedBenefitsTransaction = async (req, expectedFunction) => {
   return { parsed, receipt, transactionHash };
 };
 
+const confirmRefundWithdrawal = async (req, res, next) => {
+  try {
+    const hash = req.body.transactionHash;
+    if (typeof hash !== "string" || !/^0x[a-f\d]{64}$/i.test(hash)) throw createError("A valid transactionHash is required");
+    const contract = getReadOnlyBenefitsContract();
+    const receipt = await contract.runner.getTransactionReceipt(hash);
+    if (!receipt || Number(receipt.status) !== 1 ||
+        (await contract.runner.getBlock(receipt.blockNumber))?.hash !== receipt.blockHash) {
+      throw createError("Refund withdrawal is awaiting canonical confirmation", 409);
+    }
+    const events = trustedEvents({ target: contract.target, interface: benefitEventInterface }, receipt, "BenefitWithdrawn",
+      (args) => args.recipient.toLowerCase() === req.user.walletAddress.toLowerCase() && args.amount > 0n);
+    if (events.length !== 1) throw createError("Withdrawal does not match the authenticated wallet", 409);
+    await notifyRefund(req.user.walletAddress, { status: "WITHDRAWN", transactionHash: hash, scope: contract.target.toLowerCase() });
+    res.json({ confirmed: true });
+  } catch (error) { next(error); }
+};
+
 const confirmPublishedBenefitTerms = async (req, res, next) => {
   try {
     const packageId = String(req.params.packageId);
@@ -256,6 +275,19 @@ const resolveBenefitRequest = (action) => async (req, res, next) => {
           ? { decisionReasonHash: parsed.args.reasonHash }
           : {},
     });
+    if (action === "SETTLE") {
+      try {
+        const contract = getReadOnlyBenefitsContract();
+        const request = await contract.getBenefitRequest(req.params.requestId);
+        if (Number(request.benefitType) === 1) {
+          const policy = await getReadOnlyContract().getPolicy(request.policyId);
+          await notifyRefund(policy.holderWallet, { status: "AVAILABLE", transactionHash,
+            policyId: request.policyId.toString(), scope: contract.target.toLowerCase() });
+        }
+      } catch (error) {
+        console.warn("Refund availability notification lookup failed", { code: error.code });
+      }
+    }
     res.status(200).json({
       success: true,
       message: `Benefit request ${
@@ -275,6 +307,7 @@ module.exports = {
   getPolicyBenefits,
   listBenefitRequests,
   confirmPublishedBenefitTerms,
+  confirmRefundWithdrawal,
   rejectBenefitRequest: resolveBenefitRequest("REJECT"),
   settleBenefitRequest: resolveBenefitRequest("SETTLE"),
 };

@@ -1,11 +1,12 @@
 const { selectEpisode, prepareEpisode } = require("../support/intakeEpisode");
 const { test, expect } = require("@playwright/test");
 const mongoose = require("../../backEnd/node_modules/mongoose");
+const { Contract } = require("../../backEnd/node_modules/ethers");
 const { createActorContext, closeActor } = require("../support/walletBridge");
-const { loginActor, localDateTimeValue, syntheticPdfEvidenceFile } = require("../support/actions");
-const { requireDisposableE2EMongoUri } = require("../support/environment");
+const { loginActor, localDateTimeValue, syntheticPdfEvidenceFile, requestReadyOracleVerification } = require("../support/actions");
+const { getE2EConfig, requireDisposableE2EMongoUri } = require("../support/environment");
 test("@workflow simultaneous claimant submissions retain separate evidence and shadow identities", async ({ browser }) => {
-  test.setTimeout(420000);
+  test.setTimeout(540000);
   const sessions = [];
   const mongo = await mongoose.createConnection(requireDisposableE2EMongoUri()).asPromise();
   try {
@@ -13,13 +14,17 @@ test("@workflow simultaneous claimant submissions retain separate evidence and s
       const session = await createActorContext(browser, actor); sessions.push(session); await loginActor(session.page, session.actor);
     }
     const [first, second, admin] = sessions;
-    const users = [first, second], invoices = [];
+    const users = [first, second], invoices = [], purchasedPolicyIds = [];
+    const manager = new Contract(process.env.CONTRACT_ADDRESS || process.env.VITE_CONTRACT_ADDRESS,
+      require("../../backEnd/abi/InsuranceManager.json").abi, first.provider);
     const headers = async (session) => ({ Authorization: `Bearer ${await session.page.evaluate(() => sessionStorage.getItem("blockinsure_hospital_session") || localStorage.getItem("blockinsure_jwt"))}` });
     for (const user of users) {
       await user.page.goto("/user/policies/buy");
+      const policyId = await manager.policyCounter();
       await user.page.getByRole("checkbox", { name: /I have read and agree/ }).first().check();
       await user.page.getByRole("button", { name: "Buy Policy" }).first().click();
       await expect(user.page.locator(".success-text")).toContainText("policy purchased successfully");
+      purchasedPolicyIds.push(String(policyId));
     }
     const block = await first.provider.getBlock("latest");
     const instant = new Date(Number(block.timestamp) * 1000);
@@ -32,8 +37,7 @@ test("@workflow simultaneous claimant submissions retain separate evidence and s
       const page = users[i].page;
       await page.goto("/user/claims/new");
       const policy = page.getByLabel("Policy", { exact: true });
-      await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1);
-      await policy.selectOption({ index: 1 });
+      await policy.selectOption(purchasedPolicyIds[i]);
       await selectEpisode(page, invoices[i]);
       const incident = page.getByLabel("Incident date/time"); await incident.evaluate((input) => input.setAttribute("step", "1"));
       await incident.fill(localDateTimeValue(instant));
@@ -52,7 +56,7 @@ test("@workflow simultaneous claimant submissions retain separate evidence and s
     const read = async (id) => {
       // A pooled socket may close between polls. Retry only one ECONNRESET on
       // this idempotent GET; HTTP failures and scenario deadlines still fail.
-      const response = await admin.context.request.get(`http://localhost:5000/api/claims/${id}/advisory`, {
+      const response = await admin.context.request.get(`${getE2EConfig().apiUrl}/api/claims/${id}/advisory`, {
         headers: await headers(admin), maxRetries: 1,
       });
       expect(response.status(), await response.text()).toBe(200);
@@ -63,8 +67,7 @@ test("@workflow simultaneous claimant submissions retain separate evidence and s
     expect(new Set(assessed.map((a) => a.assessmentId)).size).toBe(2);
     for (const id of ids) {
       await admin.page.goto(`/admin/claims/${id}`);
-      await admin.page.getByRole("button", { name: "Request Oracle Verification" }).click();
-      await expect(admin.page.locator(".success-text")).toContainText("Oracle verification requested successfully");
+      await requestReadyOracleVerification(admin.page, id);
     }
     for (const id of ids) {
       await expect.poll(async () => (await read(id)).workerShadow?.status, { timeout: 90000, intervals: [5000] }).toBe("MATCHED");

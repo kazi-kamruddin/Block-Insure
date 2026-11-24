@@ -25,9 +25,10 @@ function immutableReferences(name) {
   const build = JSON.parse(fs.readFileSync(path.resolve(path.dirname(debugPath), debug.buildInfo)));
   return build.output.contracts[`contracts/${name}.sol`][name].evm.deployedBytecode.immutableReferences || {};
 }
-async function verifyDeployment({ manifest, provider, local = false }) {
+async function verifyDeployment({ manifest, provider, local = false, paired = false, bootstrap = false, requireRegistry = true }) {
   const chainId = (await provider.getNetwork()).chainId;
-  if (chainId !== BigInt(manifest.chainId) || !(local ? [31337n] : [11155111n, 84532n]).includes(chainId)) throw new Error("Deployment network mismatch");
+  const supported = local ? (paired ? [31337n, 11155111n] : [31337n]) : [11155111n, 84532n];
+  if (chainId !== BigInt(manifest.chainId) || !supported.includes(chainId)) throw new Error("Deployment network mismatch");
   const components = manifest.components || {};
   const names = [...Object.keys(COMPONENTS), "ProtocolDeploymentRegistry"];
   if (names.some((name) => !ethers.isAddress(components[name])) || new Set(names.map((name) => components[name].toLowerCase())).size !== names.length) throw new Error("Missing or repeated component address");
@@ -37,12 +38,16 @@ async function verifyDeployment({ manifest, provider, local = false }) {
   const claimWorkflowProfile = manifest.claimWorkflowProfile || "LEGACY";
   if (!["LEGACY", "V6"].includes(claimWorkflowProfile)) throw new Error("Unsupported claim workflow profile");
   const codeHashes = {};
+  const normalizedCodeHashes = {};
   for (const name of names) {
     const implementation = name === "InsuranceManager" && calendarProfile === "ACCELERATED_TESTNET" ? "AcceleratedInsuranceManager" :
       name === "ClaimAdjudicator" && claimWorkflowProfile === "V6" ? "ClaimAdjudicatorV6" : name;
     const code = await provider.getCode(components[name]);
-    if (code === "0x" || comparableCode(code, immutableReferences(implementation)) !== comparableCode(artifactFor(implementation).deployedBytecode, immutableReferences(implementation))) throw new Error(`Deployed code differs: ${name}`);
+    const references = immutableReferences(implementation);
+    const normalized = comparableCode(code, references);
+    if (code === "0x" || normalized !== comparableCode(artifactFor(implementation).deployedBytecode, references)) throw new Error(`Deployed code differs: ${name}`);
     codeHashes[name] = ethers.keccak256(code);
+    normalizedCodeHashes[name] = normalized;
   }
   const directory = contracts.ProtocolDeploymentRegistry;
   if (await directory.protocolVersion() !== ethers.id("BLOCK_INSURE_COMPLETION_PHASE2_V3")) throw new Error("Incompatible release directory");
@@ -65,12 +70,12 @@ async function verifyDeployment({ manifest, provider, local = false }) {
   if (await contracts.OracleCoordinator.quorumThreshold() !== 2n) throw new Error("Oracle quorum must be two");
   const schedule = require("../backEnd/services/paymentScheduleService").formatPaymentSchedule(await contracts.PolicyEconomics.getPaymentSchedule());
   if (schedule.profile !== calendarProfile) throw new Error("Payment calendar differs from selected manifest");
-  if (oracles.length < 2 || auditors.length < 4 || new Set([...oracles, ...auditors].map((v) => v.toLowerCase())).size !== oracles.length + auditors.length) throw new Error("Insufficient or overlapping adjudication roles");
-  if (await contracts.OracleCoordinator.currentRegistryVersion() === 0n || await contracts.OracleCoordinator.currentRegistryRoot() === ethers.ZeroHash) throw new Error("Registry has not been published");
+  if (!bootstrap && (oracles.length < 2 || auditors.length < 4 || new Set([...oracles, ...auditors].map((v) => v.toLowerCase())).size !== oracles.length + auditors.length)) throw new Error("Insufficient or overlapping adjudication roles");
+  if (!bootstrap && requireRegistry && (await contracts.OracleCoordinator.currentRegistryVersion() === 0n || await contracts.OracleCoordinator.currentRegistryRoot() === ethers.ZeroHash)) throw new Error("Registry has not been published");
   const block = await provider.getBlock(Number(manifest.deploymentBlock));
   if (!block) throw new Error("Deployment block missing");
   return { schema: "block-insure-deployment-readback-v1", checkedAt: new Date().toISOString(), chainId: String(chainId),
-    deploymentBlock: Number(manifest.deploymentBlock), deploymentBlockHash: block.hash, modelIdentityHash: model, claimWorkflowProfile, codeHashes,
+    deploymentBlock: Number(manifest.deploymentBlock), deploymentBlockHash: block.hash, modelIdentityHash: model, claimWorkflowProfile, codeHashes, normalizedCodeHashes,
     manager: components.InsuranceManager, components, paymentSchedule: schedule, oracleWallets: oracles, auditorWallets: auditors, registryRoot: await contracts.OracleCoordinator.currentRegistryRoot(),
     limitation: "Read-only code, directory, wiring, model and role checks; not workflow, funding, external-service or economic-finality acceptance." };
 }

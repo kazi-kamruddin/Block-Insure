@@ -50,6 +50,8 @@ test.describe("@maintenance hospital-owned records", () => {
         const saved = session.page.waitForResponse(response => response.request().method() === "PATCH" && response.url().includes("/hospitals/records/"));
         await recordRow.getByRole("button", { name: "Save correction" }).click();
         expect((await saved).ok()).toBe(true);
+        await session.page.reload();
+        await expect(bill).toHaveValue(value);
       }
       await session.page.reload();
       const restoredRow = recordRow;

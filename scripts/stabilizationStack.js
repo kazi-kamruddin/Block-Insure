@@ -11,19 +11,40 @@ let stopping = false;
 const dailyLauncher = process.argv.includes("--daily-launcher");
 const shadowRestart = process.argv.includes("--shadow-restart");
 const brevoStub = process.argv.includes("--brevo-stub");
+const portOffset = Number(process.env.E2E_PORT_OFFSET || 0);
+if (!Number.isSafeInteger(portOffset) || portOffset < 0 || portOffset > 15000) throw new Error("Invalid isolated port offset");
+const ports = Object.fromEntries(Object.entries({ chain: 8545, api: 5000, web: 5173, pinata: 5055,
+  oracle1: 5101, oracle2: 5102, proxy: 18545 }).map(([key, port]) => [key, port + portOffset]));
+const rpcUrl = "http://127.0.0.1:" + ports.chain;
+const apiUrl = "http://localhost:" + ports.api;
+const frontendUrl = "http://localhost:" + ports.web;
+const pinataUrl = "http://127.0.0.1:" + ports.pinata;
+const oracleUrl = (instance) => "http://127.0.0.1:" + ports["oracle" + instance];
+const proxyUrl = "http://127.0.0.1:" + ports.proxy;
+const chainId = Number(process.env.E2E_PAIRED_CHAIN_ID || 31337);
+const pairedRoutePreflight = process.env.E2E_PAIRED_ROUTE_PREFLIGHT === "true";
+if (![31337, 11155111].includes(chainId) || (chainId !== 31337 &&
+    (!pairedRoutePreflight || dailyLauncher))) {
+  throw new Error("The second loopback chain requires an explicit paired route preflight");
+}
 fs.mkdirSync(path.join(root, "tmp"), { recursive: true });
 const output = fs.mkdtempSync(path.join(process.env.STABILIZATION_CAMPAIGN_DIR || path.join(root, "tmp"), "stabilization-"));
 const environment = {
   ...process.env, NODE_ENV: "development", FORCE_PUBLIC_DNS: "false",
   BLOCKCHAIN_RUNTIME_ENABLED: "true", INDEXER_ENABLED: "true", INDEXER_CONFIRMATIONS: "0",
   ORACLE_WORKER_ENABLED: "true", ORACLE_CURSOR_MODE: "backend", ORACLE_POLL_INTERVAL_MS: "1000",
-  PORT: "5000", RPC_URL: "http://127.0.0.1:8545", CHAIN_ID: "31337",
+  PORT: String(ports.api), RPC_URL: rpcUrl, PAIRED_LOCAL_RPC_URL: rpcUrl, CHAIN_ID: String(chainId),
+  PAIRED_LOCAL_CHAIN_ID: String(chainId), E2E_CHAIN_ID: String(chainId), VITE_CHAIN_ID: String(chainId),
+  E2E_RPC_URL: rpcUrl, E2E_API_URL: apiUrl, E2E_APP_URL: frontendUrl, BACKEND_API_URL: apiUrl,
+  MOCK_HOSPITAL_API_URL: apiUrl + "/mock/hospital/verify", ORACLE_READY_URLS: [oracleUrl(1), oracleUrl(2)].join(","),
+  ...(process.env.E2E_BACKEND_RPC_URL ? { E2E_BACKEND_RPC_URL: proxyUrl, E2E_RPC_PROXY_PORT: String(ports.proxy),
+    E2E_RPC_PROXY_TARGET_URL: rpcUrl } : {}),
   JWT_SECRET: crypto.randomBytes(32).toString("hex"), BANK_OTP_SECRET: crypto.randomBytes(32).toString("hex"),
   ORACLE_API_KEY: crypto.randomBytes(32).toString("hex"),
-  ALLOWED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173", SIWE_URI: "http://localhost:5173", SIWE_DOMAIN: "localhost:5173",
-  VITE_API_BASE_URL: "http://localhost:5000", VITE_IPFS_GATEWAY: "http://127.0.0.1:5055/ipfs/",
-  PINATA_API_BASE_URL: "http://127.0.0.1:5055", PINATA_JWT: "block-insure-local-test-only-token",
-  LOCAL_PINATA_PORT: "5055", EVIDENCE_KEY_DIRECTORY: path.join(output, "keys"),
+  ALLOWED_ORIGINS: [frontendUrl, "http://127.0.0.1:" + ports.web].join(","), SIWE_URI: frontendUrl, SIWE_DOMAIN: "localhost:" + ports.web,
+  VITE_API_BASE_URL: apiUrl, VITE_RPC_URL: rpcUrl, VITE_IPFS_GATEWAY: pinataUrl + "/ipfs/",
+  PINATA_API_BASE_URL: pinataUrl, PINATA_JWT: "block-insure-local-test-only-token",
+  LOCAL_PINATA_PORT: String(ports.pinata), EVIDENCE_KEY_DIRECTORY: path.join(output, "keys"),
   DEPLOY_WRITE_ENV: "false", DEPLOYMENT_OUTPUT_DIR: output,
   SKIP_LOCAL_ORACLE_CURSOR_RESET: "true",
   CLAIM_SUBMISSION_RATE_LIMIT: "100",
@@ -123,12 +144,13 @@ async function main() {
   try { const response = await fetch(environment.RPC_URL, { signal: AbortSignal.timeout(1000) }); if (response) throw new Error("RPC port is occupied"); } catch (error) { if (error.message === "RPC port is occupied") throw error; }
   const chainChild = dailyLauncher
     ? start("Hardhat daily chain", process.env.npm_execpath, ["run", "dev:chain"])
-    : start("Hardhat", path.join(root, "contracts/node_modules/hardhat/internal/cli/cli.js"), ["node", "--hostname", "127.0.0.1"], path.join(root, "contracts"));
+    : start("Hardhat", path.join(root, "contracts/node_modules/hardhat/internal/cli/cli.js"), ["node", "--hostname", "127.0.0.1", "--port", String(ports.chain)], path.join(root, "contracts"));
   await waitFor(async () => (await fetch(environment.RPC_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }) })).ok, "Hardhat");
-  await backend("resetLocalData.js", ["--yes", "--hybrid"]);
+  await backend("resetLocalData.js", ["--yes", process.env.E2E_REGISTRY_PROFILE === "demo-presets" ? "--demo-presets" : "--hybrid"]);
   await hardhat("scripts/fund-demo-accounts-local.js");
   await hardhat("scripts/deploy.js");
-  const deployment = JSON.parse(fs.readFileSync(path.join(output, "localhost-31337.json")));
+  const deploymentFile = path.join(output, "localhost-" + chainId + ".json");
+  const deployment = JSON.parse(fs.readFileSync(deploymentFile));
   for (const [component, key] of Object.entries({ InsuranceManager: "CONTRACT_ADDRESS", ClaimAdjudicator: "CLAIM_ADJUDICATOR_ADDRESS", PolicyEconomics: "POLICY_ECONOMICS_ADDRESS", PolicyBenefitsManager: "POLICY_BENEFITS_ADDRESS", EvidenceRegistry: "EVIDENCE_REGISTRY_ADDRESS", HospitalVerificationRegistry: "HOSPITAL_VERIFICATION_REGISTRY_ADDRESS", BankIdentityRegistry: "BANK_IDENTITY_REGISTRY_ADDRESS", ProtocolDeploymentRegistry: "PROTOCOL_DEPLOYMENT_REGISTRY_ADDRESS" })) {
     environment[key] = deployment.components[component];
     environment[`VITE_${key}`] = deployment.components[component];
@@ -138,11 +160,15 @@ async function main() {
   environment.POLICY_BENEFITS_DEPLOYMENT_BLOCK = String(deployment.benefitsDeploymentBlock);
   environment.VITE_POLICY_BENEFITS_DEPLOYMENT_BLOCK = String(deployment.benefitsDeploymentBlock);
   await backend("grantProjectRolesLocal.js");
-  if (process.env.E2E_UNFUNDED_RESERVE !== "true") await backend("fundContractLocal.js", ["5"]);
+  if (process.env.E2E_UNFUNDED_RESERVE !== "true") {
+    const reserve = pairedRoutePreflight
+      ? require("./paired/manifest").readManifest(process.env.PAIRED_SCENARIO_FILE).manifest.deployment.medicalReserveEth : "5";
+    await backend("fundContractLocal.js", [reserve]);
+  }
   await backend("pushMerkleRoot.js");
   start("Pinata simulator", path.join(root, "scripts/localPinataMock.js"));
   if (dailyLauncher) {
-    environment.LOCAL_DEPLOYMENT_MANIFEST = path.join(output, "localhost-31337.json");
+    environment.LOCAL_DEPLOYMENT_MANIFEST = deploymentFile;
     environment.DAILY_REPORT_DIR = output;
     await run("Daily resume", path.join(root, "scripts/verifyDailyLifecycle.js"), ["resume"]);
     if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(chainChild.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
@@ -160,7 +186,7 @@ async function main() {
     return;
   }
   if (process.env.RELEASE_READBACK_ONLY === "true") {
-    await run("Deployment readback", path.join(root, "scripts/deploymentReadback.js"), ["--manifest", path.join(output, "localhost-31337.json"), "--local", "--output", path.join(process.env.RELEASE_MEASUREMENTS_DIR, "deployment-readback.json")]);
+    await run("Deployment readback", path.join(root, "scripts/deploymentReadback.js"), ["--manifest", deploymentFile, "--local", "--output", path.join(process.env.RELEASE_MEASUREMENTS_DIR, "deployment-readback.json")]);
     return;
   }
   if (process.env.PHASE_TWO_RECOVERY_ONLY === "true") {
@@ -168,27 +194,27 @@ async function main() {
     return;
   }
   start("Backend", path.join(root, brevoStub ? "e2e/support/localBrevoBackend.js" : "backEnd/server.js"), [], path.join(root, "backEnd"), environment.E2E_BACKEND_RPC_URL ? { RPC_URL: environment.E2E_BACKEND_RPC_URL } : {});
-  start("Frontend", path.join(root, "frontEnd/node_modules/vite/bin/vite.js"), ["--host", "localhost", "--port", "5173", "--strictPort"], path.join(root, "frontEnd"));
+  start("Frontend", path.join(root, "frontEnd/node_modules/vite/bin/vite.js"), ["--host", "localhost", "--port", String(ports.web), "--strictPort"], path.join(root, "frontEnd"));
   const oracleChildren = [];
-  const workerOptions = (instance) => ({ PORT: String(5100 + instance), ORACLE_INSTANCE_ID: String(instance),
+  const workerOptions = (instance) => ({ PORT: String(ports["oracle" + instance]), ORACLE_INSTANCE_ID: String(instance),
     ORACLE_REGISTRY_SNAPSHOT: instance === 1 ? "primary" : "oracle2", ORACLE_START_BLOCK: String(deployment.deploymentBlock),
     ...(shadowRestart && instance === 2 ? { ORACLE2_SIMULATED_NETWORK_DELAY_MS: "10000" } : {}) });
   for (const instance of [1, 2]) oracleChildren.push(start(`Oracle ${instance}`, path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), workerOptions(instance)));
-  await waitFor(async () => (await (await fetch("http://localhost:5000/health/ready")).json()).status === "ready", "Backend");
-  await waitFor(async () => (await fetch("http://localhost:5173")).ok, "Frontend");
-  for (const instance of [1, 2]) await waitFor(async () => (await fetch(`http://localhost:${5100 + instance}/health/ready`)).ok, `Oracle ${instance}`);
+  await waitFor(async () => (await (await fetch(apiUrl + "/health/ready")).json()).status === "ready", "Backend");
+  await waitFor(async () => (await fetch(frontendUrl)).ok, "Frontend");
+  for (const instance of [1, 2]) await waitFor(async () => (await fetch(oracleUrl(instance) + "/health/ready")).ok, `Oracle ${instance}`);
   if (process.env.RELEASE_MEASUREMENTS_DIR) {
     const { ethers } = require("../backEnd/node_modules/ethers");
     const rpc = new ethers.JsonRpcProvider(environment.RPC_URL);
     try {
       const checked = await require("./deploymentReadback").verifyDeployment({ manifest: deployment, provider: rpc, local: true });
       const [frontend, backend, oracleOne, oracleTwo, frontendConfiguration] = await Promise.all([
-        fetch("http://localhost:5173").then(async (r) => ({ body: await r.text() })),
-        ...["http://localhost:5000/health/ready", "http://localhost:5101/health/ready", "http://localhost:5102/health/ready", "http://localhost:5173/release-config.json"].map((url) => fetch(url).then(async (r) => ({ body: await r.json() }))),
+        fetch(frontendUrl).then(async (r) => ({ body: await r.text() })),
+        ...[apiUrl + "/health/ready", oracleUrl(1) + "/health/ready", oracleUrl(2) + "/health/ready", frontendUrl + "/release-config.json"].map((url) => fetch(url).then(async (r) => ({ body: await r.json() }))),
       ]);
       require("./hostedPreflight").validateResponses({ frontend, backend, oracleOne, oracleTwo, frontendConfiguration }, { full: true,
         chainId: checked.chainId, modelIdentity: checked.modelIdentityHash, oracleWallets: checked.oracleWallets, components: checked.components,
-        frontendOrigin: "http://localhost:5173", backendOrigin: "http://localhost:5000" });
+        frontendOrigin: frontendUrl, backendOrigin: apiUrl });
       fs.writeFileSync(path.join(process.env.RELEASE_MEASUREMENTS_DIR, "runtime-readiness.json"), JSON.stringify({ passed: true, scope: "Local actual service/build identity readback; not public hosted acceptance", deployment: checked }, null, 2) + "\n", { flag: "wx" });
     } finally { rpc.destroy(); }
   }
@@ -213,7 +239,7 @@ async function main() {
       }, "Oracle commitment restart boundary");
       if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(oracleChildren[0].pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
       else oracleChildren[0].kill("SIGTERM");
-      await waitFor(async () => { try { await fetch("http://127.0.0.1:5101/health/live", { signal: AbortSignal.timeout(500) }); return false; } catch { return true; } }, "Stopped Oracle health port");
+      await waitFor(async () => { try { await fetch(oracleUrl(1) + "/health/live", { signal: AbortSignal.timeout(500) }); return false; } catch { return true; } }, "Stopped Oracle health port");
       oracleChildren[0] = start("Oracle 1 committed-request recovery", path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), workerOptions(1));
       await waitFor(() => coordinator.hasRevealed(requestId, wallet), "Restarted Oracle reveal");
       if ((await coordinator.commitments(requestId, wallet)) !== committed) throw new Error("Restart changed the mined commitment");
@@ -232,7 +258,7 @@ async function main() {
   try {
     await run("Browser regression", path.join(root, "node_modules/@playwright/test/cli.js"), ["test", ...(specs.length ? specs : ["e2e/tests/user-policy-claim.workflow.spec.js", "e2e/tests/bank-eft.workflow.spec.js", "e2e/tests/unfinished-claim-finality.workflow.spec.js", "e2e/tests/hospital-records.maintenance.spec.js", "e2e/tests/cancellation-refund.workflow.spec.js", "e2e/tests/unfinished-boundaries.spec.js"]), "--workers=1"], root, browserReports("browser"));
   } catch (error) { browserFailure = error; }
-  if (process.env.RELEASE_MEASUREMENTS_DIR) await run("Receipt capture", path.join(root, "scripts/captureReleaseChain.js"), [path.join(output, "localhost-31337.json"), process.env.RELEASE_MEASUREMENTS_DIR]);
+  if (process.env.RELEASE_MEASUREMENTS_DIR) await run("Receipt capture", path.join(root, "scripts/captureReleaseChain.js"), [deploymentFile, process.env.RELEASE_MEASUREMENTS_DIR]);
   if (browserFailure) throw browserFailure;
   if (process.env.PHASE_ONE_SETTLEMENT_TESTS === "true") await run("Phase one settlement recovery", path.join(root, "backEnd/test/phaseOneSettlement.integration.js"), [], root, { NODE_ENV: "test" });
   if (protocolRestart) await protocolRestart;
@@ -246,9 +272,9 @@ async function main() {
       if (before < 2) throw new Error("No completed dual-worker shadow reports before restart");
       if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(oracleChildren[0].pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
       else oracleChildren[0].kill("SIGTERM");
-      start("Oracle 1 restart recovery", path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), { PORT: "5101", ORACLE_INSTANCE_ID: "1", ORACLE_REGISTRY_SNAPSHOT: "primary", ORACLE_START_BLOCK: String(deployment.deploymentBlock) });
+      start("Oracle 1 restart recovery", path.join(root, "oracle/index.js"), [], path.join(root, "oracle"), { PORT: String(ports.oracle1), ORACLE_INSTANCE_ID: "1", ORACLE_REGISTRY_SNAPSHOT: "primary", ORACLE_START_BLOCK: String(deployment.deploymentBlock) });
       await waitFor(async () => {
-        const health = await (await fetch("http://127.0.0.1:5101/health/ready")).json();
+        const health = await (await fetch(oracleUrl(1) + "/health/ready")).json();
         return health.status === "ready" && health.shadow.successfulReports >= 1;
       }, "Oracle shadow restart/backfill");
       const after = await Model.countDocuments();

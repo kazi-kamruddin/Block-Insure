@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { Contract } = require("../../backEnd/node_modules/ethers");
 const { loginActor, localDateTimeValue, syntheticPdfEvidenceFile } = require("../support/actions");
 const { prepareEpisode, selectEpisode } = require("../support/intakeEpisode");
 const { closeActor, createActorContext } = require("../support/walletBridge");
@@ -10,15 +11,21 @@ test("@workflow claimant answers a clarification, reconciles evidence and receiv
   const admin = await createActorContext(browser, "admin");
   try {
     await loginActor(user.page, user.actor);
+    const manager = new Contract(process.env.CONTRACT_ADDRESS, require("../../backEnd/abi/InsuranceManager.json").abi, user.provider);
+    const policyId = String(await manager.policyCounter());
     await user.page.goto("/user/policies/buy");
     await user.page.getByRole("checkbox", { name: /I have read and agree/ }).first().check();
     await user.page.getByRole("button", { name: "Buy Policy" }).first().click();
     await expect(user.page.locator(".success-text")).toContainText("policy purchased successfully");
+    const policyCard = user.page.locator(".policy-lifecycle-card").filter({ hasText: "Policy #" + policyId });
+    const payPremium = policyCard.getByRole("button", { name: "Pay Premium", exact: true });
+    await user.page.goto("/user/policies");
+    await expect(payPremium).toBeDisabled();
     const episode = await prepareEpisode(user);
     await user.page.goto("/user/claims/new");
     const policy = user.page.getByLabel("Policy", { exact: true });
     await expect.poll(() => policy.locator("option").count()).toBeGreaterThan(1);
-    await policy.selectOption({ index: 1 });
+    await policy.selectOption(policyId);
     await selectEpisode(user.page, episode.invoiceNumber);
     const block = await user.provider.getBlock("latest");
     await user.page.getByLabel("Incident date/time").fill(localDateTimeValue(new Date(Number(block.timestamp) * 1000)));
@@ -37,19 +44,27 @@ test("@workflow claimant answers a clarification, reconciles evidence and receiv
     await question.fill("Please attach the receipt that identifies the patient on this episode.");
     await admin.page.getByRole("button", { name: "Request clarification" }).click();
     await expect(admin.page.getByRole("button", { name: "Send to Manual Review" })).toBeDisabled();
+    await user.page.goto("/user/notifications");
+    await expect(user.page.getByRole("heading", { name: "Clarification requested" })).toBeVisible();
     await episode.restore(admin);
     await user.page.goto(`/user/claims/${claimId}`);
     await user.page.getByLabel("Supporting document").setInputFiles(syntheticPdfEvidenceFile());
     await user.page.getByRole("button", { name: "Submit clarification" }).click();
     await expect(user.page.getByText("The updated evidence is ready for fresh Oracle verification.")).toBeVisible({ timeout: 120000 });
-    await admin.page.reload();
+    await admin.page.goto("/admin/notifications");
+    await expect(admin.page.getByRole("heading", { name: "Clarification answered" })).toBeVisible();
+    await admin.page.goto("/admin/claims/" + claimId);
     await request.click();
     await expect(admin.page.locator(".admin-claim-sidebar p strong").first()).toHaveText("PAYOUT_READY", { timeout: 120000 });
     await user.page.reload();
     await user.page.getByRole("button", { name: "Withdraw Payment" }).click();
     await expect(user.page.getByText("SETTLED", { exact: true })).toBeVisible({ timeout: 90000 });
     await user.page.goto("/user/policies");
-    await expect(user.page.getByRole("button", { name: "Pay Premium", exact: true }).first()).toBeDisabled();
+    const economics = new Contract(await manager.policyEconomics(), require("../../backEnd/abi/PolicyEconomics.json").abi, user.provider);
+    const issued = await manager.getPolicy(policyId);
+    const quote = await economics.getInstallmentQuote(policyId, issued.nextPremiumDueDate);
+    if (quote.payableNow) await expect(payPremium).toBeEnabled();
+    else await expect(payPremium).toBeDisabled();
   } finally {
     await closeActor(admin);
     await closeActor(user);

@@ -15,9 +15,9 @@ const DEFAULT_LOCAL_HOSPITAL_PRIVATE_KEY =
 const DEFAULT_LOCAL_BANK_PRIVATE_KEY =
   "0x8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61";
 
-function readEnv(relativePath) {
+function readEnv(relativePath, processValues = process.env) {
   const filePath = path.join(projectRoot, relativePath);
-  if (!fs.existsSync(filePath)) return { ...process.env };
+  if (!fs.existsSync(filePath)) return { ...processValues };
 
   const fileEnvironment = Object.fromEntries(
     fs
@@ -34,7 +34,7 @@ function readEnv(relativePath) {
   // Explicit process-level values let an isolated E2E launcher select a
   // disposable database and local-only wallets without rewriting developers'
   // normal environment files.
-  return { ...fileEnvironment, ...process.env };
+  return { ...fileEnvironment, ...processValues };
 }
 
 function normalizePrivateKey(value) {
@@ -76,6 +76,12 @@ function getE2EConfig() {
 
   const backend = readEnv("backEnd/.env");
   const e2e = readEnv("e2e/.env");
+  const chainId = Number(e2e.E2E_CHAIN_ID || 31337);
+  const localRpc = e2e.E2E_RPC_URL || backend.RPC_URL || "http://127.0.0.1:8545";
+  const loopback = (url) => /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(url);
+  const local = [31337, 11155111].includes(chainId) &&
+    [localRpc, e2e.E2E_API_URL || "http://localhost:5000", e2e.E2E_APP_URL || "http://localhost:5173"].every(loopback);
+  const localHospital = local && readEnv("e2e/.env.local", {}).E2E_HOSPITAL_PRIVATE_KEY_2;
 
   cachedConfig = {
     projectRoot,
@@ -114,7 +120,7 @@ function getE2EConfig() {
         role: "HOSPITAL",
         home: "/hospital/dashboard",
         privateKey: requirePrivateKey(
-          e2e.E2E_HOSPITAL_PRIVATE_KEY_2,
+          e2e.E2E_HOSPITAL_PRIVATE_KEY_2 || localHospital,
           "E2E_HOSPITAL_PRIVATE_KEY_2"
         ),
       },

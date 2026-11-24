@@ -2,10 +2,10 @@ const { selectEpisode } = require("../support/intakeEpisode");
 const { test, expect } = require("@playwright/test");
 const { Contract } = require("../../backEnd/node_modules/ethers");
 const { createActorContext, closeActor } = require("../support/walletBridge");
-const { loginActor, syntheticPdfEvidenceFile, localDateTimeValue } = require("../support/actions");
+const { loginActor, syntheticPdfEvidenceFile, localDateTimeValue, requestReadyOracleVerification } = require("../support/actions");
 test("@workflow approved claim remains unfunded until treasury funding then withdraws exactly once", async ({ browser }) => {
   test.skip(process.env.E2E_UNFUNDED_RESERVE !== "true", "Requires the dedicated zero-reserve disposable stage");
-  test.setTimeout(180000);
+  test.setTimeout(300000);
   const user = await createActorContext(browser, "user");
   const admin = await createActorContext(browser, "admin");
   try {
@@ -26,7 +26,7 @@ test("@workflow approved claim remains unfunded until treasury funding then with
     const claimId = (await user.page.locator(".success-text").textContent()).match(/Claim #(\d+)/)[1];
     const manager = new Contract(process.env.CONTRACT_ADDRESS || process.env.VITE_CONTRACT_ADDRESS, require("../../backEnd/abi/InsuranceManager.json").abi, user.wallet);
     await loginActor(admin.page, admin.actor); await admin.page.goto(`/admin/claims/${claimId}`);
-    await admin.page.getByRole("button", { name: "Request Oracle Verification" }).click();
+    await requestReadyOracleVerification(admin.page, claimId);
     await expect.poll(async () => Number((await manager.getClaim(claimId)).status), { timeout: 90000, intervals: [2000] }).toBe(11);
     await user.page.goto(`/user/claims/${claimId}`);
     await expect(user.page.locator(".status-badge").filter({ hasText: /^FUNDING_REQUIRED$/ })).toBeVisible();

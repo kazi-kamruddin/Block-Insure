@@ -24,6 +24,9 @@ describe('Oracle operational compatibility and local restart recovery', function
  it('restores signed cursors, recovers a mined commitment and scans past expired work with both enabled workers', async function () {
   assert.equal((await ethers.provider.getNetwork()).chainId,31337n);
   const database='block_insure_oracle_compat_'+Date.now()+'_e2e';
+  const evidenceParent=path.join(root,'verification-results');
+  fs.mkdirSync(evidenceParent,{recursive:true});
+  const evidenceDirectory=fs.mkdtempSync(path.join(evidenceParent,`oracle-recovery-${new Date().toISOString().slice(0,10)}-`));
   const children=[], logs=[], servers=[];let rpcFault=false,loseCursorAck=true;
   const savedEnv={RPC_URL:process.env.RPC_URL,VITE_CONTRACT_ADDRESS:process.env.VITE_CONTRACT_ADDRESS,ORACLE_API_KEY:process.env.ORACLE_API_KEY};
   const started=Date.now();
@@ -110,13 +113,13 @@ describe('Oracle operational compatibility and local restart recovery', function
    await until(async()=>(await fetch(restarted.url+'/health/ready')).status===200,'provider recovery');
    await coordinator.resolveTimedOutRequest(1);assert.equal((await coordinator.getRequest(first.requestId)).isFulfilled,true,'existing timeout path remains usable');
    const report={passed:true,chainId:31337,database,elapsedMs:Date.now()-started,workerInstances:2,restarts:1,commitments:2,reveals:2,signedCursorApi:true,pinnedDecisionPreserved:true,lostCursorAckRecovered:!loseCursorAck,timeoutFinalization:'explicit local test transaction only',simulatedBlocks:6000,workerStates:states,disclosures:['Synthetic hospital API returns invalid proof','Local time/block manipulation','No mailbox/storage/public-network calls','Frozen XGBoost identity unchanged']};
-   const out=path.join(root,'verification-results/oracle-compatibility-2026-11-06');fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'enabled-workers.json'),JSON.stringify(report,null,2));
+   fs.writeFileSync(path.join(evidenceDirectory,'enabled-workers.json'),JSON.stringify(report,null,2),{flag:'wx'});
   }finally{
    for(const w of children){if(w.child.exitCode===null)w.child.kill();await w.exited;}
    for(const server of servers.reverse())await close(server);
    await mongoose.disconnect();
    for(const [key,value]of Object.entries(savedEnv)){if(value===undefined)delete process.env[key];else process.env[key]=value;}
-   const out=path.join(root,'verification-results/oracle-compatibility-2026-11-06');fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'enabled-worker-logs.txt'),logs.join('\n'));
+   fs.writeFileSync(path.join(evidenceDirectory,'enabled-worker-logs.txt'),logs.join('\n'),{flag:'wx'});
   }
  });
 });
