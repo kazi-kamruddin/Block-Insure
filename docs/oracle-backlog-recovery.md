@@ -90,7 +90,7 @@ npm --prefix contracts run test -- --no-compile --network hardhat test/OracleRec
 node oracle/scripts/benchmarkRecovery.cjs
 ```
 
-The explicit integration requires MongoDB on 127.0.0.1:27039. It creates a uniquely named `block_insure_oracle_compat_<timestamp>_e2e` database. The preserved task-owned container is `block-insure-oracle-recovery-20261106`; do not reset it or use Atlas for this test. The `.integration.cjs` suffix keeps Docker requirements out of the default contract unit-suite discovery.
+The explicit integration requires MongoDB on 127.0.0.1:27039. It creates a uniquely named `block_insure_oracle_compat_<timestamp>_e2e` database. The preserved task-owned container is `block-insure-oracle-recovery-20261106`; do not reset it or use Atlas for this test. Hardhat discovers `.cjs` files too, so the suffix alone does not exclude it: the test skips itself unless its file is named on the command line (as above) or `ORACLE_INTEGRATION=1` is set, which keeps Docker requirements out of the default contract unit suite.
 
 The benchmark optionally takes a new output filename as its first argument and refuses to overwrite it. It reads the hash-checked archived original source, so it remains reproducible after this patch is committed.
 

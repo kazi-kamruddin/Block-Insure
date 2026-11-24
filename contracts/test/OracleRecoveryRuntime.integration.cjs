@@ -13,8 +13,14 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
 const listen = server => new Promise(r => server.listen(0, '127.0.0.1', () => r(`http://127.0.0.1:${server.address().port}`)));
 const close = server => new Promise(r => { server.closeAllConnections?.(); server.close(r); });
 async function until(check, label, ms=45000) { const start=Date.now();while(Date.now()-start<ms){if(await check())return;await delay(150);}throw Error('Timed out: '+label); }
+// Hardhat discovers every .js/.cjs file under test/, so the file suffix alone does not
+// keep this Docker/MongoDB-dependent test out of `npm test`. Run it only when the file
+// is named explicitly (see docs/oracle-backlog-recovery.md) or ORACLE_INTEGRATION=1.
+const integrationRequested = process.env.ORACLE_INTEGRATION === '1' ||
+ process.argv.some(arg => path.basename(arg) === path.basename(__filename));
 describe('Oracle operational compatibility and local restart recovery', function () {
  this.timeout(150000);
+ before(function () { if (!integrationRequested) this.skip(); });
  it('restores signed cursors, recovers a mined commitment and scans past expired work with both enabled workers', async function () {
   assert.equal((await ethers.provider.getNetwork()).chainId,31337n);
   const database='block_insure_oracle_compat_'+Date.now()+'_e2e';

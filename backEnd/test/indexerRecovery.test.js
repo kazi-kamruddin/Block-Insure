@@ -148,6 +148,37 @@ test("startup backs off on RPC throttling and retries the same durable indexer",
     async () => { throw Error("should not back off"); }, signal), /wrong chain/);
 });
 
+test("startup retries transient RPC timeouts and 5xx but not client errors", async () => {
+  const { catchUpIndexer } = fixture().service;
+  const { signal } = new AbortController();
+  const transient = [
+    Object.assign(new Error("request timeout (code=TIMEOUT, version=6.17.0)"), { code: "TIMEOUT" }),
+    Object.assign(new Error("network error"), { code: "NETWORK_ERROR" }),
+    Object.assign(new Error("fetch failed"), { cause: { code: "ECONNRESET" } }),
+    Object.assign(new Error("server response 503"), {
+      code: "SERVER_ERROR", info: { responseStatus: "503 Service Unavailable" },
+    }),
+  ];
+  const delays = [];
+  let attempts = 0;
+  await catchUpIndexer(async () => {
+    if (attempts < transient.length) throw transient[attempts++];
+    attempts += 1;
+  }, async delay => delays.push(delay), signal);
+  assert.equal(attempts, transient.length + 1);
+  assert.deepEqual(delays, [1000, 2000, 4000, 8000]);
+
+  const noBackoff = async () => { throw Error("should not back off"); };
+  await assert.rejects(catchUpIndexer(async () => {
+    throw Object.assign(new Error("server response 401"), {
+      code: "SERVER_ERROR", info: { responseStatus: "401 Unauthorized" },
+    });
+  }, noBackoff, signal), /401/);
+  await assert.rejects(catchUpIndexer(async () => {
+    throw Object.assign(new Error("invalid address"), { code: "INVALID_ARGUMENT" });
+  }, noBackoff, signal), /invalid address/);
+});
+
 test("73,000 empty blocks use range endpoints instead of 73,000 header reads", async () => {
   const f = fixture({ INDEXER_CHUNK_SIZE: "500" });
   let reads = 0, ranges = 0;
