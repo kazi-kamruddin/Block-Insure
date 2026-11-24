@@ -9,6 +9,7 @@ const { verifyPaired, fundingQuote } = require("./deployment");
 const { waitForReadiness } = require("./readiness");
 const { captureFork } = require("./fork");
 const { isServiceTransaction } = require("./serviceReceipts");
+const { generatedInputLabel } = require("./campaignHandoff");
 const { configuredRoles, providerFor, materialize, openJournal, executeIntent, rowFor, waitFor } = require("./runner");
 
 function readJson(file) {
@@ -16,7 +17,7 @@ function readJson(file) {
   return { data: JSON.parse(bytes), hash: digest(bytes) };
 }
 
-function validateObservation({ witness, planDirectory, step, chainId, manifestHash, deploymentManifestHash, local }) {
+function validateObservation({ witness, planDirectory, step, chainId, manifestHash, deploymentManifestHash, local, generated = false }) {
   if (!witness || typeof witness.file !== "string" || !/^[a-f\d]{64}$/.test(witness.evidenceSha256)) {
     throw new Error("App-stage evidence missing for " + step.id);
   }
@@ -32,7 +33,10 @@ function validateObservation({ witness, planDirectory, step, chainId, manifestHa
       !Number.isFinite(Date.parse(data.observedAt)) || data.status !== "confirmed" || !data.outcome) {
     throw new Error("App-stage proof differs from the reviewed campaign at " + step.id);
   }
-  if (!local && data.source !== "isolated live services") {
+  if (generated && data.source !== generatedInputLabel) {
+    throw new Error("Generated-input mode requires a runner-generated observation for " + step.id);
+  }
+  if (!local && !generated && data.source !== "isolated live services") {
     throw new Error("Public campaign requires an isolated live-service observation for " + step.id);
   }
   return hash;
@@ -96,11 +100,14 @@ async function run(args) {
   const chainId = Number(args["--network"]);
   const local = Boolean(args["--local"]);
   const isQuote = Boolean(args["--dry-run"]);
+  const generated = Boolean(args["--generated-offchain-inputs"]);
   if (!isQuote && !local && (!args["--confirm-public"] || publicKeysDisabled())) {
     throw new Error("Public execution requires --confirm-public and PAIRED_ALLOW_PUBLIC_SENDS=true");
   }
   if (args["--interrupt-after"] && !local) throw new Error("Interruption is a local rehearsal option");
-  const { manifest, manifestHash } = readManifest(args["--manifest"]);
+  const scenario = readManifest(args["--manifest"]);
+  const { manifest, manifestHash } = scenario;
+  if (args["--repetitions"] && !generated) throw new Error("Repetitions require explicit generated-input mode");
   if (local) require("./fixtures").verifyFixtures(manifest);
   const provider = providerFor(process.env.PAIRED_RPC_URL, chainId, local);
   const { data: actors } = readJson(args["--roles"]);
@@ -125,6 +132,29 @@ async function run(args) {
       throw new Error("Plan provenance does not match this run");
     }
     if (!isQuote && planHash !== args["--reviewed-plan"]) throw new Error("Exact reviewed plan hash is required");
+    if (generated) {
+      if (local) throw new Error("Use the isolated generated-input rehearsal for loopback execution");
+      const routing = require("../../deploy/paired-v6-live-routing.json");
+      const expanded = require("./generatedInput").generatedManifest({ ...scenario, routing,
+        repetitions: Number(args["--repetitions"] ?? plan.repetitions) });
+      if (plan.repetitions !== expanded.repetitions || plan.reviewedRoutingHash !== expanded.reviewedRoutingHash ||
+          plan.offchainInputSource !== expanded.offchainInputSource ||
+          plan.operationManifestHash !== digest(JSON.stringify(expanded.operations))) throw new Error("Reviewed generated plan operation identity differs");
+      const { campaignSigners, runGeneratedPublic, verifySpendingPlan } = require("./generatedPublic");
+      const selected = campaignSigners();
+      if (configuredRoles.some((role) => selected.actors[role] !== actors[role])) throw new Error("Generated plan actors differ from dedicated campaign wallets");
+      const budget = await verifySpendingPlan({ manifest: expanded, plan, provider, chainId, actors });
+      if (isQuote) {
+        console.log(JSON.stringify({ chainId, planHash, maximumOutflowWei: String(budget.ceiling),
+          retainedAdminWei: String(budget.retained), repetitions: plan.repetitions, offchainInputSource: expanded.offchainInputSource }));
+        return;
+      }
+      const readback = await verifyPaired({ manifest, manifestHash, deployment, provider, actors, local });
+      await runGeneratedPublic({ provider, manifest: expanded, manifestHash, deployment, deploymentManifestHash, readback,
+        chainId, sourceCommit, actors, plan, planHash, output: path.resolve(args["--output"]),
+        routing, signers: selected.signers, budget, mongoUri: process.env.PAIRED_CAMPAIGN_MONGO_URL });
+      return;
+    }
     if (!isQuote && !local) {
       const file = path.resolve(__dirname, "../../deploy/paired-v6-live-routing.json");
       const { data: routing, hash: routingHash } = readJson(file);
@@ -254,8 +284,8 @@ async function run(args) {
 
 if (require.main === module) {
   const args = parseOperatorArguments(process.argv.slice(2), {
-    values: ["--network", "--manifest", "--roles", "--plan", "--deployment", "--output", "--reviewed-plan", "--interrupt-after"],
-    switches: ["--dry-run", "--local", "--confirm-public"],
+    values: ["--network", "--manifest", "--roles", "--plan", "--deployment", "--output", "--reviewed-plan", "--interrupt-after", "--repetitions"],
+    switches: ["--dry-run", "--local", "--confirm-public", "--generated-offchain-inputs"],
     required: ["--network", "--manifest", "--roles"],
   });
   run(args).catch((error) => {

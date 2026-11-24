@@ -56,6 +56,11 @@ function timing(rows, key) {
     rangeMs: [values[0], values.at(-1)] };
 }
 
+function ratioSpread(rows) {
+  const { n, medianMs, rangeMs } = timing(rows, "gasRatio");
+  return { n, median: medianMs, range: rangeMs };
+}
+
 function summarize(items) {
   const left = sum(items.map((item) => item.l1GasUsed));
   const right = sum(items.map((item) => item.l2GasUsed));
@@ -100,6 +105,11 @@ function compare(manifest, manifestHash, l1, l2, options = {}) {
       l1.chainId === l2.chainId || (!l1.local && (Number(l1.chainId) !== 11155111 || Number(l2.chainId) !== 84532))) {
     throw new Error("Campaign sources, modes, chains or configurations differ");
   }
+  const inputSource = manifest.offchainInputSource ?? null;
+  if ((l1.offchainInputSource ?? null) !== inputSource || (l2.offchainInputSource ?? null) !== inputSource ||
+      (inputSource && (l1.repetitions !== manifest.repetitions || l2.repetitions !== manifest.repetitions))) {
+    throw new Error("Campaign input provenance or repetition counts differ");
+  }
   const pricing = pricingInput(options.pricing);
   if (pricing?.manifestHash && pricing.manifestHash !== manifestHash) throw new Error("Pricing snapshot is bound to a different manifest");
   const paired = [], excluded = [];
@@ -113,7 +123,9 @@ function compare(manifest, manifestHash, l1, l2, options = {}) {
     let reason;
     if (!a || !b) reason = "missing counterpart";
     else if (a.status !== "confirmed" || b.status !== "confirmed") reason = "unsuccessful transaction";
-    else if (a.signerRole !== step.role || b.signerRole !== step.role || a.function !== step.method || b.function !== step.method ||
+    else if ((inputSource && (a.offchainInputSource !== inputSource || b.offchainInputSource !== inputSource ||
+        a.repetition !== (step.repetition ?? null) || b.repetition !== (step.repetition ?? null))) ||
+      a.signerRole !== step.role || b.signerRole !== step.role || a.function !== step.method || b.function !== step.method ||
       a.category !== step.category || b.category !== step.category || !a.operationFingerprint ||
       a.operationFingerprint !== b.operationFingerprint || a.valueWei !== b.valueWei ||
       (a.request?.modelIdentity ?? null) !== (b.request?.modelIdentity ?? null) ||
@@ -133,6 +145,7 @@ function compare(manifest, manifestHash, l1, l2, options = {}) {
     const gasRatio = ratio(a.gasUsed, b.gasUsed);
     paired.push({
       operationId: step.id, category: step.category, component: step.target, function: step.method, signerRole: step.role,
+      ...(inputSource && { repetition: step.repetition ?? null, offchainInputSource: inputSource }),
       l1GasUsed: a.gasUsed, l2GasUsed: b.gasUsed, gasRatio,
       l1MeasuredFeeWei: str(fees[0]), l2MeasuredFeeWei: str(fees[1]),
       l1ProjectedFeeWei: str(fees[2]), l2ProjectedFeeWei: str(fees[3]),
@@ -142,24 +155,46 @@ function compare(manifest, manifestHash, l1, l2, options = {}) {
       l2ExecutionFeeWei: b.executionFeeWei, l2L1DataFeeWei: b.l1DataFeeWei, l2OperatorFeeWei: b.operatorFeeWei,
       discrepancy,
     });
-    if (step.category !== "bootstrap") { sourceRows.l1.push(a); sourceRows.l2.push(b); }
+    if (inputSource ? step.repetition != null : step.category !== "bootstrap") { sourceRows.l1.push(a); sourceRows.l2.push(b); }
   }
   for (const [operationId, row] of left) excluded.push({ operationId, reason: "outside manifest", l1: row, l2: null });
   for (const [operationId, row] of right) excluded.push({ operationId, reason: "outside manifest", l1: null, l2: row });
   const workflows = paired.filter((item) => item.category !== "bootstrap");
-  const bootstrap = paired.filter((item) => item.category === "bootstrap");
+  const bootstrap = inputSource ? paired.filter((item) => item.repetition === null) : paired.filter((item) => item.category === "bootstrap");
+  const recurring = inputSource ? workflows.filter((item) => item.repetition !== null) : workflows;
+  const workflowCategories = [...new Set(recurring.map((item) => item.category))];
+  const perRepetition = Object.fromEntries(Array.from({ length: manifest.repetitions ?? 0 }, (_, index) => {
+    const repetition = index + 1;
+    const rows = recurring.filter((item) => item.repetition === repetition);
+    return [repetition, { ...summarize(rows), categories: Object.fromEntries(workflowCategories.map((category) =>
+      [category, summarize(rows.filter((item) => item.category === category))])) }];
+  }));
+  const repetitions = Object.values(perRepetition);
+  const repetitionGasRatios = inputSource ? ratioSpread(repetitions) : null;
+  const operationSpreads = new Map();
+  for (const row of recurring) {
+    if (!inputSource) break;
+    const key = row.operationId.split("/")[1];
+    if (!operationSpreads.has(key)) operationSpreads.set(key, []);
+    operationSpreads.get(key).push(row);
+  }
+  const repetitionSpreads = inputSource ? {
+    operations: Object.fromEntries([...operationSpreads].map(([name, rows]) => [name, ratioSpread(rows)])),
+    categories: Object.fromEntries(workflowCategories.map((name) => [name, ratioSpread(repetitions.map((row) => row.categories[name]))])),
+  } : null;
   return {
     schema: "block-insure-paired-comparison/v1", manifestHash, sourceCommit: l1.sourceCommit,
     sourceDeltaSha256: l1.sourceDeltaSha256 ?? null, local: l1.local,
     fork: { l1: l1.fork ?? null, l2: l2.fork ?? null },
     pricing, paired, excluded,
+    ...(inputSource && { offchainInputSource: inputSource, perRepetition, repetitionGasRatios, repetitionSpreads }),
     complete: excluded.length === 0 && paired.length === manifest.operations.filter((step) => step.kind === "transaction").length,
-    workflowTotals: summarize(workflows),
+    workflowTotals: summarize(recurring),
     deploymentTotals: summarize(bootstrap),
     deploymentContracts: Object.fromEntries(bootstrap.filter((item) => item.function === "constructor")
       .map((item) => [item.component, summarize([item])])),
-    categories: Object.fromEntries([...new Set(workflows.map((item) => item.category))].map((name) =>
-      [name, summarize(workflows.filter((item) => item.category === name))])),
+    categories: Object.fromEntries(workflowCategories.map((name) =>
+      [name, summarize(recurring.filter((item) => item.category === name))])),
     latency: Object.fromEntries(Object.entries(sourceRows).map(([key, rows]) => [key, {
       firstReceipt: timing(rows, "submissionToFirstReceiptMs"), finalizedUpperBound: timing(rows, "observedFinalityUpperMs"),
     }])),
@@ -169,20 +204,24 @@ function compare(manifest, manifestHash, l1, l2, options = {}) {
       "Receipt gas may include chain-specific state accounting. A discrepancy above 5% requires evidence.",
       "Nested contract creations charged in the parent's receipt cannot be split into separate receipt fees.",
       "Latency uses polling observations on both chains. Finality is the first observation of a canonical finalized head.",
+      ...(inputSource ? [inputSource, "Measured testnet fees are testnet, not economic. The scenarios do not measure clinical or fraud accuracy."] : []),
     ],
   };
 }
 
 function writeComparison(report, output) {
   fs.mkdirSync(output);
-  const columns = ["recordType", "operationId", "category", "component", "function", "signerRole", "l1GasUsed", "l2GasUsed", "gasRatio", "l1MeasuredFeeWei",
+  const columns = ["recordType", "operationId", "repetition", "offchainInputSource", "category", "component", "function", "signerRole", "l1GasUsed", "l2GasUsed", "gasRatio", "l1MeasuredFeeWei",
     "l2MeasuredFeeWei", "l2ExecutionFeeWei", "l2L1DataFeeWei", "l2OperatorFeeWei", "l1ProjectedFeeWei", "l2ProjectedFeeWei",
     "valueKind", "valueWei", "l1MeasuredFeeShare", "l2MeasuredFeeShare", "l1ProjectedFeeShare", "l2ProjectedFeeShare",
-    "l1ExecutionFork", "l2ExecutionFork", "l1PricingEips", "l2PricingEips", "reason", "gasDiscrepancy", "evidence"];
+    "l1ExecutionFork", "l2ExecutionFork", "l1PricingEips", "l2PricingEips", "reason", "gasDiscrepancy", "evidence",
+    "repetitionSamples", "medianGasRatio", "minimumGasRatio", "maximumGasRatio"];
   const display = (value) => value ?? "unknown";
   const csv = (value) => '"' + String(value ?? "").replaceAll('"', '""') + '"';
   const summaries = [
     ["Workflow total", report.workflowTotals], ["Bootstrap total", report.deploymentTotals],
+    ...Object.entries(report.perRepetition ?? {}).flatMap(([repetition, row]) => [["Repetition " + repetition, row],
+      ...Object.entries(row.categories).map(([name, category]) => ["Repetition " + repetition + " " + name, category])]),
     ...Object.entries(report.categories).map(([name, row]) => ["Workflow " + name, row]),
     ...Object.entries(report.deploymentContracts).map(([name, row]) => ["Create " + name, row]),
   ];
@@ -195,14 +234,20 @@ function writeComparison(report, output) {
     "L1 execution fork " + display(forkFields.l1ExecutionFork) + ", pricing EIPs " + display(forkFields.l1PricingEips),
     "L2 execution fork " + display(forkFields.l2ExecutionFork) + ", pricing EIPs " + display(forkFields.l2PricingEips),
   ];
+  const spreads = report.repetitionSpreads ? [
+    ["All workflow operations", report.repetitionGasRatios], ...Object.entries(report.repetitionSpreads.categories),
+    ...Object.entries(report.repetitionSpreads.operations),
+  ] : [];
   const records = [
     ...report.paired.map((row) => ({ ...row, recordType: "paired", gasDiscrepancy: row.discrepancy?.reason, evidence: row.discrepancy?.evidence })),
     ...report.excluded.map((row) => ({ operationId: row.operationId, recordType: "excluded", reason: row.reason,
       gasDiscrepancy: row.discrepancy?.reason, evidence: row.discrepancy?.evidence })),
     ...summaries.map(([name, row]) => ({ ...row, operationId: name, recordType: "summary" })),
+    ...spreads.map(([name, row]) => ({ operationId: name, recordType: "repetition-spread", repetitionSamples: row.n,
+      medianGasRatio: row.median, minimumGasRatio: row.range?.[0], maximumGasRatio: row.range?.[1] })),
   ];
   const csvRows = [columns.join(","), ...records.map((row) => {
-    const record = { ...row, ...forkFields };
+    const record = { offchainInputSource: report.offchainInputSource, ...row, ...forkFields };
     return columns.map((key) => csv(record[key])).join(",");
   })];
   const heading = ["Operation", "L1 gas", "L2 gas", "L1/L2", "L1 measured (wei)", "L2 measured (wei)", "L1 projected (wei)", "L2 projected (wei)"];
@@ -221,20 +266,27 @@ function writeComparison(report, output) {
     (row.discrepancy.evidence ? " (" + row.discrepancy.evidence + ")" : "")] : []);
   const latency = Object.entries(report.latency).flatMap(([chain, stats]) => Object.entries(stats).map(([type, sample]) =>
     [chain, type, sample.n, display(sample.medianMs), sample.rangeMs?.join(" to ") ?? "unknown"]));
+  const spreadHeading = ["Operation or category", "Repetitions", "Median gas ratio", "Minimum", "Maximum"];
+  const spreadRows = spreads.map(([name, row]) => [name, row.n, display(row.median), display(row.range?.[0]), display(row.range?.[1])]);
   const md = ["# Paired V6 measurements", "", "Manifest " + report.manifestHash, "",
+    ...(report.offchainInputSource ? [report.offchainInputSource, ""] : []),
+    ...(report.repetitionGasRatios ? ["Repetition gas ratio median " + display(report.repetitionGasRatios.median) +
+      ", range " + (report.repetitionGasRatios.range?.join(" to ") ?? "unknown"), ""] : []),
     report.complete ? "Coverage includes every manifest transaction." : "Partial comparison. Review the excluded operations.", "", ...(report.local ? ["Local Hardhat rehearsal.", ""] : []),
     ...forkLines.map((line) => "- " + line),
     "",
-    ...mdTable(heading, aggregates), ...mdTable(heading, rows), "## Latency in milliseconds", "",
+    ...mdTable(heading, aggregates), ...mdTable(heading, rows),
+    ...(spreads.length ? ["## Repetition gas spread", "", ...mdTable(spreadHeading, spreadRows)] : []),
+    "## Latency in milliseconds", "",
     ...mdTable(["Chain", "Observation", "Sample count", "Median", "Range"], latency), "## Pricing references", "",
     ...pricing.map((line) => "- " + line), "", "## Excluded operations", "",
     ...(exclusions.length ? exclusions.map((line) => "- " + line) : ["None."]), "",
     "## Gas discrepancies above 5%", "", ...(discrepancies.length ? discrepancies.map((line) => "- " + line) : ["None."]), "",
     "## Limitations", "", ...report.limitations.map((line) => "- " + line)];
   const escaped = (item) => String(item).replace(/[&%$#_{}]/g, (key) => "\\" + key);
-  const texTable = (body) => ["\\begin{tabular}{lrrrrrrr}", "\\hline",
-    ...[heading, ...body].map((row) => row.map(escaped).join(" & ") + " \\\\"), "\\hline", "\\end{tabular}"];
-  const latex = [...texTable(aggregates), "", ...texTable(rows), "",
+  const texTable = (body, columns = heading) => ["\\begin{tabular}{l" + "r".repeat(columns.length - 1) + "}", "\\hline",
+    ...[columns, ...body].map((row) => row.map(escaped).join(" & ") + " \\\\"), "\\hline", "\\end{tabular}"];
+  const latex = [...texTable(aggregates), "", ...texTable(rows), "", ...(spreads.length ? [...texTable(spreadRows, spreadHeading), ""] : []),
     ...[...forkLines, ...pricing, ...exclusions, ...discrepancies, ...report.limitations].map((line) => "% " + line.replace(/[\r\n]/g, " "))];
   for (const [name, body] of Object.entries({ "comparison.json": JSON.stringify(report, null, 2), "comparison.csv": csvRows.join("\n"),
     "comparison.md": md.join("\n"), "comparison.tex": latex.join("\n") })) fs.writeFileSync(path.join(output, name), body + "\n", { flag: "wx" });
@@ -242,11 +294,15 @@ function writeComparison(report, output) {
 
 function main() {
   const arg = require("../operatorArguments").parseOperatorArguments(process.argv.slice(2), {
-    values: ["--manifest", "--l1", "--l2", "--pricing", "--explanations", "--output"], required: ["--manifest", "--l1", "--l2", "--output"],
+    values: ["--manifest", "--l1", "--l2", "--pricing", "--explanations", "--output", "--repetitions"],
+    switches: ["--generated-offchain-inputs"], required: ["--manifest", "--l1", "--l2", "--output"],
   });
-  const { manifest, manifestHash } = readManifest(arg["--manifest"]);
+  const scenario = readManifest(arg["--manifest"]);
+  if (arg["--repetitions"] && !arg["--generated-offchain-inputs"]) throw new Error("Repetitions require explicit generated inputs");
+  const manifest = arg["--generated-offchain-inputs"] ? require("./generatedInput").generatedManifest({ ...scenario,
+    repetitions: Number(arg["--repetitions"] ?? 1), routing: require("../../deploy/paired-v6-live-routing.json") }) : scenario.manifest;
   const read = (file) => file && JSON.parse(fs.readFileSync(file));
-  writeComparison(compare(manifest, manifestHash, read(arg["--l1"]), read(arg["--l2"]),
+  writeComparison(compare(manifest, scenario.manifestHash, read(arg["--l1"]), read(arg["--l2"]),
     { pricing: read(arg["--pricing"]), explanations: read(arg["--explanations"]) }), arg["--output"]);
 }
 

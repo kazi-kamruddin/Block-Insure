@@ -5,7 +5,9 @@ const { ethers } = require("../../backEnd/node_modules/ethers");
 const { amount, digest } = require("./manifest");
 const { registryRoot } = require("../../oracle/shadowAssessment");
 const { buildEpisode, createOracleFixtures, clarificationAuthorization } = require("./localFixtures");
-const { materialize, operationFingerprint, executeIntent, rowFor, openJournal } = require("./runner");
+const { materialize, operationFingerprint, executeIntent, rowFor, openJournal, waitFor } = require("./runner");
+const { enforceSignerFence, generatedInputLabel } = require("./campaignHandoff");
+const { bootstrapRole, repetitionReserveDeficit, repetitionReserveRequirements } = require("./generatedInput");
 
 const JSON_BIGINT = (_, value) => typeof value === "bigint" ? value.toString() : value;
 const roleAliases = ["holder", "auditor1", "auditor2", "auditor3", "auditor4"];
@@ -27,13 +29,16 @@ function struct(component, contract, method, args) {
   return [component, contract.interface.getFunction(method).format("full").replace(/^function /, ""), args];
 }
 
-async function localAdapter({ provider, manifest, deployment, manifestHash, chainId, signers, evidence, directory, deploymentManifestHash, startTime }) {
-  if (![31337, 11155111].includes(chainId) || (await provider.getNetwork()).chainId !== BigInt(chainId) ||
-      !/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(provider._getConnection().url)) throw new Error("The fixture adapter admits only an isolated loopback Hardhat");
+async function localAdapter({ provider, manifest, deployment, manifestHash, chainId, signers, evidence, directory,
+  deploymentManifestHash, startTime, routing, readback, mongoUri, publicSettings, checkpoint }) {
+  const local = !publicSettings;
+  if (await provider.getNetwork().then((network) => network.chainId) !== BigInt(chainId) || (local
+    ? ![31337, 11155111].includes(chainId) || !/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(provider._getConnection().url)
+    : ![11155111, 84532].includes(chainId) || !routing || !checkpoint)) throw new Error("Unsupported generated workflow scope");
   const [client, head] = await Promise.all([provider.send("web3_clientVersion", []), provider.getBlock("latest")]);
   const previouslyExecuted = manifest.operations.filter((step) => step.category === "bootstrap" ||
-    /^setup\.(oracle[12]|auditor[1-4]|bank|medical-reserve)$/.test(step.id));
-  if (!/hardhat/i.test(client) || !head || head.number !== previouslyExecuted.length) {
+    bootstrapRole.test(step.id));
+  if (!head || (local && (!/hardhat/i.test(client) || head.number !== previouslyExecuted.length))) {
     throw new Error("Select a fresh, role-bootstrapped Hardhat");
   }
   const receiptsAtHead = async () => {
@@ -57,40 +62,72 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
   const substitution = new Map(Object.entries(actors).map(([role, address]) => [address.toLowerCase(), "$role." + role]));
   Object.entries(deployment.components).forEach(([name, address]) => substitution.set(address.toLowerCase(), "$component." + name));
   const ledgerDirectory = path.join(directory, "workflow");
-  const ledgerIdentity = { type: "isolated-workflow", chainId, manifestHash, deploymentManifestHash };
+  const ledgerIdentity = { type: local ? "isolated-workflow" : "generated-public-workflow", chainId, manifestHash, deploymentManifestHash,
+    ...(publicSettings && { planHash: publicSettings.planHash }) };
   let ledger = openJournal(ledgerDirectory, ledgerIdentity);
+  const finality = local ? null : require("./finalityTracker").createFinalityTracker({ provider, journal: ledger, pollMs: manifest.timing.pollMs });
   const bankAuthorization = { otp: null, mandate: null };
   const clockAdvances = [];
-  let clarification, refundId, interrupt;
+  let clarification, refundId, interrupt, currentRepetition;
   let logicalTime = BigInt(Math.max(startTime, head.timestamp + 1));
   const claimStatus = (id, status) => tuple(struct(MANAGER, manager, "getClaim", [id]), ["status"], [status]);
   const requestCount = (count) => read(ORACLE, "requestCounter() view returns(uint256)", [], count);
   const benefitStatus = (id, status) => tuple(struct(BENEFITS, benefits, "getBenefitRequest", [id]), ["status"], [status]);
   const policyPayments = (id, count) => tuple(struct(MANAGER, manager, "getPolicy", [id]), ["installmentsPaid"], [count]);
   const versionOf = (id, version) => read(MANAGER, "claimVersion(uint256) view returns(uint64)", [id], version);
-  const settings = { chainId, manifestHash, deployment, pollMs: 100, receiptTimeoutMs: 15000, captureLocalEncoding: true,
+  const fees = publicSettings?.fees ?? caps;
+  const settings = { chainId, manifestHash, deployment, pollMs: local ? 100 : manifest.timing.pollMs,
+    receiptTimeoutMs: local ? 15000 : 300000, captureLocalEncoding: local,
+    ...(routing && { checkSigner: (item) => enforceSignerFence({ provider, journal: ledger, item }) }),
     checkBudget: async (item) => {
       const floor = item.step.role === "admin" ? amount(manifest.budget.adminRetainedEth, "admin retained") : 0n;
       const available = await provider.getBalance(item.from);
       if (available < floor + item.tx.value + BigInt(item.detail.gasLimit) * BigInt(caps.maxFeePerGasWei)) throw new Error("Local runner wallet budget exceeded");
-    },
+    }, ...(publicSettings && { checkBudget: publicSettings.checkBudget }),
   };
+  const contexts = { policies, claims, episodes, documents, requests, archives, grants };
+  async function prepare(step, prepareValue) {
+    if (!checkpoint) return prepareValue();
+    const key = step.id.replace("/", "-");
+    const saved = checkpoint.read(key);
+    if (saved) {
+      for (const [name, entries] of Object.entries(saved.contexts)) {
+        contexts[name].clear();
+        for (const [k, v] of entries) contexts[name].set(k, v);
+      }
+      Object.assign(bankAuthorization, saved.bankAuthorization);
+      clarification = saved.clarification;
+      refundId = saved.refundId;
+      return saved.value;
+    }
+    const value = await prepareValue();
+    checkpoint.create(key, { value, contexts: Object.fromEntries(Object.entries(contexts).map(([name, map]) => [name, [...map]])),
+      bankAuthorization, clarification, refundId });
+    return value;
+  }
 
   function recordObservation(step, outcome) {
-    const record = { schema: "block-insure-paired-app-observation/v1", source: "isolated fixture adapter",
+    const record = { schema: "block-insure-paired-app-observation/v1", source: routing ? generatedInputLabel : "isolated fixture adapter",
       method: step.method, operationId: step.id, chainId, manifestHash, deploymentManifestHash, status: "confirmed",
       observedAt: new Date().toISOString(), outcome };
+    const file = path.join(directory, "workflow", step.id.replace("/", "-") + ".json");
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
+    if (existing) record.observedAt = JSON.parse(existing).observedAt;
     const json = JSON.stringify(record, JSON_BIGINT, 2) + "\n";
-    const file = path.join(directory, "workflow", step.id + ".json");
-    fs.writeFileSync(file, json, { flag: "wx" });
+    if (existing == null) fs.writeFileSync(file, json, { flag: "wx" });
+    else if (existing !== json) throw new Error("Generated observation changed after recovery");
     const evidenceSha256 = digest(json);
-    ledger.append({ type: "observation", operationId: step.id, evidenceSha256 });
+    const recorded = ledger.entries.find((entry) => entry.type === "observation" && entry.operationId === step.id);
+    if (!recorded) ledger.append({ type: "observation", operationId: step.id, evidenceSha256 });
+    else if (recorded.evidenceSha256 !== evidenceSha256) throw new Error("Generated observation journal hash differs");
     observations.push({ operationId: step.id, evidenceSha256 });
   }
 
   function profile(name) {
     if (name === "routine" || name === "surgery") return manifest.cases[name];
     if (name === "clarification-corrected" || name === "appeal") return { ...manifest.cases.routine, grossEth: manifest.cases.manual.grossEth };
+    if (routing && name === "manual") return { ...manifest.cases.manual, expectedBillEth: routing.manual.referenceBillEth,
+      route: routing.manual.route, scoreUnits: routing.manual.scoreUnits };
     return manifest.cases.manual;
   }
 
@@ -98,7 +135,7 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
     const id = policies.get("refund");
     const policy = await manager.getPolicy(id);
     const quote = await economics.getInstallmentQuote(id, policy.nextPremiumDueDate);
-    if (!quote.payableNow) {
+    if (!quote.payableNow && local) {
       const before = await provider.getBlock("latest");
       logicalTime = BigInt(quote.opensAt);
       await provider.send("evm_setNextBlockTimestamp", [Number(logicalTime)]);
@@ -106,7 +143,11 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
       clockAdvances.push({ from: before.timestamp, to: Number(logicalTime), installmentId: String(quote.installmentId) });
       logicalTime += 1n;
     }
-    const latest = await economics.getInstallmentQuote(id, policy.nextPremiumDueDate);
+    const latest = local ? await economics.getInstallmentQuote(id, policy.nextPremiumDueDate) :
+      await waitFor(async () => {
+        const current = await economics.getInstallmentQuote(id, policy.nextPremiumDueDate);
+        return current.payableNow && current;
+      }, Date.now() + Math.max(30000, (Number(quote.opensAt) - Math.floor(Date.now() / 1000) + 120) * 1000), manifest.timing.pollMs);
     assert(latest.payableNow && latest.amountWei === premium);
     return { id, transferInstallment: latest.installmentId, paid: policy.installmentsPaid };
   }
@@ -115,7 +156,8 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
     if (action === "episode") {
       const spec = profile(name);
       const incident = (await manager.getPolicy(policies.get(name))).startDate;
-      const row = buildEpisode({ name, holder, profile: spec, expected: spec.expectedBillEth, incident });
+      const row = buildEpisode({ name: currentRepetition ? `rep${currentRepetition}-${name}` : name, holder, profile: spec,
+        expected: spec.expectedBillEth, incident, registryReference: routing ? startTime : incident });
       episodes.set(name, { row, incident });
       return { invoiceHash: row.invoiceHash, authorizedWallet: holder, grossEth: spec.grossEth };
     }
@@ -123,7 +165,7 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
       const stage = step.id === "clarification.answer-evidence" ? "clarification-corrected" : name;
       const source = stage === "appeal" ? "rejected" : stage === "clarification-corrected" ? "clarification" : stage;
       const episode = episodes.get(source);
-      const sealed = evidence.seal(stage, { invoice: episode.row.invoiceHash });
+      const sealed = evidence.seal(currentRepetition ? `rep${currentRepetition}-${stage}` : stage, { invoice: episode.row.invoiceHash });
       documents.set(stage, sealed);
       return sealed;
     }
@@ -131,7 +173,7 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
       const review = await panel.getReview(claims.get(name), 1);
       assert.equal(review.auditors.length, 4);
       assert.deepEqual([...review.auditors].sort(), roleAliases.slice(1).map((role) => actors[role]).sort());
-      const proof = evidence.prepare(name);
+      const proof = evidence.prepare(currentRepetition ? `rep${currentRepetition}-${name}` : name);
       grants.set(name, proof);
       return proof;
     }
@@ -140,7 +182,7 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
       const prior = await manager.getClaim(claimId);
       assert.equal(prior.status, 5n);
       const deadline = (await manager.manualReviewEligibleAt(claimId)) - 1n;
-      assert(deadline > logicalTime);
+      assert(deadline > (local ? logicalTime : BigInt((await provider.getBlock("latest")).timestamp)));
       clarification = { claimId, deadline, version: await manager.claimVersion(claimId) };
       return { claimId, deadline, question: "Provide the matching priced invoice clarification." };
     }
@@ -160,6 +202,13 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
   }
 
   async function spendOrSetup(step, name, action) {
+    if (name === "reserve") {
+      const balance = (value) => ({ component: step.target, kind: "balance", equals: value });
+      const availableWei = await provider.getBalance(deployment.components[step.target]);
+      const target = repetitionReserveRequirements(manifest)[action];
+      assert.equal(amount(step.valueEth, step.id), repetitionReserveDeficit({ availableWei, requiredWei: target }));
+      return [[], balance(availableWei), balance(target)];
+    }
     if (action.startsWith("identity-")) {
       const signature = struct(EVIDENCE, contracts[EVIDENCE], "getEncryptionIdentity", [actors[step.role]]);
       return [evidence.identity(step.role), read(EVIDENCE, "currentTreeSize() view returns(uint64)", [], 0),
@@ -167,11 +216,11 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
     }
     if (name === "purchase") {
       const id = await manager.policyCounter();
-      assert.equal(id, BigInt(purchaseNames.indexOf(action) + 1));
+      assert.equal(id, BigInt(((currentRepetition ?? 1) - 1) * purchaseNames.length + purchaseNames.indexOf(action) + 1));
       policies.set(action, id);
       const offer = await economics.getPackageIssueHash(1);
       const counter = (value) => read(MANAGER, "policyCounter() view returns(uint256)", [], value);
-      return [[1, offer, ethers.id("paired:issued-policy:" + action)], counter(id), counter(id + 1n)];
+      return [[1, offer, ethers.id("paired:issued-policy:" + (currentRepetition ? `rep${currentRepetition}:` : "") + action)], counter(id), counter(id + 1n)];
     }
     if (name === "premium") {
       const quote = await installment();
@@ -181,10 +230,11 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
       const authorization = bankAuthorization[action === "otp-settle" ? "otp" : "mandate"];
       assert(authorization?.status === "authorized" && authorization.id === quote.id &&
         authorization.transferInstallment === quote.transferInstallment, "Bank fixture must authorize this exact installment");
-      const reference = ethers.id("paired:bank:" + action);
+      const scope = currentRepetition ? `rep${currentRepetition}:` : "";
+      const reference = ethers.id("paired:bank:" + scope + action);
       assert.equal(await bank.processedTransferReferences(reference), false);
       return [[quote.id, holder, quote.transferInstallment, reference,
-        action === "eft-settle" ? ethers.id("paired:approved-mandate") : ethers.ZeroHash], before, after];
+        action === "eft-settle" ? ethers.id("paired:approved-mandate" + scope) : ethers.ZeroHash], before, after];
     }
     if (name !== "refund") throw new Error("Unknown setup/payment step " + step.id);
     const policyId = policies.get("refund");
@@ -216,7 +266,12 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
     const corrected = name === "appeal" || name === "clarification-corrected" || action === "corrected-publish";
     if (action.endsWith("publish")) {
       const episode = episodes.get(base);
-      const record = corrected ? { ...episode.row, expectedBillMin: spec.grossEth, expectedBillMax: spec.grossEth } : episode.row;
+      let record = corrected ? { ...episode.row, expectedBillMin: spec.grossEth, expectedBillMax: spec.grossEth } : episode.row;
+      if (routing && name === "manual" && corrected) {
+        const { authorizedClaimants, ...correctedRecord } = record;
+        assert.deepEqual(authorizedClaimants, [holder.toLowerCase()]);
+        record = correctedRecord;
+      }
       const records = [record];
       const root = registryRoot(records);
       const next = (await coordinator.currentRegistryVersion()) + 1n;
@@ -231,7 +286,8 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
       claims.set(base, id);
       const counter = read(MANAGER, "claimCounter() view returns(uint256)", [], id);
       return [[policies.get(base), amount(spec.grossEth, name), episode.incident, spec.service, episode.row.hospitalId,
-        episode.row.invoiceHash, document.hash, document.cid], counter, claimStatus(id, 1)];
+        episode.row.invoiceHash, document.hash, document.cid], counter, claimStatus(id, 1),
+        { clockArguments: { 2: "$policy.initialCoverageStart" } }];
     }
     if (action === "oracle-request") {
       const requestId = await coordinator.requestCounter();
@@ -279,46 +335,59 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
       const signature = await clarificationAuthorization({ signer: signers.admin, chainId, panel: panel.target, holder, ...clarification,
         amount: gross, evidence: doc.hash });
       return [[claimId, clarification.version, clarification.deadline, gross, doc.hash, signature], versionOf(claimId, 1), versionOf(claimId, 2),
-        { substitutions: [[signature, "$clarification.signature"]] }];
+        { substitutions: [[signature, "$clarification.signature"]], clockArguments: { 2: "$claim.manualReviewEligibleAt-1" } }];
     }
     if (action === "withdraw") return [[claimId], claimStatus(claimId, 7), claimStatus(claimId, 9)];
     throw new Error("Unbound claim step " + step.id);
   }
 
   try {
-    for (const [index, step] of manifest.operations.entries()) {
-      if (step.category === "bootstrap" || /^setup\.(oracle[12]|auditor[1-4]|bank|medical-reserve)$/.test(step.id)) continue;
+    const oracleHandoff = routing && (ledger.entries.find((entry) => entry.type === "oracle-handoff") ??
+      await require("./campaignRuntime").verifyAndStopCampaignRuntime({ deployment, readback,
+        provider, signers, journal: ledger, coordinator, mongoUri, directory }));
+    for (const [index, measuredStep] of manifest.operations.entries()) {
+      const step = measuredStep.templateId ? { ...measuredStep, id: measuredStep.templateId } : measuredStep;
+      if (step.category === "bootstrap" || bootstrapRole.test(step.id)) continue;
+      if (measuredStep.repetition && measuredStep.repetition !== currentRepetition) {
+        currentRepetition = measuredStep.repetition;
+        bankAuthorization.otp = null;
+        bankAuthorization.mandate = null;
+        await publicSettings?.checkRepetition(currentRepetition, ledger);
+      }
       const [name, action] = step.id.split(".");
       if (step.kind === "observation") {
-        recordObservation(step, await observe(step, name, action));
+        recordObservation(measuredStep, await prepare(measuredStep, () => observe(step, name, action)));
         continue;
       }
-      const [args, precondition, assertion, metadata = {}] = await (
-        ["setup", "purchase", "premium", "refund"].includes(name) ? spendOrSetup(step, name, action) : claimsWorkflow(step, name, action)
-      );
-      const detail = { args, assertion, precondition, gasLimit: "2200000", requestId: metadata.requestId };
-      const item = materialize({ ...manifest, operations: [step] }, deployment, { actors, transactions: { [step.id]: detail } }).get(step.id);
+      const [args, precondition, assertion, metadata = {}] = await prepare(measuredStep, () => (
+        ["setup", "purchase", "premium", "refund", "reserve"].includes(name) ? spendOrSetup(step, name, action) : claimsWorkflow(step, name, action)
+      ));
+      const detail = { args, assertion, precondition, gasLimit: publicSettings?.gasLimits[measuredStep.id] ?? "2200000", requestId: metadata.requestId };
+      const item = materialize({ ...manifest, operations: [measuredStep] }, deployment,
+        { actors, transactions: { [measuredStep.id]: detail } }).get(measuredStep.id);
       const substitutions = new Map([...substitution, ...(metadata.substitutions ?? [])]);
-      item.fingerprint = operationFingerprint({ step, args, before: precondition, after: assertion,
-        previousOperation: manifest.operations[index - 1].id, substitutions });
-      await provider.send("evm_setNextBlockTimestamp", [Number(logicalTime)]);
-      logicalTime += 1n;
-      const deliberatelyInterrupted = !interrupt && step.id === "routine.commit-1";
+      item.fingerprint = operationFingerprint({ step: measuredStep, args, before: precondition, after: assertion,
+        previousOperation: manifest.operations[index - 1].id, substitutions, clockArguments: routing ? metadata.clockArguments : undefined });
+      if (local) {
+        await provider.send("evm_setNextBlockTimestamp", [Number(logicalTime)]);
+        logicalTime += 1n;
+      }
+      const deliberatelyInterrupted = local && !interrupt && step.id === "routine.commit-1";
       if (deliberatelyInterrupted) {
         const nonce = await provider.getTransactionCount(item.from);
         await assert.rejects(executeIntent({ provider, item, journal: ledger, settings, signer: signers[step.role],
-          reviewedFees: caps, interrupt: step.id }), /Rehearsal interrupted after broadcast/);
+          reviewedFees: fees, interrupt: measuredStep.id }), /Rehearsal interrupted after broadcast/);
         ledger.close();
         ledger = openJournal(ledgerDirectory, ledgerIdentity);
-        interrupt = { operationId: step.id, before: nonce };
+        interrupt = { operationId: measuredStep.id, before: nonce };
       }
       const { canonical, observation, started } = await executeIntent({ provider, item, journal: ledger, settings,
-        signer: signers[step.role], reviewedFees: caps });
+        signer: signers[step.role], reviewedFees: fees });
       if (deliberatelyInterrupted) {
         interrupt.after = await provider.getTransactionCount(item.from);
         assert.equal(interrupt.after, interrupt.before + 1);
       }
-      if (started !== undefined) {
+      if (local && started !== undefined) {
         const finalized = await provider.getBlock("finalized");
         if (finalized && finalized.number >= Number(canonical.block.number)) observation.finalityMs = Math.round(performance.now() - started);
       }
@@ -329,7 +398,8 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
         request = { requestId: String(pinned.requestId), modelIdentity: pinned.modelVersion,
           registryVersion: String(pinned.registryVersion), registryRoot: pinned.registryRoot };
       }
-      const row = rowFor({ item, canonical, observation, settings, request });
+      const operatorFeeWei = publicSettings && await publicSettings.operatorFee(canonical);
+      const row = rowFor({ item, canonical, observation, settings, request, operatorFeeWei });
       assert.equal(row.status, "confirmed", step.id);
       if (step.id === "premium.otp-settle") bankAuthorization.otp.status = "settled";
       if (step.id === "premium.eft-settle") bankAuthorization.mandate.status = "settled";
@@ -338,14 +408,19 @@ async function localAdapter({ provider, manifest, deployment, manifestHash, chai
         const expected = name === "refund" ? 2n * premium : amount(profile(name === "clarification" || name === "rejected" ? "manual" : name).payoutEth, name);
         assert.equal(BigInt(actual?.valueWei ?? 0), expected, step.id);
       }
+      if (routing) Object.assign(row, { repetition: measuredStep.repetition ?? null, offchainInputSource: generatedInputLabel });
+      finality?.observe(row);
       rows.push(row);
-      console.log("Local", chainId, step.id);
+      console.log(local ? "Local" : "Testnet", chainId, measuredStep.id);
     }
-    assert.equal(await receiptsAtHead(), manifest.expectedTransactionsPerChain, "Every mined transaction must appear in the manifest");
-    assert(interrupt && interrupt.after === interrupt.before + 1, "The recovery probe must reconcile exactly one send");
+    if (local) {
+      assert.equal(await receiptsAtHead(), manifest.expectedTransactionsPerChain, "Every mined transaction must appear in the manifest");
+      assert(interrupt && interrupt.after === interrupt.before + 1, "The recovery probe must reconcile exactly one send");
+    }
+    await finality?.finish(40 * 60_000);
     assert.equal(observations.length, manifest.operations.filter((step) => step.kind === "observation").length);
-    return { rows, observations, interrupt, clockAdvances };
-  } finally { ledger.close(); }
+    return { rows, observations, interrupt, clockAdvances, oracleHandoff };
+  } finally { await finality?.close(); ledger.close(); }
 }
 
 module.exports = { localAdapter };

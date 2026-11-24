@@ -53,12 +53,12 @@ function logicalValue(value, substitutions) {
   return value;
 }
 
-function operationFingerprint({ step, args, before, after, previousOperation, substitutions }) {
+function operationFingerprint({ step, args, before, after, previousOperation, substitutions, clockArguments }) {
   const assertion = (value) => value ? { component: value.component, kind: value.kind ?? "call", signature: value.signature,
     args: logicalValue(value.args, substitutions), resultIndex: value.resultIndex ?? 0, fields: value.fields,
     equals: logicalValue(value.equals, substitutions) } : null;
   return digest(json({ operationId: step.id, previousOperation, role: step.role, target: step.target,
-    method: step.method, valueEth: step.valueEth, arguments: logicalValue(args, substitutions),
+    method: step.method, valueEth: step.valueEth, arguments: logicalValue(args.map((value, index) => clockArguments?.[index] ?? value), substitutions),
     before: assertion(before), after: assertion(after) }));
 }
 
@@ -188,6 +188,7 @@ async function executeIntent({ provider, item, journal, settings, signer, review
       canonical = await canonicalReceipt(provider, known);
       if (!canonical) throw new Error("The observed transaction has no canonical receipt");
     } else {
+      await settings.checkSigner?.(item);
       const nonce = previous ? previous.nonce : await provider.getTransactionCount(item.from, "pending");
       const latestNonce = await provider.getTransactionCount(item.from, "latest");
       const pendingNonce = await provider.getTransactionCount(item.from, "pending");
@@ -206,7 +207,7 @@ async function executeIntent({ provider, item, journal, settings, signer, review
       const hash = ethers.keccak256(envelope);
       if (previous && previous.hash !== hash) throw new Error("Exact signed intent cannot be reconstructed");
       if (!previous) {
-        intent = { type: "signed", operationId: id, hash, nonce, submittedAt: new Date().toISOString(),
+        intent = { type: "signed", operationId: id, hash, nonce, signerRole: item.step.role, submittedAt: new Date().toISOString(),
           operationFingerprint: fingerprint };
         journal.append(intent);
       }

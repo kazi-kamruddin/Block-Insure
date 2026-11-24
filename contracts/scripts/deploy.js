@@ -15,7 +15,7 @@ if (pairedScenario) {
   }
   Object.assign(process.env, require("../../scripts/paired/deployment").environmentForDeployment(pairedScenario.manifest.deployment));
 }
-let publicProvider;
+let publicProvider, deploymentGuard;
 
 function updateEnvValue(filePath, key, value) {
   if (!fs.existsSync(filePath)) {
@@ -179,8 +179,27 @@ async function main() {
   const chainId = (await provider.getNetwork()).chainId;
   const expectedChainId = networkName === "sepolia" ? 11155111n : networkName === "baseSepolia" ? 84532n : chainId;
   if (chainId !== expectedChainId) throw new Error("Selected deployment RPC has the wrong chain");
+  if (process.env.PAIRED_BOOTSTRAP_PLAN_FILE) {
+    const rehearsal = isLocalNetwork && process.env.PAIRED_GUARD_REHEARSAL === "true" &&
+      /^http:\/\/127\.0\.0\.1:\d+\/?$/.test(hre.network.config.url ?? "") && /hardhat/i.test(await provider.send("web3_clientVersion", []));
+    if (!pairedScenario || (isLocalNetwork ? !rehearsal : process.env.PAIRED_ALLOW_PUBLIC_SENDS !== "true")) {
+      throw new Error("Guarded paired bootstrap requires an isolated rehearsal or explicit public authorization");
+    }
+    const planBytes = fs.readFileSync(process.env.PAIRED_BOOTSTRAP_PLAN_FILE);
+    const plan = JSON.parse(planBytes);
+    const planHash = require("../../scripts/paired/manifest").digest(planBytes);
+    if (planHash !== process.env.PAIRED_REVIEWED_BOOTSTRAP_PLAN || plan.chainId !== Number(chainId) ||
+        plan.manifestHash !== pairedScenario.manifestHash || plan.actors?.admin !== adminWallet.address) {
+      throw new Error("Guarded bootstrap plan is unreviewed or out of scope");
+    }
+    const oracle = Number(chainId) === 84532 ? new hre.ethers.Contract("0x420000000000000000000000000000000000000F",
+      ["function getL1FeeUpperBound(uint256) view returns(uint256)", "function getOperatorFee(uint256) view returns(uint256)"], provider) : null;
+    deploymentGuard = require("../../scripts/paired/publicBootstrap").guardedDeployer({ wallet: adminWallet, provider,
+      output: process.env.DEPLOYMENT_OUTPUT_DIR, manifest: pairedScenario.manifest, plan, planHash, chainId, local: rehearsal,
+      extraFee: async (data, gas) => oracle ? await oracle.getL1FeeUpperBound((data.length - 2) / 2 + 512) + await oracle.getOperatorFee(gas) : 0n });
+  }
   const deployContract = async (factory, ...args) => {
-    if (isLocalNetwork) return factory.deploy(...args);
+    if (isLocalNetwork || deploymentGuard) return factory.deploy(...args);
     const quote = await require("../../scripts/deploymentGas").estimateDeploymentGas({ provider, chainId,
       transaction: await factory.getDeployTransaction(...args), from: adminWallet.address });
     console.log("Read-only public deployment estimate:", String(quote.estimatedGas), quote.accounting);
@@ -410,6 +429,7 @@ async function main() {
     ).wait();
   }
   console.log("ProtocolDeploymentRegistry deployed to:", deploymentRegistryAddress);
+  deploymentGuard?.assertComplete();
   if (!pairedScenario) syncContractAbi();
   const network = await provider.getNetwork();
   const deployment = {
@@ -484,4 +504,7 @@ main().catch((error) => {
   }
   console.error("Deployment failed. Check private network/funding/total-gas configuration and retain existing addresses/receipts before retrying.");
   process.exitCode = 1;
-}).finally(() => publicProvider?.destroy());
+}).finally(() => {
+  deploymentGuard?.close();
+  publicProvider?.destroy();
+});

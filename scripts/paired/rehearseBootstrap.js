@@ -10,6 +10,7 @@ const { providerFor, canonicalReceipt, waitFor, executeIntent, openJournal, mate
 const { normalize } = require("./receipt");
 const { compare, writeComparison } = require("./compare");
 const { captureFork } = require("./fork");
+const { bootstrapRole, generatedManifest } = require("./generatedInput");
 
 const root = path.resolve(__dirname, "../..");
 const launcher = path.join(root, "contracts/scripts/runHardhat.js");
@@ -83,11 +84,19 @@ const localRoleIndex = { admin: 0, holder: 1, oracle1: 4, oracle2: 5, auditor1: 
   auditor3: 8, auditor4: 9, bank: 15 };
 const localWallet = (index) => ethers.HDNodeWallet.fromPhrase(HARDHAT_NETWORK_MNEMONIC, undefined, "m/44'/60'/0'/0/" + index);
 
-async function bindRoles({ provider, chainId, directory, deployment, manifest, manifestHash, admin }) {
-  const actors = Object.fromEntries(Object.entries(localRoleIndex).map(([name, i]) => [name, localWallet(i).address]));
-  const operations = manifest.operations.filter((step) => /^setup\.(oracle[12]|auditor[1-4]|bank|medical-reserve)$/.test(step.id));
+async function bindRoles({ provider, chainId, directory, deployment, manifest, manifestHash, admin, publicOptions, startTime }) {
+  const actors = publicOptions?.actors ?? Object.fromEntries(Object.entries(localRoleIndex).map(([name, i]) => [name, localWallet(i).address]));
+  const operations = manifest.operations.filter((step) => bootstrapRole.test(step.id));
   const transactions = Object.fromEntries(operations.map((step) => {
     const name = step.id.slice("setup.".length);
+    if (name === "registry-baseline") {
+      const record = require("./localFixtures").buildEpisode({ name: "registry-baseline", profile: manifest.cases.routine,
+        expected: manifest.cases.routine.expectedBillEth, holder: actors.holder, incident: startTime });
+      const root = require("../../oracle/shadowAssessment").registryRoot([record]);
+      const reading = { component: "OracleCoordinator", signature: "currentRegistryVersion() view returns(uint64)", args: [] };
+      return [step.id, { args: [root, 1, ethers.id("canonical-registry-schema-v1")], gasLimit: "300000",
+        precondition: { ...reading, equals: 0 }, assertion: { ...reading, equals: 1 } }];
+    }
     if (name === "medical-reserve") {
       const balance = { component: "InsuranceManager", kind: "balance" };
       return [step.id, { args: [], gasLimit: "300000", precondition: { ...balance, equals: "0" },
@@ -101,19 +110,28 @@ async function bindRoles({ provider, chainId, directory, deployment, manifest, m
     return [step.id, { args, gasLimit: "300000", precondition: { ...read, equals: bank ? ethers.ZeroAddress : false },
       assertion: { ...read, equals: bank ? actors.bank : true } }];
   }));
-  const settings = { chainId, deployment, manifestHash, pollMs: 100, receiptTimeoutMs: 15000, captureLocalEncoding: true };
-  const walletData = { type: "local-role-bootstrap", chainId, manifestHash };
+  if (publicOptions) for (const [id, detail] of Object.entries(transactions)) detail.gasLimit = publicOptions.gasLimits[id];
+  const settings = { chainId, deployment, manifestHash, pollMs: publicOptions ? 5000 : 100, receiptTimeoutMs: publicOptions ? 300000 : 15000,
+    captureLocalEncoding: !publicOptions, checkBudget: publicOptions?.checkBudget };
+  const walletData = { type: publicOptions ? "public-role-bootstrap" : "local-role-bootstrap", chainId, manifestHash,
+    ...(publicOptions && { planHash: publicOptions.planHash, manager: deployment.components.InsuranceManager }) };
   const journal = openJournal(path.join(directory, "role-bootstrap"), walletData);
   const rows = [];
   try {
     for (const item of materialize({ ...manifest, operations }, deployment, { actors, transactions }).values()) {
       const { canonical, observation } = await executeIntent({ provider, item, journal, settings, signer: admin,
-        reviewedFees: { maxFeePerGasWei: "5000000000", priorityWei: "1000000000" } });
+        reviewedFees: publicOptions?.fees ?? { maxFeePerGasWei: "5000000000", priorityWei: "1000000000" } });
       const row = rowFor({ item, canonical, observation, settings });
       if (row.status !== "confirmed") throw new Error("Local role assignment reverted for " + item.step.id);
       rows.push(row);
     }
   } finally { journal.close(); }
+  if (transactions["setup.registry-baseline"]) {
+    const coordinator = new ethers.Contract(deployment.components.OracleCoordinator, require("../../oracle/abi/OracleCoordinator.json").abi, provider);
+    if ((await coordinator.getRegistrySnapshot(1)).root !== transactions["setup.registry-baseline"].args[0]) {
+      throw new Error("Initial registry root did not match the reviewed baseline");
+    }
+  }
   return { actors, rows };
 }
 
@@ -156,7 +174,7 @@ async function verifyLiveResume({ provider, deployment, chainId, directory, admi
   } finally { journal.close(); }
 }
 
-async function one({ chainId, directory, scenarioPath, manifest, manifestHash, sourceCommit, sourceDeltaSha256, fixture, startTime }) {
+async function one({ chainId, directory, scenarioPath, manifest, manifestHash, sourceCommit, sourceDeltaSha256, fixture, startTime, routing }) {
   const port = await localPort();
   const url = "http://127.0.0.1:" + port;
   const node = start(["node", "--hostname", "127.0.0.1", "--port", String(port), "--network", "hardhat"], { PAIRED_LOCAL_CHAIN_ID: String(chainId) });
@@ -173,27 +191,44 @@ async function one({ chainId, directory, scenarioPath, manifest, manifestHash, s
     provider = providerFor(url, chainId, true);
     const forkStart = await captureFork(provider, chainId, { local: true });
     const admin = localWallet(0);
+    const guarded = {};
+    if (routing) {
+      fs.mkdirSync(directory);
+      const entries = manifest.operations.filter((step) => step.category === "bootstrap");
+      const plan = { chainId, manifestHash, actors: { admin: admin.address }, startingAdminNonce: 0,
+        fees: { maxFeePerGasWei: "5000000000", priorityWei: "1000000000" },
+        startingAdminWei: String(await provider.getBalance(admin.address)), retainedAdminWei: "1000000000000000000",
+        maxAdminOutflowWei: "10000000000000000000", gasLimits: Object.fromEntries(entries.map((step) => [step.id, "25000000"])),
+        extraFeeLimits: Object.fromEntries(entries.map((step) => [step.id, "0"])) };
+      const planPath = path.join(directory, "rehearsal-bootstrap-plan.json");
+      const text = JSON.stringify(plan) + "\n";
+      fs.writeFileSync(planPath, text, { flag: "wx" });
+      Object.assign(guarded, { PAIRED_GUARD_REHEARSAL: "true", PAIRED_BOOTSTRAP_PLAN_FILE: planPath, PAIRED_REVIEWED_BOOTSTRAP_PLAN: digest(text) });
+    }
     await start(["run", "--no-compile", "scripts/deploy.js", "--network", "localhost"], {
       PAIRED_LOCAL_CHAIN_ID: String(chainId), PAIRED_LOCAL_RPC_URL: url, ADMIN_PRIVATE_KEY: admin.privateKey,
-      PAIRED_SCENARIO_FILE: scenarioPath, DEPLOY_WRITE_ENV: "false", DEPLOYMENT_OUTPUT_DIR: directory,
+      PAIRED_SCENARIO_FILE: scenarioPath, DEPLOY_WRITE_ENV: "false", DEPLOYMENT_OUTPUT_DIR: directory, ...guarded,
     }).completed;
     const deploymentFile = path.join(directory, "localhost-" + chainId + ".json");
     const bytes = fs.readFileSync(deploymentFile);
     const deployment = JSON.parse(bytes);
     const rows = await collectBootstrap({ manifest, manifestHash, chainId, deployment, provider });
-    const bound = await bindRoles({ provider, chainId, directory, deployment, manifest, manifestHash, admin });
+    const bound = await bindRoles({ provider, chainId, directory, deployment, manifest, manifestHash, admin, startTime });
     rows.push(...bound.rows);
     const readback = await verifyPaired({ manifest, manifestHash, deployment, provider, local: true, actors: bound.actors });
     const deploymentManifestHash = digest(bytes);
     const full = fixture && await require("./localAdapter").localAdapter({ provider, manifest, deployment, manifestHash, chainId,
-      directory, deploymentManifestHash, evidence: fixture, startTime,
+      directory, deploymentManifestHash, evidence: fixture, startTime, routing, readback, mongoUri: process.env.PAIRED_CAMPAIGN_MONGO_URL,
+      checkpoint: routing ? require("./privateCheckpoint").privateCheckpoint(path.join(directory, "workflow/private"), admin.privateKey, deploymentManifestHash) : undefined,
       signers: Object.fromEntries(Object.entries(localRoleIndex).map(([role, index]) => [role, localWallet(index)])),
     });
+    if (routing) for (const row of rows) Object.assign(row, { repetition: null, offchainInputSource: manifest.offchainInputSource });
     if (full) rows.push(...full.rows);
     if (full && rows.length !== manifest.expectedTransactionsPerChain) throw new Error("Full local receipt count differs from manifest");
     const forkEnd = await captureFork(provider, chainId, { local: true });
     const campaign = { schema: "block-insure-paired-campaign/v1", chainId, sourceCommit, sourceDeltaSha256, local: true,
       scope: full ? "complete isolated fixture transaction rehearsal" : "contract and role bootstrap with medical reserve",
+      ...(routing && { offchainInputSource: manifest.offchainInputSource, repetitions: manifest.repetitions, oracleHandoff: full.oracleHandoff }),
       manifestHash, deploymentManifestHash, configurationHash: readback.configurationHash,
       complete: Boolean(full), observations: full?.observations ?? [], interruptedWorkflow: full?.interrupt ?? null,
       localClockAdvances: full?.clockAdvances ?? [],
@@ -211,8 +246,15 @@ async function one({ chainId, directory, scenarioPath, manifest, manifestHash, s
 
 async function main() {
   const scenarioPath = path.join(root, "deploy/paired-v6-scenario.json");
-  const { manifest, manifestHash } = readManifest(scenarioPath);
-  const full = process.argv.includes("--full-local");
+  const scenario = readManifest(scenarioPath);
+  const { manifestHash } = scenario;
+  const options = require("../operatorArguments").parseOperatorArguments(process.argv.slice(2), {
+    values: ["--repetitions"], switches: ["--full-local", "--generated-offchain-inputs"],
+  });
+  const routing = options["--generated-offchain-inputs"] && require("../../deploy/paired-v6-live-routing.json");
+  const manifest = routing ? generatedManifest({ ...scenario, routing, repetitions: Number(options["--repetitions"] ?? 1) }) : scenario.manifest;
+  if (options["--repetitions"] && !routing) throw new Error("Repetitions require explicit generated off-chain inputs");
+  const full = Boolean(options["--full-local"] || routing);
   const output = path.join(root, "verification-results", (full ? "paired-full-local-" : "paired-bootstrap-") + new Date().toISOString().replace(/[:.]/g, "-"));
   fs.mkdirSync(output);
   const git = (...args) => execFileSync("git", ["-c", "safe.directory=" + root.replace(/\\/g, "/"), "-C", root, ...args],
@@ -224,17 +266,19 @@ async function main() {
     addedFiles: newPaths.map((file) => [file, digest(fs.readFileSync(path.join(root, file)))]) })) : null;
   const startTime = Math.floor(Date.now() / 1000) + 1800;
   const fixture = full && require("./localFixtures").createEvidenceFixtures(["holder", "auditor1", "auditor2", "auditor3", "auditor4"]);
-  const args = { scenarioPath, manifest, manifestHash, sourceCommit, sourceDeltaSha256, startTime, fixture };
+  const args = { scenarioPath, manifest, manifestHash, sourceCommit, sourceDeltaSha256, startTime, fixture, routing };
   const l1 = await one({ ...args, chainId: 31337, directory: path.join(output, "local-l1") });
   const l2 = await one({ ...args, chainId: 11155111, directory: path.join(output, "local-l2") });
   assertParity(l1.readback, l2.readback);
   const report = compare(manifest, manifestHash, l1.campaign, l2.campaign);
   writeComparison(report, path.join(output, "comparison"));
-  fs.writeFileSync(path.join(output, "routing-fixtures.json"), JSON.stringify(require("./fixtures").verifyFixtures(manifest), null, 2), { flag: "wx" });
+  fs.writeFileSync(path.join(output, "routing-fixtures.json"), JSON.stringify(routing ? {
+    offchainInputSource: manifest.offchainInputSource, routing, originalCaseScores: require("./fixtures").verifyFixtures(scenario.manifest),
+  } : require("./fixtures").verifyFixtures(manifest), null, 2), { flag: "wx" });
   console.log(JSON.stringify({ output, complete: report.complete, receiptPairs: report.paired.length,
     deploymentTotals: report.deploymentTotals, workflowTotals: report.workflowTotals, excluded: report.excluded.length }));
   if (full && !report.complete) throw new Error("A full local pair contains mismatches. Read the dated exclusions.");
 }
 if (require.main === module) main().catch((error) => { console.error(error.code ?? error.message); process.exitCode = 1; });
-module.exports = { collectBootstrap };
+module.exports = { bindRoles, collectBootstrap };
 

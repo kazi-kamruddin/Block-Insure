@@ -12,14 +12,18 @@ const { buildCommitment, buildResultHash, buildSalt } = require("../../oracle/pr
 const SCHEME = ethers.sha256(ethers.toUtf8Bytes("RECRYPT-RS-0.15+A256GCM"));
 const encode = ethers.AbiCoder.defaultAbiCoder();
 
-function createEvidenceFixtures(roles) {
+function createEvidenceFixtures(roles, checkpoint) {
   const api = new Api256();
-  const identities = Object.fromEntries(roles.map((role) => [role, {
-    pair: api.generateKeyPair(), signing: api.generateEd25519KeyPair(),
-  }]));
+  let identityState = checkpoint?.read("evidence-identities");
+  if (!identityState) {
+    identityState = { identities: Object.fromEntries(roles.map((role) => [role, {
+      pair: api.generateKeyPair(), signing: api.generateEd25519KeyPair(),
+    }])), proxy: api.generateEd25519KeyPair() };
+    checkpoint?.create("evidence-identities", identityState);
+  }
+  const { identities, proxy } = identityState;
   const documents = new Map();
   const owner = identities.holder;
-  const proxy = api.generateEd25519KeyPair();
   return {
     identity(role) {
       const { pair, signing } = identities[role];
@@ -29,6 +33,12 @@ function createEvidenceFixtures(roles) {
     seal(name, facts) {
       if (documents.has(name)) return documents.get(name).public;
       const plaintext = Buffer.from(JSON.stringify({ synthetic: true, case: name, ...facts }));
+      const saved = checkpoint?.read("evidence-" + name);
+      if (saved) {
+        assert.deepEqual(saved.plaintext, plaintext, "Evidence recovery requires identical reviewed facts");
+        documents.set(name, saved);
+        return saved.public;
+      }
       const material = api.generatePlaintext();
       const key = api.deriveSymmetricKey(material);
       const iv = crypto.randomBytes(12);
@@ -39,11 +49,13 @@ function createEvidenceFixtures(roles) {
       const address = crypto.createHash("sha256").update(content).digest("hex");
       const capsule = api.encrypt(material, owner.pair.publicKey, owner.signing.privateKey);
       const publicDocument = { hash: "0x" + address, cid: "local-fixture://" + address, encryptedBytes: content.length };
-      documents.set(name, { public: publicDocument, iv, tag, ciphertext, capsule, plaintext });
+      const document = { public: publicDocument, iv, tag, ciphertext, capsule, plaintext };
+      checkpoint?.create("evidence-" + name, document);
+      documents.set(name, document);
       return publicDocument;
     },
     prepare(name) {
-      const document = documents.get(name);
+      const document = documents.get(name) ?? checkpoint?.read("evidence-" + name);
       const grants = Object.entries(identities).filter(([role]) => /^auditor/.test(role)).map(([role, auditor]) => {
         const key = api.generateTransformKey(owner.pair.privateKey, auditor.pair.publicKey, owner.signing.privateKey);
         const transformed = api.transform(document.capsule, key, proxy.privateKey);
@@ -59,8 +71,8 @@ function createEvidenceFixtures(roles) {
   };
 }
 
-function buildEpisode({ name, profile, expected, holder, incident }) {
-  const date = new Date(Number(incident) * 1000).toISOString().slice(0, 10) + "T00:00:00.000Z";
+function buildEpisode({ name, profile, expected, holder, incident, registryReference = incident }) {
+  const date = new Date(Number(registryReference) * 1000).toISOString().slice(0, 10) + "T00:00:00.000Z";
   return getCanonicalRecordPayload({
     hospitalId: "HOSP-001", hospitalName: "Paired rehearsal hospital", patientHash: ethers.id("paired:patient:" + name),
     authorizedClaimants: [holder], admissionDate: date, dischargeDate: date, invoiceDate: date,

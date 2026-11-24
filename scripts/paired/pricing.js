@@ -76,8 +76,15 @@ async function priceCampaign({ campaign, ethereum, base, baseSepolia }) {
   if ((await base.getBlock(l2.block))?.hash !== l2.blockHash || (await ethereum.getBlock(l1.block))?.hash !== l1.blockHash) {
     throw new Error("A pricing reference block moved while sampling");
   }
+  const [header, config] = await Promise.all([
+    ethereum.send("eth_getBlockByNumber", [ethers.toQuantity(l1.block), false]), ethereum.send("eth_config", []).catch(() => null),
+  ]);
+  l1.gasSchedule = header?.blockAccessListHash && header?.slotNumber != null ? "Amsterdam" :
+    config?.current?.forkId === "0x07c9462e" ? "Osaka/BPO2" : "Pre-Amsterdam at sampled header";
+  l1.forkId = config?.current?.forkId ?? null;
   return { schema: "block-insure-mainnet-pricing/v1", manifestHash: campaign.manifestHash,
     sampledAt: new Date().toISOString(), scope: local ? "Mainnet pricing applied to local execution and local transaction encodings" : "Mainnet pricing applied to public testnet receipts",
+    ...(campaign.offchainInputSource && { offchainInputSource: campaign.offchainInputSource }),
     ethereum: l1, base: { ...l2, transactionQuotes: quotes } };
 }
 

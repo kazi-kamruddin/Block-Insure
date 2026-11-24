@@ -14,6 +14,12 @@ const { executeIntent, openJournal, operationFingerprint } = require("../../scri
 const { validateReadiness } = require("../../scripts/paired/readiness");
 const { validateObservation } = require("../../scripts/paired/run");
 const { isServiceTransaction } = require("../../scripts/paired/serviceReceipts");
+const { enforceSignerFence, generatedInputLabel } = require("../../scripts/paired/campaignHandoff");
+const { generatedManifest } = require("../../scripts/paired/generatedInput");
+const liveRouting = require("../../deploy/paired-v6-live-routing.json");
+const { privateCheckpoint } = require("../../scripts/paired/privateCheckpoint");
+const { createEvidenceFixtures } = require("../../scripts/paired/localFixtures");
+const { guardedDeployer } = require("../../scripts/paired/publicBootstrap");
 
 const scenario = readManifest(path.resolve(__dirname, "../../deploy/paired-v6-scenario.json"));
 const { manifestHash } = scenario;
@@ -238,7 +244,123 @@ test("readiness requires two distinct role-matched workers with fresh polls and 
     lastSuccessfulPollAt: stamp, headObservedAt: stamp,
   }));
   assert.equal(validateReadiness([api, ...workers], deployment, now), true);
+  assert.equal(validateReadiness([api, workers[0], { ...workers[1], workerEnabled: false }], deployment, now), false);
   workers[1].scanLagBlocks = 151;
   assert.equal(validateReadiness([api, ...workers], deployment, now), false);
+});
+
+test("public generated observations require explicit mode and exact provenance", () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "paired-generated-"));
+  const step = { id: "rep1/manual.episode", method: "createEpisode" };
+  const deploymentManifestHash = "b".repeat(64);
+  try {
+    const text = JSON.stringify({ schema: "block-insure-paired-app-observation/v1", source: generatedInputLabel,
+      operationId: step.id, method: step.method, chainId: 84532, manifestHash, deploymentManifestHash,
+      observedAt: "2026-11-24T01:00:00.000Z", status: "confirmed", outcome: { facts: "generated" } });
+    fs.writeFileSync(path.join(target, "observation.json"), text);
+    const options = { witness: { file: "observation.json", evidenceSha256: digest(text) }, planDirectory: target,
+      step, chainId: 84532, manifestHash, deploymentManifestHash, local: false };
+    assert.throws(() => validateObservation(options), /isolated live-service observation/);
+    assert.equal(validateObservation({ ...options, generated: true }), digest(text));
+    assert.throws(() => validateObservation({ ...options, generated: true, chainId: 11155111 }), /proof differs/);
+  } finally { fs.rmSync(target, { recursive: true }); }
+});
+
+test("four generated repetitions preserve approved claim amounts, unique operation IDs and reserve arithmetic", () => {
+  const manifest = generatedManifest({ ...scenario, routing: liveRouting, repetitions: 4 });
+  assert.equal(manifest.offchainInputSource, generatedInputLabel);
+  assert.equal(new Set(manifest.operations.map((step) => step.id)).size, manifest.operations.length);
+  assert.equal(manifest.expectedTransactionsPerChain, 361);
+  const observations = manifest.operations.filter((step) => step.repetition === 4 && step.kind === "observation");
+  assert.equal(observations.length, 18);
+  const byId = new Map(manifest.operations.map((step, index) => [step.id, { step, index }]));
+  for (let repetition = 1; repetition <= 4; repetition += 1) {
+    const at = (name) => byId.get(`rep${repetition}/${name}`);
+    assert.ok(at("manual.claim").index < at("manual.corrected-publish").index);
+    assert.ok(at("manual.corrected-publish").index < at("manual.oracle-request").index);
+  }
+  assert.deepEqual(manifest.operations.filter((step) => step.templateId?.startsWith("reserve.")).map((step) => step.valueEth),
+    ["0.0006", "0.0005", "0.0063", "0.001", "0.0063", "0.001"]);
+  assert.equal(manifest.cases.manual.grossEth, "0.003");
+});
+
+test("Oracle signing fence rejects missing handoff and unjournaled pending or mined sends", async () => {
+  const wallet = "0x" + "1".repeat(40);
+  const item = { from: wallet, step: { id: "rep1/manual.commit-1" } };
+  const entries = [];
+  let pending = 4, mined = 4;
+  const provider = { getTransactionCount: async (_wallet, tag) => tag === "latest" ? mined : pending };
+  const read = () => enforceSignerFence({ provider, journal: { entries }, item });
+  await assert.rejects(read(), /handoff has not been recorded/);
+  entries.push({ type: "oracle-handoff", signers: [{ role: "oracle1", wallet, initialNonce: 4 }] });
+  await read();
+  pending = 5;
+  await assert.rejects(read(), /nonce is occupied/);
+  mined = 5;
+  await assert.rejects(read(), /nonce is occupied/);
+});
+
+test("generated ciphertext and reviewer access survive closing and reopening encrypted checkpoints", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "paired-evidence-"));
+  try {
+    const key = ethers.Wallet.createRandom().privateKey;
+    const roles = ["holder", "auditor1", "auditor2", "auditor3", "auditor4"];
+    const fresh = createEvidenceFixtures(roles, privateCheckpoint(directory, key, "campaign"));
+    const body = { invoice: ethers.id("synthetic-invoice") };
+    const document = fresh.seal("manual", body);
+    const recovered = createEvidenceFixtures(roles, privateCheckpoint(directory, key, "campaign"));
+    assert.deepEqual(recovered.identity("holder"), fresh.identity("holder"));
+    assert.deepEqual(recovered.seal("manual", body), document);
+    assert.deepEqual(recovered.prepare("manual"), fresh.prepare("manual"));
+    assert.throws(() => privateCheckpoint(directory, key, "wrong-campaign").read("evidence-manual"));
+  } finally { fs.rmSync(directory, { recursive: true }); }
+});
+
+test("public bootstrap guard recovers a mined transfer without resending and stops on a moved nonce", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "paired-bootstrap-"));
+  const wallet = ethers.Wallet.createRandom();
+  const recipient = ethers.Wallet.createRandom().address;
+  const hash = ethers.id("canonical-block");
+  const chainId = 84532;
+  const step = { id: "funding.oracle1", method: "transfer", recipient, valueEth: "0.0005" };
+  let broadcasts = 0, nonce = 8, signed;
+  const provider = {
+    getBalance: async () => 10n ** 18n,
+    estimateGas: async () => 21000n,
+    getTransactionCount: async () => nonce,
+    getTransaction: async (txHash) => ({ hash: txHash }),
+    send: async (method, args) => {
+      if (method === "eth_sendRawTransaction") {
+        broadcasts += 1;
+        nonce += 1;
+        signed = ethers.Transaction.from(args[0]);
+        throw new Error("Injected interruption after broadcast");
+      }
+      if (method === "eth_getTransactionReceipt" && signed?.hash === args[0]) return { blockNumber: "0x5", blockHash: hash, status: "0x1" };
+      if (method === "eth_getTransactionByHash" && signed?.hash === args[0]) return { from: wallet.address, to: recipient, hash: signed.hash,
+        blockHash: hash, input: signed.data, value: ethers.toQuantity(signed.value), nonce: ethers.toQuantity(signed.nonce) };
+      if (method === "eth_getBlockByNumber") return { hash };
+      return null;
+    },
+  };
+  const options = { output: directory, wallet, provider, fundingSteps: [step], chainId, planHash: "a".repeat(64),
+    plan: { startingAdminNonce: 8, fees: { maxFeePerGasWei: "10", priorityWei: "1" }, startingAdminWei: String(10n ** 18n),
+      retainedAdminWei: String(10n ** 17n), maxAdminOutflowWei: String(8n * 10n ** 17n),
+      gasLimits: { [step.id]: "24000" }, extraFeeLimits: { [step.id]: "1" } }, extraFee: async () => 1n };
+  const request = { to: recipient, value: ethers.parseEther(step.valueEth) };
+  try {
+    let setup = guardedDeployer(options);
+    await assert.rejects(wallet.sendTransaction(request), /Injected interruption/);
+    setup.close();
+    setup = guardedDeployer(options);
+    assert.equal((await wallet.sendTransaction(request)).hash, signed.hash);
+    assert.equal(broadcasts, 1);
+    setup.assertComplete();
+    setup.close();
+    setup = guardedDeployer({ ...options, target: "alternate" });
+    await assert.rejects(wallet.sendTransaction(request), /unknown transaction occupies/);
+    assert.equal(broadcasts, 1);
+    setup.close();
+  } finally { fs.rmSync(directory, { recursive: true }); }
 });
 
