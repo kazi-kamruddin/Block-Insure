@@ -15,7 +15,7 @@ describe("Phase 3 - Policy economics and Solidity rules", function () {
   const premium = ethers.parseEther("0.01");
   const coverage = ethers.parseEther("1");
 
-  async function deployFixture({ configuredRules } = {}) {
+  async function deployFixture({ configuredRules, packagePremium = premium, packageCoverage = coverage } = {}) {
     const [admin, user, other, oracle1, oracle2] = await ethers.getSigners();
     const Manager = await ethers.getContractFactory("InsuranceManager");
     const manager = await Manager.deploy();
@@ -30,15 +30,15 @@ describe("Phase 3 - Policy economics and Solidity rules", function () {
     await manager.createPolicyPackage(
       "Health Basic",
       "HEALTH",
-      premium,
-      coverage,
+      packagePremium,
+      packageCoverage,
       365,
       "HOSPITAL_BILL"
     );
     if (configuredRules) {
       await publishRules(economics, 1, configuredRules);
     }
-    await manager.connect(user).purchasePolicy(1, { value: premium });
+    await manager.connect(user).purchasePolicy(1, { value: packagePremium });
     return { manager, adjudicator, economics, admin, user, other, oracle1, oracle2 };
   }
 
@@ -87,6 +87,35 @@ describe("Phase 3 - Policy economics and Solidity rules", function () {
     expect(Array.from(result)).to.deep.equal([coverage, eth("0.08"), eth("0.72"), eth("0.4"), eth("0.6")]);
     expect(await economics.remainingCoverage(1)).to.equal(0n);
     expect(await economics.invoiceClaimId(hash("invoice-capped"))).to.equal(2n);
+  });
+
+  it("quotes the approved paired V6 claim amounts under the issued package cap", async () => {
+    const eth = ethers.parseEther;
+    const { manager, economics, user } = await deployFixture({
+      packagePremium: eth("0.0005"),
+      packageCoverage: eth("0.005"),
+      configuredRules: {
+        settlementFormulaVersion: hash("BLOCK_INSURE_SETTLEMENT_V2"),
+        maximumClaimWei: eth("0.005"),
+        allowedServices: [hash("HEALTH"), hash("SURGERY")],
+        limits: [eth("0.005"), eth("0.004")],
+      },
+    });
+    for (let id = 1; id <= 3; id += 1) {
+      if (id > 1) await manager.connect(user).purchasePolicy(1, { value: eth("0.0005") });
+      const [gross, service, payout] = [
+        ["0.002", "HEALTH", "0.00144"],
+        ["0.003", "HEALTH", "0.00216"],
+        ["0.005", "SURGERY", "0.00288"],
+      ][id - 1];
+      const policy = await manager.getPolicy(id);
+      await manager.connect(user).submitClaim(id, eth(gross), policy.startDate, service, "HOSP-001",
+        hash(`paired-invoice-${id}`), hash(`paired-evidence-${id}`), `ipfs://paired-evidence-${id}`);
+      const quote = await manager.calculateSettlement(id);
+      expect(quote[0]).to.equal(eth(gross));
+      expect(quote[3]).to.equal(eth(payout));
+      expect(await economics.remainingCoverage(id)).to.equal(eth("0.005") - eth(payout));
+    }
   });
 
   it("tolls only the holder's identified invoice when intent precedes its original filing deadline", async () => {

@@ -6,13 +6,15 @@ const mongoose = require("../../backEnd/node_modules/mongoose");
 const pdfjsVersion = require("../../frontEnd/node_modules/pdfjs-dist/package.json").version;
 const {
   localDateTimeValue,
+  prepareReasonedVote,
   loginActor,
   resetLocalClaimSubmissionLimit,
   uniqueEvidenceFile,
   syntheticPdfEvidenceFile,
 } = require("../support/actions");
 const { closeActor, createActorContext } = require("../support/walletBridge");
-const { requireDisposableE2EMongoUri } = require("../support/environment");
+const { getE2EConfig, requireDisposableE2EMongoUri } = require("../support/environment");
+const apiUrl = getE2EConfig().apiUrl;
 
 test.describe("@workflow policyholder transaction journey", () => {
   test.describe.configure({ mode: "serial" });
@@ -140,11 +142,11 @@ test.describe("@workflow policyholder transaction journey", () => {
         await expect(advisoryPanel.getByText(/Contributions add to the raw model margin/)).toBeVisible();
         await advisoryPanel.getByText("Assessment provenance and limitations", { exact: true }).click();
         await expect(advisoryPanel.getByText(/engineered billing-action labels/)).toBeVisible();
-        const advisoryRead = () => adminSession.page.evaluate(async (id) => {
+        const advisoryRead = () => adminSession.page.evaluate(async ({ id, apiUrl }) => {
           const token = localStorage.getItem("blockinsure_jwt");
-          const response = await fetch(`http://localhost:5000/api/claims/${id}/advisory`, { headers: { Authorization: `Bearer ${token}` } });
+          const response = await fetch(`${apiUrl}/api/claims/${id}/advisory`, { headers: { Authorization: `Bearer ${token}` } });
           return { status: response.status, body: await response.json() };
-        }, claimId);
+        }, { id: claimId, apiUrl });
         const firstAdvisory = await advisoryRead();
         expect(firstAdvisory.status).toBe(200);
         expect(firstAdvisory.body.advisory.status).toBe("AVAILABLE");
@@ -172,7 +174,7 @@ test.describe("@workflow policyholder transaction journey", () => {
         await adminSession.page.screenshot({ path: "test-results/xgboost-advisory-mobile.png", fullPage: true });
         await adminSession.page.setViewportSize(viewport);
         const userToken = await session.page.evaluate(() => localStorage.getItem("blockinsure_jwt"));
-        const denied = await session.context.request.get(`http://localhost:5000/api/claims/${claimId}/advisory`, { headers: { Authorization: `Bearer ${userToken}` } });
+        const denied = await session.context.request.get(`${apiUrl}/api/claims/${claimId}/advisory`, { headers: { Authorization: `Bearer ${userToken}` } });
         expect(denied.status()).toBe(403);
 
         const currentStatus = adminSession.page.locator(
@@ -205,16 +207,16 @@ test.describe("@workflow policyholder transaction journey", () => {
           { timeout: 90000, intervals: [5000], message: "Both worker shadow computations must independently agree on the committed context" }).toBe("MATCHED");
         const finalAdvisory = (await advisoryRead()).body.advisory;
         expect(finalAdvisory.protocolModel.kind).toBe("xgboost");
-        const monitoring = await adminSession.page.evaluate(async () => {
-          const response = await fetch("http://localhost:5000/api/oracle/monitoring", {
+        const monitoring = await adminSession.page.evaluate(async (apiUrl) => {
+          const response = await fetch(apiUrl + "/api/oracle/monitoring", {
             headers: { Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` },
           });
           return { status: response.status, body: await response.json() };
-        });
+        }, apiUrl);
         expect(monitoring.status).toBe(200);
         expect(monitoring.body.monitoring.scoredRequests).toBeGreaterThanOrEqual(1);
         expect(monitoring.body.monitoring.activeModelIdentity).toBe(finalAdvisory.protocolModel.identity);
-        const deniedMonitor = await session.context.request.get("http://localhost:5000/api/oracle/monitoring", {
+        const deniedMonitor = await session.context.request.get(apiUrl + "/api/oracle/monitoring", {
           headers: { Authorization: `Bearer ${userToken}` },
         });
         expect(deniedMonitor.status()).toBe(403);
@@ -373,10 +375,9 @@ test.describe("@workflow policyholder transaction journey", () => {
             exact: true,
           });
           await expect(validVoteButton).toBeEnabled();
+          await prepareReasonedVote(auditorSession.page, "The invoice and the disclosed supporting evidence substantiate the covered treatment.");
           await validVoteButton.click();
-          await expect(auditorSession.page.locator(".success-text")).toContainText(
-            "Valid Claim vote recorded on-chain"
-          );
+          await expect(auditorSession.page.getByText("Valid Claim vote recorded on-chain.", { exact: true })).toBeVisible();
         } finally {
           await closeActor(auditorSession);
         }

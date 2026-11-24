@@ -69,7 +69,7 @@ test.describe("@smoke complete route inventory", () => {
   });
 
   for (const [actorName, routes] of Object.entries(roleRoutes)) {
-    for (const width of [1366, 320]) {
+    for (const width of [1366, 768, 320]) {
       test(`${actorName} can render every top-level workspace route without server errors at ${width}px`, async ({ browser }, testInfo) => {
         const session = await createActorContext(browser, actorName, { viewport: { width, height: 900 } });
         const serverErrors = [];

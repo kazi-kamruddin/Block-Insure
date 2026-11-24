@@ -1,0 +1,1993 @@
+{
+  "schema": "block-insure-paired-v6/v1",
+  "chains": {
+    "l1": 11155111,
+    "l2": 84532
+  },
+  "deployment": {
+    "claimWorkflowProfile": "V6",
+    "calendarProfile": "ACCELERATED_TESTNET",
+    "reviewTimingProfile": "DEMONSTRATION",
+    "modelIdentity": "0x5fe2760cc2306065c60287b80df97ca66ba1da54ce3647389672e9bc5ea58e4a",
+    "premiumEth": "0.0005",
+    "coverageEth": "0.005",
+    "surgerySublimitEth": "0.004",
+    "deductibleBps": 1000,
+    "insurerShareBps": 8000,
+    "medicalReserveEth": "0.012",
+    "refundReserveEth": "0.0015"
+  },
+  "budget": {
+    "feeCeilingEth": "0.002",
+    "adminRetainedEth": "0.02",
+    "walletFloorsEth": {
+      "holder": "0.006",
+      "bank": "0.006",
+      "oracle1": "0.002",
+      "oracle2": "0.002",
+      "auditor1": "0.0015",
+      "auditor2": "0.0015",
+      "auditor3": "0.0015",
+      "auditor4": "0.0015"
+    }
+  },
+  "timing": {
+    "pollMs": 5000,
+    "finalityTag": "finalized",
+    "deadlines": "chain-time",
+    "retry": "reconcile-signed-intent"
+  },
+  "cases": {
+    "routine": {
+      "service": "HOSPITALIZATION",
+      "grossEth": "0.002",
+      "expectedBillEth": "0.002",
+      "payoutEth": "0.00144",
+      "route": "AUTO",
+      "scoreUnits": 67415682,
+      "oodWarning": false
+    },
+    "manual": {
+      "service": "HOSPITALIZATION",
+      "grossEth": "0.003",
+      "expectedBillEth": "0.0026",
+      "payoutEth": "0.00216",
+      "route": "REVIEW",
+      "scoreUnits": 165616852,
+      "oodWarning": false
+    },
+    "surgery": {
+      "service": "SURGERY",
+      "grossEth": "0.005",
+      "expectedBillEth": "0.005",
+      "payoutEth": "0.00288",
+      "route": "AUTO",
+      "scoreUnits": 67415682,
+      "oodWarning": false
+    }
+  },
+  "expectedTransactionsPerChain": 116,
+  "operations": [
+    {
+      "id": "deploy.manager",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "constructor",
+      "arguments": [],
+      "valueEth": "0",
+      "expectedAfter": "Recorded InsuranceManager creation and runtime"
+    },
+    {
+      "id": "deploy.hospital-registry",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "HospitalVerificationRegistry",
+      "method": "constructor",
+      "arguments": [
+        "$component.InsuranceManager",
+        "$role.admin"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Recorded HospitalVerificationRegistry creation and runtime"
+    },
+    {
+      "id": "deploy.bank-registry",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "BankIdentityRegistry",
+      "method": "constructor",
+      "arguments": [
+        "$component.InsuranceManager",
+        "$role.admin"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Recorded BankIdentityRegistry creation and runtime"
+    },
+    {
+      "id": "deploy.configure-bank",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "configureBankPaymentRegistry",
+      "arguments": [
+        "$component.BankIdentityRegistry"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Bank registry matches"
+    },
+    {
+      "id": "deploy.pin-model",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "updateOracleModelVersion",
+      "arguments": [
+        "$deployment.modelIdentity"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Frozen evaluator active"
+    },
+    {
+      "id": "deploy.adjudicator",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ClaimAdjudicator",
+      "method": "constructor",
+      "arguments": [
+        "$component.InsuranceManager"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Recorded ClaimAdjudicator creation and runtime"
+    },
+    {
+      "id": "deploy.configure-adjudicator",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "configureClaimAdjudicator",
+      "arguments": [
+        "$component.ClaimAdjudicator"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "V6 adjudicator bound"
+    },
+    {
+      "id": "deploy.prepare-duration",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ClaimAdjudicator",
+      "method": "updatePreparationDuration",
+      "arguments": [
+        600
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Preparation window 600 seconds"
+    },
+    {
+      "id": "deploy.review-duration",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ClaimAdjudicator",
+      "method": "updateConfig",
+      "arguments": [
+        600,
+        900
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Review 600 seconds and public route delay 900 seconds"
+    },
+    {
+      "id": "deploy.evidence-registry",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "EvidenceRegistry",
+      "method": "constructor",
+      "arguments": [
+        "$component.InsuranceManager"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Recorded EvidenceRegistry creation and runtime"
+    },
+    {
+      "id": "deploy.package",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "createPolicyPackage",
+      "arguments": [
+        "Health Basic — Accelerated Testnet Demo",
+        "HEALTH",
+        "$deployment.premiumWei",
+        "$deployment.coverageWei",
+        365,
+        "HOSPITAL_BILL"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Package 1 issued with approved premium and cap"
+    },
+    {
+      "id": "deploy.capped-rules",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "PolicyEconomics",
+      "method": "publishCappedRules",
+      "arguments": [
+        "1",
+        "$rules.tuple",
+        "$rules.allowed",
+        "$rules.excluded",
+        "$rules.limits"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Issued rule v1 with surgery sublimit"
+    },
+    {
+      "id": "deploy.benefits",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "PolicyBenefitsManager",
+      "method": "constructor",
+      "arguments": [
+        "$component.InsuranceManager"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Recorded PolicyBenefitsManager creation and runtime"
+    },
+    {
+      "id": "deploy.configure-benefits",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "PolicyEconomics",
+      "method": "configureBenefitsManager",
+      "arguments": [
+        "$component.PolicyBenefitsManager"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Benefits bound"
+    },
+    {
+      "id": "deploy.refund-terms",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "PolicyBenefitsManager",
+      "method": "publishBenefitTerms",
+      "arguments": [
+        "1",
+        false,
+        true,
+        false,
+        0,
+        5000,
+        0,
+        2,
+        1,
+        "$refund.termsHash"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Refund enabled at two installments"
+    },
+    {
+      "id": "deploy.refund-reserve",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "PolicyBenefitsManager",
+      "method": "receive",
+      "arguments": [],
+      "valueEth": "0.0015",
+      "expectedAfter": "Refund reserve funded"
+    },
+    {
+      "id": "deploy.directory",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ProtocolDeploymentRegistry",
+      "method": "constructor",
+      "arguments": [
+        "$directory.version",
+        "$directory.migrationHash"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Recorded ProtocolDeploymentRegistry creation and runtime"
+    },
+    {
+      "id": "deploy.directory-insurancemanager",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ProtocolDeploymentRegistry",
+      "method": "registerComponent",
+      "arguments": [
+        "$hash.InsuranceManager",
+        "$component.InsuranceManager",
+        "$hash.IInsuranceManager/3",
+        true
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Directory binds InsuranceManager"
+    },
+    {
+      "id": "deploy.directory-oraclecoordinator",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ProtocolDeploymentRegistry",
+      "method": "registerComponent",
+      "arguments": [
+        "$hash.OracleCoordinator",
+        "$component.OracleCoordinator",
+        "$hash.IOracleCoordinator/2",
+        true
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Directory binds OracleCoordinator"
+    },
+    {
+      "id": "deploy.directory-claimadjudicator",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ProtocolDeploymentRegistry",
+      "method": "registerComponent",
+      "arguments": [
+        "$hash.ClaimAdjudicator",
+        "$component.ClaimAdjudicator",
+        "$hash.IClaimAdjudicator/2",
+        true
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Directory binds ClaimAdjudicator"
+    },
+    {
+      "id": "deploy.directory-policyeconomics",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ProtocolDeploymentRegistry",
+      "method": "registerComponent",
+      "arguments": [
+        "$hash.PolicyEconomics",
+        "$component.PolicyEconomics",
+        "$hash.IPolicyEconomics/3",
+        true
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Directory binds PolicyEconomics"
+    },
+    {
+      "id": "deploy.directory-evidenceregistry",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ProtocolDeploymentRegistry",
+      "method": "registerComponent",
+      "arguments": [
+        "$hash.EvidenceRegistry",
+        "$component.EvidenceRegistry",
+        "$hash.IEvidenceRegistry/1",
+        true
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Directory binds EvidenceRegistry"
+    },
+    {
+      "id": "deploy.directory-policybenefitsmanager",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ProtocolDeploymentRegistry",
+      "method": "registerComponent",
+      "arguments": [
+        "$hash.PolicyBenefitsManager",
+        "$component.PolicyBenefitsManager",
+        "$hash.IPolicyBenefitsManager/2",
+        true
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Directory binds PolicyBenefitsManager"
+    },
+    {
+      "id": "deploy.directory-hospitalverificationregistry",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ProtocolDeploymentRegistry",
+      "method": "registerComponent",
+      "arguments": [
+        "$hash.HospitalVerificationRegistry",
+        "$component.HospitalVerificationRegistry",
+        "$hash.IHospitalVerificationRegistry/1",
+        false
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Directory binds HospitalVerificationRegistry"
+    },
+    {
+      "id": "deploy.directory-bankidentityregistry",
+      "category": "bootstrap",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ProtocolDeploymentRegistry",
+      "method": "registerComponent",
+      "arguments": [
+        "$hash.BankIdentityRegistry",
+        "$component.BankIdentityRegistry",
+        "$hash.IBankIdentityRegistry/2",
+        true
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Directory binds BankIdentityRegistry"
+    },
+    {
+      "id": "setup.oracle1",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "grantRole",
+      "arguments": [
+        "$hash.ORACLE_ROLE",
+        "$role.oracle1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "oracle1 is active"
+    },
+    {
+      "id": "setup.oracle2",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "grantRole",
+      "arguments": [
+        "$hash.ORACLE_ROLE",
+        "$role.oracle2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "oracle2 is active"
+    },
+    {
+      "id": "setup.auditor1",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "grantRole",
+      "arguments": [
+        "$hash.AUDITOR_ROLE",
+        "$role.auditor1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "auditor1 is active"
+    },
+    {
+      "id": "setup.auditor2",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "grantRole",
+      "arguments": [
+        "$hash.AUDITOR_ROLE",
+        "$role.auditor2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "auditor2 is active"
+    },
+    {
+      "id": "setup.auditor3",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "grantRole",
+      "arguments": [
+        "$hash.AUDITOR_ROLE",
+        "$role.auditor3"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "auditor3 is active"
+    },
+    {
+      "id": "setup.auditor4",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "grantRole",
+      "arguments": [
+        "$hash.AUDITOR_ROLE",
+        "$role.auditor4"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "auditor4 is active"
+    },
+    {
+      "id": "setup.bank",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "BankIdentityRegistry",
+      "method": "registerBankIdentity",
+      "arguments": [
+        "BANK-001",
+        "$role.bank"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Bank signer registered"
+    },
+    {
+      "id": "setup.medical-reserve",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "fundContract",
+      "arguments": [],
+      "valueEth": "0.012",
+      "expectedAfter": "Medical reserve funded"
+    },
+    {
+      "id": "setup.identity-holder",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "EvidenceRegistry",
+      "method": "registerEncryptionIdentity",
+      "arguments": [
+        "$evidence.identity.holder"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encryption identity registered"
+    },
+    {
+      "id": "setup.identity-auditor1",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "auditor1",
+      "target": "EvidenceRegistry",
+      "method": "registerEncryptionIdentity",
+      "arguments": [
+        "$evidence.identity.auditor1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encryption identity registered"
+    },
+    {
+      "id": "setup.identity-auditor2",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "auditor2",
+      "target": "EvidenceRegistry",
+      "method": "registerEncryptionIdentity",
+      "arguments": [
+        "$evidence.identity.auditor2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encryption identity registered"
+    },
+    {
+      "id": "setup.identity-auditor3",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "auditor3",
+      "target": "EvidenceRegistry",
+      "method": "registerEncryptionIdentity",
+      "arguments": [
+        "$evidence.identity.auditor3"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encryption identity registered"
+    },
+    {
+      "id": "setup.identity-auditor4",
+      "category": "setup",
+      "kind": "transaction",
+      "role": "auditor4",
+      "target": "EvidenceRegistry",
+      "method": "registerEncryptionIdentity",
+      "arguments": [
+        "$evidence.identity.auditor4"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encryption identity registered"
+    },
+    {
+      "id": "purchase.routine",
+      "category": "premium",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "purchasePolicyWithTerms",
+      "arguments": [
+        "1",
+        "$package.issueHash",
+        "$policy.routine.documentHash"
+      ],
+      "valueEth": "0.0005",
+      "expectedAfter": "Policy routine purchased"
+    },
+    {
+      "id": "purchase.manual",
+      "category": "premium",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "purchasePolicyWithTerms",
+      "arguments": [
+        "1",
+        "$package.issueHash",
+        "$policy.manual.documentHash"
+      ],
+      "valueEth": "0.0005",
+      "expectedAfter": "Policy manual purchased"
+    },
+    {
+      "id": "purchase.rejected",
+      "category": "premium",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "purchasePolicyWithTerms",
+      "arguments": [
+        "1",
+        "$package.issueHash",
+        "$policy.rejected.documentHash"
+      ],
+      "valueEth": "0.0005",
+      "expectedAfter": "Policy rejected purchased"
+    },
+    {
+      "id": "purchase.clarification",
+      "category": "premium",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "purchasePolicyWithTerms",
+      "arguments": [
+        "1",
+        "$package.issueHash",
+        "$policy.clarification.documentHash"
+      ],
+      "valueEth": "0.0005",
+      "expectedAfter": "Policy clarification purchased"
+    },
+    {
+      "id": "purchase.surgery",
+      "category": "premium",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "purchasePolicyWithTerms",
+      "arguments": [
+        "1",
+        "$package.issueHash",
+        "$policy.surgery.documentHash"
+      ],
+      "valueEth": "0.0005",
+      "expectedAfter": "Policy surgery purchased"
+    },
+    {
+      "id": "purchase.refund",
+      "category": "premium",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "purchasePolicyWithTerms",
+      "arguments": [
+        "1",
+        "$package.issueHash",
+        "$policy.refund.documentHash"
+      ],
+      "valueEth": "0.0005",
+      "expectedAfter": "Policy refund purchased"
+    },
+    {
+      "id": "premium.wallet",
+      "category": "premium",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "payPremium",
+      "arguments": [
+        "$policy.refund.id",
+        "$installment.wallet"
+      ],
+      "valueEth": "0.0005",
+      "expectedAfter": "Wallet installment paid"
+    },
+    {
+      "id": "premium.otp-authorize",
+      "category": "premium",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "confirmManualPayment",
+      "arguments": [
+        "$otp.challenge"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "OTP authorizes exact next installment"
+    },
+    {
+      "id": "premium.otp-settle",
+      "category": "premium",
+      "kind": "transaction",
+      "role": "bank",
+      "target": "BankIdentityRegistry",
+      "method": "confirmEftTransfer",
+      "arguments": [
+        "$bank.otpArguments"
+      ],
+      "valueEth": "0.0005",
+      "expectedAfter": "Bank OTP installment paid"
+    },
+    {
+      "id": "premium.eft-mandate",
+      "category": "premium",
+      "kind": "observation",
+      "role": "bank",
+      "target": "api",
+      "method": "approveEftMandate",
+      "arguments": [
+        "$eft.mandate"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Approved mandate for exact next installment"
+    },
+    {
+      "id": "premium.eft-settle",
+      "category": "premium",
+      "kind": "transaction",
+      "role": "bank",
+      "target": "BankIdentityRegistry",
+      "method": "confirmEftTransfer",
+      "arguments": [
+        "$bank.eftArguments"
+      ],
+      "valueEth": "0.0005",
+      "expectedAfter": "Scheduled installment paid once"
+    },
+    {
+      "id": "premium.eft-cancel",
+      "category": "premium",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "cancelEftMandate",
+      "arguments": [
+        "$eft.mandate"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Campaign mandate cancelled"
+    },
+    {
+      "id": "routine.episode",
+      "category": "registry",
+      "kind": "observation",
+      "role": "hospital",
+      "target": "api",
+      "method": "createEpisode",
+      "arguments": [
+        "$fixture.routine"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Factual episode recorded and authorized",
+      "case": "routine"
+    },
+    {
+      "id": "routine.publish",
+      "category": "registry",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "OracleCoordinator",
+      "method": "publishRegistrySnapshot",
+      "arguments": [
+        "$registry.routine.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Both worker collections bind the new registry root",
+      "case": "routine"
+    },
+    {
+      "id": "routine.encrypted-evidence",
+      "category": "automatic",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "authorizeClaimSubmission",
+      "arguments": [
+        "$evidence.routine"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encrypted primary evidence sealed",
+      "case": "routine"
+    },
+    {
+      "id": "routine.claim",
+      "category": "automatic",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "submitClaim",
+      "arguments": [
+        "$claim.routine.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Claim reserved and linked to issued episode",
+      "case": "routine"
+    },
+    {
+      "id": "routine.oracle-request",
+      "category": "automatic",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "requestOracleVerification",
+      "arguments": [
+        "$claim.routine.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Request pins registry and evaluator",
+      "case": "routine"
+    },
+    {
+      "id": "routine.commit-1",
+      "category": "automatic",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.routine.id",
+        "$request.routine.commitment1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 committed",
+      "case": "routine"
+    },
+    {
+      "id": "routine.commit-2",
+      "category": "automatic",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.routine.id",
+        "$request.routine.commitment2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 2 committed",
+      "case": "routine"
+    },
+    {
+      "id": "routine.reveal-1",
+      "category": "automatic",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.routine.id",
+        "$request.routine.reveal1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 revealed",
+      "case": "routine"
+    },
+    {
+      "id": "routine.reveal-2",
+      "category": "automatic",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.routine.id",
+        "$request.routine.reveal2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Payout allocated",
+      "case": "routine"
+    },
+    {
+      "id": "routine.withdraw",
+      "category": "automatic",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "withdrawSettlement",
+      "arguments": [
+        "$claim.routine.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Payout withdrawn by holder",
+      "case": "routine"
+    },
+    {
+      "id": "manual.episode",
+      "category": "registry",
+      "kind": "observation",
+      "role": "hospital",
+      "target": "api",
+      "method": "createEpisode",
+      "arguments": [
+        "$fixture.manual"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Factual episode recorded and authorized",
+      "case": "manual"
+    },
+    {
+      "id": "manual.publish",
+      "category": "registry",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "OracleCoordinator",
+      "method": "publishRegistrySnapshot",
+      "arguments": [
+        "$registry.manual.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Both worker collections bind the new registry root",
+      "case": "manual"
+    },
+    {
+      "id": "manual.encrypted-evidence",
+      "category": "manual",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "authorizeClaimSubmission",
+      "arguments": [
+        "$evidence.manual"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encrypted primary evidence sealed",
+      "case": "manual"
+    },
+    {
+      "id": "manual.claim",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "submitClaim",
+      "arguments": [
+        "$claim.manual.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Claim reserved and linked to issued episode",
+      "case": "manual"
+    },
+    {
+      "id": "manual.oracle-request",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "requestOracleVerification",
+      "arguments": [
+        "$claim.manual.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Request pins registry and evaluator",
+      "case": "manual"
+    },
+    {
+      "id": "manual.commit-1",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.manual.id",
+        "$request.manual.commitment1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 committed",
+      "case": "manual"
+    },
+    {
+      "id": "manual.commit-2",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.manual.id",
+        "$request.manual.commitment2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 2 committed",
+      "case": "manual"
+    },
+    {
+      "id": "manual.reveal-1",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.manual.id",
+        "$request.manual.reveal1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 revealed",
+      "case": "manual"
+    },
+    {
+      "id": "manual.reveal-2",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.manual.id",
+        "$request.manual.reveal2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle result routes to review",
+      "case": "manual"
+    },
+    {
+      "id": "manual.route",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "sendToManualReview",
+      "arguments": [
+        "$claim.manual.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Four auditors snapshotted",
+      "case": "manual"
+    },
+    {
+      "id": "manual.access",
+      "category": "manual",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "prepareReviewAccess",
+      "arguments": [
+        "$claim.manual.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Owner authorizes four assigned auditors with readable ciphertext",
+      "case": "manual"
+    },
+    {
+      "id": "manual.review-open",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ClaimAdjudicator",
+      "method": "activateReview",
+      "arguments": [
+        "$review.manual.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Vote stage opened",
+      "case": "manual"
+    },
+    {
+      "id": "manual.vote-1",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "auditor1",
+      "target": "ClaimAdjudicator",
+      "method": "castReasonedVote",
+      "arguments": [
+        "$claim.manual.id",
+        "$claim.manual.version",
+        1,
+        "$review.manual.reason1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Vote recorded",
+      "case": "manual"
+    },
+    {
+      "id": "manual.vote-2",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "auditor2",
+      "target": "ClaimAdjudicator",
+      "method": "castReasonedVote",
+      "arguments": [
+        "$claim.manual.id",
+        "$claim.manual.version",
+        1,
+        "$review.manual.reason2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Vote recorded",
+      "case": "manual"
+    },
+    {
+      "id": "manual.vote-3",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "auditor3",
+      "target": "ClaimAdjudicator",
+      "method": "castReasonedVote",
+      "arguments": [
+        "$claim.manual.id",
+        "$claim.manual.version",
+        1,
+        "$review.manual.reason3"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Payout allocated",
+      "case": "manual"
+    },
+    {
+      "id": "manual.withdraw",
+      "category": "manual",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "withdrawSettlement",
+      "arguments": [
+        "$claim.manual.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Payout withdrawn by holder",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.episode",
+      "category": "registry",
+      "kind": "observation",
+      "role": "hospital",
+      "target": "api",
+      "method": "createEpisode",
+      "arguments": [
+        "$fixture.manual"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Factual episode recorded and authorized",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.publish",
+      "category": "registry",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "OracleCoordinator",
+      "method": "publishRegistrySnapshot",
+      "arguments": [
+        "$registry.rejected.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Both worker collections bind the new registry root",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.encrypted-evidence",
+      "category": "appeal",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "authorizeClaimSubmission",
+      "arguments": [
+        "$evidence.rejected"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encrypted primary evidence sealed",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.claim",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "submitClaim",
+      "arguments": [
+        "$claim.rejected.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Claim reserved and linked to issued episode",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.oracle-request",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "requestOracleVerification",
+      "arguments": [
+        "$claim.rejected.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Request pins registry and evaluator",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.commit-1",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.rejected.id",
+        "$request.rejected.commitment1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 committed",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.commit-2",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.rejected.id",
+        "$request.rejected.commitment2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 2 committed",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.reveal-1",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.rejected.id",
+        "$request.rejected.reveal1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 revealed",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.reveal-2",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.rejected.id",
+        "$request.rejected.reveal2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle result routes to review",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.route",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "sendToManualReview",
+      "arguments": [
+        "$claim.rejected.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Four auditors snapshotted",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.access",
+      "category": "appeal",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "prepareReviewAccess",
+      "arguments": [
+        "$claim.rejected.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Owner authorizes four assigned auditors with readable ciphertext",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.review-open",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "ClaimAdjudicator",
+      "method": "activateReview",
+      "arguments": [
+        "$review.rejected.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Vote stage opened",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.vote-1",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "auditor1",
+      "target": "ClaimAdjudicator",
+      "method": "castReasonedVote",
+      "arguments": [
+        "$claim.rejected.id",
+        "$claim.rejected.version",
+        2,
+        "$review.rejected.reason1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Vote recorded",
+      "case": "manual"
+    },
+    {
+      "id": "rejected.vote-2",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "auditor2",
+      "target": "ClaimAdjudicator",
+      "method": "castReasonedVote",
+      "arguments": [
+        "$claim.rejected.id",
+        "$claim.rejected.version",
+        2,
+        "$review.rejected.reason2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Rejected",
+      "case": "manual"
+    },
+    {
+      "id": "appeal.evidence",
+      "category": "appeal",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "authorizeAppeal",
+      "arguments": [
+        "$claim.rejected.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Corrected appeal evidence sealed",
+      "case": "routine"
+    },
+    {
+      "id": "appeal.submit",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "submitAppealWithEvidence",
+      "arguments": [
+        "$appeal.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Appeal bound to a new claim version",
+      "case": "routine"
+    },
+    {
+      "id": "appeal.publish",
+      "category": "registry",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "OracleCoordinator",
+      "method": "publishRegistrySnapshot",
+      "arguments": [
+        "$registry.appeal.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Corrected record published for fresh evaluation",
+      "case": "routine"
+    },
+    {
+      "id": "appeal.oracle-request",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "requestOracleVerification",
+      "arguments": [
+        "$claim.rejected.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Request pins registry and evaluator",
+      "case": "routine"
+    },
+    {
+      "id": "appeal.commit-1",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.appeal.id",
+        "$request.appeal.commitment1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 committed",
+      "case": "routine"
+    },
+    {
+      "id": "appeal.commit-2",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.appeal.id",
+        "$request.appeal.commitment2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 2 committed",
+      "case": "routine"
+    },
+    {
+      "id": "appeal.reveal-1",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.appeal.id",
+        "$request.appeal.reveal1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 revealed",
+      "case": "routine"
+    },
+    {
+      "id": "appeal.reveal-2",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.appeal.id",
+        "$request.appeal.reveal2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Fresh appeal payout allocated",
+      "case": "routine"
+    },
+    {
+      "id": "rejected.withdraw",
+      "category": "appeal",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "withdrawSettlement",
+      "arguments": [
+        "$claim.rejected.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Payout withdrawn by holder",
+      "case": "routine"
+    },
+    {
+      "id": "clarification.episode",
+      "category": "registry",
+      "kind": "observation",
+      "role": "hospital",
+      "target": "api",
+      "method": "createEpisode",
+      "arguments": [
+        "$fixture.manual"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Factual episode recorded and authorized",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.publish",
+      "category": "registry",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "OracleCoordinator",
+      "method": "publishRegistrySnapshot",
+      "arguments": [
+        "$registry.clarification.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Both worker collections bind the new registry root",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.encrypted-evidence",
+      "category": "clarification",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "authorizeClaimSubmission",
+      "arguments": [
+        "$evidence.clarification"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encrypted primary evidence sealed",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.claim",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "submitClaim",
+      "arguments": [
+        "$claim.clarification.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Claim reserved and linked to issued episode",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.oracle-request",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "requestOracleVerification",
+      "arguments": [
+        "$claim.clarification.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Request pins registry and evaluator",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.commit-1",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.clarification.id",
+        "$request.clarification.commitment1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 committed",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.commit-2",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.clarification.id",
+        "$request.clarification.commitment2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 2 committed",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.reveal-1",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.clarification.id",
+        "$request.clarification.reveal1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 revealed",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.reveal-2",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.clarification.id",
+        "$request.clarification.reveal2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle result routes to review",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.ask",
+      "category": "clarification",
+      "kind": "observation",
+      "role": "admin",
+      "target": "api",
+      "method": "openClarification",
+      "arguments": [
+        "$claim.clarification.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Claimant receives an evidence question",
+      "case": "manual"
+    },
+    {
+      "id": "clarification.corrected-publish",
+      "category": "registry",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "OracleCoordinator",
+      "method": "publishRegistrySnapshot",
+      "arguments": [
+        "$registry.clarification-corrected.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Corrected record published",
+      "case": "routine"
+    },
+    {
+      "id": "clarification.answer-evidence",
+      "category": "clarification",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "authorizeClarification",
+      "arguments": [
+        "$clarification.evidence"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encrypted supplement authorized",
+      "case": "routine"
+    },
+    {
+      "id": "clarification.answer",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "ClaimAdjudicator",
+      "method": "applyClarification",
+      "arguments": [
+        "$clarification.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Clarification increments the version",
+      "case": "routine"
+    },
+    {
+      "id": "clarification-corrected.oracle-request",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "requestOracleVerification",
+      "arguments": [
+        "$claim.clarification.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Request pins registry and evaluator",
+      "case": "routine"
+    },
+    {
+      "id": "clarification-corrected.commit-1",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.clarification-corrected.id",
+        "$request.clarification-corrected.commitment1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 committed",
+      "case": "routine"
+    },
+    {
+      "id": "clarification-corrected.commit-2",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.clarification-corrected.id",
+        "$request.clarification-corrected.commitment2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 2 committed",
+      "case": "routine"
+    },
+    {
+      "id": "clarification-corrected.reveal-1",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.clarification-corrected.id",
+        "$request.clarification-corrected.reveal1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 revealed",
+      "case": "routine"
+    },
+    {
+      "id": "clarification-corrected.reveal-2",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.clarification-corrected.id",
+        "$request.clarification-corrected.reveal2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Corrected claim payout allocated",
+      "case": "routine"
+    },
+    {
+      "id": "clarification.withdraw",
+      "category": "clarification",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "withdrawSettlement",
+      "arguments": [
+        "$claim.clarification.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Payout withdrawn by holder",
+      "case": "routine"
+    },
+    {
+      "id": "surgery.episode",
+      "category": "registry",
+      "kind": "observation",
+      "role": "hospital",
+      "target": "api",
+      "method": "createEpisode",
+      "arguments": [
+        "$fixture.surgery"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Factual episode recorded and authorized",
+      "case": "surgery"
+    },
+    {
+      "id": "surgery.publish",
+      "category": "registry",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "OracleCoordinator",
+      "method": "publishRegistrySnapshot",
+      "arguments": [
+        "$registry.surgery.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Both worker collections bind the new registry root",
+      "case": "surgery"
+    },
+    {
+      "id": "surgery.encrypted-evidence",
+      "category": "capped",
+      "kind": "observation",
+      "role": "holder",
+      "target": "api",
+      "method": "authorizeClaimSubmission",
+      "arguments": [
+        "$evidence.surgery"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Encrypted primary evidence sealed",
+      "case": "surgery"
+    },
+    {
+      "id": "surgery.claim",
+      "category": "capped",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "submitClaim",
+      "arguments": [
+        "$claim.surgery.args"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Claim reserved and linked to issued episode",
+      "case": "surgery"
+    },
+    {
+      "id": "surgery.oracle-request",
+      "category": "capped",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "InsuranceManager",
+      "method": "requestOracleVerification",
+      "arguments": [
+        "$claim.surgery.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Request pins registry and evaluator",
+      "case": "surgery"
+    },
+    {
+      "id": "surgery.commit-1",
+      "category": "capped",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.surgery.id",
+        "$request.surgery.commitment1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 committed",
+      "case": "surgery"
+    },
+    {
+      "id": "surgery.commit-2",
+      "category": "capped",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "commitOracleResult",
+      "arguments": [
+        "$request.surgery.id",
+        "$request.surgery.commitment2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 2 committed",
+      "case": "surgery"
+    },
+    {
+      "id": "surgery.reveal-1",
+      "category": "capped",
+      "kind": "transaction",
+      "role": "oracle1",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.surgery.id",
+        "$request.surgery.reveal1"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Oracle 1 revealed",
+      "case": "surgery"
+    },
+    {
+      "id": "surgery.reveal-2",
+      "category": "capped",
+      "kind": "transaction",
+      "role": "oracle2",
+      "target": "OracleCoordinator",
+      "method": "revealOracleResult",
+      "arguments": [
+        "$request.surgery.id",
+        "$request.surgery.reveal2"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Payout allocated",
+      "case": "surgery"
+    },
+    {
+      "id": "surgery.withdraw",
+      "category": "capped",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "withdrawSettlement",
+      "arguments": [
+        "$claim.surgery.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Payout withdrawn by holder",
+      "case": "surgery"
+    },
+    {
+      "id": "refund.accept",
+      "category": "refund",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "PolicyBenefitsManager",
+      "method": "acceptLatestBenefitTerms",
+      "arguments": [
+        "$policy.refund.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Refund terms accepted"
+    },
+    {
+      "id": "refund.cancel",
+      "category": "refund",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "InsuranceManager",
+      "method": "cancelPolicy",
+      "arguments": [
+        "$policy.refund.id"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Policy cancelled"
+    },
+    {
+      "id": "refund.request",
+      "category": "refund",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "PolicyBenefitsManager",
+      "method": "requestBenefit",
+      "arguments": [
+        "$refund.arguments"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Refund requested"
+    },
+    {
+      "id": "refund.approve",
+      "category": "refund",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "PolicyBenefitsManager",
+      "method": "approveBenefit",
+      "arguments": [
+        "$refund.requestId"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Refund approved"
+    },
+    {
+      "id": "refund.allocate",
+      "category": "refund",
+      "kind": "transaction",
+      "role": "admin",
+      "target": "PolicyBenefitsManager",
+      "method": "settleBenefit",
+      "arguments": [
+        "$refund.requestId"
+      ],
+      "valueEth": "0",
+      "expectedAfter": "Refund available for pull withdrawal"
+    },
+    {
+      "id": "refund.withdraw",
+      "category": "refund",
+      "kind": "transaction",
+      "role": "holder",
+      "target": "PolicyBenefitsManager",
+      "method": "withdrawBenefit",
+      "arguments": [],
+      "valueEth": "0",
+      "expectedAfter": "Refund withdrawn by holder"
+    }
+  ]
+}

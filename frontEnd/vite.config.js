@@ -1,4 +1,8 @@
 import { fileURLToPath, URL } from "node:url";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import process from "node:process";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
@@ -12,7 +16,19 @@ function publicReleaseConfiguration() {
       const env = config.env;
       const api = env.VITE_API_BASE_URL;
       const apiOrigin = api && /^https?:/.test(api) ? new URL(api).origin : "same-origin";
+      const root = fileURLToPath(new URL("../", import.meta.url)).replace(/\\/g, "/").replace(/\/$/, "");
+      let commit = process.env.VERCEL_GIT_COMMIT_SHA || process.env.BLOCK_INSURE_SOURCE_COMMIT;
+      if (!commit) {
+        try { commit = execFileSync("git", ["-c", `safe.directory=${root}`, "-C", root, "rev-parse", "HEAD"], {
+          encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
+        }).trim(); } catch { commit = null; }
+      }
+      const abiNames = ["InsuranceManager", "OracleCoordinator", "ClaimAdjudicator", "PolicyEconomics",
+        "EvidenceRegistry", "PolicyBenefitsManager", "HospitalVerificationRegistry", "BankIdentityRegistry", "ProtocolDeploymentRegistry"];
+      const abis = abiNames.map((name) => JSON.parse(readFileSync(new URL(`./src/abi/${name}.json`, import.meta.url), "utf8")).abi);
+      const abiDigest = createHash("sha256").update(JSON.stringify(abis)).digest("hex");
       body = JSON.stringify({ schema: "block-insure-public-release-v1", chainId: String(env.VITE_CHAIN_ID || 31337), apiOrigin,
+        sourceCommit: /^[a-f\d]{40}$/i.test(commit || "") ? commit.toLowerCase() : null, abiDigest,
         managerAddress: env.VITE_CONTRACT_ADDRESS || "", economicsAddress: env.VITE_POLICY_ECONOMICS_ADDRESS || "",
         evidenceRegistryAddress: env.VITE_EVIDENCE_REGISTRY_ADDRESS || "", benefitsAddress: env.VITE_POLICY_BENEFITS_ADDRESS || "" });
     },

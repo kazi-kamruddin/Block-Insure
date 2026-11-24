@@ -13,6 +13,7 @@ const {
 const { writeEvent } = require("../scripts/observability");
 const { startRegistryPublisher, stopRegistryPublisher } = require("./services/registryPublicationService");
 const {
+  runWithStartupRpcRetry,
   startBlockchainIndexer,
   stopBlockchainIndexer,
 } = require("./services/blockchainIndexerService");
@@ -294,7 +295,10 @@ const startServer = async () => {
       if (shuttingDown) return;
       startEvidenceAnchorScheduler();
       startReviewAccessScheduler();
-      await startBlockchainEventListener();
+      // The reserve listener's first RPC calls hit the same provider as catch-up;
+      // a transient timeout here must back off, not crash-loop the service.
+      await runWithStartupRpcRetry(startBlockchainEventListener);
+      if (shuttingDown) return;
       startBankPaymentScheduler();
       startRegistryPublisher();
     } else {

@@ -350,15 +350,34 @@ const indexConfirmedEvents = () => {
   return indexingPromise;
 };
 
+// Provider failures that clear on their own. Configuration and data errors
+// (wrong chain, bad address, 4xx other than 429) still fail startup closed.
+const TRANSIENT_RPC_CODES = new Set([
+  "TIMEOUT", "NETWORK_ERROR", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT",
+  "EAI_AGAIN", "EPIPE", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET",
+]);
+
+const classifyStartupRpcError = (error) => {
+  const details = [error?.status, error?.statusCode, error?.error?.code,
+    error?.info?.responseStatus, error?.shortMessage, error?.message].join(" ");
+  if (/\b429\b|rate limit exceeded/i.test(details)) return "rate limited";
+  const codes = [error?.code, error?.cause?.code, error?.error?.code].map(String);
+  if (codes.some((code) => TRANSIENT_RPC_CODES.has(code))) return "temporarily unavailable";
+  const responseStatus = String(error?.info?.responseStatus ?? "").match(/^(\d{3})/)?.[1];
+  const status = Number(responseStatus ?? error?.status ?? error?.statusCode);
+  if (status >= 500 && status <= 599) return "temporarily unavailable";
+  return null;
+};
+
 async function catchUpIndexer(run, sleep, signal) {
   for (let delay = 1000; !signal.aborted; delay = Math.min(delay * 2, 60000)) {
     try {
       return await run();
     } catch (error) {
-      const details = [error?.status, error?.statusCode, error?.error?.code,
-        error?.info?.responseStatus, error?.shortMessage, error?.message].join(" ");
-      if (!/\b429\b|rate limit exceeded/i.test(details)) throw error;
-      console.warn(`[Indexer] RPC rate limited during startup. Retrying from the saved checkpoint in ${delay}ms.`);
+      const reason = classifyStartupRpcError(error);
+      if (!reason) throw error;
+      console.warn(`[Indexer] RPC ${reason} during startup (${error?.code || error?.shortMessage || error?.message}). Retrying from the saved checkpoint in ${delay}ms.`);
       await sleep(delay, undefined, { signal });
     }
   }
@@ -409,19 +428,25 @@ const getIndexedEventsPage = async ({
   };
 };
 
-const startBlockchainIndexer = async () => {
-  if (process.env.INDEXER_ENABLED === "false" || indexerTimer) return;
-  await ensureIndexerIndexes();
+// Runs a startup RPC step with transient-failure backoff. stopBlockchainIndexer()
+// aborts the wait during shutdown; returns false when aborted.
+const runWithStartupRpcRetry = async (run) => {
   const retry = new AbortController();
   startupRetry = retry;
   try {
-    await catchUpIndexer(indexConfirmedEvents, wait, retry.signal);
+    await catchUpIndexer(run, wait, retry.signal);
   } catch (error) {
     if (error.name !== "AbortError" || !retry.signal.aborted) throw error;
   } finally {
     if (startupRetry === retry) startupRetry = null;
   }
-  if (retry.signal.aborted) return;
+  return !retry.signal.aborted;
+};
+
+const startBlockchainIndexer = async () => {
+  if (process.env.INDEXER_ENABLED === "false" || indexerTimer) return;
+  await ensureIndexerIndexes();
+  if (!(await runWithStartupRpcRetry(indexConfirmedEvents))) return;
   indexerTimer = setInterval(() => {
     indexConfirmedEvents().catch((error) =>
       console.error("Blockchain indexer failed:", error.message)
@@ -438,6 +463,7 @@ const stopBlockchainIndexer = () => {
 
 module.exports = {
   catchUpIndexer,
+  runWithStartupRpcRetry,
   getIndexerContext,
   INDEXER_ID,
   ensureIndexerIndexes,

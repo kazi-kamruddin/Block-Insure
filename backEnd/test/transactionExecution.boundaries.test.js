@@ -60,8 +60,12 @@ for (const [method, handler, args, eventName, eventArgs] of benefitCases) for (c
       getTransactionReceipt: async () => ({ status: 1, logs: [encodedEvent(benefitsInterface, managerAddress, eventName, eventArgs)] }),
       send: async () => ({ type: "CALL", from: actor, to: managerAddress, input: data }),
     };
-    const contract = { target: managerAddress, interface: new ethers.Interface(require("../abi/policyBenefitsAbi")), runner: provider };
+    const notifications = [];
+    const contract = { target: managerAddress, interface: new ethers.Interface(require("../abi/policyBenefitsAbi")), runner: provider,
+      getBenefitRequest: async () => ({ benefitType: 1n, policyId: 8n }) };
     const controller = load("controllers/policyBenefitsController.js", {
+      "../services/contractService": { getReadOnlyContract: () => ({ getPolicy: async () => ({ holderWallet: relay }) }) },
+      "../services/notificationService": { notifyRefund: async (wallet, payload) => notifications.push({ wallet, ...payload }) },
       "../services/policyBenefitsService": { getReadOnlyBenefitsContract: () => contract, getBenefitsAddress: () => managerAddress },
       "../services/adminActionLogService": { logAdminAction: async () => {} },
     });
@@ -69,6 +73,8 @@ for (const [method, handler, args, eventName, eventArgs] of benefitCases) for (c
     await controller[handler]({ params: method === "publishBenefitTerms" ? { packageId: "1" } : { requestId: "1" },
       body: { transactionHash: hash }, user: { walletAddress: actor, role: "ADMIN" } }, r.res, r.next);
     assert.equal(r.result.error, undefined); assert.equal(r.result.body.success, true);
+    assert.deepEqual(notifications, method === "settleBenefit" ? [{ wallet: relay, status: "AVAILABLE",
+      transactionHash: hash, policyId: "8", scope: managerAddress }] : []);
   });
 }
 
@@ -95,4 +101,32 @@ test("unrelated successful sibling cannot resurrect a reverted actor call", asyn
 test("deep provider traces fail within the verification depth budget", async () => {
   let root = call(); for (let index = 0; index < 66; index++) root = { calls: [root] };
   await assert.rejects(execution(root), /limits/);
+});
+
+for (const [label, owner, emitter, canonical] of [
+  ["canonical withdrawal", actor, managerAddress, true],
+  ["another holder", relay, managerAddress, true],
+  ["untrusted emitter", actor, relay, true],
+  ["orphaned block", actor, managerAddress, false],
+]) test("refund confirmation notification: " + label, async () => {
+  const blockHash = ethers.id("canonical refund block");
+  const notifications = [];
+  const contract = { target: managerAddress, runner: {
+    getTransactionReceipt: async () => ({ status: 1, blockNumber: 8, blockHash,
+      logs: [encodedEvent(benefitsInterface, emitter, "BenefitWithdrawn", [owner, 100])] }),
+    getBlock: async () => ({ hash: canonical ? blockHash : ethers.ZeroHash }),
+  } };
+  const controller = load("controllers/policyBenefitsController.js", {
+    "../services/policyBenefitsService": { getReadOnlyBenefitsContract: () => contract },
+    "../services/notificationService": { notifyRefund: async (wallet, details) => notifications.push({ wallet, ...details }) },
+  });
+  const r = response();
+  await controller.confirmRefundWithdrawal({ body: { transactionHash: hash }, user: { walletAddress: actor } }, r.res, r.next);
+  if (label === "canonical withdrawal") {
+    assert.deepEqual(r.result.body, { confirmed: true });
+    assert.deepEqual(notifications, [{ wallet: actor, status: "WITHDRAWN", transactionHash: hash, scope: managerAddress }]);
+  } else {
+    assert.equal(r.result.error.statusCode, 409);
+    assert.deepEqual(notifications, []);
+  }
 });

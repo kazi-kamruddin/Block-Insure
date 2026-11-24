@@ -91,14 +91,14 @@ test.describe("@unfinished live defensive and isolation boundaries", () => {
 
       const crossHospitalPatch = await outsider.page.request.patch(
         `${getE2EConfig().apiUrl}/api/hospitals/records/${protectedRecord.id}`,
-        { headers: outsiderHeaders, data: { invoiceStatus: "PAID" } }
+        { headers: outsiderHeaders, data: { diagnosisCode: "TEST-CROSS-HOSPITAL", revision: protectedRecord.revision } }
       );
       expect(crossHospitalPatch.status()).toBe(404);
 
       await loginActor(user.page, user.actor);
       const wrongRolePatch = await user.page.request.patch(
         `${getE2EConfig().apiUrl}/api/hospitals/records/${protectedRecord.id}`,
-        { headers: await bearer(user.page), data: { invoiceStatus: "PAID" } }
+        { headers: await bearer(user.page), data: { diagnosisCode: "TEST-CROSS-HOSPITAL", revision: protectedRecord.revision } }
       );
       expect(wrongRolePatch.status()).toBe(401);
 
@@ -107,7 +107,9 @@ test.describe("@unfinished live defensive and isolation boundaries", () => {
         { headers: await bearer(owner.page) }
       );
       expect(ownerRecordAfter.ok()).toBe(true);
-      expect((await ownerRecordAfter.json()).record.invoiceStatus).toBe(protectedRecord.invoiceStatus);
+      expect((await ownerRecordAfter.json()).record).toMatchObject({
+        diagnosisCode: protectedRecord.diagnosisCode, revision: protectedRecord.revision,
+      });
     } finally {
       await closeActor(owner);
       await closeActor(outsider);

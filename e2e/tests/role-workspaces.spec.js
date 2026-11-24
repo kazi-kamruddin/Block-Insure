@@ -1,6 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { loginActor } = require("../support/actions");
 const { closeActor, createActorContext } = require("../support/walletBridge");
+const { getE2EConfig } = require("../support/environment");
 
 test.describe("@smoke role workspaces", () => {
   test("User signs in, sees policyholder pages, and cannot enter Admin", async ({ browser }) => {
@@ -37,8 +38,9 @@ test.describe("@smoke role workspaces", () => {
 
       await session.page.goto("/admin/role-health");
       await expect(session.page.getByRole("heading", { name: "Role Sync Health" })).toBeVisible();
-      await expect(session.page.getByText("Status: Healthy")).toBeVisible();
-      await expect(session.page.getByText("Mismatches: 0")).toBeVisible();
+      const summary = session.page.locator("dl").filter({ has: session.page.getByText("Checked wallets", { exact: true }) });
+      await expect(summary.getByText("Healthy", { exact: true })).toBeVisible();
+      await expect(summary.getByText("0", { exact: true })).toBeVisible();
 
       await session.page.goto("/admin/policy-packages");
       await expect(
@@ -129,10 +131,14 @@ test.describe("@smoke role workspaces", () => {
 
       await session.page.goto("/auditor/healthcare-registry");
       await expect(session.page).toHaveURL(/\/auditor\/votes$/);
-      const denied = await session.page.evaluate(async () => (await fetch("http://localhost:5000/mock/hospital/records", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` },
-      })).status);
-      expect(denied).toBe(403);
+      // Server-side authorization check with the signed-in Auditor's own token. An in-page
+      // fetch can be aborted by a client-side navigation and report "Failed to fetch".
+      const token = await session.page.evaluate(() => localStorage.getItem("blockinsure_jwt"));
+      expect(token).toBeTruthy();
+      const denied = await session.page.request.get(getE2EConfig().apiUrl + "/mock/hospital/records", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(denied.status()).toBe(403);
 
       await session.page.goto("/auditor/votes");
       await expect(session.page.getByRole("heading", { name: "Voting Queue" })).toBeVisible();

@@ -110,9 +110,7 @@ application document acceptance. Such a policy is explicitly marked as lacking
 an application document binding. Separate optional benefits enrollment is not
 part of the medical document's promise.
 
-Settlement applies the deductible before the insurer's share. If the resulting
-liability exceeds remaining coverage, the contract rejects the claim rather than
-silently capping the payment. Previews disclose their advisory status.
+Legacy settlement applies the deductible and insurer's share, then rejects a liability beyond remaining coverage. An issued V6 capped offer applies the service sublimit, deductible, insurer share, and remaining policy coverage in that order. The V6 claim flow selects an insurer-linked episode and verifies its issued amount. Hospital staff enter factual records and corrections. Classification and routing belong to the insurer and Oracle workflow. Previews disclose their advisory status.
 
 ## One installment schedule
 

@@ -2,10 +2,10 @@
 const { HDNodeWallet } = require("../backEnd/node_modules/ethers");
 const { HARDHAT_NETWORK_MNEMONIC } = require("../contracts/node_modules/hardhat/internal/core/config/default-config");
 let localAddresses;
-function assertDeploymentSigner(chainId, address, { local = false } = {}) {
+function assertDeploymentSigner(chainId, address, { local = false, paired = false } = {}) {
   const chain = BigInt(chainId);
   if (local) {
-    if (chain !== 31337n) throw new Error("Local deployment requires chain 31337");
+    if (chain !== 31337n && !(paired && chain === 11155111n)) throw new Error(paired ? "Paired loopback deployments require chain 31337 or 11155111" : "Local deployment requires chain 31337");
     return;
   }
   if (![11155111n, 84532n].includes(chain)) throw new Error("Unsupported public test network");

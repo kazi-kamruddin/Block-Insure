@@ -4,9 +4,10 @@ const fs = require("node:fs");
 const mongoose = require("../../backEnd/node_modules/mongoose");
 const { Contract } = require("../../backEnd/node_modules/ethers");
 const { createActorContext, closeActor } = require("../support/walletBridge");
-const { loginActor, resetLocalClaimSubmissionLimit, syntheticPdfEvidenceFile, uniqueEvidenceFile, localDateTimeValue } = require("../support/actions");
+const { loginActor, prepareReasonedVote, resetLocalClaimSubmissionLimit, syntheticPdfEvidenceFile, uniqueEvidenceFile, localDateTimeValue, requestReadyOracleVerification } = require("../support/actions");
 const { prepareReviewerIdentities, authorizeReview } = require("../support/reviewPreparation");
-const { requireDisposableE2EMongoUri } = require("../support/environment");
+const { getE2EConfig, requireDisposableE2EMongoUri } = require("../support/environment");
+const apiUrl = getE2EConfig().apiUrl;
 
 async function buyAndFill(session) {
   const page = session.page;
@@ -32,7 +33,7 @@ async function openReview(browser, claimId, episode) {
   const admin = await createActorContext(browser, "admin");
   try {
     await loginActor(admin.page, admin.actor); await episode.revoke(admin); await admin.page.goto(`/admin/claims/${claimId}`);
-    await admin.page.getByRole("button", { name: "Request Oracle Verification" }).click();
+    await requestReadyOracleVerification(admin.page, claimId);
     const status = admin.page.locator(".admin-claim-sidebar p strong").first();
     await expect.poll(async () => { await admin.page.getByRole("button", { name: "Refresh Claim" }).click(); return (await status.textContent()).trim(); }, { timeout: 90000, intervals: [1000, 3000] }).toBe("ORACLE_FAILED");
     await admin.page.getByRole("button", { name: "Send to Manual Review" }).click();
@@ -53,9 +54,8 @@ async function chain(session) {
 }
 
 test.describe("@workflow phase two evidence and review recovery", () => {
-  test.describe.configure({ mode: "serial" });
   test("partial bundle recovery, batch authorization, owner-offline decryption and quorum withdrawal", async ({ browser }, testInfo) => {
-    test.setTimeout(420000);
+    test.setTimeout(720000);
     const user = await createActorContext(browser, "user", { viewport: { width: 320, height: 900 } });
     const primary = syntheticPdfEvidenceFile(), supporting = uniqueEvidenceFile();
     let claimantClosed = false;
@@ -101,7 +101,7 @@ test.describe("@workflow phase two evidence and review recovery", () => {
       const unauthorized = await createActorContext(browser, "beneficiary");
       try {
         await loginActor(unauthorized.page, unauthorized.actor);
-        const denial = await unauthorized.page.evaluate(async (id) => (await fetch(`http://localhost:5000/api/documents/${id}/decryption-key`, { headers: { Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` } })).status, String(files[0]._id));
+        const denial = await unauthorized.page.evaluate(async ({ id, apiUrl }) => (await fetch(`${apiUrl}/api/documents/${id}/decryption-key`, { headers: { Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` } })).status, { id: String(files[0]._id), apiUrl });
         expect(denial).toBe(403);
       } finally { await closeActor(unauthorized); }
       await authorizeReview(user.page, claimId);
@@ -109,19 +109,19 @@ test.describe("@workflow phase two evidence and review recovery", () => {
       const probe = await createActorContext(browser, "auditor1");
       try {
         await loginActor(probe.page, probe.actor);
-        const readCapsule = () => probe.page.evaluate(async (id) => (await fetch(`http://localhost:5000/api/documents/${id}/decryption-key`, {
+        const readCapsule = () => probe.page.evaluate(async ({ id, apiUrl }) => (await fetch(`${apiUrl}/api/documents/${id}/decryption-key`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` },
-        })).status, String(files[0]._id));
+        })).status, { id: String(files[0]._id), apiUrl });
         expect(await readCapsule()).toBe(200);
-        const revoked = await user.page.evaluate(async ({ id, wallet }) => (await fetch(`http://localhost:5000/api/documents/${id}/grants`, {
+        const revoked = await user.page.evaluate(async ({ id, wallet, apiUrl }) => (await fetch(`${apiUrl}/api/documents/${id}/grants`, {
           method: "DELETE", headers: { "content-type": "application/json", Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` }, body: JSON.stringify({ granteeWallet: wallet }),
-        })).status, { id: String(files[0]._id), wallet: probe.wallet.address.toLowerCase() });
+        })).status, { id: String(files[0]._id), wallet: probe.wallet.address.toLowerCase(), apiUrl });
         expect(revoked).toBe(200);
         expect(await readCapsule()).toBe(403);
         await expect(user.page.getByRole("region", { name: "Evidence access preparation" })).toContainText("A grant or registered key changed", { timeout: 10000 });
-        const resumed = await user.page.evaluate(async (id) => (await fetch(`http://localhost:5000/api/claims/${id}/review-access/resume`, {
+        const resumed = await user.page.evaluate(async ({ id, apiUrl }) => (await fetch(`${apiUrl}/api/claims/${id}/review-access/resume`, {
           method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("blockinsure_jwt")}` },
-        })).status, claimId);
+        })).status, { id: claimId, apiUrl });
         expect(resumed).toBe(202); expect(await readCapsule()).toBe(200);
         expect((await adjudicator.getReview(claimId, 1)).deadline).toBe(originalDeadline);
       } finally { await closeActor(probe); }
@@ -149,8 +149,9 @@ test.describe("@workflow phase two evidence and review recovery", () => {
           if (process.env.CLAIM_WORKFLOW_PROFILE === "V6") {
             await auditor.page.getByLabel("Evidence supporting your vote").fill("The decrypted invoice matches the treatment received and documented charges.");
           }
+          await prepareReasonedVote(auditor.page, "Authorized evidence and the invoice support the claim for this covered treatment.");
           await auditor.page.getByRole("button", { name: "Valid Claim", exact: true }).click();
-          await expect(auditor.page.locator(".success-text")).toContainText("Valid Claim vote recorded on-chain", { timeout: 60000 });
+          await expect(auditor.page.getByText("Valid Claim vote recorded on-chain.", { exact: true })).toBeVisible({ timeout: 60000 });
         } finally { await closeActor(auditor); }
       }
       const returning = await createActorContext(browser, "user");
@@ -166,7 +167,7 @@ test.describe("@workflow phase two evidence and review recovery", () => {
   });
 
   test("preparation expiry and a mined appeal recover after lost registration without another round", async ({ browser }) => {
-    test.setTimeout(300000);
+    test.setTimeout(540000);
     const user = await createActorContext(browser, "user");
     const mongo = await mongoose.createConnection(requireDisposableE2EMongoUri()).asPromise();
     try {
@@ -202,7 +203,7 @@ test.describe("@workflow phase two evidence and review recovery", () => {
       const admin = await createActorContext(browser, "admin");
       try {
         await loginActor(admin.page, admin.actor); await admin.page.goto(`/admin/claims/${claimId}`);
-        await admin.page.getByRole("button", { name: "Request Oracle Verification" }).click();
+        await requestReadyOracleVerification(admin.page, claimId);
         await expect.poll(async () => Number((await manager.getClaim(claimId)).status), { timeout: 120000, intervals: [2000] }).toBe(7);
       } finally { await closeActor(admin); }
       await user.page.reload(); await user.page.getByRole("button", { name: "Withdraw Payment" }).click();

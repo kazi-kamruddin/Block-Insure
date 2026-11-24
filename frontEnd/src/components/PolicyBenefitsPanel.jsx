@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ethers } from "ethers";
-import { downloadPolicyTerms, getPolicyBenefits } from "../services/api";
+import { confirmRefundWithdrawal, downloadPolicyTerms, getPolicyBenefits } from "../services/api";
 import { cancelPolicy, parseTransactionError, requestPolicyBenefit, withdrawPolicyBenefit } from "../services/contractService";
 import { showToast } from "../services/toast";
 import TransactionLink from "./TransactionLink";
@@ -15,9 +15,15 @@ export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
   const handleToggle = (event) => {
     setExpanded(event.currentTarget.open);
   };
-  async function run(action, message) {
+  async function run(action, message, thenConfirm) {
     setActing(true); setError("");
-    try { await (await action()).wait(); showToast(message); await refetch(); await onPolicyChanged?.(); }
+    try {
+      const tx = await action();
+      await tx.wait();
+      showToast(message);
+      if (thenConfirm) await thenConfirm(tx.hash).catch(() => showToast("The withdrawal is confirmed. Its activity notice is temporarily unavailable."));
+      await refetch(); await onPolicyChanged?.();
+    }
     catch (failure) { setError(parseTransactionError(failure)); }
     finally { setActing(false); }
   }
@@ -62,7 +68,7 @@ export default function PolicyBenefitsPanel({ policy, onPolicyChanged }) {
       {data.withdrawalReceipt && <p role="status">Latest wallet refund withdrawal confirmed: {data.withdrawalReceipt.amountEth} test ETH · <TransactionLink txHash={data.withdrawalReceipt.transactionHash} />. A wallet withdrawal can combine allocated refunds from multiple policies; the request decision remains allocated.</p>}
       {BigInt(data.claimable?.wei || "0") > 0n && (
         <div className="action-row">
-          <button type="button" disabled={acting} onClick={() => run(withdrawPolicyBenefit, "Allocated refund withdrawn.")}>Withdraw cancellation refund</button>
+          <button type="button" disabled={acting} onClick={() => run(withdrawPolicyBenefit, "Allocated refund withdrawn.", confirmRefundWithdrawal)}>Withdraw cancellation refund</button>
         </div>
       )}
       {error && <p className="error-text" role="alert">{error}</p>}

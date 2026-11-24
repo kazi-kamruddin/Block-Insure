@@ -34,6 +34,7 @@ function boot({ blockchain = true, databaseFailure = false } = {}) {
     },
     blockchainIndexerService: {
       startBlockchainIndexer: () => { calls.push("indexer.start"); return indexing; },
+      runWithStartupRpcRetry: async (run) => { await run(); return true; },
       stopBlockchainIndexer: () => calls.push("indexer.stop"),
     },
     readinessService: { buildHealthPayload: async () => ({ success: true, status: "ready" }) },

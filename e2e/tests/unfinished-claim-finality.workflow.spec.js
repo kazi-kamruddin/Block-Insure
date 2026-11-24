@@ -9,6 +9,8 @@ const managerArtifact = require("../../contracts/artifacts/contracts/InsuranceMa
 const adjudicatorArtifact = require("../../contracts/artifacts/contracts/ClaimAdjudicator.sol/ClaimAdjudicator.json");
 const {
   localDateTimeValue,
+  prepareReasonedVote,
+  requestReadyOracleVerification,
   loginActor,
   uniqueEvidenceFile,
 } = require("../support/actions");
@@ -29,15 +31,7 @@ async function requestAppealOracleAsAdmin(browser, claimId) {
     await admin.page.goto(`/admin/claims/${claimId}`);
     const status = admin.page.locator(".admin-claim-sidebar p strong").first();
     await expect(status).toHaveText("APPEALED");
-    const requestButton = admin.page.getByRole("button", {
-      name: "Request Oracle Verification",
-    });
-    await expect(requestButton).toBeEnabled();
-    await requestButton.click();
-    await expect(admin.page.locator(".success-text")).toHaveText(
-      "Oracle verification requested successfully.",
-      { timeout: 60_000 }
-    );
+    await requestReadyOracleVerification(admin.page, claimId);
   } finally {
     await closeActor(admin);
   }
@@ -149,6 +143,7 @@ test.describe("@unfinished manual-review finality", () => {
         page.getByRole("button", { name: "Invalid Claim", exact: true })
       );
       await Promise.all(buttons.map((button) => expect(button).toBeEnabled()));
+      await Promise.all(auditors.map(({ page }) => prepareReasonedVote(page, "The disclosed invoice cannot substantiate the submitted treatment and amount.")));
       await Promise.all(buttons.map((button) => button.click()));
       await Promise.all(
         auditors.map(({ page }) =>
@@ -177,6 +172,7 @@ test.describe("@unfinished manual-review finality", () => {
             retryPage = page;
           }
         }
+        await prepareReasonedVote(retryPage, "The disclosed invoice cannot substantiate the submitted treatment and amount.");
         await retryPage.getByRole("button", { name: "Invalid Claim", exact: true }).click();
         await expect(
           retryPage.getByText("Invalid Claim vote recorded on-chain.", { exact: true })
@@ -227,7 +223,7 @@ test.describe("@unfinished manual-review finality", () => {
   });
 
   test("rejected claim completes an encrypted corrected appeal through both Oracles and settlement", async ({ browser }, testInfo) => {
-    test.setTimeout(300_000);
+    test.setTimeout(600_000);
     const { user, claimId, correctedInvoice } = await createManualReview(browser);
     let sponsored;
     try {
@@ -241,6 +237,7 @@ test.describe("@unfinished manual-review finality", () => {
             exact: true,
           });
           await expect(rejectButton).toBeEnabled();
+          await prepareReasonedVote(auditor.page, "The current adjudication package has no accepted record verifying the submitted invoice.");
           await rejectButton.click();
           await expect(
             auditor.page.getByText("Invalid Claim vote recorded on-chain.", { exact: true })
@@ -262,10 +259,7 @@ test.describe("@unfinished manual-review finality", () => {
       await user.page.getByLabel("Additional document").setInputFiles(uniqueEvidenceFile());
       await user.page.getByLabel("Correct invoice number").fill(correctedInvoice);
       await user.page.getByRole("button", { name: "Appeal This Decision" }).click();
-      await expect(user.page.locator(".success-text")).toContainText(
-        "Appeal submitted successfully",
-        { timeout: 120_000 }
-      );
+      await expect(user.page.getByText("Appeal submitted successfully.", { exact: true })).toBeVisible({ timeout: 120_000 });
       await expect(user.page.locator(".appeal-status")).toContainText(appealReason);
       await expect(user.page.locator(".status-badge").filter({ hasText: "APPEALED" })).toBeVisible();
 

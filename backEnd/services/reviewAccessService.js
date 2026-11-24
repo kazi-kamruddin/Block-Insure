@@ -157,7 +157,15 @@ function startReviewAccessScheduler() {
   timer = setInterval(async () => {
     if (running) return;
     running = true;
-    try { for (const batch of await Batch.find({ deploymentScope: await assertEvidenceDeployment(), status: "PREPARED" }).limit(50)) await activateBatch(batch); }
+    try {
+      const deploymentScope = await assertEvidenceDeployment();
+      await Promise.all([
+        (async () => {
+          for (const batch of await Batch.find({ deploymentScope, status: "PREPARED" }).limit(50)) await activateBatch(batch);
+        })().catch(() => console.warn("Evidence access reconciliation will retry; voting remains contract-gated.")),
+        require("./notificationService").notifyExpiredClarifications(deploymentScope).catch(() => console.warn("Clarification expiry notices will retry.")),
+      ]);
+    }
     catch { console.warn("Evidence access reconciliation will retry; voting remains contract-gated."); }
     finally { running = false; }
   }, 5000); timer.unref?.();
